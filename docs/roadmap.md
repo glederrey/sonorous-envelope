@@ -32,8 +32,8 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [ ] **Step 6. Gestures.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
 
 ### 4. Modes and richer output
-- [ ] **#16 Two modes (inner and outer).** `mode` on `start_session`, per-mode guidance in the result, different feedback emphasis.
-- [ ] **#18 Strudel or Sonic Pi.** Start with the cheap parts: the "what Claude set" panel, mini-notation, then Strudel as an outer-mode backend. Decide after #16.
+- [ ] **#16 Modes.** `mode` on `start_session`, fixed per session, per-mode guidance in the result, different feedback emphasis. Inner (the sound is Claude's own state, never announced), outer (Claude may talk about the sound), and Strudel (below).
+- [ ] **#18 Strudel as a separate mode.** Decided: Strudel is its own `mode`, not a replacement for the built-in synth. Claude writes Strudel code, the player runs it in the browser and shows the code to listeners. The AGPL licence is already set up for it ([licensing.md](licensing.md)). Needs a design for safety and feedback first (limits on code, volume cap, what feedback means). Sonic Pi stays out: it cannot run in a browser. Do after #16.
 - [ ] **Step 12. Richer visuals.** More shapes, gradients and motion for the colour field ([visuals.md](visuals.md)).
 - [ ] **Landing page extras.** Live colour field behind the hero, "Play a sample" button.
 
@@ -43,6 +43,7 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
 - [ ] **Step 11. Server-rendered audio stream** on an always-on host, for real background playback on phones (see #19 and mobile.md). MCP Apps player if the mobile app supports it.
+- [ ] **Source link in the footer** (AGPL section 13), required before the Strudel mode ships. See licensing.md.
 - [ ] **#11 Sitemap and robots.** Not scheduled.
 
 ### Behaviour changes made along the way
