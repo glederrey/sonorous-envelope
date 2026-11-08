@@ -248,15 +248,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); document.removeEventListener("resume", back); };
   }, [beat]);
 
-  // With the controls hidden the page is just the colour field: nothing to scroll, and no pull-to-refresh by accident
-  useEffect(() => {
-    if (!(started && hidden)) return;
-    const root = document.documentElement;
-    const before = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior };
-    root.style.overflow = "hidden"; root.style.overscrollBehavior = "none";
-    return () => { root.style.overflow = before.overflow; root.style.overscrollBehavior = before.overscroll; };
-  }, [started, hidden]);
-
   // lock screen and headset controls: play and pause map to unmute and mute
   useEffect(() => {
     if (!started || !("mediaSession" in navigator)) return;

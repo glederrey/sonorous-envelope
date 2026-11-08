@@ -337,6 +337,28 @@ html {
   /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
   scrollbar-gutter: stable;
 }
+/* The player page never scrolls (the colour field fills the window, and scrolls inside itself only if a panel is too tall).
+   It reserves no scrollbar strip, so the colour reaches the window edge; the header and footer get the strip's width as
+   padding instead, so they stay exactly where they are on the pages that do reserve it. --se-sbw is measured by a small
+   script in <head> (layout.tsx). */
+html:has(.pl-field) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+html:has(.pl-field) .se-footer {
+  padding-right: calc(16px + var(--se-sbw, 0px));
+}
+/* the header is a centred box of at most 1040px: on wide windows move the box, on narrow ones shrink it */
+html:has(.pl-field) .se-header {
+  position: relative;
+  left: calc(var(--se-sbw, 0px) / -2);
+}
+@media (max-width: 1100px) {
+  html:has(.pl-field) .se-header {
+    left: 0;
+    padding-right: calc(16px + var(--se-sbw, 0px));
+  }
+}
 .se-input,
 .se-mono {
   font-variant-numeric: tabular-nums;
@@ -829,7 +851,7 @@ html {
 .pl-field {
   --pl-t: 1s;
   position: relative;
-  min-height: calc(100dvh - var(--se-header-h) - var(--se-footer-h));
+  height: calc(100dvh - var(--se-header-h) - var(--se-footer-h));
   display: grid;
   background:
     linear-gradient(160deg,
@@ -837,7 +859,8 @@ html {
       hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)));
   transition: --pl-h var(--pl-t) ease-in-out, --pl-s var(--pl-t) ease-in-out, --pl-l var(--pl-t) ease-in-out,
               --pl-h2 var(--pl-t) ease-in-out, --pl-s2 var(--pl-t) ease-in-out, --pl-l2 var(--pl-t) ease-in-out;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .pl-field::before, .pl-field::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .pl-field[data-texture="grain"]::before, .pl-field[data-texture="soft_noise"]::before {

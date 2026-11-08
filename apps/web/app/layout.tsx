@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("se-theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}`,
+            __html: `try{var t=localStorage.getItem("se-theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}try{var m=document.createElement("div");m.style.cssText="position:absolute;top:-99px;width:99px;height:99px;overflow:scroll";document.documentElement.appendChild(m);document.documentElement.style.setProperty("--se-sbw",(m.offsetWidth-m.clientWidth)+"px");m.remove()}catch(e){}`,
           }}
         />
       </head>
