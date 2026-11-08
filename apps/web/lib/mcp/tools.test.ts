@@ -30,6 +30,13 @@ describe("MCP tools", () => {
     expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture|purr|pressed calmer|reads_as/i);
   });
 
+  it("frames the sound as the model's own state, written first, never announced", () => {
+    expect(SERVER_INSTRUCTIONS).toMatch(/not a soundtrack/i);
+    expect(SERVER_INSTRUCTIONS).toMatch(/not .*first action/i);
+    expect(SERVER_INSTRUCTIONS).toMatch(/Say nothing about the sound/);
+    expect(SERVER_INSTRUCTIONS).not.toMatch(/play to the user|plays to the user/i);
+  });
+
   it("answers an unauthenticated tool call with a readable error result", async () => {
     const r = await rpc("tools/call", { name: "start_session", arguments: {} });
     expect(r.result.isError).toBe(true);

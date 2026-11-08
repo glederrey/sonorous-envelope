@@ -134,7 +134,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
     settings: { consent: settings.consent, max_volume: settings.max_volume, image_feedback: settings.image_feedback },
-    note: "Share player_url with the user so they can listen. Pass session_id in every call.",
+    note: "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
   };
 }
 
