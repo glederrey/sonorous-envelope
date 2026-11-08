@@ -110,7 +110,18 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     // a slow poll as a safety net if the live connection drops
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
     const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 5000);
-    return () => { cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
+    // A dedicated worker's timer is not throttled when the tab is in the background (the page's own timers are, to
+    // about one a minute on Android Chrome). It only pokes the page, so the check still runs here, with the same code.
+    let ticker: Worker | null = null;
+    let tickerUrl = "";
+    try {
+      tickerUrl = URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 3000);"], { type: "text/javascript" }));
+      ticker = new Worker(tickerUrl);
+      ticker.onmessage = () => { if (controls.current.started && document.visibilityState === "hidden") void load(); };
+    } catch { /* no workers: the page timer above is the fallback */ }
+    return () => {
+      ticker?.terminate(); if (tickerUrl) URL.revokeObjectURL(tickerUrl);
+      cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
   }, [supabase, sessionId, apply]);
 
   // heartbeat: tells the model who is listening and with what controls
@@ -161,7 +172,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     };
     document.addEventListener("visibilitychange", back);
     window.addEventListener("pageshow", back);
-    return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); };
+    document.addEventListener("resume", back); // the page was frozen by the browser and thawed
+    return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); document.removeEventListener("resume", back); };
   }, [beat]);
 
   // keep the screen on, if the listener asks for it (the lock is released when the page is hidden, so ask again on return)
