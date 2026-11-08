@@ -13,9 +13,10 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
 
-## Planned in migration `0002`
+## Migration `0002_player_access.sql`
 Never edit the applied `0001_init.sql`; add changes in a new migration.
-- `join_session` RPC, and drop `invites` with `redeem_invite`.
+- `join_session` RPC (security definer, works for anonymous users), and drop `invites` with `redeem_invite`.
+- The `sessions` insert policy now refuses anonymous users, so a listener with only the open link can never create sessions through the Data API.
 - `states.slow_mood jsonb`: the slow mood after this state (mood-mapping.md, "Background layer"). Null on the first state means "start from this mood".
 - `player_heartbeats.volume` and `player_heartbeats.delay` (`real`, 0 to 1): the listener's local controls, returned to the model as `controls`.
 
@@ -46,3 +47,6 @@ The service role key is not needed for normal operation. Use it only for mainten
 ## Retention
 - Keep states and reactions for ended sessions for 90 days, then delete (scheduled job, later).
 - Users can delete a session from the sessions page, which cascades.
+
+## Testing the database
+`scripts/test-db.sh` applies all migrations to a throwaway Postgres container (with a small stand-in for Supabase's `auth` schema) and runs `supabase/tests/rls.sql`: a stranger sees nothing, an anonymous listener can join and read but not write states or create sessions, ended sessions cannot be joined. It needs Docker.
