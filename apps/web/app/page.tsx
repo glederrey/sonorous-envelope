@@ -32,9 +32,9 @@ export default function Home() {
       <main>
         <section
           className="se-page se-stack"
-          style={{ paddingTop: 64, paddingBottom: 64, background: "linear-gradient(135deg, var(--field-a), var(--field-b))", maxWidth: "none" }}
+          style={{ paddingTop: 64, paddingBottom: 64, paddingLeft: 0, paddingRight: 0, background: "linear-gradient(135deg, var(--field-a), var(--field-b))", maxWidth: "none" }}
         >
-          <div style={{ maxWidth: 720, margin: "0 auto" }} className="se-stack">
+          <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px" }} className="se-stack">
             <h1 className="se-display" style={{ color: "var(--on-scrim)" }}>Let the model hum while it thinks.</h1>
             <p style={{ color: "var(--on-scrim-muted)", fontSize: 18 }}>
               Sonorous Envelope gives Claude a second voice: a small synthesizer and a colour field you hear and see
@@ -87,6 +87,7 @@ export default function Home() {
               <li>Open the link and tap <strong>Start listening</strong>.</li>
             </ol>
             <ul className="se-sm se-muted" style={{ paddingLeft: 24 }}>
+              <li>See <a href="/guide">Using the connector</a> for what Claude can do with it.</li>
               <li>The connector works in the Claude desktop and mobile apps on the same account.</li>
               <li>Each conversation gets its own session. Turn the connector on at the start of the conversation.</li>
               <li>Custom connectors may depend on your Claude plan, and menu names can change.</li>
@@ -119,12 +120,14 @@ export default function Home() {
               <li>No flashing faster than 3 per second.</li>
               <li>Every adjustment made to Claude&apos;s request is reported back to it.</li>
             </ul>
-            <p><a href={`${GITHUB}/blob/main/docs/safety.md`}>Read the full safety notes</a></p>
+            <p><a href="/safety">Read more about safety and control</a></p>
           </section>
         </div>
       </main>
 
       <footer className="se-page se-sm se-muted" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <a href="/guide">Using the connector</a>
+        <a href="/safety">Safety</a>
         <a href={GITHUB}>GitHub</a>
         <a href="/sessions">Your sessions</a>
         <a href="/settings">Settings</a>
