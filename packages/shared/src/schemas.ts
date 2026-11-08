@@ -116,6 +116,7 @@ export const SetSoundInput = z.object({
   colour: Colour.optional().describe("colour follows the sound unless you set mode own"),
   transition: Transition.optional(),
   final: z.boolean().default(false).describe("true on the last call of each message"),
+  title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;

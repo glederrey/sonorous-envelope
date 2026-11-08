@@ -168,9 +168,10 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     intent: { mood: input.mood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
     effective, clamps: allClamps, seed: randomSeed(), slow_mood: slow,
   });
+  const title = input.title?.trim().slice(0, 80);
   const { error: uerr } = await db.from("sessions").update({
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
-    turn: turn.sessionTurn(session.turn),
+    turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 

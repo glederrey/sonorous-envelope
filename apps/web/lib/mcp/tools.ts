@@ -30,7 +30,7 @@ export function registerTools(server: McpServer) {
   server.registerTool("start_session", {
     title: "Start a sound session",
     description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link in one short sentence and say nothing else about the sound.",
-    inputSchema: z.object({ title: z.string().max(80).optional().describe("optional short label") }),
+    inputSchema: z.object({ title: z.string().max(80).optional().describe("optional short name for the session (2 to 5 words); you can also send title later with set_sound") }),
   }, (args, ctx) => run(ctx as Ctx, (c) => startSession(c.db, c.userId, args)));
 
   server.registerTool("set_sound", {
