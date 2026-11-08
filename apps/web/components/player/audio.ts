@@ -1,20 +1,12 @@
 import type { EngineState } from "@sonorous/engine";
 
-/** One second of silence as a WAV blob. A looping silent <audio> tells the phone "media is playing":
- *  it keeps the page alive more often in the background, enables lock-screen controls, and on iOS
- *  moves the page to the playback audio category so the silent switch does not mute it. */
-function silentAudio(): HTMLAudioElement {
-  const rate = 8000;
-  const bytes = new Uint8Array(44 + rate);
-  const view = new DataView(bytes.buffer);
-  const text = (at: number, s: string) => [...s].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
-  text(0, "RIFF"); view.setUint32(4, 36 + rate, true); text(8, "WAVE"); text(12, "fmt ");
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, rate, true); view.setUint32(28, rate, true); view.setUint16(32, 1, true); view.setUint16(34, 8, true);
-  text(36, "data"); view.setUint32(40, rate, true);
-  bytes.fill(128, 44); // 8-bit PCM silence
-  const el = new Audio(URL.createObjectURL(new Blob([bytes], { type: "audio/wav" })));
+/** A real media file (60 s of very quiet noise, not digital silence), looped. Android Chrome only shows a media
+ *  notification, keeps the tab counted as playing media and treats the page as foreground for media that is a real file
+ *  of a few seconds or more; the earlier 1 s blob and the MediaStream element never qualified (no lock-screen player). */
+function keepAliveAudio(): HTMLAudioElement {
+  const el = new Audio("/keepalive.wav");
   el.loop = true;
+  el.preload = "auto";
   return el;
 }
 
@@ -25,7 +17,7 @@ export class AudioOutput {
   static async start(): Promise<AudioOutput> {
     // Safari 16.4+: play even when the ringer switch is on silent
     try { (navigator as unknown as { audioSession?: { type: string } }).audioSession!.type = "playback"; } catch { /* not supported */ }
-    const keepAlive = silentAudio(); // used only if the element output below cannot start
+    const keepAlive = keepAliveAudio();
     void keepAlive.play().catch(() => { /* needs the tap's activation; the sound still works without it */ });
     const ctx = new AudioContext({ latencyHint: "playback" });
     void ctx.resume(); // while the tap's user activation is still valid (Safari can lose it across an await)
@@ -33,22 +25,9 @@ export class AudioOutput {
     const node = new AudioWorkletNode(ctx, "sonorous-engine", {
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
     });
-    // Play the synth through a real <audio> element instead of straight to the speakers. Phones treat an element as media
-    // playback (it keeps going with the screen off and shows lock-screen controls); bare Web Audio gets paused.
-    let element = keepAlive;
-    try {
-      const sink = ctx.createMediaStreamDestination();
-      node.connect(sink);
-      const out = new Audio();
-      out.srcObject = sink.stream;
-      await out.play();
-      keepAlive.pause(); // the silent track is no longer needed
-      element = out;
-    } catch {
-      node.connect(ctx.destination); // fall back to the plain output
-    }
+    node.connect(ctx.destination);
     await ctx.resume();
-    return new AudioOutput(ctx, node, element);
+    return new AudioOutput(ctx, node, keepAlive);
   }
 
   setState(state: EngineState, seed: number) { this.node.port.postMessage({ type: "state", state, seed }); }
