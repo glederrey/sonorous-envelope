@@ -147,6 +147,42 @@ h3 {
   filter: brightness(1.08);
 }
 
+.se-btn-block {
+  width: 100%;
+}
+.se-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.se-divider::before,
+.se-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.se-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.se-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.se-link:hover {
+  color: var(--ink);
+}
+
 .se-input {
   width: 100%;
   min-height: 44px;

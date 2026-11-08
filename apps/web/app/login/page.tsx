@@ -11,8 +11,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <SiteHeader />
       <main className="se-narrow se-stack">
         <h1 className="se-title">Sign in</h1>
-        <p className="se-muted">We email you a link. No password.</p>
-        {error ? <p className="se-error se-sm" role="alert">That link did not work. Request a new one.</p> : null}
+        <p className="se-muted">Use your email and password, or Google.</p>
+        {error ? <p className="se-error se-sm" role="alert">That link did not work. Try again.</p> : null}
         <LoginForm next={safeNext(next)} />
       </main>
     </>
