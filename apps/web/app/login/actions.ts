@@ -11,7 +11,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 8;
 
 // Supabase's built-in mailer only sends a few emails an hour.
-const RATE_LIMITED = "Too many emails were sent just now. Wait a while, or continue with Google.";
+const RATE_LIMITED = "Too many emails sent. Try later, or use Google.";
 function isRateLimited(error: { code?: string; status?: number }) {
   return error.code === "over_email_send_rate_limit" || error.status === 429;
 }
@@ -55,7 +55,7 @@ export async function signUp(_prev: LoginState, formData: FormData): Promise<Log
   }
   // With email confirmation off, Supabase returns a session right away.
   if (data.session) redirect(next);
-  return { status: "sent", message: `Check ${email} to confirm your account.` };
+  return { status: "sent", message: "Check your email to confirm your account." };
 }
 
 export async function sendMagicLink(_prev: LoginState, formData: FormData): Promise<LoginState> {
@@ -67,7 +67,7 @@ export async function sendMagicLink(_prev: LoginState, formData: FormData): Prom
     if (isRateLimited(error)) return { status: "error", message: RATE_LIMITED };
     return { status: "error", message: "Could not send the link. Try again in a minute." };
   }
-  return { status: "sent", message: `Check ${email} for a sign-in link.` };
+  return { status: "sent", message: "Check your email for a sign-in link." };
 }
 
 export async function sendPasswordReset(_prev: LoginState, formData: FormData): Promise<LoginState> {
@@ -77,7 +77,7 @@ export async function sendPasswordReset(_prev: LoginState, formData: FormData): 
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl("/login/reset") });
   if (error && isRateLimited(error)) return { status: "error", message: RATE_LIMITED };
   // Same answer whether or not the account exists.
-  return { status: "sent", message: `If ${email} has an account, a reset link is on its way.` };
+  return { status: "sent", message: "Check your email for a reset link." };
 }
 
 export async function updatePassword(_prev: LoginState, formData: FormData): Promise<LoginState> {
