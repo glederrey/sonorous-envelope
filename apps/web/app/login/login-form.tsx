@@ -37,10 +37,12 @@ export function LoginForm({ next }: { next: string }) {
 
       <form action={action} className="se-stack" key={mode}>
         <input type="hidden" name="next" value={next} />
-        <label className="se-sm se-muted" htmlFor="email">Email</label>
-        <input id="email" name="email" type="email" autoComplete="email" required className="se-input" />
+        <div className="se-field">
+          <label className="se-sm se-muted" htmlFor="email">Email</label>
+          <input id="email" name="email" type="email" autoComplete="email" required className="se-input" />
+        </div>
         {needsPassword ? (
-          <>
+          <div className="se-field">
             <label className="se-sm se-muted" htmlFor="password">Password</label>
             <input
               id="password"
@@ -51,7 +53,7 @@ export function LoginForm({ next }: { next: string }) {
               required
               className="se-input"
             />
-          </>
+          </div>
         ) : null}
         <button type="submit" className="se-btn se-btn-primary" disabled={pending}>
           {pending ? COPY[mode].pending : COPY[mode].submit}

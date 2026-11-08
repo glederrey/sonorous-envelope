@@ -1,4 +1,5 @@
 import { SiteHeader } from "../../components/site-header";
+import { SiteFooter } from "../../components/site-footer";
 
 export const metadata = { title: "Safety and control · Sonorous Envelope" };
 
@@ -53,6 +54,7 @@ export default function SafetyPage() {
           </p>
         </section>
       </main>
+      <SiteFooter />
     </>
   );
 }

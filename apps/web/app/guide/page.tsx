@@ -1,4 +1,5 @@
 import { SiteHeader } from "../../components/site-header";
+import { SiteFooter } from "../../components/site-footer";
 
 export const metadata = { title: "Using the connector · Sonorous Envelope" };
 
@@ -45,7 +46,7 @@ export default function GuidePage() {
   return (
     <>
       <SiteHeader />
-      <main className="se-page se-stack">
+      <main className="se-page se-stack gd-page">
         <h1 className="se-title">Using the connector</h1>
         <p>
           Once the connector is added (see <a href="/#add">Add it to Claude</a>), Claude calls these tools itself. You
@@ -56,19 +57,21 @@ export default function GuidePage() {
           will be marked live here as they ship.
         </p>
 
-        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 16 }}>
+        <ul className="gd-tools">
           {tools.map((tool) => (
-            <li key={tool.name} className="se-card se-stack">
-              <div style={{ display: "flex", gap: 12, alignItems: "baseline", justifyContent: "space-between" }}>
+            <li key={tool.name} className="gd-tool">
+              <div className="gd-tool-name">
                 <h2 className="se-heading se-mono">{tool.name}</h2>
-                <span className="se-sm se-mono" style={{ color: tool.live ? "var(--tide)" : "var(--ink-muted)" }}>
+                <span className={tool.live ? "se-sm se-mono gd-live" : "se-sm se-mono se-muted"}>
                   {tool.live ? "live" : "coming"}
                 </span>
               </div>
-              <p style={{ margin: 0 }}>{tool.text}</p>
-              <p className="se-sm se-muted" style={{ margin: 0 }}>
-                You could say: <em>&ldquo;{tool.example}&rdquo;</em>
-              </p>
+              <div className="se-stack">
+                <p style={{ margin: 0 }}>{tool.text}</p>
+                <p className="se-sm se-muted" style={{ margin: 0 }}>
+                  You could say: <em>&ldquo;{tool.example}&rdquo;</em>
+                </p>
+              </div>
             </li>
           ))}
         </ul>
@@ -83,6 +86,7 @@ export default function GuidePage() {
           </ul>
         </section>
       </main>
+      <SiteFooter />
     </>
   );
 }

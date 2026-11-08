@@ -11,7 +11,7 @@ export default async function ResetPage() {
   if (!data.user) redirect("/login");
   return (
     <>
-      <SiteHeader />
+      <SiteHeader hideAuth />
       <main className="se-narrow se-stack">
         <h1 className="se-title">Choose a new password</h1>
         <ResetForm />

@@ -8,7 +8,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { next, error } = await searchParams;
   return (
     <>
-      <SiteHeader />
+      <SiteHeader hideAuth />
       <main className="se-narrow se-stack">
         <h1 className="se-title">Sign in</h1>
         <p className="se-muted">Use your email and password, or Google.</p>
