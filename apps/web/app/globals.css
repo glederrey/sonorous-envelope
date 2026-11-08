@@ -337,9 +337,18 @@ html {
   /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
   scrollbar-gutter: stable;
 }
-/* The player's colour field must reach the window edge: with the gutter reserved, an empty strip shows beside it. */
+/* On the player, the reserved scrollbar strip (kept so headers never shift between pages) must not show the page colour
+   beside the colour field. The player copies its colour variables onto <html>; the strip, and the scrollbar track when
+   there is one, take the middle colour of the field's gradient. */
 html:has(.pl-field) {
-  scrollbar-gutter: auto;
+  --pl-t: 1s;
+  --pl-edge: color-mix(in srgb,
+    hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)),
+    hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)));
+  background-color: var(--pl-edge);
+  scrollbar-color: rgb(255 255 255 / 0.4) var(--pl-edge);
+  transition: --pl-h var(--pl-t) ease-in-out, --pl-s var(--pl-t) ease-in-out, --pl-l var(--pl-t) ease-in-out,
+              --pl-h2 var(--pl-t) ease-in-out, --pl-s2 var(--pl-t) ease-in-out, --pl-l2 var(--pl-t) ease-in-out;
 }
 .se-input,
 .se-mono {

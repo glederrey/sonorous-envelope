@@ -310,6 +310,16 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
 
+  // the same colours on <html>, so the page's scrollbar strip matches the field (see html:has(.pl-field) in globals.css)
+  useEffect(() => {
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(fieldStyle)) root.style.setProperty(k, String(v));
+  });
+  useEffect(() => () => {
+    const root = document.documentElement;
+    for (const k of ["--pl-h", "--pl-s", "--pl-l", "--pl-h2", "--pl-s2", "--pl-l2", "--pl-t", "--pl-pulse"]) root.style.removeProperty(k);
+  }, []);
+
   void tick;
   const ageSec = playing ? Math.max(0, Math.round((Date.now() - playing.at) / 1000)) : 0;
   const midTurn = Boolean(playing && !playing.final && Date.now() - playing.at < STALE_MID_TURN_MS);
