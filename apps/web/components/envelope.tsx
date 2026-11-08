@@ -57,12 +57,16 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 function spawnMain(t: number): Pulse {
   const r = Math.random();
   const dip = r > 0.5 && r <= 0.72;
+  // Three characters: a slow wide swell, a quick sharp spike, or something between.
+  const k = Math.random();
+  const swell = k < 0.2;
+  const spike = k >= 0.2 && k < 0.4;
   return {
     t0: t,
-    speed: rand(65, 105),
-    w0: rand(40, 70),
-    grow: rand(0.02, 0.07),
-    amp: (dip ? -1 : 1) * (dip ? CAP_DOWN * 1.4 : CAPS_UP[MAIN]) * rand(0.85, 1),
+    speed: swell ? rand(38, 60) : spike ? rand(110, 150) : rand(65, 105),
+    w0: swell ? rand(75, 125) : spike ? rand(16, 28) : rand(40, 70),
+    grow: swell ? rand(0, 0.03) : rand(0.02, 0.08),
+    amp: (dip ? -1 : 1) * (dip ? CAP_DOWN * 1.4 : CAPS_UP[MAIN]) * rand(0.55, 1),
     decay: rand(0, 0.025),
     biphasic: r > 0.72,
   };
@@ -70,11 +74,11 @@ function spawnMain(t: number): Pulse {
 
 function spawnVariant(i: number, main: Pulse, t: number): Pulse {
   return {
-    t0: t + rand(0, 0.5),
-    speed: main.speed * rand(0.8, 1.3),
-    w0: Math.abs(main.w0) * rand(0.7, 1.5),
-    grow: main.grow * rand(0.5, 2),
-    amp: CAPS_UP[i] * rand(0.55, 1),
+    t0: t + (Math.random() < 0.2 ? rand(0.4, 1.4) : rand(0, 0.5)),
+    speed: main.speed * rand(0.65, 1.5),
+    w0: Math.abs(main.w0) * rand(0.55, 1.8),
+    grow: main.grow * rand(0.4, 2.2),
+    amp: CAPS_UP[i] * rand(0.35, 1),
     decay: rand(0, 0.025),
     biphasic: false,
   };
@@ -109,7 +113,12 @@ export function Envelope({ className }: { className?: string }) {
         });
         if (events.length === 0) {
           events.push(at + rand(2.5, 6));
-          if (Math.random() < 0.35) events.unshift(t + rand(0.25, 0.8));
+          if (Math.random() < 0.35) {
+            const gap = t + rand(0.25, 0.8);
+            // Now and then a third wave follows the second.
+            if (Math.random() < 0.3) events.unshift(gap, gap + rand(0.25, 0.8));
+            else events.unshift(gap);
+          }
         }
       }
       lines.forEach((pulses, i) => {

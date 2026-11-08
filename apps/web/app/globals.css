@@ -363,6 +363,8 @@ html {
   color: var(--on-scrim);
 }
 .lp-envelope {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
   width: min(100%, 640px);
   height: auto;
   max-height: 300px;
