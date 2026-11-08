@@ -14,6 +14,18 @@ It holds:
 - **Icons:** Lucide.
 - **Safety in the UI:** mute always visible, no colour-only signals, and no brightness cycle faster than 3 Hz (see [safety.md](safety.md)).
 
+## Where each part is used
+
+| Surface | Spec | Notes |
+|---|---|---|
+| Landing page `/` | [player-ui.md](implementation/player-ui.md), "The landing page" | `display` type for the hero headline only, once per page. `space-8` for the section rhythm. Dark first, light via `prefers-color-scheme`. The hero sits on a live colour field; text over it uses `scrim` or `on-scrim` tokens. |
+| Player `/s/[id]` | player-ui.md, "The player page" | Mostly colour field. Controls on `scrim`. |
+| Other pages | player-ui.md | `bg`, `surface`, `ink`; `glow` for the one primary action, `tide` for selection and links. |
+
+## In the code
+
+State of `apps/web`: the home page is a placeholder that uses only `bg` and `ink` (CSS variables in `app/globals.css`, with `prefers-color-scheme` for light). Fonts (`next/font/google`), the remaining tokens and the `se-` components are added as pages need them. Keep the tokens in one place (CSS variables generated from or checked against `brand/tokens.json`) instead of copying values into components.
+
 ## Logo
 
 An ADSR envelope drawn as one stroke, warm (attack) to cool (release). Files in [`brand/`](brand/):
@@ -23,6 +35,6 @@ An ADSR envelope drawn as one stroke, warm (attack) to cool (release). Files in 
 | ![](brand/mark-on-dark.svg) `mark-on-dark.svg` | Gradient mark on dark grounds |
 | `mark-on-light.svg` | Gradient mark on light grounds (deeper stops) |
 | `mark-mono-light-ink.svg` / `mark-mono-dark-ink.svg` | Single ink, where colour doesn't fit |
-| `app-icon.svg` | Favicon, PWA and home-screen icon |
+| `app-icon.svg` | Favicon, PWA and home-screen icon (the app serves a copy at `apps/web/public/icon.svg`) |
 
 The wordmark is live text, "sonorous envelope" in lowercase JetBrains Mono 500, not part of the SVG.
