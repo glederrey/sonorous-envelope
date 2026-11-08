@@ -252,8 +252,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (!started || !("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
     ms.metadata = new MediaMetadata({ title: "Claude's sound", artist: "Sonorous Envelope", album: "Live session" });
-    ms.setActionHandler("play", () => { setMuted(false); void audio.current?.resume(); });
-    ms.setActionHandler("pause", () => setMuted(true));
+    ms.setActionHandler("play", () => { setMuted(false); void audio.current?.resume(); reload.current(); });
+    ms.setActionHandler("pause", () => { setMuted(true); audio.current?.pauseElement(); });
     // this is a live sound, not a 60 s track: no seeking, and no progress bar if the browser accepts an endless duration
     for (const a of ["seekto", "seekbackward", "seekforward", "previoustrack", "nexttrack"] as const) {
       try { ms.setActionHandler(a, null); } catch { /* not supported */ }
@@ -261,8 +261,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     try { ms.setPositionState({ duration: Infinity, playbackRate: 1, position: 0 }); } catch { /* not supported */ }
     return () => { ms.setActionHandler("play", null); ms.setActionHandler("pause", null); };
   }, [started]);
+  // Muted means paused, in the page and on the lock screen: Chrome builds the notification from the audio element, so
+  // pausing only the sound would leave a "Pause" button that does nothing.
   useEffect(() => {
-    if (started && "mediaSession" in navigator) navigator.mediaSession.playbackState = muted ? "paused" : "playing";
+    if (!started) return;
+    if (muted) audio.current?.pauseElement(); else void audio.current?.resume();
+    if ("mediaSession" in navigator) navigator.mediaSession.playbackState = muted ? "paused" : "playing";
   }, [started, muted]);
 
   // status clock
@@ -350,7 +354,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </button>
             </div>
 
-            {audioState !== "running" ? (
+            {audioState !== "running" && !muted ? (
               <button type="button" className="se-btn se-btn-primary pl-mute" onClick={() => void audio.current?.resume()}>
                 <Play size={22} aria-hidden />
                 Sound stopped. Tap to resume
