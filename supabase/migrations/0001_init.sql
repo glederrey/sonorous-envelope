@@ -226,6 +226,35 @@ create policy hb_member_update on public.player_heartbeats for update using (use
 create policy hb_member_select on public.player_heartbeats for select using (public.is_session_member(session_id));
 
 -- ---------------------------------------------------------------------------
+-- Grants (the project has "automatically expose new tables" off)
+-- Only logged-in users reach the Data API. anon gets nothing.
+-- RLS above decides which rows each user sees.
+-- ---------------------------------------------------------------------------
+grant select, update                         on public.profiles          to authenticated;
+grant select, insert, update, delete         on public.sessions          to authenticated;
+grant select, insert, update                 on public.states            to authenticated;
+grant select, insert, delete                 on public.listeners         to authenticated;
+grant select, insert, update, delete         on public.invites           to authenticated;
+grant select, insert, update                 on public.reactions         to authenticated;
+grant select, insert, update                 on public.player_heartbeats to authenticated;
+
+-- Maintenance scripts with the service role key.
+grant all on public.profiles, public.sessions, public.states, public.listeners,
+             public.invites, public.reactions, public.player_heartbeats to service_role;
+
+-- Functions: executable by PUBLIC by default. Lock them down to logged-in users.
+revoke execute on function public.handle_new_user()         from public, anon, authenticated;
+revoke execute on function public.check_reaction_kind()     from public, anon, authenticated;
+revoke execute on function public.is_session_member(text)   from public, anon;
+revoke execute on function public.is_session_owner(text)    from public, anon;
+revoke execute on function public.redeem_invite(text)       from public, anon;
+revoke execute on function public.claim_reactions(text)     from public, anon;
+grant  execute on function public.is_session_member(text)   to authenticated, service_role;
+grant  execute on function public.is_session_owner(text)    to authenticated, service_role;
+grant  execute on function public.redeem_invite(text)       to authenticated, service_role;
+grant  execute on function public.claim_reactions(text)     to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------
 alter publication supabase_realtime add table public.states;
