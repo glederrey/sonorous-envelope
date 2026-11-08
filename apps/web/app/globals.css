@@ -291,6 +291,7 @@ html {
 
 /* Landing page */
 .lp-hero {
+  --lp-h: clamp(38px, 4.8vw, 62px);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -334,7 +335,7 @@ html {
   min-width: 0;
 }
 .lp-headline {
-  font-size: clamp(38px, 4.8vw, 62px);
+  font-size: var(--lp-h);
   line-height: 1.05;
   letter-spacing: -0.025em;
   font-weight: 500;
@@ -434,7 +435,8 @@ html {
 
 @media (min-width: 900px) {
   .lp-hero-body {
-    grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+    /* Just wide enough for "Let the model hum" (about 7.93em) on one line. */
+    grid-template-columns: minmax(0, calc(var(--lp-h) * 8.1)) minmax(0, 1fr);
     column-gap: 56px;
     padding-top: 96px;
     padding-bottom: 96px;
@@ -635,5 +637,11 @@ html {
   .lp-hum .lp-word > span,
   .lp-think .lp-word > span {
     animation: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .lp-connect-note {
+    white-space: normal;
   }
 }
