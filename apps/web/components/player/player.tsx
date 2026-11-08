@@ -62,7 +62,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const reload = useRef<() => void>(() => {});
   // ?debug=1 shows what the page did while it was in the background, to find where a phone cuts it off
   const [debug, setDebug] = useState(false);
-  const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, applied: 0, wok: 0, werr: 0, lastErr: "" });
+  const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, applied: 0, wok: 0, werr: 0, stopped: 0, lastErr: "" });
   const [dbgText, setDbgText] = useState("Leave this page, then come back: this line tells what happened while you were away.");
   useEffect(() => setDebug(new URLSearchParams(window.location.search).has("debug")), []);
   const controls = useRef({ muted, volume, echo, started });
@@ -160,7 +160,15 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       ticker.onmessage = (e: MessageEvent) => {
         const hidden = document.visibilityState === "hidden";
         const m = e.data as { tick?: number; status?: number; data?: Parameters<typeof handle>[0]; error?: string };
-        if (m.tick) { if (hidden) dbg.current.ticks++; return; }
+        if (m.tick) {
+          if (hidden) {
+            dbg.current.ticks++;
+            // sample the audio while away: the state read on return says nothing about what happened meanwhile
+            const a = audio.current;
+            if (a && (a.state !== "running" || !a.keepAlivePlaying)) dbg.current.stopped++;
+          }
+          return;
+        }
         if (!hidden || !controls.current.started) return; // while visible, the page's own check does the work
         if (m.error || m.status !== 200) { dbg.current.werr++; dbg.current.lastErr = (m.error ?? `HTTP ${m.status}`).slice(0, 80); return; }
         dbg.current.wok++;
@@ -214,10 +222,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     const back = () => {
       const d = dbg.current;
-      if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; d.applied = 0; d.wok = 0; d.werr = 0; d.lastErr = ""; return; }
+      if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; d.applied = 0; d.wok = 0; d.werr = 0; d.stopped = 0; d.lastErr = ""; return; }
       if (d.hiddenAt) {
         const secs = Math.round((Date.now() - d.hiddenAt) / 1000);
-        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), page checks ok ${d.ok}, failed ${d.err}; worker checks ok ${d.wok}, failed ${d.werr}${d.lastErr ? ` (${d.lastErr})` : ""}, new sounds applied ${d.applied}. Audio context: ${audio.current?.state ?? "none"}; silent track playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
+        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), page checks ok ${d.ok}, failed ${d.err}; worker checks ok ${d.wok}, failed ${d.werr}${d.lastErr ? ` (${d.lastErr})` : ""}, new sounds applied ${d.applied}. Ticks while away with the audio stopped: ${d.stopped}. Now: audio context ${audio.current?.state ?? "none"}; keep-alive file playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
         d.hiddenAt = 0;
       }
       reload.current();
