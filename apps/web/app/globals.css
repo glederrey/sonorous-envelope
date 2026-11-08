@@ -343,6 +343,7 @@ html {
 .lp-envelope {
   width: min(100%, 640px);
   height: auto;
+  max-height: 300px;
   margin-top: 16px;
 }
 .lp-env-line {
@@ -424,8 +425,10 @@ html {
   .lp-hero-body > .lp-envelope {
     grid-column: 2;
     grid-row: 1 / span 4;
-    align-self: center;
+    align-self: stretch;
+    justify-self: end;
     width: 100%;
+    max-height: none;
     margin-top: 0;
   }
 }
