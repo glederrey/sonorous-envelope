@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
-import { SiteFooter } from "../../components/site-footer";
 import { createClient } from "../../lib/supabase/server";
 import { revokeGrant, signOut } from "./actions";
 
@@ -49,7 +48,6 @@ export default async function SettingsPage() {
           </section>
         </div>
       </main>
-      <SiteFooter />
     </>
   );
 }

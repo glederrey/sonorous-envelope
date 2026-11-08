@@ -1,5 +1,4 @@
 import { SiteHeader } from "../../components/site-header";
-import { SiteFooter } from "../../components/site-footer";
 
 export const metadata = { title: "Using the connector · Sonorous Envelope" };
 
@@ -87,7 +86,6 @@ export default function GuidePage() {
           </li>
         </ul>
       </main>
-      <SiteFooter />
     </>
   );
 }

@@ -272,23 +272,6 @@ html {
 .se-mono {
   font-variant-numeric: tabular-nums;
 }
-.se-footer {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 48px 16px 64px;
-}
-.se-footer nav {
-  display: flex;
-  gap: 8px 24px;
-  flex-wrap: wrap;
-}
-.se-footer a {
-  color: var(--ink-muted);
-}
-.se-footer a:hover {
-  color: var(--ink);
-}
-
 /* Landing page */
 .lp-hero {
   --lp-h: clamp(38px, 4.8vw, 62px);
@@ -485,7 +468,7 @@ html {
 .doc-page {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 32px 16px 24px;
+  padding: 32px 16px 96px;
 }
 .doc-head {
   padding-bottom: 48px;

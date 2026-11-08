@@ -1,5 +1,4 @@
 import { SiteHeader } from "../components/site-header";
-import { SiteFooter } from "../components/site-footer";
 import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
 import { mcpResourceUrl } from "../lib/env";
@@ -118,7 +117,6 @@ export default function Home() {
         </section>
       </main>
 
-      <SiteFooter />
     </>
   );
 }
