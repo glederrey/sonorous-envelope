@@ -6,7 +6,8 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "emails": "node emails/build.mjs"
   },
   "devDependencies": {
     "vitest": "^5.1.0"
