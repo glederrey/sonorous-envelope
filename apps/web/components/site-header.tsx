@@ -24,7 +24,10 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
         {hideAuth ? null : signedIn ? (
           <Link className="se-btn" href="/sessions">Your sessions</Link>
         ) : (
-          <Link className="se-btn" href="/login">Sign in</Link>
+          <>
+            <Link className="se-btn" href="/login">Sign in</Link>
+            <Link className="se-btn se-btn-primary" href="/login?mode=signup">Sign up</Link>
+          </>
         )}
       </nav>
     </header>

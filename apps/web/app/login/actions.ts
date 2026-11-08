@@ -10,6 +10,12 @@ export type LoginState = { status: "idle" | "sent" | "error"; message?: string }
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 8;
 
+// Supabase's built-in mailer only sends a few emails an hour.
+const RATE_LIMITED = "Too many emails were sent just now. Wait a while, or continue with Google.";
+function isRateLimited(error: { code?: string; status?: number }) {
+  return error.code === "over_email_send_rate_limit" || error.status === 429;
+}
+
 function callbackUrl(next: string) {
   return `${publicBaseUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
 }
@@ -43,7 +49,10 @@ export async function signUp(_prev: LoginState, formData: FormData): Promise<Log
     password,
     options: { emailRedirectTo: callbackUrl(next) },
   });
-  if (error) return { status: "error", message: "Could not create the account. Try signing in instead." };
+  if (error) {
+    if (isRateLimited(error)) return { status: "error", message: RATE_LIMITED };
+    return { status: "error", message: "Could not create the account. Try signing in instead." };
+  }
   // With email confirmation off, Supabase returns a session right away.
   if (data.session) redirect(next);
   return { status: "sent", message: `Check ${email} to confirm your account.` };
@@ -54,7 +63,10 @@ export async function sendMagicLink(_prev: LoginState, formData: FormData): Prom
   if (!EMAIL.test(email)) return { status: "error", message: "Enter a valid email address." };
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: callbackUrl(next) } });
-  if (error) return { status: "error", message: "Could not send the link. Try again in a minute." };
+  if (error) {
+    if (isRateLimited(error)) return { status: "error", message: RATE_LIMITED };
+    return { status: "error", message: "Could not send the link. Try again in a minute." };
+  }
   return { status: "sent", message: `Check ${email} for a sign-in link.` };
 }
 
@@ -62,7 +74,8 @@ export async function sendPasswordReset(_prev: LoginState, formData: FormData): 
   const { email } = read(formData);
   if (!EMAIL.test(email)) return { status: "error", message: "Enter a valid email address." };
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl("/login/reset") });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: callbackUrl("/login/reset") });
+  if (error && isRateLimited(error)) return { status: "error", message: RATE_LIMITED };
   // Same answer whether or not the account exists.
   return { status: "sent", message: `If ${email} has an account, a reset link is on its way.` };
 }

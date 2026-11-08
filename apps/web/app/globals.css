@@ -645,3 +645,32 @@ html {
     white-space: normal;
   }
 }
+
+/* Sign in / sign up tabs */
+.se-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  gap: 4px;
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+}
+.se-tabs button {
+  appearance: none;
+  min-height: 40px;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.se-tabs button[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+.se-nav {
+  gap: 8px;
+}

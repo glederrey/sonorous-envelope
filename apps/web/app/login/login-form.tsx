@@ -22,13 +22,23 @@ const COPY: Record<Mode, { submit: string; pending: string }> = {
 
 const ACTIONS = { signin: signInWithPassword, signup: signUp, magic: sendMagicLink, reset: sendPasswordReset };
 
-export function LoginForm({ next }: { next: string }) {
-  const [mode, setMode] = useState<Mode>("signin");
+export function LoginForm({ next, initialMode = "signin" }: { next: string; initialMode?: "signin" | "signup" }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [state, action, pending] = useActionState(ACTIONS[mode], initial);
   const needsPassword = mode === "signin" || mode === "signup";
 
   return (
     <div className="se-stack">
+      {mode === "signin" || mode === "signup" ? (
+        <div className="se-tabs" role="tablist" aria-label="Sign in or sign up">
+          <button type="button" role="tab" aria-selected={mode === "signin"} onClick={() => setMode("signin")}>
+            Sign in
+          </button>
+          <button type="button" role="tab" aria-selected={mode === "signup"} onClick={() => setMode("signup")}>
+            Sign up
+          </button>
+        </div>
+      ) : null}
       <form action={signInWithGoogle}>
         <input type="hidden" name="next" value={next} />
         <button type="submit" className="se-btn se-btn-block">Continue with Google</button>
@@ -68,11 +78,10 @@ export function LoginForm({ next }: { next: string }) {
       <div className="se-sm se-muted se-links">
         {mode === "signin" ? (
           <>
-            <button type="button" className="se-link" onClick={() => setMode("signup")}>Create an account</button>
             <button type="button" className="se-link" onClick={() => setMode("reset")}>Forgot password</button>
             <button type="button" className="se-link" onClick={() => setMode("magic")}>Email me a link</button>
           </>
-        ) : (
+        ) : mode === "signup" ? null : (
           <button type="button" className="se-link" onClick={() => setMode("signin")}>Back to sign in</button>
         )}
       </div>
