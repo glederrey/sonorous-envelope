@@ -62,7 +62,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const reload = useRef<() => void>(() => {});
   // ?debug=1 shows what the page did while it was in the background, to find where a phone cuts it off
   const [debug, setDebug] = useState(false);
-  const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, lastTick: 0 });
+  const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, applied: 0, wok: 0, werr: 0, lastErr: "" });
   const [dbgText, setDbgText] = useState("Leave this page, then come back: this line tells what happened while you were away.");
   useEffect(() => setDebug(new URLSearchParams(window.location.search).has("debug")), []);
   const controls = useRef({ muted, volume, echo, started });
@@ -81,6 +81,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     hardCaps(state, settings.current); // second line of defence, the server already limited it
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
     latest.current = next;
+    if (document.visibilityState === "hidden") dbg.current.applied++;
     setPlaying(next);
     audio.current?.setState(state, next.seed);
   }, []);
@@ -89,10 +90,27 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     let cancelled = false;
     let ended = false;
+    let busy = false; // one check at a time: the timers, the poll and the broadcast must not pile up requests
     const load = async () => {
-      if (ended) return;
-      const { data, error } = await supabase.rpc("get_player_state", { p_session: sessionId });
-      if (document.visibilityState === "hidden") { if (error) dbg.current.err++; else dbg.current.ok++; }
+      if (ended || busy) return;
+      busy = true;
+      try { await check(); } finally { busy = false; }
+    };
+    const check = async () => {
+      let result: Awaited<ReturnType<typeof supabase.rpc>>;
+      try {
+        result = await supabase.rpc("get_player_state", { p_session: sessionId });
+      } catch (e) {
+        result = { data: null, error: { message: String(e) } } as unknown as typeof result;
+      }
+      const { data, error } = result;
+      if (document.visibilityState === "hidden") {
+        if (error) { dbg.current.err++; dbg.current.lastErr = String(error.message ?? error).slice(0, 80); } else dbg.current.ok++;
+      }
+      handle(data, error);
+    };
+    // shared by the page's own check and by the worker's check
+    const handle = (data: { settings?: unknown; ended?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
@@ -115,16 +133,38 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     // a slow poll as a safety net if the live connection drops
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
     const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 5000);
-    // A dedicated worker's timer is not throttled when the tab is in the background (the page's own timers are, to
-    // about one a minute on Android Chrome). It only pokes the page, so the check still runs here, with the same code.
+    // The page's own timers and requests are throttled in the background. A dedicated worker has its own timer and its
+    // own network access, so it asks for the state itself and hands the answer to the page, which applies it.
     let ticker: Worker | null = null;
     let tickerUrl = "";
     try {
-      tickerUrl = URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 3000);"], { type: "text/javascript" }));
+      const code = `
+        let cfg = null, busy = false;
+        onmessage = (e) => { cfg = e.data; };
+        setInterval(async () => {
+          postMessage({ tick: 1 });
+          if (!cfg || busy) return;
+          busy = true;
+          try {
+            const r = await fetch(cfg.url + "/rest/v1/rpc/get_player_state", {
+              method: "POST", headers: { apikey: cfg.key, "content-type": "application/json" },
+              body: JSON.stringify({ p_session: cfg.id }),
+            });
+            postMessage({ status: r.status, data: r.ok ? await r.json() : null });
+          } catch (err) { postMessage({ error: String(err) }); }
+          busy = false;
+        }, 3000);`;
+      tickerUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
       ticker = new Worker(tickerUrl);
-      ticker.onmessage = () => {
-        if (document.visibilityState === "hidden") dbg.current.ticks++;
-        if (controls.current.started && document.visibilityState === "hidden") void load();
+      ticker.postMessage({ url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, id: sessionId });
+      ticker.onmessage = (e: MessageEvent) => {
+        const hidden = document.visibilityState === "hidden";
+        const m = e.data as { tick?: number; status?: number; data?: Parameters<typeof handle>[0]; error?: string };
+        if (m.tick) { if (hidden) dbg.current.ticks++; return; }
+        if (!hidden || !controls.current.started) return; // while visible, the page's own check does the work
+        if (m.error || m.status !== 200) { dbg.current.werr++; dbg.current.lastErr = (m.error ?? `HTTP ${m.status}`).slice(0, 80); return; }
+        dbg.current.wok++;
+        handle(m.data ?? null, null);
       };
     } catch { /* no workers: the page timer above is the fallback */ }
     return () => {
@@ -174,10 +214,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     const back = () => {
       const d = dbg.current;
-      if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; return; }
+      if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; d.applied = 0; d.wok = 0; d.werr = 0; d.lastErr = ""; return; }
       if (d.hiddenAt) {
         const secs = Math.round((Date.now() - d.hiddenAt) / 1000);
-        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), state checks ok ${d.ok}, failed ${d.err}. Audio context: ${audio.current?.state ?? "none"}; silent track playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
+        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), page checks ok ${d.ok}, failed ${d.err}; worker checks ok ${d.wok}, failed ${d.werr}${d.lastErr ? ` (${d.lastErr})` : ""}, new sounds applied ${d.applied}. Audio context: ${audio.current?.state ?? "none"}; silent track playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
         d.hiddenAt = 0;
       }
       reload.current();
