@@ -77,7 +77,8 @@ export class Engine {
   /** Start recording note events (for offline analysis). */
   recordEvents(into: NoteEvent[]) { this.events = into; this.arp.setEvents(into); this.bass.setEvents(into); }
 
-  setListenerGain(gain: number) { this.listenerGain = Math.min(1, Math.max(0, gain)); }
+  /** Local volume. 1 is the sound as mapped; up to 4 (+12 dB) boosts it, and the soft limiter below keeps it from clipping. */
+  setListenerGain(gain: number) { this.listenerGain = Math.min(4, Math.max(0, gain)); }
   /** Local echo control 0..1 (0.5 = as mapped). Scales the delay mix, capped at `maxMix`. */
   setListenerDelay(amount: number, maxMix = 0.6) {
     this.listenerDelay = Math.min(1, Math.max(0, amount));
