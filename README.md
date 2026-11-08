@@ -25,6 +25,7 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
 - [Safety and consent](docs/safety.md): limits, consent levels, and why they matter
 - [Roadmap](docs/roadmap.md): build order
+- [Implementation spec](docs/implementation/): everything needed to build it (start with [CLAUDE.md](CLAUDE.md))
 
 ## Decisions so far
 

@@ -10,7 +10,7 @@ Everything lives in the MCP: the tools, the state, the feedback, and the guidanc
  ┌──────────┐ Streamable HTTP ┌──────────────────────┐   write    ┌───────────────────┐
  │  Claude  │ ──────────────▶ │ Vercel               │ ─────────▶ │ Supabase          │
  │ (any app)│ ◀────────────── │  /api/mcp (tools)    │ ◀───────── │  Postgres (state, │
- └──────────┘  feedback       │  /api/analyze (py)   │   read     │   reactions, logs)│
+ └──────────┘  feedback       │  analysis (in /mcp)  │   read     │   reactions, logs)│
                               │  web app (player)    │            │  Realtime         │
                               └──────────────────────┘            │  Auth (OAuth 2.1) │
                                                                   └─────────┬─────────┘
@@ -50,9 +50,9 @@ Every call carries the `session_id`. Claude does not tell the server which conve
 - Reads pending reactions and the latest analysis, and returns compact feedback.
 - Carries the usage guidance in its `instructions`: how to choose mood axes, when to use the synth override or a gesture, the final-update rule, reading reactions as information about the listener's taste, staying subtle by default, when silence is right, respecting limits.
 
-### Analysis function (Vercel, Python)
-- Renders a few seconds of the effective state offline with a numpy version of the synth and computes perceptual features and the mood estimate.
-- Kept to numpy and small libraries to fit Vercel's function size limits. Heavier models such as Essentia may need a separate host later.
+### Analysis (inside the MCP endpoint, TypeScript)
+- Renders a few seconds of the effective state offline with the same DSP engine the player uses, and computes perceptual features and the mood estimate (see implementation/engine.md and implementation/analysis.md).
+- One engine for browser and server guarantees the feedback describes what the listener hears. Heavier models such as Essentia would need Python and a separate host later.
 
 ### Player (web app on Vercel)
 - Session page `/s/<session_id>`, behind login.
@@ -86,6 +86,6 @@ The MCP Apps extension lets a server return interactive UI that the client rende
 ## Tech choices (tentative)
 
 - Web app and MCP endpoint: Next.js (TypeScript) on Vercel, with Vercel's MCP handler.
-- Analysis: Python function on Vercel (numpy).
+- Analysis: TypeScript, in the MCP endpoint, using the shared engine.
 - Data, live updates and auth: Supabase.
 - Player: Web Audio + canvas, no audio framework.

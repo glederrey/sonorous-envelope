@@ -5,7 +5,7 @@
 ### Vercel
 - **Web app:** login, session list, the player page, session details.
 - **MCP endpoint** `/api/mcp`: Streamable HTTP, added to claude.ai as a custom connector.
-- **Analysis** `/api/analyze`: Python function that renders and analyses a state.
+- **Analysis:** runs inside the MCP endpoint, rendering with the shared TypeScript engine.
 
 ### Supabase
 - **Realtime:** Vercel functions are short-lived and cannot hold an open connection to the player. Supabase Realtime does: the MCP tool writes a new state, every open player of that session receives it instantly, and reactions travel back the same way.
@@ -70,6 +70,6 @@ For example the owner on two devices, or a friend listening in.
 `reactions.delivered_at` marks which reactions have already been returned to Claude, so each one is reported once.
 
 ## Costs and limits to watch
-- Vercel function size limit for the Python analysis.
+- Function duration: render + analysis should stay under 300 ms.
 - Realtime message quotas on Supabase's free tier: one message per update, plus reactions, so low volume.
 - Cold starts on the analysis function adding latency to `set_sound`.
