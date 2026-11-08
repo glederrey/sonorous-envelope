@@ -46,7 +46,7 @@ If above `max_harshness`, reduce in this order until it fits: drive (to 0), cuto
 4. **Volume:** `min(volume, max_volume)`.
 5. **Transition:** `time = max(time, min_transition, consent min)`; `curve = "smooth"` unless consent is `anything`.
 6. **Big-change rule:** if the mood distance from the previous state (Euclidean over the 5 axes) is > 0.6 and consent isn't `anything`, `time = max(time, 8 s)`. Clamp entry: `"transition 2s→8s (large change)"`.
-7. **Echo:** `delay.mix = min(delay.mix · (0.5 + listener_delay), max_delay_mix)`, `delay.time ≤ 0.75 s`, `delay.feedback ≤ 0.6`. `listener_delay` (0 to 1, default 0.5) is the player's echo control, so at the default the mapped mix is unchanged. Clamp entry only when the cap changes the value.
+7. **Echo:** `delay.mix = min(delay.mix · 2·listener_delay, max_delay_mix)`, `delay.time ≤ 0.75 s`, `delay.feedback ≤ 0.6`. `listener_delay` (0 to 1, default 0.5) is the player's echo control, so at the default the mapped mix is unchanged and at 0 there is no echo. The engine applies this itself (`setListenerDelay(amount, max_delay_mix)`); the server only caps the mapped value. Clamp entry only when the cap changes the value.
 8. **Gesture:** drop if `gestures` is false or the type isn't allowed. Clamp entry: `"gesture sigh dropped (gestures off)"`. At most 1 gesture per 10 s per session; extra ones are dropped with a clamp entry.
 9. **Colour:**
    - `enabled: false` → colour field off (neutral dark background).

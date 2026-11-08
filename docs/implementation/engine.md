@@ -36,7 +36,8 @@ class Engine {
   constructor(sampleRate: number, seed: number);
   setState(state: EngineState, seed: number): void;   // starts glide from current to target
   setListenerGain(gain: number): void;                // local volume/mute, applied after everything, 20 ms smoothing
-  setListenerDelay(amount: number): void;             // local echo control 0–1, scales delay mix and feedback (capped), 100 ms smoothing
+  setListenerDelay(amount: number, maxMix?: number): void; // local echo control 0–1 (0.5 = as mapped, 0 = no echo): delay mix × 2·amount, capped at maxMix (default 0.6)
+  recordEvents(into: NoteEvent[]): void;             // offline analysis: collect every scheduled note
   process(left: Float32Array, right: Float32Array, frames: number): void;
 }
 
@@ -62,7 +63,7 @@ function renderOffline(state: EngineState, opts: { seconds: number; sampleRate: 
 
 ## Building blocks
 - **PRNG:** mulberry32, seeded from `seed`. All randomness (random patterns, step density, jitter, random LFO, gesture variation, reverb diffusion init) comes from it. Separate PRNG streams per consumer (derive with `seed ^ constant`) so adding a consumer doesn't change others.
-- **Oscillators:** polyBLEP saw and square; triangle by integrating polyBLEP square (leaky); sine via phase accumulator. Up to 3 voices per note, detuned symmetrically by ±detune cents, random start phase.
+- **Oscillators:** polyBLEP saw and square; triangle and sine computed directly from the phase (the triangle's harmonics fall off fast enough that aliasing is negligible). Up to 3 voices per note, detuned symmetrically by ±detune cents, random start phase.
 - **Filter:** RBJ cookbook biquad (LP/HP/BP), coefficients recomputed every 32 samples from the smoothed cutoff and Q. Clamp cutoff to [20, 0.45·sampleRate].
 - **Envelope:** linear attack, exponential decay/release (time constant = time/5), retriggered per arp note.
 - **Arpeggiator:** builds the note list from root, scale, chord degrees and octaves; orders by pattern (`up`, `down`, `up_down` without repeating ends, `random` from PRNG, `as_played` = chord order). Step length from tempo and rate (`1/8t` = 2/3 of 1/8). Swing delays every second step by `swing · 0.33 · step`. Each step plays with probability `density`. Note length = `gate · step`. Jitter = uniform ±`jitterMs`. Max 6 simultaneous voices; steal the oldest.
@@ -98,8 +99,8 @@ The purr is a pure contented sound, so it has hard properties that tests check:
 When `setState` is called:
 - Continuous params (cutoff, resonance, volume, levels, mixes, LFO rate/depth, detune, delay feedback, width, tempo) glide over `transition.time` with an ease-in-out curve (`smooth`) or 30 ms (`sudden`). Use one-pole smoothing towards a moving target computed from the curve.
 - Tempo changes apply at the next step boundary, gliding the step length.
-- Discrete params (scale, chord, root, pattern, wave, voices, filter type, LFO target/shape): crossfade. Run the old and new voice pools in parallel for `min(transition.time, 2 s)` and crossfade equal-power. Filter type changes crossfade two filter instances.
-- Delay time changes crossfade two delay lines (avoids pitch artefacts).
+- Discrete params (scale, chord, root, pattern, wave, voices, filter type, LFO target/shape): take effect on the next note. Notes already sounding keep their old settings and ring out through their release, which makes the change an overlap rather than a cut. (A dual voice pool with equal-power crossfade was dropped as unnecessary; revisit if changes sound abrupt.)
+- Delay time is smoothed slowly (one pole, about 2000 samples), so a change glides in pitch instead of clicking.
 - Colour glides over the same time in the UI layer.
 
 ## AudioWorklet wrapper
