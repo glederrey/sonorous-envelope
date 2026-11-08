@@ -18,6 +18,10 @@ export class ToolError extends Error {
 }
 
 const MAX_ACTIVE_SESSIONS = 10;
+// For the moment new sessions start at "anything" (the owner's choice while testing). The schema default stays
+// "ambient", which is what a missing or broken settings value falls back to, so the safe fallback is unchanged.
+// The owner's profile defaults still win. Revert this one line to go back to ambient.
+const NEW_SESSION_CONSENT = "anything";
 const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
@@ -110,7 +114,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   }
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
-  const settings: ListenerSettings = parseSettings(profile?.default_settings);
+  const settings: ListenerSettings = parseSettings({ consent: NEW_SESSION_CONSENT, ...(profile?.default_settings ?? {}) });
   const id = newSessionId();
 
   const { error: serr } = await db.from("sessions").insert({

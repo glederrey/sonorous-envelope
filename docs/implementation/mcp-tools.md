@@ -112,7 +112,7 @@ Behaviour:
 3. Insert an initial state: neutral mood `{warmth:0.5, closeness:0.5, joy:0.5, calm:0.8, spontaneity:0.2}` at volume 0.3, `final: true`, turn 0.
 4. Return:
 ```json
-{"session_id":"…","player_url":"https://<app>/s/…","settings":{"consent":"ambient","max_volume":0.6,"gestures":true,"image_feedback":"off"},
+{"session_id":"…","player_url":"https://<app>/s/…","settings":{"consent":"anything","max_volume":0.6,"gestures":true,"image_feedback":"off"},
  "note":"Share player_url with the user so they can listen. Pass session_id in every call."}
 ```
 A user can have several active sessions. `start_session` never reuses one.
