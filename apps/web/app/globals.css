@@ -334,7 +334,7 @@ html {
   min-width: 0;
 }
 .lp-headline {
-  font-size: clamp(38px, 5.3vw, 68px);
+  font-size: clamp(38px, 4.8vw, 62px);
   line-height: 1.05;
   letter-spacing: -0.025em;
   font-weight: 500;
@@ -342,13 +342,13 @@ html {
   text-wrap: balance;
 }
 .lp-lede {
-  font-size: clamp(17px, 2vw, 22px);
+  font-size: clamp(17px, 1.7vw, 20px);
   line-height: 1.55;
   color: var(--on-scrim-muted);
   margin: 0;
 }
 .lp-connect {
-  max-width: 600px;
+  max-width: 100%;
   padding: 12px;
   border-radius: var(--radius);
   background: var(--scrim);
@@ -434,8 +434,8 @@ html {
 
 @media (min-width: 900px) {
   .lp-hero-body {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.85fr);
-    column-gap: 40px;
+    grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+    column-gap: 56px;
     padding-top: 96px;
     padding-bottom: 96px;
     align-items: center;
@@ -590,4 +590,50 @@ html {
 .se-btn-icon {
   width: 44px;
   padding: 0;
+}
+
+/* Title: "hum" bobs like a held note, "it thinks" shimmers along its letters. */
+.lp-word {
+  display: inline-block;
+  white-space: pre;
+}
+.lp-hum .lp-word > span,
+.lp-think .lp-word > span {
+  display: inline-block;
+  animation-duration: 2.8s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-delay: calc(var(--i) * 0.2s);
+}
+.lp-hum .lp-word > span {
+  animation-name: lp-bob;
+}
+.lp-think .lp-word > span {
+  animation-name: lp-shimmer;
+  animation-duration: 3.4s;
+  animation-delay: calc(var(--i) * 0.13s);
+}
+@keyframes lp-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.07em);
+  }
+}
+@keyframes lp-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-hum .lp-word > span,
+  .lp-think .lp-word > span {
+    animation: none;
+  }
 }

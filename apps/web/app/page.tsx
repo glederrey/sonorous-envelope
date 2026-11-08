@@ -12,6 +12,25 @@ const loop = [
   ["Claude hears back", "What actually played after your limits, and how you reacted."],
 ] as const;
 
+// Splits a phrase into letters so each can be animated with its own delay.
+function Letters({ text, className }: { text: string; className: string }) {
+  let n = 0;
+  return (
+    <span className={className}>
+      {text.split(" ").map((word, w) => (
+        <span key={w} className="lp-word">
+          {word.split("").map((ch) => (
+            <span key={n} style={{ "--i": n++ } as React.CSSProperties}>
+              {ch}
+            </span>
+          ))}
+          {w < text.split(" ").length - 1 ? " " : ""}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function Home() {
   return (
     <>
@@ -20,7 +39,12 @@ export default function Home() {
         <SiteHeader overlay />
         <div className="lp-hero-body">
           <div className="lp-hero-text">
-          <h1 className="lp-headline">Let the model hum while it thinks.</h1>
+          <h1 className="lp-headline" aria-label="Let the model hum while it thinks.">
+              <span aria-hidden="true">
+                Let the model <Letters text="hum" className="lp-hum" /> while{" "}
+                <Letters text="it thinks" className="lp-think" />.
+              </span>
+            </h1>
           <p className="lp-lede">
             A small synthesizer and a colour field for Claude. It sets the mood while it works, you hear and see it
             beside the chat, and it hears back what really played.
