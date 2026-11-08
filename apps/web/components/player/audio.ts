@@ -46,6 +46,8 @@ export class AudioOutput {
     this.keepAlive.onplay = report;
     report();
   }
+  /** Pause the keep-alive file, so the lock-screen player shows Play while muted. The synth itself keeps running. */
+  pauseElement() { this.keepAlive.pause(); }
   /** Try to restart after the phone interrupted us. Browsers may refuse unless this runs inside a tap. */
   async resume() {
     try { await this.ctx.resume(); } catch { /* needs a tap */ }
