@@ -337,6 +337,10 @@ html {
   /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
   scrollbar-gutter: stable;
 }
+/* The player's colour field must reach the window edge: with the gutter reserved, an empty strip shows beside it. */
+html:has(.pl-field) {
+  scrollbar-gutter: auto;
+}
 .se-input,
 .se-mono {
   font-variant-numeric: tabular-nums;
