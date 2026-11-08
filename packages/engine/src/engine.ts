@@ -42,6 +42,11 @@ function target(s: EngineState): P {
   };
 }
 
+function emptyLayerParams(): LayerParams {
+  return { on: false, root: 60, scale: "major", chord: [1], octaves: 1, pattern: "up", stepSeconds: 1, gate: 1, swing: 0,
+    density: 1, jitterMs: 0, wave: "sine", voices: 1, detune: 0, attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1, level: 1 };
+}
+
 interface DroneOsc { midi: number; gain: number; goal: number; ph: [number, number]; wave: Wave }
 
 export class Engine {
@@ -101,23 +106,21 @@ export class Engine {
     for (const [midi, wave] of want) this.drones.push({ midi, gain: first ? 1 : 0, goal: 1, ph: [0, 0], wave });
   }
 
-  private layerParams(): { arp: LayerParams; bass: LayerParams } {
-    const s = this.state!, c = this.cur;
+  private arpP: LayerParams = emptyLayerParams();
+  private bassP: LayerParams = emptyLayerParams();
+
+  /** Fills the two cached layer parameter objects in place (no allocation in the audio loop). */
+  private fillLayerParams() {
+    const s = this.state!, c = this.cur, a = this.arpP, b = this.bassP;
     const beat = 60 / Math.max(20, c.tempo);
-    return {
-      arp: {
-        on: s.arp.on, root: s.arp.root, scale: s.arp.scale, chord: s.arp.chord, octaves: s.arp.octaves,
-        pattern: s.arp.pattern, stepSeconds: beat * RATE_BEATS[s.arp.rate], gate: c.gate, swing: c.swing,
-        density: c.density, jitterMs: c.jitterMs, wave: s.osc.wave, voices: s.osc.voices, detune: c.detune,
-        attack: c.attack, decay: c.decay, sustain: c.sustain, release: c.release, level: 1,
-      },
-      bass: {
-        on: s.bass.on, root: s.bass.root, scale: s.bass.scale, chord: s.bass.chord, octaves: 1,
-        pattern: "up_down", stepSeconds: Math.max(0.2, c.bassStep), gate: 1, swing: 0, density: 1, jitterMs: 0,
-        wave: s.bass.wave, voices: 1, detune: 0, attack: 0.1, decay: 0.3, sustain: 0.8, release: 0.8,
-        level: c.bassLevel,
-      },
-    };
+    a.on = s.arp.on; a.root = s.arp.root; a.scale = s.arp.scale; a.chord = s.arp.chord; a.octaves = s.arp.octaves;
+    a.pattern = s.arp.pattern; a.stepSeconds = beat * RATE_BEATS[s.arp.rate]; a.gate = c.gate; a.swing = c.swing;
+    a.density = c.density; a.jitterMs = c.jitterMs; a.wave = s.osc.wave; a.voices = s.osc.voices; a.detune = c.detune;
+    a.attack = c.attack; a.decay = c.decay; a.sustain = c.sustain; a.release = c.release; a.level = 1;
+    b.on = s.bass.on; b.root = s.bass.root; b.scale = s.bass.scale; b.chord = s.bass.chord; b.octaves = 1;
+    b.pattern = "up_down"; b.stepSeconds = Math.max(0.2, c.bassStep); b.gate = 1; b.swing = 0; b.density = 1; b.jitterMs = 0;
+    b.wave = s.bass.wave; b.voices = 1; b.detune = 0; b.attack = 0.1; b.decay = 0.3; b.sustain = 0.8; b.release = 0.8;
+    b.level = c.bassLevel;
   }
 
   private glide(dtSec: number) {
@@ -136,34 +139,33 @@ export class Engine {
     if (!s) { left.fill(0, 0, frames); right.fill(0, 0, frames); return; }
     const l0 = s.lfo[0], l1 = s.lfo[1];
     const hpA = Math.exp((-2 * Math.PI * 25) / sr);
-    let lp = this.layerParams();
-    this.arp.configure(lp.arp); this.bass.configure(lp.bass);
+    this.fillLayerParams();
+    this.arp.configure(this.arpP); this.bass.configure(this.bassP);
     for (let i = 0; i < frames; i++) {
       if (i % BLOCK === 0) {
         this.glide(BLOCK / sr);
-        lp = this.layerParams();
-        this.arp.configure(lp.arp); this.bass.configure(lp.bass);
+        this.fillLayerParams();
+        this.arp.configure(this.arpP); this.bass.configure(this.bassP);
         this.filter.set(s.filter.type, this.cur.cutoff, this.cur.resonance, sr);
       }
       const c = this.cur;
       // LFOs
       let cutMod = 0, pitchCents = 0, amp = 1, pan = 0;
-      const lfoRaw = [
-        l0 ? this.lfos[0].next(l0.shape, c.lfo0Rate, sr) : 0,
-        l1 ? this.lfos[1].next(l1.shape, c.lfo1Rate, sr) : 0,
-      ];
-      [l0, l1].forEach((l, k) => {
-        if (!l) return;
-        const depth = k === 0 ? c.lfo0Depth : c.lfo1Depth;
-        if (l.target === "cutoff") cutMod += lfoRaw[k] * depth * 2;
-        else if (l.target === "pitch") pitchCents += lfoRaw[k] * depth * 50;
-        else if (l.target === "amp") amp *= 1 - depth * (0.5 + 0.5 * lfoRaw[k]);
-        else pan += lfoRaw[k] * depth;
-      });
+      const v0 = l0 ? this.lfos[0].next(l0.shape, c.lfo0Rate, sr) : 0;
+      const v1 = l1 ? this.lfos[1].next(l1.shape, c.lfo1Rate, sr) : 0;
+      for (let k = 0; k < 2; k++) {
+        const l = k === 0 ? l0 : l1;
+        if (!l) continue;
+        const v = k === 0 ? v0 : v1, depth = k === 0 ? c.lfo0Depth : c.lfo1Depth;
+        if (l.target === "cutoff") cutMod += v * depth * 2;
+        else if (l.target === "pitch") pitchCents += v * depth * 50;
+        else if (l.target === "amp") amp *= 1 - depth * (0.5 + 0.5 * v);
+        else pan += v * depth;
+      }
       const pitchMul = pitchCents === 0 ? 1 : Math.pow(2, pitchCents / 1200);
       if (cutMod !== 0 && i % 8 === 0) this.filter.set(s.filter.type, c.cutoff * Math.pow(2, cutMod), c.resonance, sr);
 
-      let x = this.arp.process(this.t, pitchMul) + this.bass.process(this.t, 1) * lp.bass.level;
+      let x = this.arp.process(this.t, pitchMul) + this.bass.process(this.t, 1) * this.bassP.level;
       // drone
       for (let d = this.drones.length - 1; d >= 0; d--) {
         const dr = this.drones[d];

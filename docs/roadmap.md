@@ -36,6 +36,6 @@ Steps 1 to 10 and the landing page are being built first. Step 11 (mobile) comes
 
 One pull request per testable group, with one commit per piece of work inside it. Each group is released before the next one builds on it.
 1. Steps 1 and 2, with the static landing page: login, OAuth, token check on `/api/mcp`. Tested by adding the connector in claude.ai.
-2. Steps 3 and 4: `start_session`, `set_sound`, the engine, the player with the open link, analysis and feedback.
+2. Steps 3 and 4: `start_session`, `set_sound`, the engine, the player with the open link, analysis and feedback. *Built so far: everything except the analysis half of step 4 (offline render features, `reads_as`, `sound`), which comes in the next PR. Also deferred: `inspect`, gestures, reaction buttons, the owner settings panel.*
 3. Steps 5 and 6: listener controls and gestures.
 4. Steps 7 to 10: mood estimate, several listeners, the `Stop` hook and the spectrogram.

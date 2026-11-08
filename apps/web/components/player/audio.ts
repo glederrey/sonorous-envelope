@@ -6,6 +6,7 @@ export class AudioOutput {
 
   static async start(): Promise<AudioOutput> {
     const ctx = new AudioContext({ latencyHint: "playback" });
+    void ctx.resume(); // while the tap's user activation is still valid (Safari can lose it across an await)
     await ctx.audioWorklet.addModule("/worklet/engine-worklet.js");
     const node = new AudioWorkletNode(ctx, "sonorous-engine", {
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],

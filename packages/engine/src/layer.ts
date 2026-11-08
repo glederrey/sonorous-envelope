@@ -33,7 +33,7 @@ export class Layer {
   private pendLen = new Float64Array(MAX_PENDING);
   private pendCount = 0;
   private cycle: number[] = [60];
-  private cycleKey = "";
+  private seen = { root: -1, scale: "" as string, octaves: -1, pattern: "" as string, chord: [] as number[] };
   private idx = 0; private step = 0;
   private nextStep = 0;
   private p!: LayerParams;
@@ -46,12 +46,14 @@ export class Layer {
 
   configure(p: LayerParams) {
     this.p = p;
-    const key = `${p.root}|${p.scale}|${p.chord.join(",")}|${p.octaves}|${p.pattern}`;
-    if (key !== this.cycleKey) {
-      this.cycleKey = key;
-      this.cycle = buildCycle(p.root, p.scale, p.chord, p.octaves, p.pattern);
-      if (this.idx >= this.cycle.length) this.idx = 0;
-    }
+    const k = this.seen;
+    let same = k.root === p.root && k.scale === p.scale && k.octaves === p.octaves && k.pattern === p.pattern
+      && k.chord.length === p.chord.length;
+    for (let i = 0; same && i < p.chord.length; i++) same = k.chord[i] === p.chord[i];
+    if (same) return;
+    k.root = p.root; k.scale = p.scale; k.octaves = p.octaves; k.pattern = p.pattern; k.chord = p.chord.slice();
+    this.cycle = buildCycle(p.root, p.scale, p.chord, p.octaves, p.pattern);
+    if (this.idx >= this.cycle.length) this.idx = 0;
   }
 
   /** One sample of the layer (mono, before level). `t` = sample counter, `pitchMul` = vibrato multiplier. */
@@ -108,8 +110,9 @@ export class Layer {
 
   private trigger(midi: number, lenSamples: number, t: number) {
     const p = this.p, sr = this.sr;
-    let v = this.voices.find((x) => !x.active);
-    if (!v) { v = this.voices.reduce((a, b) => (a.age < b.age ? a : b)); }
+    let v: Voice | undefined;
+    for (let i = 0; i < this.voices.length; i++) if (!this.voices[i].active) { v = this.voices[i]; break; }
+    if (!v) { v = this.voices[0]; for (let i = 1; i < this.voices.length; i++) if (this.voices[i].age < v.age) v = this.voices[i]; }
     v.active = true; v.midi = midi; v.dt = midiToHz(midi) / sr;
     v.n = Math.min(3, Math.max(1, Math.round(p.voices)));
     const d = Math.pow(2, p.detune / 1200);
