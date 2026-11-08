@@ -1,12 +1,12 @@
 # Player and web app UI
 
-Visual design (colours, type, components, logo): see the [design system](../design-system.md).
+Visual design (colours, type, components, logo): follow the [Sonorous Envelope design system](https://claude.ai/artifact/XhWhkPDkbX1S1MyNKeLDYY) (summary in [design-system.md](../design-system.md)).
 
 ## Pages
 
 | Route | Purpose | Auth |
 |---|---|---|
-| `/` | What the project is, how to add the connector (with the URL to copy), link to sessions | public |
+| `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=` | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
@@ -15,6 +15,60 @@ Visual design (colours, type, components, logo): see the [design system](../desi
 | `/invite/[token]` | Redeem an invite, then redirect to the player | login |
 | `/settings` | Default listener settings, connected apps (OAuth grants, revoke) | login |
 | `/dev/mood` | Five sliders → live mapped sound; for tuning (dev builds only) | login |
+
+## The landing page (`/`)
+
+The first page anyone sees, before signing in. It explains the idea, how it works, and how to set it up. One long page, read top to bottom, works on a phone. Signed-in visitors see the same page with "Your sessions" in the header instead of "Sign in".
+
+### 1. Hero
+- Logo lockup (mark + wordmark) top left; "Sign in" or "Your sessions" top right.
+- Headline in `display`: "Let the model hum while it thinks." One line under it in `body`: "Sonorous Envelope gives Claude a second voice: a small synthesizer and a colour field you hear and see while it works."
+- Two actions: "Add to Claude" (primary, scrolls to the setup section) and "How it works" (secondary).
+- Behind the hero: a live, muted-by-default colour field drifting slowly (idle `field-a` → `field-b`, then a few preset moods gliding over ~8 s each). It respects `prefers-reduced-motion` and the 3 Hz rule like the player. An optional "Play a sample" button plays a short local demo state through the engine (tap required, volume capped low, stops on its own after 20 s).
+
+### 2. The idea
+Three short paragraphs, adapted from the README:
+- Text is the only channel a language model normally has. This adds a second one that is ambient and non-verbal.
+- During each turn the model describes a mood (warmth, closeness, joy, calm, spontaneity). Your browser turns it into a slow, living loop of sound and colour, and glides from one state to the next.
+- The name: in synthesis the envelope is the shape a sound takes over time; in psychoanalysis Anzieu's "sonorous envelope" is the bath of sound that holds a person before words. A one-line caveat from safety.md: the sound is an expressive channel, not proof of what the model feels.
+
+### 3. How it works
+Four steps, each with a small icon and two lines of text (a horizontal row on desktop, stacked on mobile):
+1. **Claude sets a mood.** While it works, and at the end of every message, it calls the connector with a mood and, optionally, exact sounds, short gestures and colour.
+2. **Your browser plays it.** The player page renders the sound and the colour field live and glides between states.
+3. **Claude hears back.** It gets what was really played: the settings after your limits, how the sound reads on the same mood axes, and your reactions.
+4. **You stay in control.** Volume, one-tap mute, limits, a consent level, and buttons like "calmer" or "softer". The model can never go past your limits.
+
+### 4. Add it to Claude
+Numbered steps with the connector URL in a `CopyField` (`${PUBLIC_BASE_URL}/api/mcp`):
+1. In claude.ai, open **Settings → Connectors** and choose **Add custom connector**.
+2. Name it "Sonorous Envelope" and paste the URL above. Save, then **Connect**: you are sent here to sign in and approve access (OAuth). Once approved you are back in Claude.
+3. In a new conversation, turn the connector on from the tools menu in the message box. Claude starts a session and gives you a link to your player page.
+4. Open the link and tap **Start listening**.
+
+Notes under the steps, in `body-sm`:
+- The connector added on claude.ai also works in the Claude desktop and mobile apps on the same account.
+- Each conversation gets its own session. Turn the connector on at the start of the conversation.
+- Custom connectors may depend on your Claude plan, and the menu names above can change: check them against claude.ai before launch and keep this section current (CLAUDE.md "Things to verify").
+
+### 5. Keep the player page open
+A highlighted block (scrim-style panel on the colour field, not a warning colour):
+- **The sound plays in the player page, not in Claude.** Keep that page open for the whole conversation. Closing it stops the sound, and Claude stops getting your reactions.
+- Best setup: player on one device or window (laptop, tablet, or a speaker-connected computer), chat on another.
+- On a phone: keep the player page in the foreground with the screen on. Phones pause web audio when you switch apps or lock the screen. (Same wording as the mobile hint in the player, until the stream mode in mobile.md exists.)
+- If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
+
+### 6. Safety and control
+Short list from safety.md: listener limits, consent levels (ambient by default), mute always one tap away, no flashing faster than 3 per second, every clamp reported to the model. Link to the full safety doc on GitHub.
+
+### 7. Footer
+GitHub link, "Your sessions", "Settings".
+
+### Acceptance
+- Readable and complete without JavaScript, except the live field and the sample.
+- No audio before a tap. The sample never exceeds the default `max_volume`.
+- Connector URL copies with one tap and is built from `PUBLIC_BASE_URL`.
+- Lighthouse accessibility ≥ 95; text contrast follows the design system.
 
 ## The player page (`/s/[id]`)
 

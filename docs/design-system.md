@@ -1,6 +1,6 @@
 # Design system
 
-The web app's design system lives in a Claude artifact: **[Sonorous Envelope design system](https://claude.ai/artifact/XhWhkPDkbX1S1MyNKeLDYY)**. It is the reference for anything visual in `apps/web`. The link is private until shared from the artifact's Share menu.
+The web app's design system lives in a Claude artifact: **[Sonorous Envelope design system](https://claude.ai/artifact/XhWhkPDkbX1S1MyNKeLDYY)**. It is the reference for anything visual in `apps/web`. The artifact is public.
 
 It holds:
 - **Brand book**: principles, voice, colour, type, spacing, motion, logo, iconography and accessibility rules.
