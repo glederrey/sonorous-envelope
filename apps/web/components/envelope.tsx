@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 // up then down) at random intervals. Everything is slow geometry, nowhere near
 // the 3 Hz flashing limit.
 const X0 = 2;
-const X1 = 598;
+const X1 = 478;
 const SAMPLES = 90;
 const SPACING = 125;
 const BASELINES = Array.from({ length: 7 }, (_, i) => 130 + i * SPACING);
@@ -137,13 +137,13 @@ export function Envelope({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 65 600 880"
+      viewBox="0 65 480 880"
       fill="none"
       role="img"
       aria-label="Seven lines with slow pulses travelling along them, like envelopes passing through"
     >
       <defs>
-        <linearGradient id="env-stroke" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
+        <linearGradient id="env-stroke" x1="0" y1="0" x2="480" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#f4a940" />
           <stop offset="1" stopColor="#45c7b6" />
         </linearGradient>
