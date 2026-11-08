@@ -75,6 +75,39 @@ export interface LimitInput {
 const NEUTRAL_COLOUR: ResolvedColour = { h: 220, s: 0, l: 0.05, motion: "still", texture: "flat", pulseHz: 0 };
 
 /**
+ * The caps that must hold whatever else happens: volume, echo, colour limits and the 3 Hz pulse rule.
+ * The player runs this on every state it receives (a second line of defence). Unlike the full pipeline it is
+ * idempotent, so applying it twice changes nothing.
+ */
+export function hardCaps(s: EngineState, settings: ListenerSettings, note: (field: string, from: number | string, to: number | string, why: string) => void = () => {}) {
+  // echo
+  s.fx.delay.time = Math.min(s.fx.delay.time, 0.75);
+  s.fx.delay.feedback = Math.min(s.fx.delay.feedback, 0.6);
+  if (s.fx.delay.mix > settings.max_delay_mix) { note("echo", s.fx.delay.mix, settings.max_delay_mix, "listener limit"); s.fx.delay.mix = settings.max_delay_mix; }
+
+  // volume (the absolute cap is never configurable)
+  const maxVol = Math.min(settings.max_volume, 0.9);
+  if (s.volume > maxVol) { note("volume", s.volume, maxVol, "listener limit"); s.volume = maxVol; }
+
+  // colour
+  if (!settings.colour.enabled) s.colour = { ...NEUTRAL_COLOUR };
+  else {
+    const c = s.colour;
+    if (c.l > settings.colour.max_lightness) { note("lightness", c.l, settings.colour.max_lightness, "listener limit"); c.l = settings.colour.max_lightness; }
+    if (c.s > settings.colour.max_saturation) { note("saturation", c.s, settings.colour.max_saturation, "listener limit"); c.s = settings.colour.max_saturation; }
+    if (c.secondary) { c.secondary.l = Math.min(c.secondary.l, settings.colour.max_lightness); c.secondary.s = Math.min(c.secondary.s, settings.colour.max_saturation); }
+    // hard rule, not configurable: never faster than 3 Hz
+    if (c.pulseHz > 3) { note("pulse", c.pulseHz, 3, "safety"); c.pulseHz = 3; }
+    if (c.motion !== "pulse") c.pulseHz = 0;
+  }
+
+  // absolute caps
+  s.volume = Math.min(s.volume, 0.9);
+  s.pan.width = Math.min(1, Math.max(0, s.pan.width));
+
+}
+
+/**
  * Applies listener limits and consent to a mapped state. Pure. Runs on the server for every update and again in
  * the player. Returns the effective state and short human-readable clamp entries (max 5, then "…and N more").
  */
@@ -124,14 +157,7 @@ export function applyLimits(input: LimitInput): { effective: EngineState; clamps
     note("harshness", was, harshness(s), "listener limit");
   }
 
-  // echo
-  s.fx.delay.time = Math.min(s.fx.delay.time, 0.75);
-  s.fx.delay.feedback = Math.min(s.fx.delay.feedback, 0.6);
-  if (s.fx.delay.mix > settings.max_delay_mix) { note("echo", s.fx.delay.mix, settings.max_delay_mix, "listener limit"); s.fx.delay.mix = settings.max_delay_mix; }
-
-  // volume (the absolute cap is never configurable)
-  const maxVol = Math.min(settings.max_volume, 0.9);
-  if (s.volume > maxVol) { note("volume", s.volume, maxVol, "listener limit"); s.volume = maxVol; }
+  hardCaps(s, settings, note);
 
   // transition
   const requested = input.transition ?? { time: 4, curve: "smooth" as const };
@@ -146,22 +172,6 @@ export function applyLimits(input: LimitInput): { effective: EngineState; clamps
 
   // no gesture in this build
   s.gesture = null;
-
-  // colour
-  if (!settings.colour.enabled) s.colour = { ...NEUTRAL_COLOUR };
-  else {
-    const c = s.colour;
-    if (c.l > settings.colour.max_lightness) { note("lightness", c.l, settings.colour.max_lightness, "listener limit"); c.l = settings.colour.max_lightness; }
-    if (c.s > settings.colour.max_saturation) { note("saturation", c.s, settings.colour.max_saturation, "listener limit"); c.s = settings.colour.max_saturation; }
-    if (c.secondary) { c.secondary.l = Math.min(c.secondary.l, settings.colour.max_lightness); c.secondary.s = Math.min(c.secondary.s, settings.colour.max_saturation); }
-    // hard rule, not configurable: never faster than 3 Hz
-    if (c.pulseHz > 3) { note("pulse", c.pulseHz, 3, "safety"); c.pulseHz = 3; }
-    if (c.motion !== "pulse") c.pulseHz = 0;
-  }
-
-  // absolute caps
-  s.volume = Math.min(s.volume, 0.9);
-  s.pan.width = Math.min(1, Math.max(0, s.pan.width));
 
   if (clamps.length > 5) { const extra = clamps.length - 5; clamps.length = 5; clamps.push(`…and ${extra} more`); }
   return { effective: s, clamps };

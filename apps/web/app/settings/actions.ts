@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
+import { getSignedInUser } from "../../lib/supabase/user";
 
 export async function revokeGrant(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   if (!clientId || clientId.length > 200) return;
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return;
+  if (!(await getSignedInUser(supabase))) return;
   await supabase.auth.oauth.revokeGrant({ clientId });
   revalidatePath("/settings");
 }

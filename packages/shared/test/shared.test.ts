@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
-  ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback,
+  hardCaps, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback,
   harmonyFor, harshness, moodToEngineState, nextSlowMood, parseSettings,
   type Mood as MoodT,
 } from "../src";
@@ -239,6 +239,20 @@ describe("limits", () => {
         expect(effective.colour.pulseHz).toBeLessThanOrEqual(3);
       }
     }
+  });
+});
+
+describe("hardCaps (the player's second line of defence)", () => {
+  it("caps volume, echo and colour pulse, and is idempotent", () => {
+    const s = moodToEngineState(neutral);
+    s.volume = 1; s.fx.delay = { time: 1.2, feedback: 0.8, mix: 0.9 };
+    s.colour = { ...s.colour, motion: "pulse", pulseHz: 9, l: 0.9 };
+    hardCaps(s, settings());
+    expect(s.volume).toBe(0.6); expect(s.fx.delay.mix).toBe(0.4); expect(s.fx.delay.time).toBe(0.75);
+    expect(s.colour.pulseHz).toBe(3); expect(s.colour.l).toBe(0.5);
+    const again = JSON.stringify(s);
+    hardCaps(s, settings());
+    expect(JSON.stringify(s)).toBe(again);
   });
 });
 

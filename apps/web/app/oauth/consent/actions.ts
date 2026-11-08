@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "../../../lib/supabase/server";
+import { getSignedInUser } from "../../../lib/supabase/user";
 
 export async function decide(formData: FormData) {
   const id = String(formData.get("authorization_id") ?? "");
@@ -11,8 +12,7 @@ export async function decide(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${id}`)}`);
+  if (!(await getSignedInUser(supabase))) redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${id}`)}`);
 
   const { data, error } =
     decision === "approve"

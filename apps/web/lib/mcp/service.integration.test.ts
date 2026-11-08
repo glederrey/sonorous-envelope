@@ -94,7 +94,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   it("counts players and reports the listener controls", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     sql(`insert into player_heartbeats (session_id, user_id, device_id, audio, volume, delay) values ('${session_id}', '${A}', 'd1', 'playing', 0.4, 0.7)`);
-    sql(`update player_heartbeats set seen_at = to_timestamp(${clock} / 1000.0) where session_id='${session_id}'`);
+    // the trigger stamps seen_at from the database clock; switch it off to place the heartbeat on the test clock
+    sql(`alter table player_heartbeats disable trigger player_heartbeats_touch; update player_heartbeats set seen_at = to_timestamp(${clock} / 1000.0) where session_id='${session_id}'; alter table player_heartbeats enable trigger player_heartbeats_touch`);
     const f = await svc.getFeedback(dbA, A, { session_id }, clock);
     expect(f.players).toBe(1);
     expect(f.controls).toEqual({ volume: 0.4, delay: 0.7 });

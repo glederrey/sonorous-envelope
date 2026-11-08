@@ -35,3 +35,14 @@ end $$;
 
 revoke execute on function public.join_session(text) from public, anon;
 grant  execute on function public.join_session(text) to authenticated, service_role;
+
+-- seen_at must come from the database clock, not from a player's device
+create or replace function public.touch_heartbeat()
+returns trigger language plpgsql as $$
+begin
+  new.seen_at := now();
+  return new;
+end $$;
+create trigger player_heartbeats_touch before insert or update on public.player_heartbeats
+  for each row execute function public.touch_heartbeat();
+revoke execute on function public.touch_heartbeat() from public, anon, authenticated;

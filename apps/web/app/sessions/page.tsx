@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
+import { getSignedInUser } from "../../lib/supabase/user";
 
 export const metadata = { title: "Your sessions · Sonorous Envelope" };
 
 export default async function SessionsPage() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login?next=%2Fsessions");
+  if (!(await getSignedInUser(supabase))) redirect("/login?next=%2Fsessions");
 
   return (
     <>
