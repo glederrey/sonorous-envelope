@@ -87,7 +87,10 @@ export async function updatePassword(_prev: LoginState, formData: FormData): Pro
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
-  if (error) return { status: "error", message: "Could not change the password. Request a new reset link." };
+  // Choosing the password you already have leaves the account as asked: treat it as done.
+  if (error && error.code !== "same_password") {
+    return { status: "error", message: "Could not change the password. Request a new reset link." };
+  }
   redirect("/sessions");
 }
 
