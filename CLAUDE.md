@@ -18,6 +18,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
    - `analysis.md`: features, mood estimate, spectrogram
    - `realtime.md`: channels, payloads, presence
    - `player-ui.md`: the session page and controls
+   - `../design-system.md`: the visual design system (artifact link, tokens, logo). Follow it for all UI work.
    - `testing.md`: tests and acceptance criteria per milestone
 5. `docs/sound-model.md`, `docs/feedback.md`, `docs/safety.md`, `docs/mobile.md`: design background.
 6. `docs/roadmap.md`: build order. Work milestone by milestone.

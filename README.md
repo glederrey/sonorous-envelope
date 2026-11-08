@@ -1,3 +1,5 @@
+<img src="docs/brand/app-icon.svg" width="64" alt="Sonorous Envelope logo">
+
 # sonorous-envelope
 
 An MCP server that gives an LLM a non-verbal channel: a small synthesizer (arpeggiator, filter, LFO, drone, delay), short sound gestures, and a colour field. The model can update the sound at any point while it works and must update it at the end of every message. It gets back an analysis of what is actually playing, and the listener can react by changing it.
@@ -25,6 +27,7 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
 - [Safety and consent](docs/safety.md): limits, consent levels, and why they matter
 - [Roadmap](docs/roadmap.md): build order
+- [Design system](docs/design-system.md): colours, type, logo and UI components for the web app ([open the artifact](https://claude.ai/artifact/XhWhkPDkbX1S1MyNKeLDYY))
 - [Implementation spec](docs/implementation/): everything needed to build it (start with [CLAUDE.md](CLAUDE.md))
 
 ## Decisions so far

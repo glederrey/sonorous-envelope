@@ -1,5 +1,7 @@
 # Player and web app UI
 
+Visual design (colours, type, components, logo): see the [design system](../design-system.md).
+
 ## Pages
 
 | Route | Purpose | Auth |
