@@ -254,6 +254,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     ms.metadata = new MediaMetadata({ title: "Claude's sound", artist: "Sonorous Envelope", album: "Live session" });
     ms.setActionHandler("play", () => { setMuted(false); void audio.current?.resume(); });
     ms.setActionHandler("pause", () => setMuted(true));
+    // this is a live sound, not a 60 s track: no seeking, and no progress bar if the browser accepts an endless duration
+    for (const a of ["seekto", "seekbackward", "seekforward", "previoustrack", "nexttrack"] as const) {
+      try { ms.setActionHandler(a, null); } catch { /* not supported */ }
+    }
+    try { ms.setPositionState({ duration: Infinity, playbackRate: 1, position: 0 }); } catch { /* not supported */ }
     return () => { ms.setActionHandler("play", null); ms.setActionHandler("pause", null); };
   }, [started]);
   useEffect(() => {

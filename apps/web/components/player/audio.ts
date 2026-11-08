@@ -7,6 +7,7 @@ function keepAliveAudio(): HTMLAudioElement {
   const el = new Audio("/keepalive.wav");
   el.loop = true;
   el.preload = "auto";
+  el.volume = 0.05; // the file is already near-silent; this makes sure nothing audible leaks even on a loud device
   return el;
 }
 
