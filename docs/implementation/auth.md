@@ -36,7 +36,7 @@ Discovery check: `https://<project-ref>.supabase.co/.well-known/oauth-authorizat
      - If the result has `authorization_id`: show the consent screen.
      - If it has `redirect_url` (already consented): redirect there.
    - Consent screen shows: client name (and logo if any), the requested scopes, what the app will be able to do ("create sound sessions, update the sound, read your reactions"), and Approve / Deny buttons.
-   - Approve → `supabase.auth.oauth.approveAuthorization(authorizationId)`; Deny → `denyAuthorization(...)`. Both redirect the browser back to the client by default.
+   - Approve → `supabase.auth.oauth.approveAuthorization(authorizationId)`; Deny → `denyAuthorization(...)`. Both are POSTs from a server action (never a GET link, so a prefetch cannot approve), and the action redirects to the returned `redirect_url`.
 7. claude.ai exchanges the code for tokens at Supabase's token endpoint and calls `/api/mcp` with `Authorization: Bearer <access token>`.
 8. Refresh tokens rotate automatically; claude.ai handles refresh.
 
@@ -61,45 +61,37 @@ export { handler as GET, metadataCorsOptionsRequestHandler as OPTIONS };
 
 ## Token verification on `/api/mcp`
 
+`apps/web/lib/auth/verify-token.ts` exports `createVerifier(getKey, issuer)` (testable with a local key set) and a default `verifyToken` that builds the remote JWKS on first use:
+
 ```ts
-// lib/auth/verify-token.ts
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import type { AuthInfo } from "<MCP SDK>/server/auth/types"; // path depends on SDK version
+import type { AuthInfo } from "@modelcontextprotocol/server";
 
-const JWKS = createRemoteJWKSet(new URL(process.env.SUPABASE_JWKS_URL!));
-
-export async function verifyToken(_req: Request, bearer?: string): Promise<AuthInfo | undefined> {
-  if (!bearer) return undefined;
-  try {
-    const { payload } = await jwtVerify(bearer, JWKS, { issuer: process.env.SUPABASE_AUTH_ISSUER });
-    if (payload.role !== "authenticated" || typeof payload.sub !== "string") return undefined;
-    // OAuth tokens carry a client_id claim; plain web-session tokens don't.
-    if (typeof payload.client_id !== "string") return undefined;
-    return {
-      token: bearer,
-      clientId: payload.client_id,
-      scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : [],
-      expiresAt: payload.exp,
-      extra: { userId: payload.sub },
-    };
-  } catch {
-    return undefined;
-  }
-}
+// inside the verifier
+const { payload } = await jwtVerify(bearer, getKey, { issuer });
+if (payload.role !== "authenticated" || typeof payload.sub !== "string") return undefined;
+// OAuth tokens carry a client_id claim; plain web-session tokens don't.
+if (typeof payload.client_id !== "string") return undefined;
+return { token: bearer, clientId: payload.client_id, scopes, expiresAt: payload.exp, extra: { userId: payload.sub } };
 ```
 
-Wrap the handler:
+The route wraps the handler per request, so env vars are read lazily:
 
 ```ts
 // app/api/mcp/route.ts
-const authHandler = withMcpAuth(handler, verifyToken, {
-  required: true,
-  resourceMetadataPath: "/.well-known/oauth-protected-resource",
-});
-export { authHandler as GET, authHandler as POST, authHandler as DELETE };
+async function authed(req: Request) {
+  return withMcpAuth(handler, verifyToken, {
+    required: true,
+    resourceMetadataPath: "/.well-known/oauth-protected-resource",
+    resourceUrl: new URL(mcpResourceUrl()).origin,
+  })(req);
+}
+export { authed as GET, authed as POST, authed as DELETE };
 ```
 
-Check `jwtVerify` audience handling against what Supabase puts in `aud` for OAuth tokens, and add an audience check if it is the resource URL.
+Audience: not checked yet. Decode a real access token from claude.ai (or MCP Inspector) against production, see what `aud` holds, then add the check and a test.
+
+Protected resource metadata uses `protectedResourceHandler({ authServerUrls: [issuer], resourceUrl: MCP_RESOURCE_URL })`, built per request in `lib/mcp/protected-resource.ts`.
 
 ## Database access with the caller's token
 Inside a tool, build a Supabase client that sends the caller's token, so RLS sees `auth.uid()` = the user:

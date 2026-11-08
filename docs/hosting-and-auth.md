@@ -58,6 +58,10 @@ For example the owner on two devices, or a friend listening in.
 - **The player link is open.** Anyone with `/s/<id>` can listen, with no account: the browser signs in anonymously (Supabase anonymous sign-ins) and joins the session through a `join_session` RPC, so RLS and Realtime keep working on a real `auth.uid()`. There are no invite tokens.
 - Only the person who connects Claude signs in (OAuth). The owner can end the session.
 - Session IDs are long random values (144 bits), so links cannot be guessed. Anyone who sees the link can listen: it appears in the chat, so a shared chat shares the player. The content is sound and colour only.
+- **Sessions and settings per person:**
+  - *The owner* (signed in with the account that connected Claude) has "Your sessions", the sessions where `owner_id` is them. Their default listener settings live in `profiles.default_settings`, edited in Settings, and are copied into each new session. Per-session limits and consent live in `sessions.settings`, changed from the player by the owner.
+  - *A listener* (anonymous) has no sessions list and no account settings. Volume and mute are stored in their browser, per session (`localStorage`). The player may keep a short "recently opened" list of links in the browser too. Clearing the browser data loses that identity; the link still works.
+  - If the owner opens their own player link in a browser where they are signed in, they get the owner controls. Anyone else sees the listener view.
 - Open question: limits and consent stay with the owner. Each listener keeps their own volume and mute, stored in their browser. Revisit if a guest needs stricter limits than the owner set.
 
 ## Data model (first sketch)
