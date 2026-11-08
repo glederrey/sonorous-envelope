@@ -17,14 +17,24 @@ type Voice = {
   phase: number;
 };
 
-const VOICES: Voice[] = [
-  { y0: 90, ph: 70, sh: 30, px: 190, dx: 300, rx: 400, width: 2, opacity: 0.35, phase: 0.4 },
-  { y0: 170, ph: 92, sh: 40, px: 150, dx: 262, rx: 440, width: 2.5, opacity: 0.5, phase: 1.9 },
-  { y0: 255, ph: 105, sh: 50, px: 175, dx: 285, rx: 415, width: 3, opacity: 0.7, phase: 3.2 },
-  { y0: 340, ph: 100, sh: 44, px: 135, dx: 245, rx: 455, width: 4, opacity: 1, phase: 4.5 },
-  { y0: 425, ph: 84, sh: 36, px: 195, dx: 310, rx: 395, width: 2.5, opacity: 0.55, phase: 5.8 },
-  { y0: 505, ph: 62, sh: 26, px: 160, dx: 270, rx: 430, width: 2, opacity: 0.35, phase: 0.9 },
-];
+// Baselines are 100 apart. Each voice's tallest peak plus its drift stays under
+// 84, so a line never reaches the line above it.
+const BASELINES = [90, 190, 290, 390, 490, 590, 690];
+const PEAKS = [38, 46, 54, 62, 54, 46, 38];
+const VOICES: Voice[] = BASELINES.map((y0, i) => {
+  const d = Math.abs(i - 3); // distance from the centre line
+  return {
+    y0,
+    ph: PEAKS[i],
+    sh: 22 + (3 - d) * 3,
+    px: [190, 150, 175, 135, 195, 160, 180][i],
+    dx: [300, 262, 285, 245, 310, 270, 295][i],
+    rx: [400, 440, 415, 455, 395, 430, 410][i],
+    width: 4,
+    opacity: [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2][i],
+    phase: i * 1.3 + 0.4,
+  };
+});
 
 const SPEED = 0.35; // rad/s, one cycle is about 18 s
 const DRAW_MS = 2200;
@@ -33,8 +43,8 @@ const STAGGER_MS = 240;
 function shape(v: Voice, t: number, amp: number) {
   const s = (rate: number, mul = 1) => Math.sin(t * SPEED * rate + v.phase * mul);
   const px = v.px + 48 * amp * s(1);
-  const py = v.y0 - (v.ph + 26 * amp * s(0.8, 1.3));
-  const sy = v.y0 - (v.sh + 16 * amp * s(0.7, 0.6));
+  const py = v.y0 - (v.ph + 20 * amp * s(0.8, 1.3));
+  const sy = v.y0 - (v.sh + 10 * amp * s(0.7, 0.6));
   const dx = v.dx + 34 * amp * s(0.9, 1.1);
   const rx = v.rx + 52 * amp * s(0.6, 0.8);
   const y0 = v.y0 + 6 * amp * s(0.5, 0.4);
@@ -71,10 +81,10 @@ export function Envelope({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 600 560"
+      viewBox="0 0 600 720"
       fill="none"
       role="img"
-      aria-label="Six layered attack, decay, sustain and release envelopes, drifting slowly"
+      aria-label="Seven layered attack, decay, sustain and release envelopes, drifting slowly"
     >
       <defs>
         <linearGradient id="env-stroke" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">

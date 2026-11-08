@@ -312,11 +312,11 @@ html {
   gap: 24px;
 }
 .lp-headline {
-  font-size: clamp(40px, 8vw, 88px);
-  line-height: 1.02;
-  letter-spacing: -0.03em;
+  font-size: clamp(38px, 4.5vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
   font-weight: 500;
-  max-width: 14ch;
+  max-width: 20ch;
   text-wrap: balance;
 }
 .lp-lede {
@@ -334,6 +334,7 @@ html {
   border: 1px solid var(--scrim-line);
 }
 .lp-connect-note {
+  white-space: nowrap;
   margin: 10px 4px 2px;
   color: var(--on-scrim-muted);
 }
@@ -417,7 +418,7 @@ html {
     column-gap: 64px;
     padding-top: 96px;
     padding-bottom: 96px;
-    align-items: start;
+    align-items: center;
   }
   .lp-hero-body > * {
     grid-column: 1;
