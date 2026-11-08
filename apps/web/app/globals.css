@@ -267,6 +267,8 @@ html {
 }
 html {
   scroll-behavior: smooth;
+  /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
+  scrollbar-gutter: stable;
 }
 .se-input,
 .se-mono {
