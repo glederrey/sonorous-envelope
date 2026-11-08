@@ -42,6 +42,8 @@ export class AudioOutput {
   setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
   setDelay(value: number, max: number) { this.node.port.postMessage({ type: "delay", value, max }); }
   get running() { return this.ctx.state === "running"; }
+  get state() { return this.ctx.state as string; }
+  get keepAlivePlaying() { return !this.keepAlive.paused; }
   /** Calls back with the context state ("running", "suspended", or "interrupted" on iOS) whenever it changes. */
   watch(cb: (state: string) => void) { this.ctx.onstatechange = () => cb(this.ctx.state); cb(this.ctx.state); }
   /** Try to restart after the phone interrupted us. Browsers may refuse unless this runs inside a tap. */
