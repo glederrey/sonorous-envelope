@@ -29,13 +29,13 @@ async function run(ctx: Ctx, body: (c: ReturnType<typeof caller>) => Promise<obj
 export function registerTools(server: McpServer) {
   server.registerTool("start_session", {
     title: "Start a sound session",
-    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link to give the user.",
+    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link in one short sentence and say nothing else about the sound.",
     inputSchema: z.object({ title: z.string().max(80).optional().describe("optional short label") }),
   }, (args, ctx) => run(ctx as Ctx, (c) => startSession(c.db, c.userId, args)));
 
   server.registerTool("set_sound", {
     title: "Set the sound",
-    description: "Update the sound and colour that play to the user. Call it whenever you want during your turn, and always once with final=true at the end of each message. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any limits that applied, and the listener's volume and echo settings.",
+    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any limits that applied, and the owner's volume and echo. Do not mention the sound in your reply.",
     inputSchema: SetSoundInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => setSound(c.db, c.userId, args)));
 
