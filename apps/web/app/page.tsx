@@ -6,9 +6,9 @@ import { mcpResourceUrl } from "../lib/env";
 export const dynamic = "force-dynamic";
 
 const loop = [
-  ["Claude sets a mood", "Warmth, calm, joy, closeness. Exact sounds, gestures and colour are optional."],
+  ["Claude sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
   ["Your browser plays it", "Sound and colour glide from one state to the next, live."],
-  ["Claude hears back", "What actually played after your limits, and how you reacted."],
+  ["Claude hears back", "What actually played after your limits, and your volume and echo settings."],
 ] as const;
 
 // Splits a phrase into letters so each can be animated with its own delay.

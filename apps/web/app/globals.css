@@ -659,3 +659,58 @@ html {
 .se-nav {
   gap: 8px;
 }
+
+/* ---- player (/s/<id>) ---- */
+@property --pl-h { syntax: "<number>"; inherits: true; initial-value: 220; }
+@property --pl-s { syntax: "<number>"; inherits: true; initial-value: 0.15; }
+@property --pl-l { syntax: "<number>"; inherits: true; initial-value: 0.12; }
+@property --pl-h2 { syntax: "<number>"; inherits: true; initial-value: 245; }
+@property --pl-s2 { syntax: "<number>"; inherits: true; initial-value: 0.15; }
+@property --pl-l2 { syntax: "<number>"; inherits: true; initial-value: 0.04; }
+
+.pl-field {
+  --pl-t: 1s;
+  position: relative;
+  min-height: calc(100dvh - 72px);
+  display: grid;
+  background:
+    linear-gradient(160deg,
+      hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)),
+      hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)));
+  transition: --pl-h var(--pl-t) ease-in-out, --pl-s var(--pl-t) ease-in-out, --pl-l var(--pl-t) ease-in-out,
+              --pl-h2 var(--pl-t) ease-in-out, --pl-s2 var(--pl-t) ease-in-out, --pl-l2 var(--pl-t) ease-in-out;
+  overflow: hidden;
+}
+.pl-field::before, .pl-field::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.pl-field[data-texture="grain"]::before, .pl-field[data-texture="soft_noise"]::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.12;
+}
+.pl-field[data-texture="soft_noise"]::before { opacity: 0.06; }
+/* drift: a slow highlight. pulse: a faint brightness swell, at most 3 Hz and a small swing (see limits.md) */
+.pl-field[data-motion="drift"]::after {
+  background: radial-gradient(60% 60% at 30% 30%, rgba(255, 255, 255, 0.07), transparent);
+  animation: pl-drift 40s ease-in-out infinite alternate;
+}
+.pl-field[data-motion="pulse"]::after {
+  background: rgba(255, 255, 255, 0.07);
+  animation: pl-pulse var(--pl-pulse, 2s) ease-in-out infinite alternate;
+}
+@keyframes pl-drift { from { transform: translate3d(-8%, -4%, 0); } to { transform: translate3d(10%, 6%, 0); } }
+@keyframes pl-pulse { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-field, .pl-field::after { transition: none; animation: none; }
+}
+
+.pl-stage { position: relative; z-index: 1; display: grid; place-items: end center; padding: 24px 16px 32px; }
+.pl-start { align-self: center; display: grid; gap: 20px; justify-items: center; max-width: 440px; text-align: center; padding: 28px; border-radius: var(--radius); background: var(--scrim); color: var(--on-scrim); border: 1px solid var(--scrim-line); }
+.pl-start p { margin: 0; }
+.pl-lede { color: var(--on-scrim-muted); }
+.pl-start-btn { min-height: 52px; padding-inline: 32px; font-size: 1.05rem; }
+.pl-note { align-self: center; padding: 14px 18px; border-radius: var(--radius); background: var(--scrim); color: var(--on-scrim); border: 1px solid var(--scrim-line); max-width: 440px; }
+.pl-panel { width: min(520px, 100%); display: grid; gap: 18px; padding: 20px; border-radius: var(--radius); background: var(--scrim); color: var(--on-scrim); border: 1px solid var(--scrim-line); backdrop-filter: blur(8px); }
+.pl-mute { min-height: 52px; justify-content: center; gap: 10px; font-size: 1rem; }
+.pl-slider { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 12px; }
+.pl-slider input[type="range"] { width: 100%; accent-color: var(--tide); min-height: 32px; }
+.pl-status { margin: 0; color: var(--on-scrim-muted); display: flex; align-items: center; gap: 8px; }
+.pl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--glow); flex: none; }

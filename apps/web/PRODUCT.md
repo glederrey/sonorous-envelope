@@ -26,7 +26,7 @@ Sessions start from a chat. The player stays open in a tab or on a second screen
 
 ## Capabilities and Constraints
 
-Next.js on Vercel, Supabase (auth, Postgres, Realtime). Safety limits are enforced on the server. No flashing faster than 3 Hz. Today only a temporary `ping` tool is live. The synth tools and the player come next, so the landing page must not claim features that are not shipped.
+Next.js on Vercel, Supabase (auth, Postgres, Realtime). Safety limits are enforced on the server. No flashing faster than 3 Hz. Live: `start_session`, `set_sound`, `get_feedback`, `silence` and the player at `/s/<id>`. Not yet: gestures, reaction buttons, the owner settings panel, `inspect`, audio analysis (`reads_as`). The landing page must not claim features that are not shipped.
 
 ## Brand Commitments
 
