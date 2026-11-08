@@ -584,28 +584,8 @@ html {
   border-bottom: 1px solid var(--line);
 }
 
-/* Theme toggle */
-.se-iconbtn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* Theme toggle: a normal button, icon only */
+.se-btn-icon {
   width: 44px;
-  height: 44px;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-.se-iconbtn:hover {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 8%, transparent);
-}
-.se-header-overlay .se-iconbtn {
-  color: var(--on-scrim-muted);
-}
-.se-header-overlay .se-iconbtn:hover {
-  color: var(--on-scrim);
 }

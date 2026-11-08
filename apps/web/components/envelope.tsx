@@ -16,7 +16,6 @@ const BASELINES = Array.from({ length: 7 }, (_, i) => 70 + i * SPACING);
 // lines can never touch.
 const CAPS = [34, 40, 46, 50, 46, 40, 34];
 const OPACITY = [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2];
-const DRAW_MS = 2200;
 const STAGGER_MS = 240;
 
 type Pulse = { t0: number; speed: number; w0: number; grow: number; amp: number; decay: number; biphasic: boolean };
@@ -48,20 +47,32 @@ function linePath(i: number, pulses: Pulse[], t: number) {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
-function spawn(i: number, t: number): Pulse {
-  const cap = CAPS[i];
-  const main = i === 3;
-  const r = Math.random();
-  const down = !main && r > 0.5 && r <= 0.75;
-  const biphasic = !main && r > 0.75;
+const MAIN = 3;
+
+// The middle line sets the pulse. Every other line sends a variant of it at the
+// same moment: a little faster or slower, wider or narrower, up, down or both.
+function spawnMain(t: number): Pulse {
   return {
     t0: t,
-    speed: rand(60, 105),
-    w0: rand(34, 70),
-    grow: rand(0.03, 0.12),
-    amp: (down ? -1 : 1) * cap * rand(main ? 0.85 : 0.5, 1),
-    decay: rand(0.12, 0.3),
-    biphasic,
+    speed: rand(65, 100),
+    w0: rand(40, 65),
+    grow: rand(0.03, 0.1),
+    amp: CAPS[MAIN] * rand(0.85, 1),
+    decay: rand(0.12, 0.25),
+    biphasic: false,
+  };
+}
+
+function spawnVariant(i: number, main: Pulse, t: number): Pulse {
+  const r = Math.random();
+  return {
+    t0: t + rand(0, 0.5),
+    speed: main.speed * rand(0.8, 1.25),
+    w0: main.w0 * rand(0.7, 1.4),
+    grow: main.grow * rand(0.5, 2),
+    amp: (r > 0.5 && r <= 0.75 ? -1 : 1) * CAPS[i] * rand(0.5, 1),
+    decay: main.decay * rand(0.7, 1.5),
+    biphasic: r > 0.75,
   };
 }
 
@@ -78,24 +89,25 @@ export function Envelope({ className }: { className?: string }) {
       return;
     }
     const start = performance.now();
-    const settle = (DRAW_MS + STAGGER_MS * 6) / 1000;
-    const lines = BASELINES.map((_, i) => ({
-      pulses: [] as Pulse[],
-      next: i === 3 ? settle + 0.3 : settle + rand(0.8, 6),
-    }));
+    const lines = BASELINES.map(() => [] as Pulse[]);
+    let next = 0; // the first pulse starts at once
     let frame = 0;
     const tick = (now: number) => {
       const t = (now - start) / 1000;
-      lines.forEach((line, i) => {
-        if (t >= line.next) {
-          line.pulses.push(spawn(i, t));
-          line.next = t + (i === 3 ? rand(5, 8) : rand(4, 11));
-        }
-        line.pulses = line.pulses.filter((p) => {
+      if (t >= next) {
+        const main = spawnMain(t);
+        lines.forEach((pulses, i) => {
+          if (i === MAIN) pulses.push(main);
+          else if (Math.random() > 0.12) pulses.push(spawnVariant(i, main, t));
+        });
+        next = t + rand(5, 8);
+      }
+      lines.forEach((pulses, i) => {
+        lines[i] = pulses.filter((p) => {
           const age = t - p.t0;
           return centre(p, age) - 2.5 * width(p, age) < X1 && Math.abs(p.amp) * Math.exp(-p.decay * age) > 1;
         });
-        if (t >= settle) paths.current[i]?.setAttribute("d", linePath(i, line.pulses, t));
+        paths.current[i]?.setAttribute("d", linePath(i, lines[i], t));
       });
       frame = requestAnimationFrame(tick);
     };
