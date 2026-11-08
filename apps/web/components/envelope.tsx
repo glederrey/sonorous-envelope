@@ -9,12 +9,15 @@ import { useEffect, useRef } from "react";
 // the 3 Hz flashing limit.
 const X0 = 2;
 const X1 = 598;
-const SAMPLES = 80;
-const SPACING = 110;
-const BASELINES = Array.from({ length: 7 }, (_, i) => 70 + i * SPACING);
-// Largest excursion per line. Neighbours' caps add up to less than SPACING, so
-// lines can never touch.
-const CAPS = [34, 40, 46, 50, 46, 40, 34];
+const SAMPLES = 90;
+const SPACING = 125;
+const BASELINES = Array.from({ length: 7 }, (_, i) => 130 + i * SPACING);
+const MAIN = 3;
+// Largest upward excursion per line (always below SPACING, so a line never
+// reaches the baseline of the one above). Only the middle line can also dip,
+// and its dip plus the next line's rise stays under SPACING.
+const CAPS_UP = [55, 70, 85, 100, 85, 70, 55];
+const CAP_DOWN = 30;
 const OPACITY = [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2];
 const STAGGER_MS = 240;
 
@@ -33,13 +36,14 @@ function pulseValue(p: Pulse, x: number, t: number) {
 }
 
 function linePath(i: number, pulses: Pulse[], t: number) {
-  const cap = CAPS[i];
+  const up = CAPS_UP[i];
+  const down = i === MAIN ? CAP_DOWN : 1;
   let d = "";
   for (let k = 0; k <= SAMPLES; k++) {
     const x = X0 + ((X1 - X0) * k) / SAMPLES;
     let sum = 0;
     for (const p of pulses) sum += pulseValue(p, x, t);
-    const y = BASELINES[i] - cap * Math.tanh(sum / cap);
+    const y = BASELINES[i] - (sum >= 0 ? up * Math.tanh(sum / up) : down * Math.tanh(sum / down));
     d += `${k === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)} `;
   }
   return d;
@@ -47,32 +51,32 @@ function linePath(i: number, pulses: Pulse[], t: number) {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
-const MAIN = 3;
-
-// The middle line sets the pulse. Every other line sends a variant of it at the
-// same moment: a little faster or slower, wider or narrower, up, down or both.
+// The middle line sets the pulse and may go up, down, or up then down. Every
+// other line sends an upward variant at the same moment: faster or slower,
+// wider or narrower. Waves keep their height until they leave at the right.
 function spawnMain(t: number): Pulse {
+  const r = Math.random();
+  const dip = r > 0.5 && r <= 0.72;
   return {
     t0: t,
-    speed: rand(65, 100),
-    w0: rand(40, 65),
-    grow: rand(0.03, 0.1),
-    amp: CAPS[MAIN] * rand(0.85, 1),
-    decay: rand(0.12, 0.25),
-    biphasic: false,
+    speed: rand(65, 105),
+    w0: rand(40, 70),
+    grow: rand(0.02, 0.07),
+    amp: (dip ? -1 : 1) * (dip ? CAP_DOWN * 1.4 : CAPS_UP[MAIN]) * rand(0.85, 1),
+    decay: rand(0, 0.025),
+    biphasic: r > 0.72,
   };
 }
 
 function spawnVariant(i: number, main: Pulse, t: number): Pulse {
-  const r = Math.random();
   return {
     t0: t + rand(0, 0.5),
-    speed: main.speed * rand(0.8, 1.25),
-    w0: main.w0 * rand(0.7, 1.4),
+    speed: main.speed * rand(0.8, 1.3),
+    w0: Math.abs(main.w0) * rand(0.7, 1.5),
     grow: main.grow * rand(0.5, 2),
-    amp: (r > 0.5 && r <= 0.75 ? -1 : 1) * CAPS[i] * rand(0.5, 1),
-    decay: main.decay * rand(0.7, 1.5),
-    biphasic: r > 0.75,
+    amp: CAPS_UP[i] * rand(0.55, 1),
+    decay: rand(0, 0.025),
+    biphasic: false,
   };
 }
 
@@ -83,24 +87,30 @@ export function Envelope({ className }: { className?: string }) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       // One frozen pulse per line.
       paths.current.forEach((el, i) => {
-        const frozen: Pulse = { t0: 0, speed: 0, w0: 60, grow: 0, amp: CAPS[i] * 0.8, decay: 0, biphasic: false };
+        const frozen: Pulse = { t0: 0, speed: 0, w0: 60, grow: 0, amp: CAPS_UP[i] * 0.8, decay: 0, biphasic: false };
         el?.setAttribute("d", linePath(i, [{ ...frozen, speed: 1 }], 200));
       });
       return;
     }
     const start = performance.now();
     const lines = BASELINES.map(() => [] as Pulse[]);
-    let next = 0; // the first pulse starts at once
+    // Event times: the first at once, then every 5 to 8 s. About a third of
+    // the events come twice in quick succession.
+    const events: number[] = [0];
     let frame = 0;
     const tick = (now: number) => {
       const t = (now - start) / 1000;
-      if (t >= next) {
+      while (events.length && t >= events[0]) {
+        const at = events.shift() as number;
         const main = spawnMain(t);
         lines.forEach((pulses, i) => {
           if (i === MAIN) pulses.push(main);
           else if (Math.random() > 0.12) pulses.push(spawnVariant(i, main, t));
         });
-        next = t + rand(5, 8);
+        if (events.length === 0) {
+          events.push(at + rand(5, 8));
+          if (Math.random() < 0.35) events.unshift(t + rand(0.45, 1.1));
+        }
       }
       lines.forEach((pulses, i) => {
         lines[i] = pulses.filter((p) => {
@@ -118,7 +128,7 @@ export function Envelope({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 0 600 800"
+      viewBox="0 65 600 880"
       fill="none"
       role="img"
       aria-label="Seven lines with slow pulses travelling along them, like envelopes passing through"
