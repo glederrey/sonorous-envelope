@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "../lib/supabase/server";
 import { hasSupabaseEnv } from "../lib/env";
+import { NavLinks } from "./nav-links";
 
 export async function SiteHeader({ overlay = false, hideAuth = false }: { overlay?: boolean; hideAuth?: boolean }) {
   let signedIn = false;
@@ -14,9 +15,10 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
       <Link href="/" className="se-lockup">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.svg" width={32} height={32} alt="" />
-        sonorous envelope
+        <span className="se-wordmark">sonorous envelope</span>
       </Link>
-      <nav>
+      <nav className="se-nav">
+        <NavLinks />
         {hideAuth ? null : signedIn ? (
           <Link className="se-btn" href="/sessions">Your sessions</Link>
         ) : (

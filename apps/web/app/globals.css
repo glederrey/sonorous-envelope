@@ -459,21 +459,47 @@ html {
   }
 }
 
-/* Guide */
-.gd-page {
-  max-width: 860px;
+/* Documentation pages (guide, safety) */
+.doc-page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 16px 24px;
 }
-.gd-tools {
+.doc-head {
+  max-width: 65ch;
+  padding-bottom: 48px;
+}
+.doc-head > * + * {
+  margin-top: 16px;
+}
+.doc-title {
+  font-size: clamp(32px, 5vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+.doc-rows {
   list-style: none;
   padding: 0;
-  margin: 32px 0 0;
+  margin: 0;
 }
-.gd-tool {
+.doc-row {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 8px 32px;
-  padding: 24px 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+  gap: 8px 48px;
+  padding: 32px 0;
   border-top: 1px solid var(--line);
+}
+.doc-row > :last-child {
+  max-width: 65ch;
+}
+.doc-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
 }
 .gd-tool-name {
   display: flex;
@@ -484,8 +510,60 @@ html {
 .gd-live {
   color: var(--glow-ink);
 }
-@media (max-width: 640px) {
-  .gd-tool {
+@media (max-width: 760px) {
+  .doc-row {
     grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 24px 0;
   }
+}
+
+/* Header navigation */
+.se-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.se-navlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+.se-header-overlay .se-navlink {
+  color: var(--on-scrim-muted);
+}
+.se-navlink:hover,
+.se-navlink[aria-current="page"] {
+  color: var(--ink);
+}
+.se-header-overlay .se-navlink:hover {
+  color: var(--on-scrim);
+}
+.se-navlink[aria-current="page"] {
+  text-decoration: underline;
+  text-decoration-color: var(--glow);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
+}
+@media (max-width: 560px) {
+  .se-wordmark {
+    display: none;
+  }
+  .se-navlink {
+    padding: 0 8px;
+  }
+}
+
+.se-grant {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
 }
