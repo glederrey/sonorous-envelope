@@ -97,7 +97,7 @@ export default function Home() {
           <div className="se-stack">
             <p>
               <strong>The sound plays in the player page, not in Claude.</strong> Closing the page stops the sound, and
-              Claude stops getting your reactions.
+              Claude stops knowing you are listening.
             </p>
             <p className="se-muted">
               Best setup: the player in one window or device, the chat in another. On a phone, keep the player in the
