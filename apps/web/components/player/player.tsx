@@ -248,15 +248,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); document.removeEventListener("resume", back); };
   }, [beat]);
 
-  // With the controls hidden the page is just the colour field: nothing to scroll, and no pull-to-refresh by accident
-  useEffect(() => {
-    if (!(started && hidden)) return;
-    const root = document.documentElement;
-    const before = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior };
-    root.style.overflow = "hidden"; root.style.overscrollBehavior = "none";
-    return () => { root.style.overflow = before.overflow; root.style.overscrollBehavior = before.overscroll; };
-  }, [started, hidden]);
-
   // lock screen and headset controls: play and pause map to unmute and mute
   useEffect(() => {
     if (!started || !("mediaSession" in navigator)) return;
@@ -309,16 +300,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
-
-  // the same colours on <html>, so the page's scrollbar strip matches the field (see html:has(.pl-field) in globals.css)
-  useEffect(() => {
-    const root = document.documentElement;
-    for (const [k, v] of Object.entries(fieldStyle)) root.style.setProperty(k, String(v));
-  });
-  useEffect(() => () => {
-    const root = document.documentElement;
-    for (const k of ["--pl-h", "--pl-s", "--pl-l", "--pl-h2", "--pl-s2", "--pl-l2", "--pl-t", "--pl-pulse"]) root.style.removeProperty(k);
-  }, []);
 
   void tick;
   const ageSec = playing ? Math.max(0, Math.round((Date.now() - playing.at) / 1000)) : 0;
