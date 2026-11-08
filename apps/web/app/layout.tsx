@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Roboto } from "next/font/google";
 import { SiteFooter } from "../components/site-footer";
 import "./globals.css";
@@ -10,6 +10,16 @@ export const metadata: Metadata = {
   title: "Sonorous Envelope",
   description: "Let the model hum while it thinks. A synthesizer and a colour field for Claude.",
   icons: { icon: "/icon.svg" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3f4f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0e12" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
