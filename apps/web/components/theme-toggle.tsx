@@ -35,6 +35,7 @@ export function ThemeToggle() {
       aria-label={theme === "light" ? "Switch to dark theme" : "Switch to light theme"}
     >
       {theme === "dark" ? <Moon size={20} aria-hidden /> : theme === "light" ? <Sun size={20} aria-hidden /> : null}
+      <span className="se-theme-label">{theme === "light" ? "Dark theme" : "Light theme"}</span>
     </button>
   );
 }

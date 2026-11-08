@@ -3,6 +3,7 @@ import { createClient } from "../lib/supabase/server";
 import { hasSupabaseEnv } from "../lib/env";
 import { signOut } from "../app/settings/actions";
 import { NavLinks } from "./nav-links";
+import { NavShell } from "./nav-shell";
 import { ThemeToggle } from "./theme-toggle";
 
 export async function SiteHeader({ overlay = false, hideAuth = false }: { overlay?: boolean; hideAuth?: boolean }) {
@@ -19,12 +20,12 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
         <img src="/icon.svg" width={32} height={32} alt="" />
         <span className="se-wordmark">sonorous envelope</span>
       </Link>
-      <nav className="se-nav">
+      <NavShell>
         <NavLinks />
         <ThemeToggle />
         {signedIn ? (
           <>
-            <Link className="se-btn" href="/sessions">Your sessions</Link>
+            <Link className="se-btn" href="/sessions">Sessions</Link>
             <form action={signOut}>
               <button type="submit" className="se-btn">Sign out</button>
             </form>
@@ -35,7 +36,7 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
             <Link className="se-btn se-btn-primary" href="/login?mode=signup">Sign up</Link>
           </>
         )}
-      </nav>
+      </NavShell>
     </header>
   );
 }
