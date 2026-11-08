@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "../lib/supabase/server";
 import { hasSupabaseEnv } from "../lib/env";
+import { NavLinks } from "./nav-links";
+import { ThemeToggle } from "./theme-toggle";
 
-export async function SiteHeader() {
+export async function SiteHeader({ overlay = false, hideAuth = false }: { overlay?: boolean; hideAuth?: boolean }) {
   let signedIn = false;
   if (hasSupabaseEnv()) {
     const supabase = await createClient();
@@ -10,17 +12,22 @@ export async function SiteHeader() {
     signedIn = Boolean(data.user);
   }
   return (
-    <header className="se-header">
+    <header className={overlay ? "se-header se-header-overlay" : "se-header"}>
       <Link href="/" className="se-lockup">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon.svg" width={32} height={32} alt="" />
-        sonorous envelope
+        <span className="se-wordmark">sonorous envelope</span>
       </Link>
-      <nav>
-        {signedIn ? (
+      <nav className="se-nav">
+        <NavLinks />
+        <ThemeToggle />
+        {hideAuth ? null : signedIn ? (
           <Link className="se-btn" href="/sessions">Your sessions</Link>
         ) : (
-          <Link className="se-btn" href="/login">Sign in</Link>
+          <>
+            <Link className="se-btn" href="/login">Sign in</Link>
+            <Link className="se-btn se-btn-primary" href="/login?mode=signup">Sign up</Link>
+          </>
         )}
       </nav>
     </header>

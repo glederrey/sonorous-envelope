@@ -1,4 +1,5 @@
 import { SiteHeader } from "../../components/site-header";
+import { SiteFooter } from "../../components/site-footer";
 
 export const metadata = { title: "Using the connector · Sonorous Envelope" };
 
@@ -45,44 +46,48 @@ export default function GuidePage() {
   return (
     <>
       <SiteHeader />
-      <main className="se-page se-stack">
-        <h1 className="se-title">Using the connector</h1>
-        <p>
-          Once the connector is added (see <a href="/#add">Add it to Claude</a>), Claude calls these tools itself. You
-          do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
-        </p>
-        <p className="se-sm se-muted">
-          Only <code className="se-mono">ping</code> is live today. The others are the plan for the next release and
-          will be marked live here as they ship.
-        </p>
+      <main className="doc-page">
+        <div className="doc-head">
+          <h1 className="doc-title">Using the connector</h1>
+          <p>
+            Once the connector is added (see <a href="/#add">Add it to Claude</a>), Claude calls these tools itself.
+            You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
+          </p>
+          <p className="se-sm se-muted">
+            Only <code className="se-mono">ping</code> is live today. The others are the plan for the next release and
+            will be marked live here as they ship.
+          </p>
+        </div>
 
-        <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 16 }}>
+        <ul className="doc-rows">
           {tools.map((tool) => (
-            <li key={tool.name} className="se-card se-stack">
-              <div style={{ display: "flex", gap: 12, alignItems: "baseline", justifyContent: "space-between" }}>
+            <li key={tool.name} className="doc-row">
+              <div className="gd-tool-name">
                 <h2 className="se-heading se-mono">{tool.name}</h2>
-                <span className="se-sm se-mono" style={{ color: tool.live ? "var(--tide)" : "var(--ink-muted)" }}>
+                <span className={tool.live ? "se-sm se-mono gd-live" : "se-sm se-mono se-muted"}>
                   {tool.live ? "live" : "coming"}
                 </span>
               </div>
-              <p style={{ margin: 0 }}>{tool.text}</p>
-              <p className="se-sm se-muted" style={{ margin: 0 }}>
-                You could say: <em>&ldquo;{tool.example}&rdquo;</em>
-              </p>
+              <div className="se-stack">
+                <p style={{ margin: 0 }}>{tool.text}</p>
+                <p className="se-sm se-muted" style={{ margin: 0 }}>
+                  You could say: <em>&ldquo;{tool.example}&rdquo;</em>
+                </p>
+              </div>
             </li>
           ))}
+          <li className="doc-row">
+            <h2 className="se-heading">Good to know</h2>
+            <ul className="doc-list">
+              <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
+              <li>The sound plays in the player page, not in Claude. Keep that page open.</li>
+              <li>Anyone with the player link can listen, with no account. You can share it.</li>
+              <li>Your limits are enforced on the server. See <a href="/safety">Safety and control</a>.</li>
+            </ul>
+          </li>
         </ul>
-
-        <section className="se-stack">
-          <h2 className="se-heading">Good to know</h2>
-          <ul style={{ paddingLeft: 24 }} className="se-stack">
-            <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
-            <li>The sound plays in the player page, not in Claude. Keep that page open.</li>
-            <li>Anyone with the player link can listen, with no account. You can share it.</li>
-            <li>Your limits are enforced on the server. See <a href="/safety">Safety and control</a>.</li>
-          </ul>
-        </section>
       </main>
+      <SiteFooter />
     </>
   );
 }
