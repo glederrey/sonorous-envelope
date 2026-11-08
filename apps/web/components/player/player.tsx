@@ -7,6 +7,7 @@ import { hardCaps, parseSettings, type ListenerSettings } from "@sonorous/shared
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
+import { sliderToGain } from "../../lib/volume";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -204,7 +205,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
 
   // listener controls go to the engine and are remembered
   useEffect(() => {
-    audio.current?.setGain(muted ? 0 : volume);
+    audio.current?.setGain(muted ? 0 : sliderToGain(volume));
     audio.current?.setDelay(echo, settings.current.max_delay_mix);
     remember(sessionId, { muted, volume, echo });
   }, [muted, volume, echo, sessionId, started]);
@@ -282,7 +283,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       const out = await AudioOutput.start();
       audio.current = out;
       out.watch(setAudioState);
-      out.setGain(muted ? 0 : volume);
+      out.setGain(muted ? 0 : sliderToGain(volume));
       out.setDelay(echo, settings.current.max_delay_mix);
       if (latest.current) out.setState(latest.current.state, latest.current.seed);
       setStarted(true);
