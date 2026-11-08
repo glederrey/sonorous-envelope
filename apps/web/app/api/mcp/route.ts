@@ -1,24 +1,13 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
-import { z } from "zod";
 import { verifyToken } from "../../../lib/auth/verify-token";
+import { SERVER_INSTRUCTIONS } from "../../../lib/mcp/instructions";
+import { registerTools } from "../../../lib/mcp/tools";
 
 export const maxDuration = 30;
 
-// TEMPORARY: one tool so the connector can be added and tested end to end.
-// Replaced by start_session / set_sound in the next group of work.
 const handler = createMcpHandler(
-  (server) => {
-    server.registerTool(
-      "ping",
-      {
-        title: "Ping",
-        description: "Connectivity check. Returns ok. Temporary.",
-        inputSchema: z.object({}),
-      },
-      async () => ({ content: [{ type: "text", text: JSON.stringify({ ok: true }) }] }),
-    );
-  },
-  { serverInfo: { name: "sonorous-envelope", version: "0.1.0" } },
+  (server) => registerTools(server),
+  { serverInfo: { name: "sonorous-envelope", version: "0.2.0" }, instructions: SERVER_INSTRUCTIONS },
 );
 
 // Wrapped per request so env vars are read lazily and `next build` needs none.

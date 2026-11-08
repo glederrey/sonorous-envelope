@@ -4,6 +4,7 @@ import { Engine, neutralState, renderOffline, noteToMidi, buildCycle, mulberry32
 const SR = 22050;
 const render = (s: EngineState, seconds = 4, seed = 7) => renderOffline(s, { seconds, sampleRate: SR, seed });
 const peak = (a: Float32Array) => a.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+const same = (a: Float32Array, b: Float32Array) => a.length === b.length && a.every((v, i) => v === b[i]);
 const rms = (a: Float32Array) => Math.sqrt(a.reduce((m, v) => m + v * v, 0) / a.length);
 
 describe("music helpers", () => {
@@ -31,8 +32,8 @@ describe("engine", () => {
     const s = neutralState();
     s.arp.density = 0.7; s.arp.jitterMs = 15; s.arp.pattern = "random";
     const a = render(s), b = render(s);
-    expect(Buffer.from(a.left.buffer).equals(Buffer.from(b.left.buffer))).toBe(true);
-    expect(Buffer.from(a.right.buffer).equals(Buffer.from(b.right.buffer))).toBe(true);
+    expect(same(a.left, b.left)).toBe(true);
+    expect(same(a.right, b.right)).toBe(true);
     expect(a.events).toEqual(b.events);
   });
 
@@ -138,7 +139,7 @@ describe("engine", () => {
     const clean = neutralState(); clean.osc.wave = "sine"; clean.filter.cutoff = 8000;
     const dirty = neutralState(); dirty.osc.wave = "sine"; dirty.filter.cutoff = 8000; dirty.osc.drive = 1;
     const a = render(clean).left, b = render(dirty).left;
-    expect(Buffer.from(a.buffer).equals(Buffer.from(b.buffer))).toBe(false);
+    expect(same(a, b)).toBe(false);
   });
 
   it("listener echo 0 removes all echo; 1 stays within the caps", () => {

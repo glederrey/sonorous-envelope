@@ -13,13 +13,19 @@ importers:
         version: 0.25.12
       vitest:
         specifier: ^5.1.0
-        version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5))
+        version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.25.12))
 
   apps/web:
     dependencies:
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
+      '@sonorous/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
+      '@sonorous/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@supabase/ssr':
         specifier: ^0.12.7
         version: 0.12.7(@supabase/supabase-js@2.119.0)
@@ -1387,14 +1393,14 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@22.20.5))':
+  '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@22.20.5)(esbuild@0.25.12))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.0
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
-      vite: 8.3.6(@types/node@22.20.5)
+      vite: 8.3.6(@types/node@22.20.5)(esbuild@0.25.12)
 
   '@vitest/spy@5.1.0': {}
 
@@ -1671,7 +1677,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  vite@8.3.6(@types/node@22.20.5):
+  vite@8.3.6(@types/node@22.20.5)(esbuild@0.25.12):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1680,12 +1686,13 @@ snapshots:
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 22.20.5
+      esbuild: 0.25.12
       fsevents: 2.3.3
 
-  vitest@5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)):
+  vitest@5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(esbuild@0.25.12)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@22.20.5))
+      '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@22.20.5)(esbuild@0.25.12))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -1696,7 +1703,7 @@ snapshots:
       tinybench: 6.2.3
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.6(@types/node@22.20.5)
+      vite: 8.3.6(@types/node@22.20.5)(esbuild@0.25.12)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 22.20.5

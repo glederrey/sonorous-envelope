@@ -96,6 +96,8 @@ export const Transition = z.object({
 
 Keep every field description short in the tool schema: the model reads them.
 
+> **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
+
 ## `start_session`
 
 Input:
@@ -121,7 +123,7 @@ Input:
   session_id: string,           // optional at schema level; see fallback below
   mood: Mood,                   // required
   synth?: SynthOverride,
-  gesture?: Gesture,
+  // gesture?: Gesture  — not exposed until gestures ship (roadmap step 6)
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
