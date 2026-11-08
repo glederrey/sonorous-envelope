@@ -27,7 +27,9 @@ export default function Home() {
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">
-              Paste this into Claude: Settings → Connectors → Add custom connector. <a href="#add">Step by step</a>
+              Paste this into Claude: Settings → Connectors → Add custom connector.
+              <br />
+              <a href="#add">Step by step</a>
             </p>
           </div>
           <Envelope className="lp-envelope" />
