@@ -10,7 +10,7 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag. |
 | `states` | Every `set_sound` call: intent (what the model sent), effective state (what plays), clamps, analysis, PRNG seed. |
 | `listeners` | Who can open a session. The owner gets a row with role `owner` and label `you` when the session is created. |
-| `invites` | Tokens the owner shares to add listeners. |
+| `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
 
 ## Session IDs
@@ -26,7 +26,7 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | Claim reactions | MCP tools via `claim_reactions` RPC | caller's OAuth token |
 | Insert reaction | Player page | listener's browser session |
 | Change settings | Player page (owner only) updates `sessions.settings` and inserts a `limit_changed`/`consent_changed` reaction | owner's browser session |
-| Redeem invite | Player page via `redeem_invite` RPC | listener's browser session |
+| Join a session | Player page via `join_session(session_id)` RPC (new in migration `0002`): security definer, adds the caller (anonymous or not) as a listener when the session exists and has not ended, labelled `listener N` | listener's browser session |
 
 The service role key is not needed for normal operation. Use it only for maintenance scripts (e.g. ending sessions inactive for 30 days).
 

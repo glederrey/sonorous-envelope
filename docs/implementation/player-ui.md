@@ -9,12 +9,11 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
 | `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
 | `/safety` | Safety and control: limits, consent levels, the rules that never change | public |
-| `/login` | Email magic link (Google/GitHub optional), supports `?next=` | public |
+| `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
-| `/s/[id]` | The player | login + session member |
-| `/s/[id]/details` | History: states, intent vs reads_as, clamps, reactions, notes | login + member |
-| `/invite/[token]` | Redeem an invite, then redirect to the player | login |
+| `/s/[id]` | The player. Opens for anyone with the link: the browser signs in anonymously and joins (`join_session`) | link only |
+| `/s/[id]/details` | History: states, intent vs reads_as, clamps, reactions, notes | link only (members) |
 | `/settings` | Default listener settings, connected apps (OAuth grants, revoke) | login |
 | `/dev/mood` | Five sliders → live mapped sound; for tuning (dev builds only) | login |
 
@@ -95,7 +94,7 @@ calmer, softer, darker, brighter, slower, faster, more of this, less of this. Ic
 - Gestures on/off.
 - Colour on/off, max brightness.
 - Image feedback: off / on request / every turn, with "uses more of the model's context (about N tokens per image)".
-- Invite a listener: creates an invite and shows the link with a Copy button.
+- Share: shows the player link with a Copy button. Anyone with it can listen.
 - End session.
 
 Non-owners see only volume, mute, reactions and "leave".
