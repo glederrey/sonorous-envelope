@@ -8,16 +8,16 @@ import { useEffect, useRef } from "react";
 // up then down) at random intervals. Everything is slow geometry, nowhere near
 // the 3 Hz flashing limit.
 const X0 = 2;
-const X1 = 478;
+const X1 = 598;
 const SAMPLES = 90;
-const SPACING = 125;
-const BASELINES = Array.from({ length: 7 }, (_, i) => 130 + i * SPACING);
+const SPACING = 80;
+const BASELINES = Array.from({ length: 7 }, (_, i) => 90 + i * SPACING);
 const MAIN = 3;
 // Largest upward excursion per line (always below SPACING, so a line never
 // reaches the baseline of the one above). Only the middle line can also dip,
 // and its dip plus the next line's rise stays under SPACING.
-const CAPS_UP = [55, 70, 85, 100, 85, 70, 55];
-const CAP_DOWN = 30;
+const CAPS_UP = [34, 44, 54, 64, 54, 44, 34];
+const CAP_DOWN = 16;
 const OPACITY = [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2];
 const STAGGER_MS = 240;
 
@@ -137,13 +137,13 @@ export function Envelope({ className }: { className?: string }) {
   return (
     <svg
       className={className}
-      viewBox="0 65 480 880"
+      viewBox="0 46 600 568"
       fill="none"
       role="img"
       aria-label="Seven lines with slow pulses travelling along them, like envelopes passing through"
     >
       <defs>
-        <linearGradient id="env-stroke" x1="0" y1="0" x2="480" y2="0" gradientUnits="userSpaceOnUse">
+        <linearGradient id="env-stroke" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#f4a940" />
           <stop offset="1" stopColor="#45c7b6" />
         </linearGradient>

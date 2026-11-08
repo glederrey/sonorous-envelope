@@ -446,7 +446,7 @@ html {
     grid-column: 2;
     align-self: center;
     justify-self: end;
-    width: 80%;
+    width: 100%;
     max-height: none;
     margin-top: 0;
   }
