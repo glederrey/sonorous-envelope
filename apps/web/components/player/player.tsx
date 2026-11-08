@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Eye, EyeOff, Play, Sun, Volume2, VolumeX } from "lucide-react";
+import { Eye, EyeOff, Play, Volume2, VolumeX } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
 import { hardCaps, parseSettings, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
@@ -53,7 +53,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [audioState, setAudioState] = useState<string>("running");
-  const [keepAwake, setKeepAwake] = useState(false);
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
 
   const audio = useRef<AudioOutput | null>(null);
@@ -175,20 +174,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     document.addEventListener("resume", back); // the page was frozen by the browser and thawed
     return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); document.removeEventListener("resume", back); };
   }, [beat]);
-
-  // keep the screen on, if the listener asks for it (the lock is released when the page is hidden, so ask again on return)
-  useEffect(() => {
-    if (!keepAwake || !started || !("wakeLock" in navigator)) return;
-    let lock: WakeLockSentinel | null = null;
-    let cancelled = false;
-    const ask = async () => {
-      try { lock = await navigator.wakeLock.request("screen"); if (cancelled) void lock.release(); } catch { /* refused, e.g. low battery */ }
-    };
-    const onVisible = () => { if (document.visibilityState === "visible") void ask(); };
-    void ask();
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { cancelled = true; document.removeEventListener("visibilitychange", onVisible); void lock?.release(); };
-  }, [keepAwake, started]);
 
   // lock screen and headset controls: play and pause map to unmute and mute
   useEffect(() => {
@@ -319,12 +304,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               <p>{shareText}</p>
               <div className="pl-actions">
                 {shareAction}
-                {"wakeLock" in navigator && (
-                  <button type="button" className="se-btn" aria-pressed={keepAwake} onClick={() => setKeepAwake((k) => !k)}>
-                    <Sun size={16} aria-hidden />
-                    {keepAwake ? "Screen stays on" : "Keep screen on"}
-                  </button>
-                )}
                 <div className="pl-hide-phone"><QrLink path={`/s/${sessionId}`} /></div>
               </div>
             </div>
