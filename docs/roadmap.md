@@ -22,7 +22,7 @@ Last updated at v0.0.20 (2026-11-08). Step numbers (1 to 12) are stable names us
 
 ### 1. Phone first (done)
 - [x] **#15 Volume on the phone.** Fine on Android. On an iPhone the sound is quieter (the web volume of an audio element is ignored there) and a linear slider did little, so the slider now works in decibels (-48 to +12 dB, 80 is unity, still shown 0 to 100) and the engine accepts a gain up to 4 (v0.0.21, `lib/volume.ts`). The `audioSession` playback type is set for iOS.
-- [x] **Tested on an iPhone** (Safari, a borrowed phone): the sound plays; quieter than Android, which the volume change addresses. Background playback on iPhone is not tested in depth.
+- [x] **Tested on an iPhone** (a borrowed one): the sound plays; quieter than Android, which the volume change addresses. Background playback on iPhone is not tested in depth.
 
 ### 2. Listening and sound quality
 - [ ] **#30 Sessions always show as active.** The sessions page says "Active" for every session that was not ended, and nothing ever ends a session except the cap of 10. Decide: derive it from the last sound (for example inactive after 30 minutes without an update) or drop the label and show "last sound 2 h ago". Small, do it first.
