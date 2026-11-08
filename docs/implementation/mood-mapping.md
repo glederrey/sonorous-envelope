@@ -21,7 +21,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
   | `j < 0.4` and `k < 0.5` | `locrian`, `[1,3,5]` | diminished: fear (anger once roughness is added, see Timbre) |
   | none of the above | base scale; `j < 0.25 → [1,3,5]`, `j < 0.6 → [1,3,5,7]`, else `[1,3,5,9]` | a blend |
 
-  Consent levels may replace a disallowed scale with the nearest allowed one (limits.md), so in "ambient" the diminished row softens to minor.
+  Consent levels replace a disallowed scale by a fixed fallback (limits.md: locrian and phrygian become minor, chromatic becomes pentatonic), so in "ambient" the diminished row plays as minor.
 - **Suspension:** add degree 4 if `s > 0.7`. This is a hypothesis to test: sus2 and sus4 are not in the chord study.
 - **Octaves:** `1 + round(2·s·(1−k))`, min 1, max 3.
 
@@ -29,7 +29,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Tempo:** `lerp(150, 56, k)` BPM, then `× lerp(0.9, 1.1, j)`.
 - **Rate:** `k > 0.75 → "1/4"`, `k > 0.45 → "1/8"`, else `"1/16"`. Triplets (`"1/8t"`) if `s > 0.6` and `k > 0.45`.
 - **Pattern** (contour follows joy): `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`; `"random"` if `s > 0.75`.
-- **Notes per cycle:** `3 + round(3·(1−k))`: 3 when calm, 6 when urgent. Take the chord degrees in order, wrapping into the next octave. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
+- **Notes per cycle:** `N = 3 + round(3·(1−k))`: 3 when calm, 6 when urgent, but never fewer than the chord has. The `chord` is extended to N degrees by continuing past the top (`[1,3,5,7]` with N=6 gives `[1,3,5,7,8,10]`). `octaves` then repeats that list upward, so the cycle is N × octaves long. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
 - **Density:** `lerp(1.0, 0.6, s)` × `lerp(0.75, 1.0, 1−k)` (calm = sparser), clamp [0.35, 1].
 - **Swing:** `0.4 · s`.
 - **Jitter:** `min(30, lerp(0, 25, s) + 5·(1−j)·k)` ms. Sadness (low joy, calm) adds a small tremor; tenderness stays regular.
@@ -41,7 +41,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Voices / detune:** `voices = w > 0.5 ? 2 : 1`; `detune = lerp(2, 14, w)` cents (gentle chorus warmth).
 - **Filter:** lowpass. `cutoff = 2^lerp(log2(400), log2(6000), 0.5·(1−w) + 0.35·j + 0.15·(1−k))` Hz. `resonance = lerp(0.7, 6, (1−w)·(1−k))`.
 - **Envelope:** `attack = lerp(0.005, 0.3, k·(0.6 + 0.4·w))` (fast for joy and anger, 100 ms or more for sadness and tenderness); `decay = lerp(0.5, 0.15, j)` (joy: short decay); `sustain = lerp(0.2, 0.65, 0.5·w + 0.5·k)` (tenderness: high sustain); `release = min(2, lerp(0.1, 1.5, k) · lerp(1, 1.3, 1−j))` (lingering for sadness).
-- **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8·(1−j)·(1−k)·(1−w)`. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Counted in harshness (limits.md), so only "expressive" and "anything" allow it. Detune also widens: `detune += 10·drive` cents.
+- **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8 · max(0, 0.6−j)/0.6 · max(0, 0.6−k)/0.6 · max(0, 0.9−w)/0.9`, so it is exactly 0 whenever joy ≥ 0.6, calm ≥ 0.6 or warmth ≥ 0.9. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Counted in harshness (limits.md), so only "expressive" and "anything" allow it. Detune also widens: `detune += 10·drive` cents.
 
 ## Space (mainly closeness)
 - **Volume:** `lerp(0.25, 0.6, c)` (before limits).

@@ -7,9 +7,11 @@
     "build": "pnpm --filter web build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run --passWithNoTests",
-    "emails": "node emails/build.mjs"
+    "emails": "node emails/build.mjs",
+    "render:moods": "esbuild scripts/render-moods.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/render-moods.mjs --log-level=warning && node node_modules/.cache/render-moods.mjs"
   },
   "devDependencies": {
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "esbuild": "^0.25.0"
   }
 }

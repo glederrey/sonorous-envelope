@@ -25,7 +25,6 @@ export default function SafetyPage() {
               <li>Maximum change speed: a minimum transition time.</li>
               <li>Maximum colour contrast and brightness.</li>
               <li>Mood range: for example a floor on joy or calm, so the sound never goes below a level you are comfortable with.</li>
-              <li>Gestures on or off.</li>
             </ul>
           </section>
 

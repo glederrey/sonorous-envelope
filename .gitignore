@@ -5,3 +5,6 @@ node_modules
 .next
 next-env.d.ts
 *.tsbuildinfo
+
+# built from packages/engine by `pnpm build:worklet`
+apps/web/public/worklet/

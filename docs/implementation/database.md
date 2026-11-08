@@ -9,13 +9,15 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `profiles` | One row per user, created by a trigger on signup. Holds default listener settings. |
 | `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag. |
 | `states` | Every `set_sound` call: intent (what the model sent), effective state (what plays), clamps, analysis, PRNG seed. |
-| `listeners` | Who can open a session. The owner gets a row with role `owner` and label `you` when the session is created. |
+| `listeners` | The owner gets a row with role `owner` and label `you` when the session is created. Link-only listeners have no row: they are not accounts. |
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
 
-## Planned in migration `0002`
+## Migration `0002_player_access.sql`
 Never edit the applied `0001_init.sql`; add changes in a new migration.
-- `join_session` RPC, and drop `invites` with `redeem_invite`.
+- Listeners need no account. Two security-definer functions, executable by `anon`, are their only door: `get_player_state(id)` (current state and settings, or null) and `player_heartbeat(...)` (bounded: at most 50 devices per session in 5 minutes, values validated and clamped). The tables stay closed to `anon`.
+- Triggers broadcast a small nudge on the public channel `player:<id>` when a state is inserted or a session ends or changes settings. The payload is only a hint; players always fetch the real state with `get_player_state`, so a forged broadcast cannot push content.
+- `invites` and `redeem_invite` are dropped.
 - `states.slow_mood jsonb`: the slow mood after this state (mood-mapping.md, "Background layer"). Null on the first state means "start from this mood".
 - `player_heartbeats.volume` and `player_heartbeats.delay` (`real`, 0 to 1): the listener's local controls, returned to the model as `controls`.
 
@@ -30,9 +32,10 @@ Never edit the applied `0001_init.sql`; add changes in a new migration.
 | Create session + owner listener row | MCP `start_session` | caller's OAuth token |
 | Insert state, update session | MCP `set_sound` | caller's OAuth token |
 | Claim reactions | MCP tools via `claim_reactions` RPC | caller's OAuth token |
-| Insert reaction | Player page | listener's browser session |
+| Insert reaction | Player page, owner only for now | owner's browser session |
 | Change settings | Player page (owner only) updates `sessions.settings` and inserts a `limit_changed`/`consent_changed` reaction | owner's browser session |
-| Join a session | Player page via `join_session(session_id)` RPC (new in migration `0002`): security definer, adds the caller (anonymous or not) as a listener when the session exists and has not ended, labelled `listener N` | listener's browser session |
+| Report listening | Player page via `player_heartbeat(...)` (migration `0002`); stores the account in `user_id` if signed in, else null | anyone with the link |
+| Read the current state | Player page via `get_player_state(id)` | anyone with the link |
 
 The service role key is not needed for normal operation. Use it only for maintenance scripts (e.g. ending sessions inactive for 30 days).
 
@@ -46,3 +49,6 @@ The service role key is not needed for normal operation. Use it only for mainten
 ## Retention
 - Keep states and reactions for ended sessions for 90 days, then delete (scheduled job, later).
 - Users can delete a session from the sessions page, which cascades.
+
+## Testing the database
+`scripts/test-db.sh` applies all migrations to a throwaway Postgres container (with a small stand-in for Supabase's `auth` schema) and runs `supabase/tests/rls.sql`: a stranger sees nothing, an anonymous listener can join and read but not write states or create sessions, ended sessions cannot be joined. It needs Docker.

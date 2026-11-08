@@ -2,7 +2,7 @@
 
 Three kinds of identity use the same Supabase users:
 - **Web app login** (consent page, sessions, settings): normal Supabase Auth with cookies (`@supabase/ssr`). Only the person who connects Claude needs it.
-- **Listeners** (the player at `/s/<id>`): no login. The browser calls `supabase.auth.signInAnonymously()` and joins the session with the `join_session` RPC. The link is the capability. Enable anonymous sign-ins in the Supabase dashboard (Authentication, Providers) and protect the sign-in with a CAPTCHA or at least the default rate limits.
+- **Listeners** (the player at `/s/<id>`): no login and no Supabase user at all. The link is the credential. The browser calls two functions as the `anon` role, `get_player_state(id)` and `player_heartbeat(...)`, and follows a public Realtime Broadcast channel `player:<id>` (see realtime.md). Anonymous sign-ins stay **off**. Only the signed-in owner can change anything about a session (see hosting-and-auth.md, "Owner and listeners").
 - **MCP connector** (claude.ai and other MCP clients): OAuth 2.1, with Supabase Auth as the authorization server and our `/api/mcp` as the protected resource.
 
 ## Roles in OAuth terms

@@ -2,7 +2,7 @@
 
 The MCP server sends this text as its `instructions` (in the server options passed to `createMcpHandler`). Clients load it automatically when the connector is on. Keep it under ~600 words: it is in the model's context for the whole conversation.
 
-Use the text below verbatim, then adjust it after real testing. Changes should be committed with a note on why.
+The text below is the full version. `apps/web/lib/mcp/instructions.ts` sends a trimmed copy that leaves out whatever is not built yet (gestures, `reads_as`, `listener` reactions); restore each bullet when its feature ships. Adjust it after real testing. Changes should be committed with a note on why.
 
 ---
 

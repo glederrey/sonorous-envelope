@@ -30,6 +30,7 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 | Wave allowed | sine, triangle | + sawtooth | + square |
 | Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
 | Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
+| Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
 | Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
 | Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
 | Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
@@ -41,12 +42,12 @@ If above `max_harshness`, reduce in this order until it fits: drive (to 0), cuto
 
 ## Order of operations
 1. **Mood floor:** before mapping, raise `joy` and `calm` to the floor (settings floor and consent floor, whichever is higher). Clamp entry: `"joy 0.1→0.3 (mood floor)"`. (So call `applyMoodFloor` before `moodToEngineState`; `set_sound` step 3 does this.)
-2. **Consent ceilings:** tempo, resonance, wave, scale (replace a disallowed scale with the nearest allowed one by brightness), LFO depth, note rate, gesture type.
+2. **Consent ceilings:** tempo, resonance, wave, scale (a disallowed scale is replaced by a fixed fallback: locrian and phrygian → minor, chromatic → pentatonic), LFO depth, note rate, gesture type.
 3. **Harshness.**
 4. **Volume:** `min(volume, max_volume)`.
 5. **Transition:** `time = max(time, min_transition, consent min)`; `curve = "smooth"` unless consent is `anything`.
 6. **Big-change rule:** if the mood distance from the previous state (Euclidean over the 5 axes) is > 0.6 and consent isn't `anything`, `time = max(time, 8 s)`. Clamp entry: `"transition 2s→8s (large change)"`.
-7. **Echo:** `delay.mix = min(delay.mix · (0.5 + listener_delay), max_delay_mix)`, `delay.time ≤ 0.75 s`, `delay.feedback ≤ 0.6`. `listener_delay` (0 to 1, default 0.5) is the player's echo control, so at the default the mapped mix is unchanged. Clamp entry only when the cap changes the value.
+7. **Echo:** `delay.mix = min(delay.mix · 2·listener_delay, max_delay_mix)`, `delay.time ≤ 0.75 s`, `delay.feedback ≤ 0.6`. `listener_delay` (0 to 1, default 0.5) is the player's echo control, so at the default the mapped mix is unchanged and at 0 there is no echo. The engine applies this itself (`setListenerDelay(amount, max_delay_mix)`); the server only caps the mapped value. Clamp entry only when the cap changes the value.
 8. **Gesture:** drop if `gestures` is false or the type isn't allowed. Clamp entry: `"gesture sigh dropped (gestures off)"`. At most 1 gesture per 10 s per session; extra ones are dropped with a clamp entry.
 9. **Colour:**
    - `enabled: false` → colour field off (neutral dark background).

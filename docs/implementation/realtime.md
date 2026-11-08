@@ -3,27 +3,23 @@
 Supabase Realtime connects the MCP endpoint (which writes) to the players (which listen and react).
 
 ## Channels
-One channel per session: `session:<session_id>`. The player subscribes with its logged-in browser client. Three features on that channel:
+One public Broadcast channel per session: `player:<session_id>`. Listeners have no account, so the player subscribes with the anon key only. The channel carries nudges, never content: the player always reads the real state with `get_player_state` (so a forged message on the public channel can do nothing but cause a fetch). Three parts:
 
-### 1. Postgres Changes: new states
-- Table `states`, event `INSERT`, filter `session_id=eq.<id>`.
-- Payload: the new row. The player reads `effective`, `seed`, `id`, `final`, `turn`.
-- On receive: run `applyLimits` locally with the current settings (defence in depth), then `engine.setState(effective, seed)` via the worklet port, and start the colour glide.
-- Ignore states older than the one already playing (compare `created_at`).
+### 1. Broadcast: `state`
+- Sent by a database trigger on `states` insert (`realtime.send`, public). Payload `{turn, final}`.
+- On receive, the player calls `get_player_state(id)`, which returns `{ended, settings, state: {effective, seed, turn, final, created_at}}`.
+- Then: run `hardCaps` locally with the settings (defence in depth), then `engine.setState(effective, seed)` via the worklet port, and start the colour glide.
+- Ignore a state that is not newer than the one already playing (compare `created_at`).
+- Safety net: the player also calls `get_player_state` every 5 s while the tab is visible, in case the live connection drops.
 
-### 2. Postgres Changes: session updates
-- Table `sessions`, event `UPDATE`, filter `id=eq.<id>`.
-- Used for: settings changed on another device, session ended (`ended_at` set → stop and show "session ended").
+### 2. Broadcast: `session`
+- Sent by a trigger on `sessions` when `ended_at` or `settings` change. The player refetches; `ended` stops playback and shows "session ended".
 
-### 3. Presence
-- Each open player tracks `{ user_id, label, device: "desktop"|"mobile", audio: "playing"|"muted"|"not_started", volume: number, delay: number }` (`volume` and `delay` are the local sliders, 0 to 1).
-- The MCP endpoint needs the count of players with `audio: "playing"` for the `players` field. Presence is only available to subscribers, so:
-  - Each player also writes a heartbeat: `upsert` into a small table `player_heartbeats (session_id, user_id, device_id, audio, seen_at)` every 20 s and on audio state change.
-  - The heartbeat also carries `volume` and `delay` (two numeric columns on `player_heartbeats`, added in migration `0002`). The feedback `controls` field is the value from the owner's most recent heartbeat, or from the most recent one of any listener if the owner has none.
-  - `players` = rows with `seen_at > now() − 45 s` and `audio = 'playing'`.
-  - Add this table to the migration (RLS: members insert/update their own rows; members select).
-
-The table is defined in database.sql.
+### 3. Heartbeat (who is listening)
+- Every open player calls `player_heartbeat(session, device, audio, volume, delay)` every 20 s and when its controls change. `audio` is `playing`, `muted` or `not_started`; `volume` and `delay` are the local sliders, 0 to 1.
+- It is stored in `player_heartbeats` (one row per device; `seen_at` is stamped by the database; `user_id` is the signed-in account or null).
+- `players` in the feedback = rows with `seen_at > now() − 45 s` and `audio = 'playing'`.
+- The feedback `controls` field is the volume and echo from **the owner's** most recent heartbeat only. A link-only listener counts as a player but their controls are not reported: they can only listen.
 
 ## Reactions (player → model)
 Reactions go through the database, not broadcast, so they are never lost:

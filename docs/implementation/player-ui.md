@@ -12,7 +12,7 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
-| `/s/[id]` | The player. Opens for anyone with the link: the browser signs in anonymously and joins (`join_session`) | link only |
+| `/s/[id]` | The player. Opens for anyone with the link, no account. Signed-in viewers also get the share link; everyone else gets a link to add the connector | link only |
 | `/s/[id]/details` | History: states, intent vs reads_as, clamps, reactions, notes | link only (members) |
 | `/settings` | Default listener settings, connected apps (OAuth grants, revoke) | login |
 | `/dev/mood` | Five sliders → live mapped sound; for tuning (dev builds only) | login |
@@ -96,10 +96,10 @@ calmer, softer, darker, brighter, slower, faster, more of this, less of this. Ic
 - Gestures on/off.
 - Colour on/off, max brightness.
 - Image feedback: off / on request / every turn, with "uses more of the model's context (about N tokens per image)".
-- Share: shows the player link with a Copy button. Anyone with it can listen.
+- Share: shows the player link with a Copy button. Anyone with it can listen. (Built: the signed-in owner sees "Copy link to share" under the controls, and `/sessions` lists every session with Open and Copy buttons.)
 - End session.
 
-Non-owners see only volume, mute, reactions and "leave".
+Listeners (anyone without the account) see only the colour and sound, the status line, and their own volume, echo and mute, which change nothing for anyone else. They do **not** get the owner panel, limits, or reaction buttons. Instead of the share link they see "Want Claude to make sound for you too? Add it to your Claude", linking to the landing page's install steps (`/#add`).
 
 ### Colour field
 - Full-screen canvas. Gradient from `colour` to `secondary`, slow drift (Perlin-like noise in the gradient angle), optional grain or soft-noise texture overlay.

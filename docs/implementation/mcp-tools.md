@@ -27,12 +27,12 @@ export const SynthOverride = z.object({
   arp: z.object({
     root: NoteName,
     scale: z.enum(["major","minor","dorian","phrygian","lydian","mixolydian","locrian",
-                   "harmonic_minor","pentatonic_major","pentatonic_minor","whole_tone","chromatic"]),
+                   "harmonic_minor","pentatonic","whole_tone","chromatic"]),
     chord: z.array(z.number().int().min(1).max(14)).min(1).max(8),   // scale degrees
     pattern: z.enum(["up","down","up_down","random","as_played"]),
     octaves: z.number().int().min(1).max(4),
     tempo: z.number().min(30).max(200),                               // BPM
-    rate: z.enum(["1/4","1/8","1/8t","1/16","1/16t"]),
+    rate: z.enum(["1/4","1/8","1/8t","1/16"]),
     gate: z.number().min(0.05).max(1),
     swing: unit,
     density: unit,                                                    // step probability
@@ -96,6 +96,8 @@ export const Transition = z.object({
 
 Keep every field description short in the tool schema: the model reads them.
 
+> **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
+
 ## `start_session`
 
 Input:
@@ -121,7 +123,7 @@ Input:
   session_id: string,           // optional at schema level; see fallback below
   mood: Mood,                   // required
   synth?: SynthOverride,
-  gesture?: Gesture,
+  // gesture?: Gesture  — not exposed until gestures ship (roadmap step 6)
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
@@ -161,7 +163,7 @@ Rules:
 - `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
-- `controls` is the listener's current player volume and echo (`delay`) setting, 0 to 1, as last reported by a player (realtime.md). Omit it if no player has reported yet. It is always included when present, because it changes how the model should read every other field.
+- `controls` is the owner's own player volume and echo (`delay`) setting, 0 to 1, as last reported by their player (realtime.md). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.

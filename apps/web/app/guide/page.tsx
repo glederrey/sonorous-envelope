@@ -5,25 +5,25 @@ export const metadata = { title: "Using the connector · Sonorous Envelope" };
 const tools = [
   {
     name: "start_session",
-    live: false,
+    live: true,
     text: "Starts a sound session for the conversation. Returns a session_id to pass to every other call and a player link to give you. Each conversation gets its own session.",
     example: "Start a sound session for this chat.",
   },
   {
     name: "set_sound",
-    live: false,
-    text: "Updates the sound and colour. Claude describes a mood (warmth, closeness, joy, calm, spontaneity) and can override synth settings, add one short gesture, or set its own colour. It calls it during its turn and once more with final=true at the end of every message. Returns what was really played and your latest reactions.",
+    live: true,
+    text: "Updates the sound and colour. Claude describes a mood (warmth, closeness, joy, calm, spontaneity) and can override synth settings or set its own colour. It calls it during its turn and once more with final=true at the end of every message. Returns what was really played, any limit that applied, and your volume and echo settings.",
     example: "Hum something calm while you work, and end every message with a final update.",
   },
   {
     name: "get_feedback",
-    live: false,
-    text: "Reads what is playing and your latest reactions without changing the sound.",
-    example: "What does the sound say right now, and did I react?",
+    live: true,
+    text: "Reads what is playing and who is listening without changing the sound.",
+    example: "What is playing right now, and is anyone listening?",
   },
   {
     name: "silence",
-    live: false,
+    live: true,
     text: "Fades the sound to silence, as a normal state that is logged and can be followed by set_sound.",
     example: "Fade to silence over ten seconds.",
   },
@@ -32,12 +32,6 @@ const tools = [
     live: false,
     text: "Heavier feedback: the recent history, or a spectrogram image of the last seconds when you have turned image feedback on.",
     example: "Show me the last few states.",
-  },
-  {
-    name: "ping",
-    live: true,
-    text: "Connectivity check. Returns ok. Temporary: it exists only so the connector can be tested before the real tools arrive.",
-    example: "Call ping on the Sonorous Envelope connector.",
   },
 ];
 
@@ -53,7 +47,7 @@ export default function GuidePage() {
             You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
           </p>
           <p className="se-sm se-muted">
-            Only <code className="se-mono">ping</code> is live today. The others are the plan for the next release and
+            Four tools are live. <code className="se-mono">inspect</code>, gestures and your reaction buttons come later and
             will be marked live here as they ship.
           </p>
         </div>

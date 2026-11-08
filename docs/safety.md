@@ -11,6 +11,9 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - Gestures on or off
 - Echo (delay) amount, as a control in the player
 
+## Who controls what
+Only the signed-in owner (the account that connected Claude) can change limits, consent, the mood floor, colour limits or end a session, and only the owner's reactions and controls reach Claude. Anyone who opens the player link can listen and see, and can adjust their own volume, echo and mute, which affect only their own device. A leaked link therefore lets someone listen, nothing more. See hosting-and-auth.md.
+
 ## Consent levels
 - **Ambient only:** gentle, slow, consonant. The default.
 - **Expressive:** wider range, still smooth transitions.
