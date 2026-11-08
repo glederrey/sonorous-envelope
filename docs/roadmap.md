@@ -2,7 +2,7 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
+Last updated at v0.0.20 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
 ## Checklist, in the order we plan to do it
 
@@ -14,13 +14,17 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [x] **The sound is Claude's own state** (v0.0.10). Claude writes first, sets the sound mid-answer, never announces it.
 - [x] **Basic feedback** (step 4, first half): `intent`, `playing`, `clamped`, `colour`, `controls`, `players`, `notes`; turn tracking; rate limits.
 - [x] **Licence and footer.** AGPL-3.0-or-later, footer with licence, source and version on every page (AGPL section 13). See [licensing.md](licensing.md).
+- [x] **Phone: layout and controls** (v0.0.12). Burger menu on phones, touch baseline (no tap flash, hover only for mice, press feedback, safe-area padding, status-bar colour), one control panel on the player (status, mute, volume and echo sliders, share link), hide-controls button, QR code ("Open on phone", wide screens only), the player fits the screen with no scrolling when the controls are hidden. Light theme fixes (v0.0.12) and the hero fade (v0.0.13).
+- [x] **Phone: music follows Claude in the background** (v0.0.14 to v0.0.20, #19). Tested on Android Chrome. Chrome treats a page as playing media only if a real media file plays, so the player loops a 60 s near-silent file (`public/keepalive.wav`, 16-bit, about -84 dBFS, element volume 0.05) and sets a live Media Session (no seek bar). That keeps the tab alive with the screen off and in another app, shows a lock-screen player, and lets the page's requests through. Muting pauses the file, so the lock-screen player shows Play. A worker timer and the worker's own state fetch, one check at a time, a Resume button, and a `?debug=1` report on the player URL. See the history in [roadmap notes](#behaviour-changes-made-along-the-way). Not tested on iPhone.
+- [x] **Claude names the session** (v0.0.15). `title` on `set_sound`; the sessions page shows the date when there is none.
+- [x] **New sessions start at "anything"** (v0.0.19, temporary). One constant, `NEW_SESSION_CONSENT` (limits.md).
 - [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
 
-### 1. Phone first (the priority)
-- [x] **QR code on the player page.** Done (button "Open on your phone"). Shows the player link as a QR code (a "Open on your phone" button next to Share), so you can prepare a session on a computer and continue on the phone, and test on a phone without typing a URL. Drawn in the browser with a small MIT library (`qrcode`) or a tiny own encoder; no server call. It encodes the public player URL (`PUBLIC_BASE_URL`), so on a local dev server the phone cannot open it unless the base URL is the computer's LAN address. Do it first: it makes every other phone test easier.
-- [ ] **#19 Phone layout.** Started: burger menu on phones, baseline touch fixes (tap highlight, hover only on mouse, press feedback, safe area), hide-controls button on the player. Still to check on a real phone: Check the landing page, sign-in and player at 360 to 430 px, both orientations, on a real phone. Fix what breaks.
-- [ ] **#19 Music keeps up in the background.** Built, needs a real-phone test (silent audio element, Media Session, Resume button, catch-up on return, worker timer; the screen wake lock was dropped because audio plays with the screen off). Original plan: Resume on `visibilitychange` and context `statechange` with a one-tap Resume button; silent audio element, Media Session, optional wake lock; try as an installed PWA. Test on a real phone.
-- [ ] **#15 Volume on the phone is too low.** `audioSession` playback type and the silent audio element are in (they should stop the iOS silent switch from muting); the rest is open. Check headphones vs speaker, the iOS silent switch (`navigator.audioSession`), loudness normalisation, a phone-friendly register, a higher slider range.
+### 1. Phone and listening (what is left)
+- [ ] **#15 Volume on the phone is too low.** `audioSession` playback type is in for iOS (should stop the silent switch from muting); not checked on an iPhone. Still open: headphones vs speaker, loudness normalisation, a phone-friendly register (phone speakers lose the bass), a higher slider range, a hint in the player.
+- [ ] **Test on an iPhone** (Safari): background playback, silent switch, lock-screen player, layout. The keep-alive approach is only verified on Android Chrome.
+- [ ] **#30 Sessions always show as active.** The sessions page says "Active" for every session that was not ended, and nothing ever ends a session except the cap of 10. Decide: derive it from the last sound (for example inactive after 30 minutes without an update) or drop the label and show "last sound 2 h ago". Small, do it first.
+- [ ] **#34 Everyone should hear exactly the same thing.** Today each device starts its own engine and gets changes a moment apart, so the arpeggio and the movements are shifted, and echo is a per-listener setting. Options: (a) a shared clock: each state carries its start time, the player keeps a server-clock offset and starts the engine at the right position, so every device renders the same samples; (b) the server stream of step 11, which is identical for everyone by construction. Either way the echo can no longer be per listener (it becomes a session setting, owner's choice). Decide between (a) and (b) with step 11.
 
 ### 2. Sound quality and Claude's view of it
 - [ ] **#17 Music is too similar.** A per-session "character" seeded from the session id, a variety note in the feedback, better instructions.
@@ -44,11 +48,13 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [ ] **Step 8. Several listeners, second half.** Labelled reactions; optional comments or reactions from link listeners through a bounded no-account function.
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
-- [ ] **Step 11. Server-rendered audio stream** on an always-on host, for real background playback on phones (see #19 and mobile.md). MCP Apps player if the mobile app supports it.
+- [ ] **Step 11. Server-rendered audio stream** on an always-on host. No longer needed for background playback on Android (solved with the keep-alive file), but it would give every listener the identical sound (#34) and may be the only way on iPhone. Cost guard rails if built: render only while someone listens, caps on streams and listeners, stop after a few minutes of silence, auto-stop host. Echo and volume would stop being per listener. MCP Apps player if the mobile app supports it.
 - [ ] **#11 Sitemap and robots.** Not scheduled.
 
 ### Behaviour changes made along the way
 - v0.0.10: the server instructions treat the sound as the model's own state, not ambience for the user. It writes first, sets the sound mid-answer, and never announces or offers to adjust it (server-instructions.md, "Why it reads this way").
+- v0.0.14 to v0.0.20 (background playback): four browser-side attempts failed on a real phone before the fix, and the debug report is what showed why. A worker timer and worker fetch (v0.0.14, v0.0.16) did not help; routing the synth through an audio element (v0.0.17) did not either. The report showed the page and audio alive but requests stalled, and there was no lock-screen player: Chrome never counted the page as playing media. A 1 s blob and a MediaStream element do not qualify; a real 60 s file does (v0.0.18). Then: near-silent file (v0.0.19), live media session, and muting pauses the file (v0.0.20).
+- v0.0.19: new sessions start at the "anything" consent level, as a temporary exception.
 - Open player link with no account (instead of invites or anonymous sign-ins): see hosting-and-auth.md, "Owner and listeners".
 
 ## Landing page
@@ -69,12 +75,12 @@ The mapping in mood-mapping.md is a first guess. After step 3 and again after st
 
 ## Scope
 
-The order of work is the checklist at the top. Step 11 (server-rendered audio) may move up if the phone fixes in group 1 are not enough.
+The order of work is the checklist at the top. Step 11 (server-rendered audio) is now optional: background playback works on Android without it, but it may be the way to #34 and to iPhone support.
 
 One pull request per testable group, with one commit per piece of work inside it. Each group is released before the next one builds on it.
 1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8).
 2. Steps 3 and 4, first half. **Released** (v0.0.9, v0.0.10).
-3. Phone first (#19, #15). **Next.**
+3. Phone: the Android work is **released** (v0.0.12 to v0.0.20). Left: #15 volume, an iPhone test, #30, #34. **Next.**
 4. Sound quality and the analysis half of step 4 (#17, "what Claude set" panel).
 5. Steps 5 and 6: owner controls, reactions, gestures.
 6. Modes and richer output (#16, #18, visuals).
