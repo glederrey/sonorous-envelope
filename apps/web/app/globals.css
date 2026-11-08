@@ -904,6 +904,7 @@ html {
   background: var(--on-scrim); border: 3px solid var(--tide); box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
 }
 .pl-slider input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--on-scrim); border: 3px solid var(--tide); }
+.pl-debug { white-space: pre-line; }
 .pl-local { margin: 0; color: var(--on-scrim-muted); font-size: 13px; }
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
