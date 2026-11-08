@@ -1,0 +1,20 @@
+:root {
+  --bg: #f3f4f6;
+  --ink: #12151a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0e12;
+    --ink: #eceff3;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+}
