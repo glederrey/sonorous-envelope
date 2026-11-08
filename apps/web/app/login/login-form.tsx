@@ -65,7 +65,7 @@ export function LoginForm({ next, initialMode = "signin" }: { next: string; init
             />
           </div>
         ) : null}
-        <button type="submit" className="se-btn se-btn-primary" disabled={pending}>
+        <button type="submit" className="se-btn se-btn-primary se-btn-block" disabled={pending}>
           {pending ? COPY[mode].pending : COPY[mode].submit}
         </button>
         {state.message ? (

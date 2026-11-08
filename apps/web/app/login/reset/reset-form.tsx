@@ -13,7 +13,7 @@ export function ResetForm() {
         <label className="se-sm se-muted" htmlFor="password">New password</label>
         <input id="password" name="password" type="password" autoComplete="new-password" minLength={8} required className="se-input" />
       </div>
-      <button type="submit" className="se-btn se-btn-primary" disabled={pending}>
+      <button type="submit" className="se-btn se-btn-primary se-btn-block" disabled={pending}>
         {pending ? "Saving…" : "Save password"}
       </button>
       {state.message ? <p role="alert" className="se-error se-sm">{state.message}</p> : null}
