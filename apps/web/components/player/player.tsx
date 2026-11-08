@@ -225,7 +225,16 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; d.applied = 0; d.wok = 0; d.werr = 0; d.stopped = 0; d.lastErr = ""; return; }
       if (d.hiddenAt) {
         const secs = Math.round((Date.now() - d.hiddenAt) / 1000);
-        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), page checks ok ${d.ok}, failed ${d.err}; worker checks ok ${d.wok}, failed ${d.werr}${d.lastErr ? ` (${d.lastErr})` : ""}, new sounds applied ${d.applied}. Ticks while away with the audio stopped: ${d.stopped}. Now: audio context ${audio.current?.state ?? "none"}; keep-alive file playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
+        const a = audio.current;
+        const player = "mediaSession" in navigator ? (navigator.mediaSession.metadata ? "registered" : "not registered") : "not supported";
+        const lines = [
+          `Away ${secs} s (a timer tick is expected about every 3 s, so about ${Math.round(secs / 3)}).`,
+          `Timer ticks: ${d.ticks}. Ticks with the audio stopped: ${d.stopped}.`,
+          `State checks by the page: ${d.ok} ok, ${d.err} failed. By the worker: ${d.wok} ok, ${d.werr} failed${d.lastErr ? ` (last error: ${d.lastErr})` : ""}.`,
+          `New sounds received while away: ${d.applied}.`,
+          `Now: audio engine ${a?.state ?? "not started"}, keep-alive file ${a ? (a.keepAlivePlaying ? "playing" : "paused") : "n/a"}, lock-screen player ${player}.`,
+        ];
+        setDbgText(lines.join("\n"));
         d.hiddenAt = 0;
       }
       reload.current();
@@ -341,7 +350,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && started && !hidden && (
           <section className="pl-panel" aria-label="Listening controls">
-            {debug && <p className="pl-local se-sm" role="status">{dbgText}</p>}
+            {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}</p>}
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
