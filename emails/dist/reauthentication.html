@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Your Sonorous Envelope code</title>
+<style>
+  @media (prefers-color-scheme: dark) {
+    .outer { background: #0c0e12 !important; }
+    .card { background: #14171d !important; }
+    .txt { color: #eceff3 !important; }
+    .muted { color: #9ba5b2 !important; }
+    .rule { border-top-color: #272c35 !important; }
+    .codebox { background: #08090c !important; color: #eceff3 !important; }
+    a.link { color: #45c7b6 !important; }
+  }
+  @media (max-width: 480px) { .pad { padding-left: 20px !important; padding-right: 20px !important; } }
+</style>
+</head>
+<body class="outer" style="margin:0;padding:0;background:#f3f4f6;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Your one-time code.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="outer" style="background:#f3f4f6;">
+<tr><td align="center" style="padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+    <tr><td style="padding:0 0 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td style="padding-right:12px;"><img src="{{ .SiteURL }}/email/mark.png" width="36" height="36" alt="" style="display:block;border-radius:8px;"></td>
+        <td class="txt" style="font-family:'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;font-size:17px;font-weight:500;color:#12151a;">sonorous envelope</td>
+      </tr></table>
+    </td></tr>
+    <tr><td class="card pad" style="background:#ffffff;border-radius:14px;padding:36px 36px 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td class="txt" style="padding:0 0 16px;font-family:Roboto, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;font-size:26px;line-height:32px;font-weight:500;color:#12151a;">Your code</td></tr>
+        <tr><td class="txt" style="padding:0 0 16px;font-family:Roboto, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;font-size:16px;line-height:24px;color:#12151a;">Enter this code to confirm it is you. It works for one hour.</td></tr>
+        <tr><td style="padding:8px 0 24px;">
+        <div class="codebox" style="display:inline-block;background:#e9ecef;color:#12151a;font-family:'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;font-size:28px;letter-spacing:6px;padding:12px 20px;border-radius:10px;">{{ .Token }}</div>
+      </td></tr>
+        <tr><td class="muted rule" style="padding:16px 0 0;border-top:1px solid #dde1e6;font-family:Roboto, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;font-size:13px;line-height:20px;color:#586170;">If you did not ask for a code, ignore this email.</td></tr>
+      </table>
+    </td></tr>
+    <tr><td class="muted" style="padding:20px 8px 0;font-family:Roboto, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;font-size:12px;line-height:18px;color:#586170;">
+      Sonorous Envelope gives Claude a sound and colour channel. You got this email because someone used this address on <a class="link" href="{{ .SiteURL }}" style="color:#0b766b;">{{ .SiteURL }}</a>.
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>
