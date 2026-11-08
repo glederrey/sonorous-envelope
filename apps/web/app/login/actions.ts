@@ -38,12 +38,14 @@ export async function signUp(_prev: LoginState, formData: FormData): Promise<Log
     return { status: "error", message: `Use at least ${MIN_PASSWORD} characters for the password.` };
   }
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { emailRedirectTo: callbackUrl(next) },
   });
   if (error) return { status: "error", message: "Could not create the account. Try signing in instead." };
+  // With email confirmation off, Supabase returns a session right away.
+  if (data.session) redirect(next);
   return { status: "sent", message: `Check ${email} to confirm your account.` };
 }
 
