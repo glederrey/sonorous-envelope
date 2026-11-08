@@ -7,6 +7,8 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 | Route | Purpose | Auth |
 |---|---|---|
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
+| `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
+| `/safety` | Safety and control: limits, consent levels, the rules that never change | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=` | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
@@ -59,7 +61,7 @@ A highlighted block (scrim-style panel on the colour field, not a warning colour
 - If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
 
 ### 6. Safety and control
-Short list from safety.md: listener limits, consent levels (ambient by default), mute always one tap away, no flashing faster than 3 per second, every clamp reported to the model. Link to the full safety doc on GitHub.
+Short list from safety.md: listener limits, consent levels (ambient by default), mute always one tap away, no flashing faster than 3 per second, every clamp reported to the model. Link to the `/safety` page (not to files on GitHub).
 
 ### 7. Footer
 GitHub link, "Your sessions", "Settings".

@@ -7,8 +7,8 @@
 | Language | TypeScript (strict) everywhere in v1 |
 | Monorepo | pnpm workspaces |
 | Web app + MCP endpoint | Next.js (App Router) on Vercel |
-| MCP | `mcp-handler` (Vercel) + the official MCP TypeScript SDK, Streamable HTTP transport |
-| Validation | zod (version required by the chosen `mcp-handler` line) |
+| MCP | `mcp-handler` 2.x (Vercel) + `@modelcontextprotocol/server` v2, Streamable HTTP transport (no SSE, no Redis) |
+| Validation | zod 4 |
 | Database, live updates, auth | Supabase (Postgres, Realtime, Auth with the OAuth 2.1 server) |
 | JWT verification | `jose` |
 | Audio in the browser | AudioWorklet running the shared engine |
@@ -105,6 +105,10 @@ The AudioWorklet must be a standalone script. Build it from `packages/engine` wi
 | `MCP_RESOURCE_URL` | server | `${PUBLIC_BASE_URL}/api/mcp` |
 
 Keep a `.env.example` with all of them.
+
+Read them lazily, inside functions (`apps/web/lib/env.ts`), never at module scope: CI builds with two placeholder variables and Vercel previews have none, so a module-scope read breaks `next build`.
+
+Next reads env files from `apps/web`, not the repo root. Locally, `apps/web/.env.local` is a symlink to the root `.env` (gitignored; `.worktreeinclude` copies it into worktrees). Next 16 calls the request interceptor `proxy.ts`, not `middleware.ts`.
 
 ## Commands (to create)
 - `pnpm dev`: Next.js dev server

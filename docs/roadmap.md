@@ -19,6 +19,7 @@ Detailed specs for each step are in `docs/implementation/`. Acceptance criteria 
 Spec: [player-ui.md](implementation/player-ui.md), "The landing page". It is not a numbered step because it grows with the others:
 - **With step 1:** the static page, all seven sections, no JavaScript needed. Replaces the current placeholder. The connector URL in "Add it to Claude" is built from `PUBLIC_BASE_URL`; the "Sign in" link works once login exists.
 - **After step 3:** the live colour field behind the hero and the optional "Play a sample" button, both on the shared engine.
+- **With every tool that ships:** mark it live on the `/guide` page.
 - **Before the public launch:** check the claude.ai connector menu names in section 4 (see CLAUDE.md, "Things to verify").
 
 ## Scope
