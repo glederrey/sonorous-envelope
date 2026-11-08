@@ -2,7 +2,7 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Last updated at v0.0.20 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
+Last updated at v0.1.0 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
 ## Checklist, in the order we plan to do it
 
@@ -21,7 +21,7 @@ Last updated at v0.0.20 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
 
 ### 1. Phone first (done)
-- [x] **#15 Volume on the phone.** Fine on Android. On an iPhone the sound is quieter (the web volume of an audio element is ignored there) and a linear slider did little, so the slider now works in decibels (-48 to +12 dB, 80 is unity, still shown 0 to 100) and the engine accepts a gain up to 4 (v0.0.21, `lib/volume.ts`). The `audioSession` playback type is set for iOS.
+- [x] **#15 Volume on the phone.** Fine on Android. On an iPhone the sound is quieter (the web volume of an audio element is ignored there) and a linear slider did little, so the slider now works in decibels (-48 to +12 dB, 80 is unity, still shown 0 to 100) and the engine accepts a gain up to 4 (v0.1.0, `lib/volume.ts`). The `audioSession` playback type is set for iOS.
 - [x] **Tested on an iPhone** (a borrowed one): the sound plays; quieter than Android, which the volume change addresses. Background playback on iPhone is not tested in depth.
 
 ### 2. Listening and sound quality
@@ -80,7 +80,7 @@ The order of work is the checklist at the top. Step 11 (server-rendered audio) i
 One pull request per testable group, with one commit per piece of work inside it. Each group is released before the next one builds on it.
 1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8).
 2. Steps 3 and 4, first half. **Released** (v0.0.9, v0.0.10).
-3. Phone first: **done** (v0.0.12 to v0.0.21).
+3. Phone first: **done** (v0.0.12 to v0.1.0).
 4. Listening and sound quality: #30, #34, #17, the "what Claude set" panel, the analysis half of step 4. **Next.**
 5. Steps 5 and 6: owner controls, reactions, gestures.
 6. Modes and richer output (#16, #18, visuals).
