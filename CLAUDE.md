@@ -33,7 +33,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
 
 ## Things to verify before relying on them
 Library APIs move. Check the installed versions and their docs for:
-- `mcp-handler` (2.x needs the MCP SDK v2 packages and zod ^4.2; 1.x uses `@modelcontextprotocol/sdk` 1.x). Pick one line and stay consistent.
+- `mcp-handler`: decided on the 2.x line (`mcp-handler` 2.3, `@modelcontextprotocol/server` v2, zod 4). Do not mix in `@modelcontextprotocol/sdk` 1.x. `registerTool` takes a full zod object as `inputSchema`; auth info is `ctx.http?.authInfo`.
 - Supabase OAuth 2.1 server (was in public beta from Nov 2025): dashboard setting names, authorization path, JWKS URL, token claims.
 - claude.ai's OAuth redirect URI for custom connectors.
 
