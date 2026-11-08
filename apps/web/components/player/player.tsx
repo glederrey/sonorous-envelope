@@ -218,6 +218,17 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const ageSec = playing ? Math.max(0, Math.round((Date.now() - playing.at) / 1000)) : 0;
   const midTurn = Boolean(playing && !playing.final && Date.now() - playing.at < STALE_MID_TURN_MS);
 
+  const share = signedIn ? (
+    <>
+      <span>Share this session. Anyone with the link can listen, and nobody can change anything.</span>
+      <CopyLink path={`/s/${sessionId}`} label="Copy link to share" />
+    </>
+  ) : (
+    <span>
+      Want Claude to make sound for you too? <a href="/#add">Add it to your Claude</a>.
+    </span>
+  );
+
   return (
     <div
       className="pl-field" style={fieldStyle}
@@ -275,37 +286,23 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </button>
             )}
             <p className="pl-local se-sm">These controls only change what you hear on this device.</p>
-            <button type="button" className="se-btn" onClick={() => setHidden(true)}>
-              <EyeOff size={18} aria-hidden />
-              Hide controls
-            </button>
             <p className="pl-status se-sm">
               {midTurn && <span className="pl-dot" aria-hidden />}
               {playing
                 ? `Listening · turn ${playing.turn} · last change ${ageSec < 5 ? "just now" : `${ageSec} s ago`}${midTurn ? " · Claude is mid-answer" : ""}`
                 : "Listening · waiting for the first sound"}
             </p>
+            <div className="pl-share se-sm">
+              {share}
+              <div className="pl-hide-phone"><QrLink path={`/s/${sessionId}`} /></div>
+            </div>
+            <button type="button" className="se-btn" onClick={() => setHidden(true)}>
+              <EyeOff size={18} aria-hidden />
+              Hide controls
+            </button>
           </section>
         )}
-        {phase === "ready" && !(started && hidden) && (
-          <aside className="pl-aside se-sm">
-            <QrLink path={`/s/${sessionId}`} />
-          </aside>
-        )}
-        {(phase === "ended" || (phase === "ready" && !(started && hidden))) && (
-          <aside className="pl-aside se-sm">
-            {signedIn ? (
-              <>
-                <span>Share this session. Anyone with the link can listen, and nobody can change anything.</span>
-                <CopyLink path={`/s/${sessionId}`} label="Copy link to share" />
-              </>
-            ) : (
-              <span>
-                Want Claude to make sound for you too? <a href="/#add">Add it to your Claude</a>.
-              </span>
-            )}
-          </aside>
-        )}
+        {(phase === "ended" || (phase === "ready" && !started)) && <aside className="pl-aside se-sm">{share}</aside>}
       </main>
     </div>
   );
