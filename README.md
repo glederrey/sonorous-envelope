@@ -24,6 +24,7 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - [Hosting, auth and multiple users](docs/hosting-and-auth.md): Vercel + Supabase, OAuth, sessions, several listeners
 - [Sound and colour model](docs/sound-model.md): mood axes, synth override, gestures, colour
 - [Emotion to sound](docs/emotion-to-sound.md): the research behind the mapping (cues, chords, arpeggios, gestures), and [references](docs/references.md)
+- [Visual options](docs/visuals.md): notes on more shapes, gradients and movement for the colour field (ideas)
 - [Feedback loop](docs/feedback.md): what the model gets back, the mood estimate, the optional spectrogram image
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
 - [Safety and consent](docs/safety.md): limits, consent levels, and why they matter
