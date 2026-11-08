@@ -41,6 +41,12 @@
   --tide: #0b766b;
   --on-tide: #ffffff;
   --danger: #c0322a;
+  --field-a: #e4edef;
+  --field-b: #f0e8e1;
+  --scrim: rgba(255, 255, 255, 0.82);
+  --scrim-line: rgba(18, 21, 26, 0.14);
+  --on-scrim: #12151a;
+  --on-scrim-muted: #3f4753;
   color-scheme: light;
 }
 
@@ -59,6 +65,12 @@
     --tide: #0b766b;
     --on-tide: #ffffff;
     --danger: #c0322a;
+    --field-a: #e4edef;
+    --field-b: #f0e8e1;
+    --scrim: rgba(255, 255, 255, 0.82);
+    --scrim-line: rgba(18, 21, 26, 0.14);
+    --on-scrim: #12151a;
+    --on-scrim-muted: #3f4753;
     color-scheme: light;
   }
 }
@@ -84,7 +96,7 @@ a {
 }
 
 /* The footer is always at the bottom: the shell takes the free height, the footer sits under it. */
-:root { --se-footer-h: 48px; }
+:root { --se-footer-h: 48px; --se-header-h: 76px; }
 body {
   min-height: 100vh;
   min-height: 100dvh;
@@ -537,7 +549,8 @@ html {
   align-items: flex-start;
 }
 .gd-live {
-  color: var(--glow-ink);
+  color: var(--tide);
+  font-weight: 500;
 }
 @media (max-width: 760px) {
   .doc-row {
@@ -695,7 +708,7 @@ html {
 .pl-field {
   --pl-t: 1s;
   position: relative;
-  min-height: calc(100dvh - 72px - var(--se-footer-h));
+  min-height: calc(100dvh - var(--se-header-h) - var(--se-footer-h));
   display: grid;
   background:
     linear-gradient(160deg,
