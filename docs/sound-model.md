@@ -84,7 +84,7 @@ Short sounds played once over the background, like R2-D2's chirps. A starting se
 - `pluck`: a single bright note, "aha"
 - `breath`: soft noise swell, pause
 
-Each gesture has an `intensity` (0–1). The skill should keep gestures rare: they mean more when they are infrequent.
+Each gesture has an `intensity` (0–1). The server instructions should keep gestures rare: they mean more when they are infrequent.
 
 ## Transition
 

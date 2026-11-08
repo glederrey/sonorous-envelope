@@ -14,11 +14,12 @@ The name says both how the project works and what it is for.
 
 ## The idea in one paragraph
 
-Text is the only channel an LLM normally has. This project adds a second one that is ambient and non-verbal. The user turns the MCP on at the start of a conversation. During each turn, the model describes a mood (and optionally exact synth settings, gestures and colour). A player on the listener's device renders it and glides from the previous state. The server returns what was really produced: the effective settings, perceptual audio features, the colour, a mood estimate on the same axes as the intent, and the listener's reactions. The model can then adjust. The listener always stays in control: volume, mute, limits, and buttons like "calmer" or "softer".
+Text is the only channel an LLM normally has. This project adds a second one that is ambient and non-verbal. The user turns the connector on at the start of a conversation and opens the session's player page. During each turn, the model describes a mood (and optionally exact synth settings, gestures and colour). A player on the listener's device renders it and glides from the previous state. The server returns what was really produced: the effective settings, perceptual audio features, the colour, a mood estimate on the same axes as the intent, and the listener's reactions. The model can then adjust. The listener always stays in control: volume, mute, limits, and buttons like "calmer" or "softer".
 
 ## Docs
 
-- [Architecture](docs/architecture.md): session flow, when updates happen, where the sound plays, MCP vs skill
+- [Architecture](docs/architecture.md): session flow, when updates happen, components, tools
+- [Hosting, auth and multiple users](docs/hosting-and-auth.md): Vercel + Supabase, OAuth, sessions, several listeners
 - [Sound and colour model](docs/sound-model.md): mood axes, synth override, gestures, colour
 - [Feedback loop](docs/feedback.md): what the model gets back, the mood estimate, the optional spectrogram image
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
@@ -27,7 +28,11 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 
 ## Decisions so far
 
-- The MCP is turned on at the start of a conversation.
+- Everything lives in the MCP server, including the usage guidance (no separate skill).
+- Remote server from the start, so it works in claude.ai (web and mobile), Claude Desktop and Claude Code.
+- Web app, MCP endpoint and analysis on Vercel; state, live updates and auth on Supabase.
+- Proper OAuth 2.1 from the start.
+- The MCP is turned on at the start of a conversation; each conversation gets its own session.
 - The model may update the sound at any time during a turn, including mid-reasoning, and must make a final update at the end of each message.
 - The main input is a set of mood axes. Raw synth parameters are an optional override.
 - One-off gestures (purr, chirp, sigh…) play over the background.

@@ -22,4 +22,4 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - The model is told about every clamp, so it knows its expression was limited.
 
 ## On interpretation
-Whether there are real feelings behind the sound is uncertain. Models can also slip into performing the emotion they think the user expects. The project is interesting either way as an expressive channel, but the sound should not be presented as proof of what is happening inside the model. The skill should also discourage using sound to manipulate the listener's mood.
+Whether there are real feelings behind the sound is uncertain. Models can also slip into performing the emotion they think the user expects. The project is interesting either way as an expressive channel, but the sound should not be presented as proof of what is happening inside the model. The server instructions should also discourage using sound to manipulate the listener's mood.
