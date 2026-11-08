@@ -10,7 +10,7 @@ export default async function SessionsPage() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login?next=%2Fsessions");
 
-  const { data: rows } = await supabase.from("sessions").select("id,title,last_active_at,ended_at")
+  const { data: rows } = await supabase.from("sessions").select("id,title,created_at,last_active_at,ended_at")
     .eq("owner_id", data.user.id).order("last_active_at", { ascending: false }).limit(50);
   const sessions = rows ?? [];
 
@@ -39,7 +39,7 @@ export default async function SessionsPage() {
           ) : (
             sessions.map((s) => (
               <section className="doc-row" key={s.id}>
-                <h2 className="se-heading">{s.title || "Untitled session"}</h2>
+                <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
                 <div className="se-stack">
                   <p className="se-sm se-muted" style={{ margin: 0 }}>
                     {s.ended_at ? "Ended" : "Active"} · last sound {new Date(s.last_active_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}

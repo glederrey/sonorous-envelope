@@ -71,6 +71,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select slow_mood is not null from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
   });
 
+  it("lets set_sound name and rename the session", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    await svc.setSound(dbA, A, { session_id, mood, final: true, title: "  Notes on a long poem " } as never, tick());
+    expect(sql(`select title from sessions where id='${session_id}'`)).toBe("Notes on a long poem");
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    expect(sql(`select title from sessions where id='${session_id}'`)).toBe("Notes on a long poem");
+    await svc.setSound(dbA, A, { session_id, mood, final: true, title: "Dinner ideas" } as never, tick());
+    expect(sql(`select title from sessions where id='${session_id}'`)).toBe("Dinner ideas");
+  });
+
   it("applies the mood floor and reports it", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const r = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0, calm: 0 }, final: true } as never, tick());

@@ -102,7 +102,9 @@ Keep every field description short in the tool schema: the model reads them.
 
 Input:
 ```ts
-{ title?: string /* max 80 chars, optional label */ }
+{ title?: string /* max 80 chars, optional short name; Claude can also set it later with set_sound */ }
+
+The session name belongs to Claude: the owner cannot rename it. `set_sound` takes an optional `title` (max 80 chars, trimmed, empty ignored) that replaces the name. The sessions page shows "Session of <date and time>" when none was set.
 ```
 Behaviour:
 1. Create a session with a new ID, `owner_id` = caller, `settings` = caller's `profiles.default_settings` merged over the safe defaults (limits.md).
