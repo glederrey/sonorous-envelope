@@ -15,18 +15,18 @@ Last updated at v0.0.20 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [x] **Basic feedback** (step 4, first half): `intent`, `playing`, `clamped`, `colour`, `controls`, `players`, `notes`; turn tracking; rate limits.
 - [x] **Licence and footer.** AGPL-3.0-or-later, footer with licence, source and version on every page (AGPL section 13). See [licensing.md](licensing.md).
 - [x] **Phone: layout and controls** (v0.0.12). Burger menu on phones, touch baseline (no tap flash, hover only for mice, press feedback, safe-area padding, status-bar colour), one control panel on the player (status, mute, volume and echo sliders, share link), hide-controls button, QR code ("Open on phone", wide screens only), the player fits the screen with no scrolling when the controls are hidden. Light theme fixes (v0.0.12) and the hero fade (v0.0.13).
-- [x] **Phone: music follows Claude in the background** (v0.0.14 to v0.0.20, #19). Tested on Android Chrome. Chrome treats a page as playing media only if a real media file plays, so the player loops a 60 s near-silent file (`public/keepalive.wav`, 16-bit, about -84 dBFS, element volume 0.05) and sets a live Media Session (no seek bar). That keeps the tab alive with the screen off and in another app, shows a lock-screen player, and lets the page's requests through. Muting pauses the file, so the lock-screen player shows Play. A worker timer and the worker's own state fetch, one check at a time, a Resume button, and a `?debug=1` report on the player URL. See the history in [roadmap notes](#behaviour-changes-made-along-the-way). Not tested on iPhone.
+- [x] **Phone: music follows Claude in the background** (v0.0.14 to v0.0.20, #19). Tested on Android Chrome. Chrome treats a page as playing media only if a real media file plays, so the player loops a 60 s near-silent file (`public/keepalive.wav`, 16-bit, about -84 dBFS, element volume 0.05) and sets a live Media Session (no seek bar). That keeps the tab alive with the screen off and in another app, shows a lock-screen player, and lets the page's requests through. Muting pauses the file, so the lock-screen player shows Play. A worker timer and the worker's own state fetch, one check at a time, a Resume button, and a `?debug=1` report on the player URL. See the history in [roadmap notes](#behaviour-changes-made-along-the-way). Also played on an iPhone.
 - [x] **Claude names the session** (v0.0.15). `title` on `set_sound`; the sessions page shows the date when there is none.
 - [x] **New sessions start at "anything"** (v0.0.19, temporary). One constant, `NEW_SESSION_CONSENT` (limits.md).
 - [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
 
-### 1. Phone and listening (what is left)
-- [ ] **#15 Volume on the phone is too low.** `audioSession` playback type is in for iOS (should stop the silent switch from muting); not checked on an iPhone. Still open: headphones vs speaker, loudness normalisation, a phone-friendly register (phone speakers lose the bass), a higher slider range, a hint in the player.
-- [ ] **Test on an iPhone** (Safari): background playback, silent switch, lock-screen player, layout. The keep-alive approach is only verified on Android Chrome.
+### 1. Phone first (done)
+- [x] **#15 Volume on the phone.** Fine on Android. On an iPhone the sound is quieter (the web volume of an audio element is ignored there) and a linear slider did little, so the slider now works in decibels (-48 to +12 dB, 80 is unity, still shown 0 to 100) and the engine accepts a gain up to 4 (v0.0.21, `lib/volume.ts`). The `audioSession` playback type is set for iOS.
+- [x] **Tested on an iPhone** (Safari, a borrowed phone): the sound plays; quieter than Android, which the volume change addresses. Background playback on iPhone is not tested in depth.
+
+### 2. Listening and sound quality
 - [ ] **#30 Sessions always show as active.** The sessions page says "Active" for every session that was not ended, and nothing ever ends a session except the cap of 10. Decide: derive it from the last sound (for example inactive after 30 minutes without an update) or drop the label and show "last sound 2 h ago". Small, do it first.
 - [ ] **#34 Everyone should hear exactly the same thing.** Today each device starts its own engine and gets changes a moment apart, so the arpeggio and the movements are shifted, and echo is a per-listener setting. Options: (a) a shared clock: each state carries its start time, the player keeps a server-clock offset and starts the engine at the right position, so every device renders the same samples; (b) the server stream of step 11, which is identical for everyone by construction. Either way the echo can no longer be per listener (it becomes a session setting, owner's choice). Decide between (a) and (b) with step 11.
-
-### 2. Sound quality and Claude's view of it
 - [ ] **#17 Music is too similar.** A per-session "character" seeded from the session id, a variety note in the feedback, better instructions.
 - [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound and any clamps. Small; fits step 5.
 - [ ] **Step 4, second half. Analysis.** Offline render with the shared engine, perceptual features, `sound`, `reads_as`; the `inspect` tool.
@@ -80,8 +80,8 @@ The order of work is the checklist at the top. Step 11 (server-rendered audio) i
 One pull request per testable group, with one commit per piece of work inside it. Each group is released before the next one builds on it.
 1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8).
 2. Steps 3 and 4, first half. **Released** (v0.0.9, v0.0.10).
-3. Phone: the Android work is **released** (v0.0.12 to v0.0.20). Left: #15 volume, an iPhone test, #30, #34. **Next.**
-4. Sound quality and the analysis half of step 4 (#17, "what Claude set" panel).
+3. Phone first: **done** (v0.0.12 to v0.0.21).
+4. Listening and sound quality: #30, #34, #17, the "what Claude set" panel, the analysis half of step 4. **Next.**
 5. Steps 5 and 6: owner controls, reactions, gestures.
 6. Modes and richer output (#16, #18, visuals).
 7. Later items.
