@@ -81,8 +81,15 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select title from sessions where id='${session_id}'`)).toBe("Dinner ideas");
   });
 
+  it("starts new sessions at the anything consent level", async () => {
+    const r = await svc.startSession(dbA, A, {}, tick());
+    expect(r.settings.consent).toBe("anything");
+    expect(sql(`select settings->>'consent' from sessions where id='${r.session_id}'`)).toBe("anything");
+  });
+
   it("applies the mood floor and reports it", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    sql(`update sessions set settings = jsonb_set(settings, '{consent}', '"ambient"') where id='${session_id}'`); // the floor is an ambient rule
     const r = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0, calm: 0 }, final: true } as never, tick());
     expect(r.clamped).toEqual(expect.arrayContaining(["joy 0→0.2 (mood floor)", "calm 0→0.3 (mood floor)"]));
   });

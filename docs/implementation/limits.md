@@ -60,3 +60,5 @@ Short, human-readable, one per adjustment: `"<field> <from>→<to> (<reason>)"`.
 
 ## Defaults for a new user
 `consent: "ambient", max_volume: 0.6, max_harshness: 0.5, min_transition: 3, gestures: true, image_feedback: "off"`, colour enabled with max lightness 0.5.
+
+**Temporary exception:** while testing, new sessions start at `consent: "anything"` (`NEW_SESSION_CONSENT` in `apps/web/lib/mcp/service.ts`). The schema default stays `"ambient"`: it is what a missing or invalid settings value falls back to. The owner's profile defaults still win. Existing sessions keep the level they were created with. Revert the one constant to go back to ambient; the safety docs describe ambient as the intended default.
