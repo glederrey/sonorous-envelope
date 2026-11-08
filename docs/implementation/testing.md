@@ -43,7 +43,7 @@ Log in → create a session through the MCP endpoint with a test token → open 
 5. **Listener controls:** reactions appear in the next feedback exactly once; limits clamp server-side and show in `clamped`; owner-only settings are rejected for non-owners.
 6. **Gestures:** each gesture plays once per state; the gesture rate limit and gestures-off work.
 7. **Mood estimate:** calibration script committed; correlation per axis reported in README.
-8. **Several listeners:** invite flow works; reactions labelled; listeners can't change settings.
+8. **Several listeners:** a second browser opens the player link with no account and hears the same sound; reactions labelled; listeners can't change settings.
 9. **Final-update hook (Claude Code):** a turn without a final call is blocked and the model is told to make one.
 10. **Spectrogram:** image returned only when enabled; size < 80 KB.
 11. **Mobile stream:** audio keeps playing with the screen locked on iOS and Android.
