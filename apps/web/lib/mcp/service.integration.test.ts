@@ -102,6 +102,31 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(f).not.toHaveProperty("notes");
   });
 
+  it("lets anyone with the link listen: read the state and report a heartbeat, with no account", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    const rpc = (fn: string, body: object) => fetch(`${REST}/rpc/${fn}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), // no Authorization: the anon role
+    });
+    const got = await (await rpc("get_player_state", { p_session: session_id })).json();
+    expect(got.ended).toBe(false);
+    expect(got.state.effective.volume).toBeLessThanOrEqual(0.6);
+    expect(got.state.turn).toBe(1);
+    expect(await (await rpc("get_player_state", { p_session: "nope" })).json()).toBeNull();
+    expect((await rpc("player_heartbeat", { p_session: session_id, p_device: "friend-phone", p_audio: "playing", p_volume: 0.5, p_delay: 0.2 })).status).toBe(204);
+    const tables = await fetch(`${REST}/states?select=id`);
+    expect(tables.status).toBeGreaterThanOrEqual(400); // the tables are closed to anon (permission denied)
+    // a listener with only the link counts as a listener, but their controls are not reported to the model
+    let fb = await svc.getFeedback(dbA, A, { session_id }, Date.now());
+    expect(fb.players).toBe(1);
+    expect(fb).not.toHaveProperty("controls");
+    // the owner's own device is the one whose controls the model sees
+    expect((await dbA.rpc("player_heartbeat", { p_session: session_id, p_device: "owner-laptop", p_audio: "playing", p_volume: 0.3, p_delay: 0.9 })).error).toBeNull();
+    fb = await svc.getFeedback(dbA, A, { session_id }, Date.now());
+    expect(fb.players).toBe(2);
+    expect(fb.controls).toEqual({ volume: 0.3, delay: 0.9 });
+  });
+
   it("silences with a fade and logs it as a state", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());

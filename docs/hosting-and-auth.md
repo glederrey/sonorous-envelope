@@ -50,19 +50,29 @@ Each conversation gets its own session from `start_session`, with its own ID and
 ### Several users
 Each user signs in through OAuth and only ever sees their own sessions. Everything is scoped by user ID with Row Level Security.
 
-### Several listeners on one session
-For example the owner on two devices, or a friend listening in.
-- Everyone on the session page hears the same sound, since all players subscribe to the same channel.
-- The owner sets limits and the consent level. Other listeners can only change their own volume and mute.
-- Reactions from anyone reach Claude, labelled by listener ("listener 2 pressed calmer").
-- **The player link is open.** Anyone with `/s/<id>` can listen, with no account: the browser signs in anonymously (Supabase anonymous sign-ins) and joins the session through a `join_session` RPC, so RLS and Realtime keep working on a real `auth.uid()`. There are no invite tokens.
-- Only the person who connects Claude signs in (OAuth). The owner can end the session.
-- Session IDs are long random values (144 bits), so links cannot be guessed. Anyone who sees the link can listen: it appears in the chat, so a shared chat shares the player. The content is sound and colour only.
-- **Sessions and settings per person:**
-  - *The owner* (signed in with the account that connected Claude) has "Your sessions", the sessions where `owner_id` is them. Their default listener settings live in `profiles.default_settings`, edited in Settings, and are copied into each new session. Per-session limits and consent live in `sessions.settings`, changed from the player by the owner.
-  - *A listener* (anonymous) has no sessions list and no account settings. Volume and mute are stored in their browser, per session (`localStorage`). The player may keep a short "recently opened" list of links in the browser too. Clearing the browser data loses that identity; the link still works.
-  - If the owner opens their own player link in a browser where they are signed in, they get the owner controls. Anyone else sees the listener view.
-- Open question: limits and consent stay with the owner. Each listener keeps their own volume and mute, stored in their browser. Revisit if a guest needs stricter limits than the owner set.
+### Owner and listeners
+
+Two kinds of people use a session, and they are not equal on purpose.
+
+| | **Owner** (signed in) | **Listener** (only the link) |
+|---|---|---|
+| Hears the sound, sees the colour | yes | yes |
+| Volume, echo and mute on their own device | yes | yes, and they only change what that person hears |
+| Share link and "Your sessions" | yes | no (they get a link to add the connector to their own Claude) |
+| Limits, consent, mood floor, colour limits, end the session | yes (owner panel, with step 5) | **no** |
+| Reaction buttons (calmer, softer, ...) | yes (step 5) | **no** (maybe later, see below) |
+| Their volume and echo are shown to Claude | yes | no: they only count as a listener |
+| Can start or change a session | no (Claude does, through the connector) | no |
+
+- **The link is the credential.** `/s/<id>` opens for anyone who has it, with no account and no sign-in. The 24-character id is random (144 bits), so it cannot be guessed; anyone who sees the link, for example in a shared chat, can listen. The content is sound and colour only.
+- Listeners never touch the database tables. They read through `get_player_state(id)` and report that they are listening through `player_heartbeat(...)`, two functions that return or store nothing else. The tables are closed to the `anon` role.
+- Everyone on the session hears the same sound, since all players follow the same broadcast channel and read the same state.
+- **Sessions per person:**
+  - *The owner* (signed in with the account that connected Claude) has "Your sessions", with a share link for each. Default listener settings live in `profiles.default_settings` (Settings) and are copied into each new session. Per-session limits and consent live in `sessions.settings`, changed from the player by the owner.
+  - *A listener* has no account, no sessions list and no settings. Volume, echo and mute are stored in their browser, per session (`localStorage`).
+  - If the owner opens their own player link while signed in, they get the owner view (share link, and the owner panel once it exists). Anyone else sees the listener view.
+- **Later, maybe:** listeners could send comments or reactions. If that ships, it goes through a small function like the heartbeat (bounded, no account), and Claude sees them labelled and clearly separate from the owner's. It is not built, and the owner's limits would still win.
+- Open question: limits and consent stay with the owner. Revisit if a guest needs stricter limits than the owner set.
 
 ## Data model (first sketch)
 
@@ -71,7 +81,8 @@ For example the owner on two devices, or a friend listening in.
 | `sessions` | id, owner_id, created_at, ended_at, settings (limits, consent, image_feedback) |
 | `states` | id, session_id, created_at, intent (mood, synth, gesture, colour), effective, final, analysis |
 | `reactions` | id, session_id, listener_id, created_at, kind, value, delivered_at |
-| `listeners` | session_id, user_id (anonymous or signed in), role (owner, listener) |
+| `listeners` | session_id, user_id, role. Only the owner has a row; link-only listeners are not accounts (see `player_heartbeats`) |
+| `player_heartbeats` | session_id, device_id, user_id (null for link-only listeners), audio, volume, delay, seen_at |
 
 `reactions.delivered_at` marks which reactions have already been returned to Claude, so each one is reported once.
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { createClient } from "../lib/supabase/server";
-import { getSignedInUser } from "../lib/supabase/user";
 import { hasSupabaseEnv } from "../lib/env";
 import { signOut } from "../app/settings/actions";
 import { NavLinks } from "./nav-links";
@@ -10,7 +9,8 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
   let signedIn = false;
   if (hasSupabaseEnv()) {
     const supabase = await createClient();
-    signedIn = Boolean(await getSignedInUser(supabase));
+    const { data } = await supabase.auth.getUser();
+    signedIn = Boolean(data.user);
   }
   return (
     <header className={overlay ? "se-header se-header-overlay" : "se-header"}>

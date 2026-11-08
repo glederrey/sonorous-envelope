@@ -68,14 +68,14 @@ async function currentState(db: Db, s: SessionRow): Promise<StateRow | null> {
   return (data as StateRow | null) ?? null;
 }
 
+/** Counts listeners. Only the owner's own controls are reported: other listeners can only listen. */
 async function presence(db: Db, sessionId: string, ownerId: string, now: number) {
   const since = new Date(now - PRESENCE_WINDOW_MS).toISOString();
   const { data, error } = await db.from("player_heartbeats").select("user_id,audio,volume,delay,seen_at")
     .eq("session_id", sessionId).gte("seen_at", since).order("seen_at", { ascending: false });
   if (error) fail("check who is listening", error);
-  const rows = (data ?? []) as Array<{ user_id: string; audio: string; volume: number | null; delay: number | null }>;
-  const withControls = rows.filter((r) => r.volume !== null && r.delay !== null);
-  const pick = withControls.find((r) => r.user_id === ownerId) ?? withControls[0];
+  const rows = (data ?? []) as Array<{ user_id: string | null; audio: string; volume: number | null; delay: number | null }>;
+  const pick = rows.find((r) => r.user_id === ownerId && r.volume !== null && r.delay !== null); // most recent first
   return {
     players: rows.filter((r) => r.audio === "playing").length,
     controls: pick ? { volume: pick.volume as number, delay: pick.delay as number } : null,

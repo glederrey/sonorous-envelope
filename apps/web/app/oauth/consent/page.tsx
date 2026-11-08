@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../../components/site-header";
 import { createClient } from "../../../lib/supabase/server";
-import { getSignedInUser } from "../../../lib/supabase/user";
 import { decide } from "./actions";
 
 export const metadata = { title: "Authorize · Sonorous Envelope" };
@@ -25,7 +24,8 @@ export default async function ConsentPage({
   }
 
   const supabase = await createClient();
-  if (!(await getSignedInUser(supabase))) {
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
     redirect(`/login?next=${encodeURIComponent(`/oauth/consent?authorization_id=${id}`)}`);
   }
 

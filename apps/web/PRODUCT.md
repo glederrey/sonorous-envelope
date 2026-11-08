@@ -41,7 +41,7 @@ Logo files in `docs/brand/`. No testimonials, customers or audio samples exist y
 1. The listener is in control, always.
 2. Say only what has shipped.
 3. Sound and colour are the content; the interface recedes.
-4. Sign-in is for the owner only; listening needs no account.
+4. Sign-in is for the owner only; listening needs no account. Listeners can only listen and see: limits, settings and reactions belong to the signed-in owner.
 
 ## Accessibility & Inclusion
 

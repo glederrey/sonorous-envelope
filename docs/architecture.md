@@ -55,7 +55,7 @@ Every call carries the `session_id`. Claude does not tell the server which conve
 - One engine for browser and server guarantees the feedback describes what the listener hears. Heavier models such as Essentia would need Python and a separate host later.
 
 ### Player (web app on Vercel)
-- Session page `/s/<session_id>`, open to anyone with the link (anonymous sign-in, see hosting-and-auth.md).
+- Session page `/s/<session_id>`, open to anyone with the link and no account. Listeners can only listen and see; only the signed-in owner can change limits or react (see hosting-and-auth.md, "Owner and listeners").
 - Web Audio (oscillators, BiquadFilter, LFOs, arpeggiator scheduler, gestures, delay, reverb) and a canvas for the colour field.
 - Subscribes to the session's Realtime channel and glides to each new state over the transition time, within listener limits.
 - Controls: volume, mute, limits, consent level, image-feedback setting, reaction buttons (calmer, softer, brighter, slower, more of this, less of this).

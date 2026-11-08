@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
-import { getSignedInUser } from "../../lib/supabase/user";
 import { revokeGrant, signOut } from "./actions";
 
 export const metadata = { title: "Settings · Sonorous Envelope" };
 
 export default async function SettingsPage() {
   const supabase = await createClient();
-  if (!(await getSignedInUser(supabase))) redirect("/login?next=%2Fsettings");
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/login?next=%2Fsettings");
 
   const { data } = await supabase.auth.oauth.listGrants();
   const grants = data ?? [];

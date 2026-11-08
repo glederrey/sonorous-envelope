@@ -7,3 +7,9 @@ create function auth.uid() returns uuid language sql stable as $$ select coalesc
 create publication supabase_realtime;
 grant usage on schema public, auth to anon, authenticated, service_role;
 grant execute on function auth.uid(), auth.jwt() to anon, authenticated, service_role;
+
+-- Realtime: record what realtime.send is asked to broadcast, so tests can look at it.
+create schema realtime;
+create table realtime.sent (topic text, event text, payload jsonb, is_private boolean);
+create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language sql as $$
+  insert into realtime.sent values (topic, event, payload, private) $$;

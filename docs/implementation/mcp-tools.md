@@ -163,7 +163,7 @@ Rules:
 - `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
-- `controls` is the listener's current player volume and echo (`delay`) setting, 0 to 1, as last reported by a player (realtime.md). Omit it if no player has reported yet. It is always included when present, because it changes how the model should read every other field.
+- `controls` is the owner's own player volume and echo (`delay`) setting, 0 to 1, as last reported by their player (realtime.md). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
-import { getSignedInUser } from "../../lib/supabase/user";
 import { SiteHeader } from "../../components/site-header";
 import { safeNext } from "../../lib/safe-next";
 import { LoginForm } from "./login-form";
@@ -12,7 +11,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   // Already signed in: go where the sign-in was heading instead of showing the form.
   if (!error) {
     const supabase = await createClient();
-    if (await getSignedInUser(supabase)) redirect(safeNext(next, "/sessions"));
+    const { data } = await supabase.auth.getUser();
+    if (data.user) redirect(safeNext(next, "/sessions"));
   }
   return (
     <>

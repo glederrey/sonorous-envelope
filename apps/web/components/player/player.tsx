@@ -5,6 +5,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
 import { hardCaps, parseSettings, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
+import { CopyLink } from "../copy-link";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -31,7 +32,7 @@ function deviceId() {
   } catch { return crypto.randomUUID().slice(0, 12); }
 }
 
-export function Player({ sessionId }: { sessionId: string }) {
+export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [phase, setPhase] = useState<Phase>("joining");
   const [message, setMessage] = useState("");
@@ -47,7 +48,7 @@ export function Player({ sessionId }: { sessionId: string }) {
   const audio = useRef<AudioOutput | null>(null);
   const settings = useRef<ListenerSettings>(parseSettings({}));
   const latest = useRef<Playing | null>(null);
-  const userId = useRef<string | null>(null);
+  const known = useRef(false);
   const controls = useRef({ muted, volume, echo, started });
   controls.current = { muted, volume, echo, started };
 
@@ -59,7 +60,7 @@ export function Player({ sessionId }: { sessionId: string }) {
 
   const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
     const at = new Date(row.created_at).getTime();
-    if (latest.current && at < latest.current.at) return; // an older state arriving late
+    if (latest.current && at <= latest.current.at) return; // an older state, or the one already playing
     const state: EngineState = JSON.parse(JSON.stringify(row.effective));
     hardCaps(state, settings.current); // second line of defence, the server already limited it
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
@@ -68,64 +69,44 @@ export function Player({ sessionId }: { sessionId: string }) {
     audio.current?.setState(state, next.seed);
   }, []);
 
-  // join, load the current state, then follow changes
+  // load the current state, then follow changes. The link is the only credential: no account, no sign-in.
   useEffect(() => {
     let cancelled = false;
-    let cleanup = () => {};
-    (async () => {
-      let { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error || !data.user) {
-          if (!cancelled) { setPhase("error"); setMessage("Could not open this player. Try again in a moment."); }
-          return;
-        }
-        user = data.user;
-      }
-      userId.current = user.id;
-      const joined = await supabase.rpc("join_session", { p_session: sessionId });
-      if (joined.error) {
-        if (!cancelled) { setPhase("error"); setMessage("This session was not found, or it has ended."); }
+    let ended = false;
+    const load = async () => {
+      if (ended) return;
+      const { data, error } = await supabase.rpc("get_player_state", { p_session: sessionId });
+      if (cancelled) return;
+      if (error || !data) {
+        // a missing session is final; a network blip after the first load is not
+        if (!known.current) { setPhase("error"); setMessage(error ? "Could not open this player. Try again in a moment." : "This session was not found."); }
         return;
       }
-
-      const load = async () => {
-        const { data: s } = await supabase.from("sessions").select("settings,ended_at,current_state_id").eq("id", sessionId).maybeSingle();
-        if (cancelled || !s) return;
-        settings.current = parseSettings(s.settings);
-        if (s.ended_at) { setPhase("ended"); return; }
-        if (s.current_state_id) {
-          const { data: st } = await supabase.from("states").select("effective,seed,turn,final,created_at").eq("id", s.current_state_id).maybeSingle();
-          if (st && !cancelled) apply(st);
-        }
-        setPhase((p) => (p === "joining" ? "ready" : p));
-      };
-
-      const channel = supabase.channel(`session:${sessionId}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "states", filter: `session_id=eq.${sessionId}` },
-          (payload) => apply(payload.new as never))
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${sessionId}` },
-          (payload) => {
-            const row = payload.new as { settings?: unknown; ended_at?: string | null };
-            if (row.settings) settings.current = parseSettings(row.settings);
-            if (row.ended_at) setPhase("ended");
-          })
-        // subscribe first, then load, so no update falls between the two
-        .subscribe((status) => { if (status === "SUBSCRIBED") void load(); });
-      cleanup = () => { void supabase.removeChannel(channel); };
-    })();
-    return () => { cancelled = true; cleanup(); };
+      known.current = true;
+      settings.current = parseSettings(data.settings);
+      if (data.ended) { ended = true; setPhase("ended"); return; }
+      if (data.state) apply(data.state);
+      setPhase((p) => (p === "joining" ? "ready" : p));
+    };
+    void load();
+    // the broadcast is only a nudge; the real state always comes from get_player_state
+    const channel = supabase.channel(`player:${sessionId}`)
+      .on("broadcast", { event: "state" }, () => void load())
+      .on("broadcast", { event: "session" }, () => void load())
+      .subscribe();
+    // a slow poll as a safety net if the live connection drops
+    const poll = setInterval(() => { if (document.visibilityState === "visible") void load(); }, 5000);
+    return () => { cancelled = true; clearInterval(poll); void supabase.removeChannel(channel); };
   }, [supabase, sessionId, apply]);
 
   // heartbeat: tells the model who is listening and with what controls
   const beat = useCallback(async () => {
-    if (!userId.current) return;
     const c = controls.current;
-    await supabase.from("player_heartbeats").upsert({
-      session_id: sessionId, user_id: userId.current, device_id: deviceId(),
-      audio: !c.started ? "not_started" : c.muted ? "muted" : "playing",
-      volume: c.volume, delay: c.echo,
-    }, { onConflict: "session_id,device_id" });
+    await supabase.rpc("player_heartbeat", {
+      p_session: sessionId, p_device: deviceId(),
+      p_audio: !c.started ? "not_started" : c.muted ? "muted" : "playing",
+      p_volume: c.volume, p_delay: c.echo,
+    });
   }, [supabase, sessionId]);
 
   useEffect(() => {
@@ -227,6 +208,7 @@ export function Player({ sessionId }: { sessionId: string }) {
               <span>Echo</span>
               <input type="range" min={0} max={1} step={0.01} value={echo} onChange={(e) => setEcho(Number(e.target.value))} />
             </label>
+            <p className="pl-local se-sm">These controls only change what you hear on this device.</p>
             <p className="pl-status se-sm">
               {midTurn && <span className="pl-dot" aria-hidden />}
               {playing
@@ -234,6 +216,20 @@ export function Player({ sessionId }: { sessionId: string }) {
                 : "Listening · waiting for the first sound"}
             </p>
           </section>
+        )}
+        {(phase === "ready" || phase === "ended") && (
+          <aside className="pl-aside se-sm">
+            {signedIn ? (
+              <>
+                <span>Share this session. Anyone with the link can listen, and nobody can change anything.</span>
+                <CopyLink path={`/s/${sessionId}`} label="Copy link to share" />
+              </>
+            ) : (
+              <span>
+                Want Claude to make sound for you too? <a href="/#add">Add it to your Claude</a>.
+              </span>
+            )}
+          </aside>
         )}
       </main>
     </div>
