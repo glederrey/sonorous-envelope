@@ -16,6 +16,7 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
 
 ### 1. Phone first (the priority)
+- [ ] **QR code on the player page.** Shows the player link as a QR code (a "Open on your phone" button next to Share), so you can prepare a session on a computer and continue on the phone, and test on a phone without typing a URL. Drawn in the browser with a small MIT library (`qrcode`) or a tiny own encoder; no server call. It encodes the public player URL (`PUBLIC_BASE_URL`), so on a local dev server the phone cannot open it unless the base URL is the computer's LAN address. Do it first: it makes every other phone test easier.
 - [ ] **#19 Phone layout.** Check the landing page, sign-in and player at 360 to 430 px, both orientations, on a real phone. Fix what breaks.
 - [ ] **#19 Music keeps up in the background.** Resume on `visibilitychange` and context `statechange` with a one-tap Resume button; silent audio element, Media Session, optional wake lock; try as an installed PWA. Test on a real phone.
 - [ ] **#15 Volume on the phone is too low.** Check headphones vs speaker, the iOS silent switch (`navigator.audioSession`), loudness normalisation, a phone-friendly register, a higher slider range.
