@@ -29,6 +29,7 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
 - [Safety and consent](docs/safety.md): limits, consent levels, and why they matter
 - [Roadmap](docs/roadmap.md): build order
+- [Licensing](docs/licensing.md): why AGPL, and what it requires
 - [Design system](docs/design-system.md): colours, type, logo and UI components for the web app ([open the artifact](https://claude.ai/artifact/XhWhkPDkbX1S1MyNKeLDYY))
 - [Implementation spec](docs/implementation/): everything needed to build it (start with [CLAUDE.md](CLAUDE.md))
 
@@ -43,6 +44,10 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - The main input is a set of mood axes. Raw synth parameters are an optional override.
 - One-off gestures (purr, chirp, sigh…) play over the background.
 - Feedback starts without images. The spectrogram image is an opt-in setting because it costs tokens.
+
+## License
+
+AGPL-3.0-or-later (see [LICENSE](LICENSE)), chosen because the Strudel mode uses Strudel, which is AGPL. Details and what it means for the project: [docs/licensing.md](docs/licensing.md).
 
 ## Open questions
 

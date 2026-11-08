@@ -1,6 +1,7 @@
 {
   "name": "sonorous-envelope",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "pnpm --filter web dev",

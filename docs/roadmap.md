@@ -2,20 +2,50 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Status key: **done**, **partial** (what is built and what is left), **todo**. Last updated at v0.0.10 (2026-11-08).
+Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
-1. **Foundations.** **Done** (v0.0.1 to v0.0.7). Next.js on Vercel (Frankfurt) with the domain `sonorous-envelope.com`, release-only deploy, CI, schema with Row Level Security and grants on Supabase, login (email and password, Google, magic link, password reset), designed auth emails through Resend, header with sign out.
-2. **OAuth for the connector.** **Done.** Supabase OAuth 2.1 server, consent page, protected resource metadata, token validation on `/api/mcp`. Works in claude.ai. Still to do: the audience (`aud`) check on tokens.
-3. **First tools + player.** **Done** (v0.0.9). `start_session`, `set_sound`, `get_feedback`, `silence`; the shared engine (arpeggio, slow bass layer, drone, filter, LFOs, echo, reverb); the player at `/s/<id>`, open to anyone with the link and no account (migration `0002`); owner share link and the sessions list. Not done from the original text: `inspect`, and the landing page's live colour field and "Play a sample".
-4. **Analysis + feedback.** **Partial.** Done: compact feedback (`intent`, `playing`, `clamped`, `colour`, `controls`, `players`, `notes`), turn tracking, rate limits. Todo: offline render with the shared engine, perceptual features, `sound`, `reads_as`.
-5. **Listener controls.** **Partial.** Done: volume, echo and mute on each device; limits, consent levels and mood floor enforced on the server with safe defaults. Todo: the owner panel to change limits, consent and colour limits, reaction buttons, the reaction log returned to the model.
-6. **Gestures.** **Todo.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them. Includes the purr spectral test (no tonal component above 250 Hz). The server instructions already have the wording for them in server-instructions.md, to restore when they ship.
-7. **Mood estimate.** **Todo.** Heuristics for all five axes, then an Essentia model for joy and calm to compare.
-8. **Several listeners.** **Partial.** Done: the open link; listeners can only listen and see, limits and reactions stay with the signed-in owner. Todo: labelled reactions. Optional later: comments or reactions from listeners, through a bounded no-account function.
-9. **Final-update enforcement in Claude Code.** **Todo.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format before building.
-10. **Opt-in spectrogram.** **Todo.** `image_feedback` setting and `inspect` tool.
-11. **Mobile.** **Later.** Server-rendered audio stream on an always-on host; MCP Apps player if the mobile app supports it.
-12. **Richer visuals.** **Idea, not scheduled.** More shapes, gradients and motion for the colour field. Notes in [visuals.md](visuals.md).
+## Checklist, in the order we plan to do it
+
+### Done
+- [x] **Step 1. Foundations** (v0.0.1 to v0.0.7). Next.js on Vercel (Frankfurt), domain `sonorous-envelope.com`, release-only deploy, CI, schema with Row Level Security on Supabase, login (email and password, Google, magic link, password reset), designed auth emails through Resend.
+- [x] **Step 2. OAuth for the connector.** Supabase OAuth 2.1 server, consent page, protected resource metadata, token validation on `/api/mcp`. Works in claude.ai.
+- [x] **Step 3. First tools and player** (v0.0.9). `start_session`, `set_sound`, `get_feedback`, `silence`; the shared engine; the player at `/s/<id>`; owner share link and the sessions list.
+- [x] **Open player link with no account** (v0.0.9). Listeners only listen and see; limits and controls stay with the signed-in owner (hosting-and-auth.md, "Owner and listeners").
+- [x] **The sound is Claude's own state** (v0.0.10). Claude writes first, sets the sound mid-answer, never announces it.
+- [x] **Basic feedback** (step 4, first half): `intent`, `playing`, `clamped`, `colour`, `controls`, `players`, `notes`; turn tracking; rate limits.
+- [x] **Licence and footer.** AGPL-3.0-or-later, footer with licence, source and version on every page (AGPL section 13). See [licensing.md](licensing.md).
+- [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
+
+### 1. Phone first (the priority)
+- [ ] **QR code on the player page.** Shows the player link as a QR code (a "Open on your phone" button next to Share), so you can prepare a session on a computer and continue on the phone, and test on a phone without typing a URL. Drawn in the browser with a small MIT library (`qrcode`) or a tiny own encoder; no server call. It encodes the public player URL (`PUBLIC_BASE_URL`), so on a local dev server the phone cannot open it unless the base URL is the computer's LAN address. Do it first: it makes every other phone test easier.
+- [ ] **#19 Phone layout.** Check the landing page, sign-in and player at 360 to 430 px, both orientations, on a real phone. Fix what breaks.
+- [ ] **#19 Music keeps up in the background.** Resume on `visibilitychange` and context `statechange` with a one-tap Resume button; silent audio element, Media Session, optional wake lock; try as an installed PWA. Test on a real phone.
+- [ ] **#15 Volume on the phone is too low.** Check headphones vs speaker, the iOS silent switch (`navigator.audioSession`), loudness normalisation, a phone-friendly register, a higher slider range.
+
+### 2. Sound quality and Claude's view of it
+- [ ] **#17 Music is too similar.** A per-session "character" seeded from the session id, a variety note in the feedback, better instructions.
+- [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound and any clamps. Small; fits step 5.
+- [ ] **Step 4, second half. Analysis.** Offline render with the shared engine, perceptual features, `sound`, `reads_as`; the `inspect` tool.
+- [ ] **Audience (`aud`) check** on OAuth tokens (step 2 leftover).
+- [ ] **Calibration by ear** (below), after the above.
+
+### 3. Owner controls and gestures (steps 5 and 6)
+- [ ] **Step 5, second half.** Owner panel to change limits, consent and colour limits; reaction buttons; the reaction log returned to the model.
+- [ ] **Step 6. Gestures.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
+
+### 4. Modes and richer output
+- [ ] **#16 Modes.** `mode` on `start_session`, fixed per session, per-mode guidance in the result, different feedback emphasis. Inner (the sound is Claude's own state, never announced), outer (Claude may talk about the sound), and Strudel (below).
+- [ ] **#18 Strudel as a separate mode.** Decided: Strudel is its own `mode`, not a replacement for the built-in synth. Claude writes Strudel code, the player runs it in the browser and shows the code to listeners. The AGPL licence is already set up for it ([licensing.md](licensing.md)). Needs a design for safety and feedback first (limits on code, volume cap, what feedback means). Sonic Pi stays out: it cannot run in a browser. Do after #16.
+- [ ] **Step 12. Richer visuals.** More shapes, gradients and motion for the colour field ([visuals.md](visuals.md)).
+- [ ] **Landing page extras.** Live colour field behind the hero, "Play a sample" button.
+
+### 5. Later
+- [ ] **Step 7. Mood estimate.** Heuristics for all five axes, then an Essentia model for joy and calm to compare.
+- [ ] **Step 8. Several listeners, second half.** Labelled reactions; optional comments or reactions from link listeners through a bounded no-account function.
+- [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
+- [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
+- [ ] **Step 11. Server-rendered audio stream** on an always-on host, for real background playback on phones (see #19 and mobile.md). MCP Apps player if the mobile app supports it.
+- [ ] **#11 Sitemap and robots.** Not scheduled.
 
 ### Behaviour changes made along the way
 - v0.0.10: the server instructions treat the sound as the model's own state, not ambience for the user. It writes first, sets the sound mid-answer, and never announces or offers to adjust it (server-instructions.md, "Why it reads this way").
@@ -39,10 +69,13 @@ The mapping in mood-mapping.md is a first guess. After step 3 and again after st
 
 ## Scope
 
-Steps 1 to 10 and the landing page are being built first. Step 11 (mobile) comes later; step 12 is an idea.
+The order of work is the checklist at the top. Step 11 (server-rendered audio) may move up if the phone fixes in group 1 are not enough.
 
 One pull request per testable group, with one commit per piece of work inside it. Each group is released before the next one builds on it.
-1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8, including the sign-in redesign and emails).
-2. Steps 3 and 4: **released in part** (v0.0.9, v0.0.10). Built: tools, engine, player, basic feedback. Left from this group: the analysis half of step 4 (`reads_as`, `sound`), `inspect`.
-3. Steps 5 and 6: listener controls (owner panel, reactions) and gestures. **Next.**
-4. Steps 7 to 10: mood estimate, labelled reactions for several listeners, the `Stop` hook and the spectrogram.
+1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8).
+2. Steps 3 and 4, first half. **Released** (v0.0.9, v0.0.10).
+3. Phone first (#19, #15). **Next.**
+4. Sound quality and the analysis half of step 4 (#17, "what Claude set" panel).
+5. Steps 5 and 6: owner controls, reactions, gestures.
+6. Modes and richer output (#16, #18, visuals).
+7. Later items.

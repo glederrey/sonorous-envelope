@@ -103,6 +103,7 @@ The AudioWorklet must be a standalone script. Build it from `packages/engine` wi
 | `SUPABASE_JWKS_URL` | server | JWKS endpoint of the project (verify the exact path) |
 | `PUBLIC_BASE_URL` | server | e.g. `https://sonorous-envelope.vercel.app`, used in links and metadata |
 | `MCP_RESOURCE_URL` | server | `${PUBLIC_BASE_URL}/api/mcp` |
+| `APP_VERSION` | build | Release tag shown in the footer. Set by the deploy workflow; unset means "dev". Exposed as `NEXT_PUBLIC_APP_VERSION`. |
 
 Keep a `.env.example` with all of them.
 

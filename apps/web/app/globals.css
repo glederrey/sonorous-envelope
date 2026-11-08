@@ -83,6 +83,30 @@ a {
   color: var(--tide);
 }
 
+/* The footer is always at the bottom: the shell takes the free height, the footer sits under it. */
+:root { --se-footer-h: 48px; }
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+.se-shell { min-width: 0; }
+.se-footer {
+  min-height: var(--se-footer-h);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 20px;
+  padding: 8px 16px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--line);
+}
+.se-footer a { color: inherit; }
+
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -123,12 +147,12 @@ h3 {
 .se-page {
   max-width: 720px;
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: 24px 16px 32px;
 }
 .se-narrow {
   max-width: 420px;
   margin: 0 auto;
-  padding: 64px 16px;
+  padding: 64px 16px 32px;
 }
 .se-stack > * + * {
   margin-top: 16px;
@@ -470,7 +494,7 @@ html {
 .doc-page {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 32px 16px 96px;
+  padding: 32px 16px 32px;
 }
 .doc-head {
   padding-bottom: 48px;
@@ -671,7 +695,7 @@ html {
 .pl-field {
   --pl-t: 1s;
   position: relative;
-  min-height: calc(100dvh - 72px);
+  min-height: calc(100dvh - 72px - var(--se-footer-h));
   display: grid;
   background:
     linear-gradient(160deg,
