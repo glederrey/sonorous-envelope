@@ -33,6 +33,13 @@ function deviceId() {
   } catch { return crypto.randomUUID().slice(0, 12); }
 }
 
+function age(sec: number) {
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec} s ago`;
+  if (sec < 3600) return `${Math.round(sec / 60)} min ago`;
+  return `${Math.round(sec / 3600)} h ago`;
+}
+
 export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [phase, setPhase] = useState<Phase>("joining");
@@ -218,16 +225,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const ageSec = playing ? Math.max(0, Math.round((Date.now() - playing.at) / 1000)) : 0;
   const midTurn = Boolean(playing && !playing.final && Date.now() - playing.at < STALE_MID_TURN_MS);
 
-  const share = signedIn ? (
-    <>
-      <span>Share this session. Anyone with the link can listen, and nobody can change anything.</span>
-      <CopyLink path={`/s/${sessionId}`} label="Copy link to share" />
-    </>
-  ) : (
-    <span>
-      Want Claude to make sound for you too? <a href="/#add">Add it to your Claude</a>.
-    </span>
-  );
+  const shareText = signedIn
+    ? "Anyone with the link can listen. Nobody else can change anything."
+    : "Want Claude to make sound for you too?";
+  const shareAction = signedIn
+    ? <CopyLink path={`/s/${sessionId}`} label="Copy link" />
+    : <a className="se-btn" href="/#add">Add it to your Claude</a>;
 
   return (
     <div
@@ -259,50 +262,62 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && started && !hidden && (
           <section className="pl-panel" aria-label="Listening controls">
-            <button
-              type="button" className="se-btn pl-mute" aria-pressed={muted} onClick={() => setMuted((m) => !m)}
-            >
-              {muted ? <VolumeX size={22} aria-hidden /> : <Volume2 size={22} aria-hidden />}
-              {muted ? "Muted. Tap to unmute" : "Mute"}
-            </button>
-            {audioState !== "running" && (
+            <div className="pl-bar">
+              <p className="pl-status se-sm">
+                <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
+                {playing
+                  ? `Turn ${playing.turn} · ${midTurn ? "Claude is mid-answer" : `changed ${age(ageSec)}`}`
+                  : "Waiting for the first sound"}
+              </p>
+              <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
+                <EyeOff size={18} aria-hidden />
+              </button>
+            </div>
+
+            {audioState !== "running" ? (
               <button type="button" className="se-btn se-btn-primary pl-mute" onClick={() => void audio.current?.resume()}>
                 <Play size={22} aria-hidden />
                 Sound stopped. Tap to resume
               </button>
-            )}
-            <label className="pl-slider">
-              <span>Volume</span>
-              <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => setVolume(Number(e.target.value))} />
-            </label>
-            <label className="pl-slider">
-              <span>Echo</span>
-              <input type="range" min={0} max={1} step={0.01} value={echo} onChange={(e) => setEcho(Number(e.target.value))} />
-            </label>
-            {"wakeLock" in navigator && (
-              <button type="button" className="se-btn" aria-pressed={keepAwake} onClick={() => setKeepAwake((k) => !k)}>
-                <Sun size={18} aria-hidden />
-                {keepAwake ? "Screen stays on" : "Keep the screen on"}
+            ) : (
+              <button type="button" className="se-btn pl-mute" aria-pressed={muted} onClick={() => setMuted((m) => !m)}>
+                {muted ? <VolumeX size={22} aria-hidden /> : <Volume2 size={22} aria-hidden />}
+                {muted ? "Muted. Tap to unmute" : "Mute"}
               </button>
             )}
-            <p className="pl-local se-sm">These controls only change what you hear on this device.</p>
-            <p className="pl-status se-sm">
-              {midTurn && <span className="pl-dot" aria-hidden />}
-              {playing
-                ? `Listening · turn ${playing.turn} · last change ${ageSec < 5 ? "just now" : `${ageSec} s ago`}${midTurn ? " · Claude is mid-answer" : ""}`
-                : "Listening · waiting for the first sound"}
-            </p>
-            <div className="pl-share se-sm">
-              {share}
-              <div className="pl-hide-phone"><QrLink path={`/s/${sessionId}`} /></div>
+
+            <div className="pl-sliders">
+              <label className="pl-slider">
+                <span>Volume</span>
+                <input type="range" min={0} max={1} step={0.01} value={volume} style={{ "--fill": `${volume * 100}%` } as CSSProperties}
+                  onChange={(e) => setVolume(Number(e.target.value))} />
+                <output>{Math.round(volume * 100)}</output>
+              </label>
+              <label className="pl-slider">
+                <span>Echo</span>
+                <input type="range" min={0} max={1} step={0.01} value={echo} style={{ "--fill": `${echo * 100}%` } as CSSProperties}
+                  onChange={(e) => setEcho(Number(e.target.value))} />
+                <output>{Math.round(echo * 100)}</output>
+              </label>
+              <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>
-            <button type="button" className="se-btn" onClick={() => setHidden(true)}>
-              <EyeOff size={18} aria-hidden />
-              Hide controls
-            </button>
+
+            <div className="pl-share se-sm">
+              <p>{shareText}</p>
+              <div className="pl-actions">
+                {shareAction}
+                {"wakeLock" in navigator && (
+                  <button type="button" className="se-btn" aria-pressed={keepAwake} onClick={() => setKeepAwake((k) => !k)}>
+                    <Sun size={16} aria-hidden />
+                    {keepAwake ? "Screen stays on" : "Keep screen on"}
+                  </button>
+                )}
+                <div className="pl-hide-phone"><QrLink path={`/s/${sessionId}`} /></div>
+              </div>
+            </div>
           </section>
         )}
-        {(phase === "ended" || (phase === "ready" && !started)) && <aside className="pl-aside se-sm">{share}</aside>}
+        {(phase === "ended" || (phase === "ready" && !started)) && <aside className="pl-aside se-sm"><p style={{ margin: 0 }}>{shareText}</p>{shareAction}</aside>}
       </main>
     </div>
   );
