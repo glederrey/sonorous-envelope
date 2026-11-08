@@ -42,10 +42,11 @@ Four steps, each with a small icon and two lines of text (a horizontal row on de
 
 ### 4. Add it to Claude
 Numbered steps with the connector URL in a `CopyField` (`${PUBLIC_BASE_URL}/api/mcp`):
-1. In claude.ai, open **Settings → Connectors** and choose **Add custom connector**.
-2. Name it "Sonorous Envelope" and paste the URL above. Save, then **Connect**: you are sent here to sign in and approve access (OAuth). Once approved you are back in Claude.
-3. In a new conversation, turn the connector on from the tools menu in the message box. Claude starts a session and gives you a link to your player page.
-4. Open the link and tap **Start listening**.
+1. Open **Settings → Customize → Connectors**, then choose **Add** and **Add custom connector** (checked against claude.ai, Nov 2026).
+2. Name it "Sonorous Envelope", paste the URL above into **MCP server URL**, and choose **Continue**.
+3. Choose **Connect**: you are sent here to sign in and approve access (OAuth). Once approved you are back in Claude.
+4. In a new conversation, turn the connector on from the **+** menu in the message box. Claude starts a session and gives you a link to your player page.
+5. Open the link and tap **Start listening**.
 
 Notes under the steps, in `body-sm`:
 - The connector added on claude.ai also works in the Claude desktop and mobile apps on the same account.
