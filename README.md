@@ -23,6 +23,7 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - [Architecture](docs/architecture.md): session flow, when updates happen, components, tools
 - [Hosting, auth and multiple users](docs/hosting-and-auth.md): Vercel + Supabase, OAuth, sessions, several listeners
 - [Sound and colour model](docs/sound-model.md): mood axes, synth override, gestures, colour
+- [Emotion to sound](docs/emotion-to-sound.md): the research behind the mapping (cues, chords, arpeggios, gestures), and [references](docs/references.md)
 - [Feedback loop](docs/feedback.md): what the model gets back, the mood estimate, the optional spectrogram image
 - [Mobile](docs/mobile.md): how to keep sound playing on phones
 - [Safety and consent](docs/safety.md): limits, consent levels, and why they matter
@@ -47,4 +48,6 @@ Text is the only channel an LLM normally has. This project adds a second one tha
 - Should colour always follow the sound, or can the model set it independently?
 - How should warmth, closeness and spontaneity be estimated from audio? Existing emotion models only cover valence and arousal.
 - Is the mood estimate useful to the model, or does it pull the sound toward what the estimator expects?
+- Is a slow bass arpeggio heard as a background mood, apart from the mid arpeggio? (See docs/emotion-to-sound.md, "Open questions".)
+- Does the listener's echo and volume visibility make the model read its own sound better, or does it start compensating for them?
 - Does the Claude mobile app render MCP Apps (UI inside the chat)?

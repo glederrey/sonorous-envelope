@@ -13,6 +13,12 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
 
+## Planned in migration `0002`
+Never edit the applied `0001_init.sql`; add changes in a new migration.
+- `join_session` RPC, and drop `invites` with `redeem_invite`.
+- `states.slow_mood jsonb`: the slow mood after this state (mood-mapping.md, "Background layer"). Null on the first state means "start from this mood".
+- `player_heartbeats.volume` and `player_heartbeats.delay` (`real`, 0 to 1): the listener's local controls, returned to the model as `controls`.
+
 ## Session IDs
 - Generate with `crypto.randomBytes(18).toString('base64url')` (144 bits, 24 characters).
 - They appear in URLs (`/s/<id>`) and in every tool call. Access is still checked by RLS, so the ID is not a secret on its own.

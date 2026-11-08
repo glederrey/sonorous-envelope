@@ -74,7 +74,7 @@ export const SynthOverride = z.object({
 }).partial();
 
 export const Gesture = z.object({
-  type: z.enum(["purr","chirp","sigh","hum","pluck","breath"]),
+  type: z.enum(["purr","meow_up","meow_down","chirp","laugh","growl","sigh","hum","pluck","breath"]),
   intensity: unit.default(0.5),
 });
 
@@ -152,6 +152,7 @@ Steps 5 and 6 come before 7, so players start gliding while the analysis runs.
  "sound":{"loudness_db":-24,"brightness":"low","roughness":0.2,"density":"sparse","movement":"slow"},
  "colour":{"h":30,"s":0.4,"l":0.35,"motion":"drift"},
  "listener":["you: pressed calmer","you: volume 0.8→0.5"],
+ "controls":{"volume":0.5,"delay":0.5},
  "players":1,
  "notes":["no final update last turn"]}
 ```
@@ -160,6 +161,7 @@ Rules:
 - `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
+- `controls` is the listener's current player volume and echo (`delay`) setting, 0 to 1, as last reported by a player (realtime.md). Omit it if no player has reported yet. It is always included when present, because it changes how the model should read every other field.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.

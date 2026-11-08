@@ -7,7 +7,7 @@ Detailed specs for each step are in `docs/implementation/`. Acceptance criteria 
 3. **First tools + player.** `start_session` and `set_sound` (mood axes + synth override + `final` flag) with the usage guidance in the server instructions. Session page with the Web Audio player (arpeggiator, filter, LFO, drone, delay) and colour background, updated through Realtime. The player link is open to anyone: anonymous sign-in plus a `join_session` RPC (migration `0002`), no invites.
 4. **Analysis + feedback.** Offline render with the shared engine, perceptual features, HSL colour, compact feedback.
 5. **Listener controls.** Volume, mute, limits, consent levels, reaction buttons, reaction log returned to the model.
-6. **Gestures.** First set (purr, chirp, sigh, hum, pluck, breath), with a switch to mute them.
+6. **Gestures.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them. Includes the purr spectral test (no tonal component above 250 Hz).
 7. **Mood estimate.** Heuristics for all five axes, then an Essentia model for joy and calm to compare.
 8. **Several listeners.** Labelled reactions and owner-only settings. The open player link itself comes earlier, with step 3.
 9. **Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format before building.
@@ -21,6 +21,14 @@ Spec: [player-ui.md](implementation/player-ui.md), "The landing page". It is not
 - **After step 3:** the live colour field behind the hero and the optional "Play a sample" button, both on the shared engine.
 - **With every tool that ships:** mark it live on the `/guide` page.
 - **Before the public launch:** check the claude.ai connector menu names in section 4 (see CLAUDE.md, "Things to verify").
+
+## Calibration by ear
+
+The mapping in mood-mapping.md is a first guess. After step 3 and again after step 6, set aside a listening session:
+- Play the eight corners of joy × calm × warmth and check each reads as the emotion in the chord-quality table.
+- Check the two arpeggios: is the slow bass layer heard as a background mood, apart from the mid arpeggio? If not, drop the mapped drone or change the update fraction (0.25).
+- Compare the gestures to their sources (meow request vs complaint, purr vs growl).
+- Tune the constants marked "starting value". Record results in docs/emotion-to-sound.md, "Open questions".
 
 ## Scope
 

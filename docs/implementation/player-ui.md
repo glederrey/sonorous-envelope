@@ -83,6 +83,7 @@ The page is mostly the colour field, full screen. Controls sit in a slim bar tha
 ### Always visible
 - **Mute** (one tap, large target). Stays muted until unmuted, including across reloads (remember in `localStorage` per session, wrapped in try/catch).
 - **Volume slider** (local gain).
+- **Echo slider** (local, 0 to 1, default 0.5): scales the delay the model asked for (`engine.setListenerDelay`, limits.md step 7). Next to the volume slider, same weight. At 0 there is no echo at all.
 - **Status:** "Listening · turn 12 · last change 4 s ago", and a small dot when the model is mid-turn (last state non-final and < 20 s old).
 
 ### Reaction buttons

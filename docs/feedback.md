@@ -14,8 +14,9 @@ The model needs to know what it actually produced in order to update it. Every `
    - spectral flux (how much it changes)
 3. **Colour.** HSL rather than RGB, since hue, saturation and lightness map to perception. Plus how much it moves.
 4. **Listener reactions** since the last call. This is the most important part: it is the only signal about how the expression landed.
-5. **Mood estimate on the same axes as the intent.** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5".
-6. **Notes**, e.g. "no final update last turn" or "gesture skipped: listener muted gestures".
+5. **Listener controls.** The listener's current volume and echo setting (`controls`). The same sound lands differently at volume 0.3 and 0.9, and the model should know which one it is dealing with.
+6. **Mood estimate on the same axes as the intent.** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5".
+7. **Notes**, e.g. "no final update last turn" or "gesture skipped: listener muted gestures".
 
 ## Example
 
@@ -51,6 +52,8 @@ The other three need heuristics built from audio features:
 
 **Main caveat:** these models are trained on real recorded songs with full mixes and often vocals. A sparse synth arpeggio is far outside that data, so predictions may be noisy. Research also consistently finds arousal much easier to predict than valence.
 
+**Calibration source.** The cue table in [emotion-to-sound.md](emotion-to-sound.md) gives expected directions (faster, higher, brighter, more attack and roughness = more activation; major and rising = more joy), so the heuristics start from those and are checked on our own sounds.
+
 **Approach:**
 1. Transparent heuristics for all five axes first, from librosa features. The model can see why it got a given estimate.
 2. Add an Essentia model for `joy` and `calm` and compare with the heuristics on our own sounds.
@@ -69,6 +72,14 @@ Image format:
 - A mel spectrogram of the last ~8 seconds, small (around 512×256).
 - A strip underneath showing the colour field over the same time span, so one image covers both channels.
 - Optional extras: chromagram (which notes are present), loudness curve.
+
+## Tracking over time
+
+Two biases are worth watching once there is real data:
+- **Lukewarm bias.** Models may drift toward safe, middling moods. Log the distribution of intent per axis across sessions and flag a distribution that never leaves 0.3 to 0.7.
+- **Intent vs reading.** Keep the analysis scores and a downsampled spectrum for each final state, so the estimator can be compared across conversations.
+
+A blind check is also possible: a second model instance, given only the spectrogram or the feature summary, rates the mood without seeing the intent. Agreement with the first instance's intent is a measure of whether the sound carries the mood. This is a later experiment, not part of the first build.
 
 ## Timing
 

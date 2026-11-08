@@ -9,6 +9,10 @@
 - Glide: changing cutoff over 4 s produces a monotonic centroid change, no clicks (max sample-to-sample jump below a threshold).
 - Arp: note events match the pattern, rate and density for known seeds.
 - Each gesture renders under 2.5 s and peaks below −3 dBFS.
+- Purr: no spectral bin above 250 Hz within 30 dB of the strongest peak; strongest peak below 120 Hz (no disguised appeal).
+- Bass layer: renders its own note events at the requested step; no events when `bass.on` is false.
+- `drive = 0` is bit-identical to the same state without the drive stage.
+- `setListenerDelay(0)` removes all echo; `setListenerDelay(1)` stays within the delay mix and feedback caps.
 
 ### packages/shared
 - Mood mapping: monotonicity, bounds, snapshots (mood-mapping.md).
@@ -41,7 +45,7 @@ Log in → create a session through the MCP endpoint with a test token → open 
 3. **First tools + player:** in claude.ai, `start_session` returns a working link; `set_sound` changes the sound in the open player within 1 s; glides are smooth; colour follows.
 4. **Analysis + feedback:** feedback includes `sound` and `reads_as`; < 300 ms analysis; feedback stays compact.
 5. **Listener controls:** reactions appear in the next feedback exactly once; limits clamp server-side and show in `clamped`; owner-only settings are rejected for non-owners.
-6. **Gestures:** each gesture plays once per state; the gesture rate limit and gestures-off work.
+6. **Gestures:** each gesture plays once per state; the gesture rate limit and gestures-off work; growl is rejected in "ambient" and "expressive"; the purr test passes.
 7. **Mood estimate:** calibration script committed; correlation per axis reported in README.
 8. **Several listeners:** a second browser opens the player link with no account and hears the same sound; reactions labelled; listeners can't change settings.
 9. **Final-update hook (Claude Code):** a turn without a final call is blocked and the model is told to make one.
