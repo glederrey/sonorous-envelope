@@ -30,6 +30,7 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 | Wave allowed | sine, triangle | + sawtooth | + square |
 | Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
 | Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
+| Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
 | Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
 | Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
 | Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
@@ -41,7 +42,7 @@ If above `max_harshness`, reduce in this order until it fits: drive (to 0), cuto
 
 ## Order of operations
 1. **Mood floor:** before mapping, raise `joy` and `calm` to the floor (settings floor and consent floor, whichever is higher). Clamp entry: `"joy 0.1→0.3 (mood floor)"`. (So call `applyMoodFloor` before `moodToEngineState`; `set_sound` step 3 does this.)
-2. **Consent ceilings:** tempo, resonance, wave, scale (replace a disallowed scale with the nearest allowed one by brightness), LFO depth, note rate, gesture type.
+2. **Consent ceilings:** tempo, resonance, wave, scale (a disallowed scale is replaced by a fixed fallback: locrian and phrygian → minor, chromatic → pentatonic), LFO depth, note rate, gesture type.
 3. **Harshness.**
 4. **Volume:** `min(volume, max_volume)`.
 5. **Transition:** `time = max(time, min_transition, consent min)`; `curve = "smooth"` unless consent is `anything`.

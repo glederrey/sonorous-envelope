@@ -27,12 +27,12 @@ export const SynthOverride = z.object({
   arp: z.object({
     root: NoteName,
     scale: z.enum(["major","minor","dorian","phrygian","lydian","mixolydian","locrian",
-                   "harmonic_minor","pentatonic_major","pentatonic_minor","whole_tone","chromatic"]),
+                   "harmonic_minor","pentatonic","whole_tone","chromatic"]),
     chord: z.array(z.number().int().min(1).max(14)).min(1).max(8),   // scale degrees
     pattern: z.enum(["up","down","up_down","random","as_played"]),
     octaves: z.number().int().min(1).max(4),
     tempo: z.number().min(30).max(200),                               // BPM
-    rate: z.enum(["1/4","1/8","1/8t","1/16","1/16t"]),
+    rate: z.enum(["1/4","1/8","1/8t","1/16"]),
     gate: z.number().min(0.05).max(1),
     swing: unit,
     density: unit,                                                    // step probability
