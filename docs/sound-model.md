@@ -1,6 +1,6 @@
 # Sound and colour model
 
-The model describes a mood, not a sequence of notes. The player turns that description into a living loop. There are three layers:
+The model describes a mood, not a sequence of notes. The player turns that description into a living loop. The evidence for the mapping (which acoustic cue carries which emotion) is in [emotion-to-sound.md](emotion-to-sound.md). There are three layers:
 
 1. **Mood axes** (required): what the model wants to express.
 2. **Synth override** (optional): exact settings when the model wants control the mapping doesn't give it.
@@ -20,15 +20,25 @@ Each axis goes from 0 to 1.
 | `calm` | urgency | calm |
 | `spontaneity` | measured | spontaneous |
 
-The server maps the axes to synth settings. This mapping is a design choice and needs testing with real listeners. A first guess:
+The server maps the axes to synth settings. This mapping is a design choice and needs testing with real listeners. It rests on the acoustic cues that voice and music share (tempo, register, brightness, attack, roughness), with harmony as a second layer, since harmony is partly cultural. A first guess:
 
-- **warmth:** waveform (sine and triangle warm, square and saw cold), filter cutoff, detune, reverb colour
+- **warmth:** waveform (sine and triangle warm, square and saw cold), filter cutoff, detune, added 7ths, reverb colour
 - **closeness:** volume, dry vs reverb, stereo width, register (closer = mid and lower)
-- **joy:** mode (major and lydian towards joy, minor and phrygian towards despair), register, brightness
-- **calm:** tempo, note rate, LFO speed, attack time, density
+- **joy:** arpeggio contour (rising towards joy, falling towards despair), mode and chord quality (major towards joy, minor towards despair), register, attack, brightness
+- **calm:** tempo, note rate and number of notes, LFO speed, attack time, density. This is the inverse of arousal: serenity and urgency are activation levels, not emotions.
 - **spontaneity:** pattern randomness, swing, step probability, timing jitter
 
+Two readings of the axes are worth keeping in mind. Joy and anger share tempo, register and contour; roughness and brightness separate them, so anger is "low joy, urgent, rough", not a separate axis. Sadness and tenderness differ almost only in regularity: both are slow, low and soft, and sadness adds a small timing and pitch tremor.
+
 Axes alone keep the model consistent and easy to use, but the mapping then decides what "warmth" sounds like. The override layer gives the model a way out.
+
+### Two arpeggios: background and foreground
+
+Mood and affect are different things: a mood lasts, an affect answers the moment. The sound has two layers for them:
+- **Background (bass) arpeggio:** low, very slow (one note every 1 to 2 s), built on the chord of a *slow mood*. The slow mood moves a fraction of the way to the model's mood at each final update, so it changes over several responses. It barely moves by design: a mood that changed with every message would no longer be a mood.
+- **Foreground (mid) arpeggio:** the arpeggio described under "Synth override", driven by the current mood and reacting to every update.
+
+The drone stays as an optional sustained layer. Whether the slow low arpeggio is really heard as a background mood, distinct from the mid one, is the first thing to check by ear.
 
 ## 2. Synth override
 
@@ -75,16 +85,22 @@ Any of these fields replaces what the mood mapping produced.
 
 ## 3. Gestures
 
-Short sounds played once over the background, like R2-D2's chirps. A starting set:
+Short sounds played once over the background, like R2-D2's chirps. They follow the motivation-structure rules found across birds and mammals: low and rough for hostility, high and pure for fear, appeasement or approach. A starting set:
 
-- `purr`: low, rolling, contented
-- `chirp`: short rising notes, curiosity or delight
-- `sigh`: falling filtered noise, tiredness or relief
+- `purr`: low, rolling, contented. Appeasement, tenderness, self-regulation.
+- `meow_up`: a rising meow. A request, curiosity.
+- `meow_down`: a falling meow. A complaint.
+- `chirp`: 2 or 3 short rising notes. Light joy, pleasant surprise.
+- `laugh`: a run of 4 to 8 decaying bursts, rising in pitch. Enthusiasm.
+- `growl`: low, rough, amplitude-modulated. A limit, tension rising: the signal before the claws.
+- `sigh`: falling filtered noise. Relief mostly; also resignation.
 - `hum`: brief sustained tone, thinking
 - `pluck`: a single bright note, "aha"
 - `breath`: soft noise swell, pause
 
-Each gesture has an `intensity` (0–1). The server instructions should keep gestures rare: they mean more when they are infrequent.
+Each gesture has an `intensity` (0–1). The server instructions should keep gestures rare, so they do not turn into a cartoon: they mean more when they are infrequent.
+
+**No disguised appeal.** The purr never contains a hidden high component. A cat that wants food slips a cry near 380 Hz into its purr, and listeners find that purr more urgent and less pleasant. If the model wants attention, it uses a meow, audible as such. The recipes are in [engine.md](implementation/engine.md).
 
 ## Transition
 

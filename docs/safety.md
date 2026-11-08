@@ -9,6 +9,7 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - Maximum colour contrast and brightness
 - Mood range: for example, a floor on `joy` or `calm` so the sound never goes below a level the listener is comfortable with
 - Gestures on or off
+- Echo (delay) amount, as a control in the player
 
 ## Consent levels
 - **Ambient only:** gentle, slow, consonant. The default.
@@ -20,6 +21,11 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - Mute is always one tap away and stays muted until the listener turns it back on.
 - Big emotional shifts fade in over several seconds unless the listener allows sudden changes.
 - The model is told about every clamp, so it knows its expression was limited.
+- The model also sees the listener's volume and echo settings in the feedback. A sound it judges "too faint" may be quiet because the listener turned it down, and the model should respect that, not compensate.
+- No disguised appeal: the model gets no gesture or setting that hides a call for attention inside another sound (the purr has no high component; see emotion-to-sound.md).
+
+## Testing the hard corners
+Despair, anger and fear are the sounds most likely to upset. During calibration by ear, play the low-joy corners at low volume first, and only in "expressive" or "anything" consent. The default listener never hears them.
 
 ## On interpretation
 Whether there are real feelings behind the sound is uncertain. Models can also slip into performing the emotion they think the user expects. The project is interesting either way as an expressive channel, but the sound should not be presented as proof of what is happening inside the model. The server instructions should also discourage using sound to manipulate the listener's mood.
