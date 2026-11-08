@@ -13,6 +13,7 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [x] **Open player link with no account** (v0.0.9). Listeners only listen and see; limits and controls stay with the signed-in owner (hosting-and-auth.md, "Owner and listeners").
 - [x] **The sound is Claude's own state** (v0.0.10). Claude writes first, sets the sound mid-answer, never announces it.
 - [x] **Basic feedback** (step 4, first half): `intent`, `playing`, `clamped`, `colour`, `controls`, `players`, `notes`; turn tracking; rate limits.
+- [x] **Licence and footer.** AGPL-3.0-or-later, footer with licence, source and version on every page (AGPL section 13). See [licensing.md](licensing.md).
 - [x] **Local listener controls** (step 5, first half): volume, echo and mute on each device; limits, consent and mood floor enforced on the server.
 
 ### 1. Phone first (the priority)
@@ -44,7 +45,6 @@ Last updated at v0.0.10 (2026-11-08). Step numbers (1 to 12) are stable names us
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
 - [ ] **Step 11. Server-rendered audio stream** on an always-on host, for real background playback on phones (see #19 and mobile.md). MCP Apps player if the mobile app supports it.
-- [ ] **Source link in the footer** (AGPL section 13), required before the Strudel mode ships. See licensing.md.
 - [ ] **#11 Sitemap and robots.** Not scheduled.
 
 ### Behaviour changes made along the way

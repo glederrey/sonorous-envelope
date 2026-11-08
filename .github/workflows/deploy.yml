@@ -55,6 +55,7 @@ jobs:
       - name: Build
         run: vercel build --prod
         env:
+          APP_VERSION: ${{ github.event.release.tag_name }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
