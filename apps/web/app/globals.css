@@ -27,8 +27,25 @@
   color-scheme: dark;
 }
 
+:root[data-theme="light"] {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-raised: #f8f9fa;
+  --surface-sunken: #e9ecef;
+  --line: #dde1e6;
+  --line-strong: #7d8693;
+  --ink: #12151a;
+  --ink-muted: #586170;
+  --glow: #e8952a;
+  --glow-ink: #9a5a06;
+  --tide: #0b766b;
+  --on-tide: #ffffff;
+  --danger: #c0322a;
+  color-scheme: light;
+}
+
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg: #f3f4f6;
     --surface: #ffffff;
     --surface-raised: #f8f9fa;
@@ -311,6 +328,11 @@ html {
   display: grid;
   gap: 24px;
 }
+.lp-hero-text {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
 .lp-headline {
   font-size: clamp(38px, 5.3vw, 68px);
   line-height: 1.05;
@@ -322,7 +344,6 @@ html {
 .lp-lede {
   font-size: clamp(17px, 2vw, 22px);
   line-height: 1.55;
-  max-width: 52ch;
   color: var(--on-scrim-muted);
   margin: 0;
 }
@@ -385,11 +406,9 @@ html {
 }
 .lp-loop-list p {
   margin: 0;
-  max-width: 34ch;
 }
 .lp-wide {
   margin: 40px 0 0;
-  max-width: 65ch;
 }
 .lp-split {
   display: grid;
@@ -405,7 +424,6 @@ html {
   padding-left: 20px;
   display: grid;
   gap: 16px;
-  max-width: 65ch;
 }
 .lp-steps li::marker {
   font-family: var(--font-mono);
@@ -420,13 +438,9 @@ html {
     padding-bottom: 96px;
     align-items: center;
   }
-  .lp-hero-body > * {
-    grid-column: 1;
-  }
   .lp-hero-body > .lp-envelope {
     grid-column: 2;
-    grid-row: 1 / span 4;
-    align-self: stretch;
+    align-self: center;
     justify-self: end;
     width: 100%;
     max-height: none;
@@ -470,7 +484,6 @@ html {
   padding: 32px 16px 24px;
 }
 .doc-head {
-  max-width: 65ch;
   padding-bottom: 48px;
 }
 .doc-head > * + * {
@@ -496,7 +509,6 @@ html {
   border-top: 1px solid var(--line);
 }
 .doc-row > :last-child {
-  max-width: 65ch;
 }
 .doc-list {
   list-style: disc;
@@ -570,4 +582,30 @@ html {
   justify-content: space-between;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
+}
+
+/* Theme toggle */
+.se-iconbtn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.se-iconbtn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.se-header-overlay .se-iconbtn {
+  color: var(--on-scrim-muted);
+}
+.se-header-overlay .se-iconbtn:hover {
+  color: var(--on-scrim);
 }

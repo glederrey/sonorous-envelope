@@ -19,6 +19,7 @@ export default function Home() {
         <div className="lp-field" aria-hidden />
         <SiteHeader overlay />
         <div className="lp-hero-body">
+          <div className="lp-hero-text">
           <h1 className="lp-headline">Let the model hum while it thinks.</h1>
           <p className="lp-lede">
             A small synthesizer and a colour field for Claude. It sets the mood while it works, you hear and see it
@@ -29,6 +30,7 @@ export default function Home() {
             <p className="se-sm lp-connect-note">
               Settings → Connectors → Add custom connector. <a href="#add">Step by step</a>
             </p>
+          </div>
           </div>
           <Envelope className="lp-envelope" />
         </div>
