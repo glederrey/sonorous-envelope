@@ -121,7 +121,7 @@ input, textarea, select {
 }
 
 /* The footer is always at the bottom: the shell takes the free height, the footer sits under it. */
-:root { --se-footer-h: 48px; --se-header-h: 76px; }
+:root { --se-footer-h: calc(48px + env(safe-area-inset-bottom, 0px)); --se-header-h: 76px; }
 body {
   min-height: 100vh;
   min-height: 100dvh;

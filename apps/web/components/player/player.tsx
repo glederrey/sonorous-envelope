@@ -60,6 +60,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const latest = useRef<Playing | null>(null);
   const known = useRef(false);
   const reload = useRef<() => void>(() => {});
+  // ?debug=1 shows what the page did while it was in the background, to find where a phone cuts it off
+  const [debug, setDebug] = useState(false);
+  const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, lastTick: 0 });
+  const [dbgText, setDbgText] = useState("Leave this page, then come back: this line tells what happened while you were away.");
+  useEffect(() => setDebug(new URLSearchParams(window.location.search).has("debug")), []);
   const controls = useRef({ muted, volume, echo, started });
   controls.current = { muted, volume, echo, started };
 
@@ -87,6 +92,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const load = async () => {
       if (ended) return;
       const { data, error } = await supabase.rpc("get_player_state", { p_session: sessionId });
+      if (document.visibilityState === "hidden") { if (error) dbg.current.err++; else dbg.current.ok++; }
       if (cancelled) return;
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
@@ -116,7 +122,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     try {
       tickerUrl = URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 3000);"], { type: "text/javascript" }));
       ticker = new Worker(tickerUrl);
-      ticker.onmessage = () => { if (controls.current.started && document.visibilityState === "hidden") void load(); };
+      ticker.onmessage = () => {
+        if (document.visibilityState === "hidden") dbg.current.ticks++;
+        if (controls.current.started && document.visibilityState === "hidden") void load();
+      };
     } catch { /* no workers: the page timer above is the fallback */ }
     return () => {
       ticker?.terminate(); if (tickerUrl) URL.revokeObjectURL(tickerUrl);
@@ -164,7 +173,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // and try to restart the audio if the phone interrupted it.
   useEffect(() => {
     const back = () => {
-      if (document.visibilityState !== "visible") return;
+      const d = dbg.current;
+      if (document.visibilityState === "hidden") { d.hiddenAt = Date.now(); d.ticks = 0; d.ok = 0; d.err = 0; return; }
+      if (d.hiddenAt) {
+        const secs = Math.round((Date.now() - d.hiddenAt) / 1000);
+        setDbgText(`Away ${secs} s. While away: worker ticks ${d.ticks} (expected about ${Math.round(secs / 3)}), state checks ok ${d.ok}, failed ${d.err}. Audio context: ${audio.current?.state ?? "none"}; silent track playing: ${audio.current?.keepAlivePlaying ?? "n/a"}.`);
+        d.hiddenAt = 0;
+      }
       reload.current();
       void audio.current?.resume();
       void beat();
@@ -174,6 +189,15 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     document.addEventListener("resume", back); // the page was frozen by the browser and thawed
     return () => { document.removeEventListener("visibilitychange", back); window.removeEventListener("pageshow", back); document.removeEventListener("resume", back); };
   }, [beat]);
+
+  // With the controls hidden the page is just the colour field: nothing to scroll, and no pull-to-refresh by accident
+  useEffect(() => {
+    if (!(started && hidden)) return;
+    const root = document.documentElement;
+    const before = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior };
+    root.style.overflow = "hidden"; root.style.overscrollBehavior = "none";
+    return () => { root.style.overflow = before.overflow; root.style.overscrollBehavior = before.overscroll; };
+  }, [started, hidden]);
 
   // lock screen and headset controls: play and pause map to unmute and mute
   useEffect(() => {
@@ -260,6 +284,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && started && !hidden && (
           <section className="pl-panel" aria-label="Listening controls">
+            {debug && <p className="pl-local se-sm" role="status">{dbgText}</p>}
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
