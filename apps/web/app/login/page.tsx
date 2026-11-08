@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { createClient } from "../../lib/supabase/server";
 import { SiteHeader } from "../../components/site-header";
 import { safeNext } from "../../lib/safe-next";
 import { LoginForm } from "./login-form";
@@ -6,6 +8,12 @@ export const metadata = { title: "Sign in · Sonorous Envelope" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; mode?: string }> }) {
   const { next, error, mode } = await searchParams;
+  // Already signed in: go where the sign-in was heading instead of showing the form.
+  if (!error) {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    if (data.user) redirect(safeNext(next, "/sessions"));
+  }
   return (
     <>
       <SiteHeader hideAuth />

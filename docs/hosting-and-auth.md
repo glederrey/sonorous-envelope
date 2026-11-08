@@ -24,7 +24,7 @@
 Supabase Auth can act as an OAuth 2.1 authorization server that follows the MCP auth spec, with discovery metadata and dynamic client registration. That is what claude.ai expects from a custom connector, so no auth server has to be written by hand.
 
 How it works for the user:
-1. They add the connector URL in claude.ai (Customize → Connectors → Add custom connector).
+1. They add the connector URL in claude.ai (Settings → Customize → Connectors → Add → Add custom connector).
 2. claude.ai discovers the auth server and registers itself as a client.
 3. The user is sent to our login and consent page (on Vercel), signs in with Supabase Auth (email magic link, Google or GitHub), and approves.
 4. claude.ai gets an access token (a Supabase JWT) and sends it with every MCP call.

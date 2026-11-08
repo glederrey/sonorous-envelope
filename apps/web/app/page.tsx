@@ -1,5 +1,4 @@
 import { SiteHeader } from "../components/site-header";
-import { SiteFooter } from "../components/site-footer";
 import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
 import { mcpResourceUrl } from "../lib/env";
@@ -52,7 +51,7 @@ export default function Home() {
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">
-              Settings → Connectors → Add custom connector. <a href="#add">Step by step</a>
+              Settings → Customize → Connectors → Add. <a href="#add">Step by step</a>
             </p>
           </div>
           </div>
@@ -83,8 +82,9 @@ export default function Home() {
             <p className="se-muted">Takes a minute. It works in the web, desktop and mobile apps on the same account.</p>
           </div>
           <ol className="lp-steps">
-            <li>Open <strong>Settings → Connectors</strong> and choose <strong>Add custom connector</strong>.</li>
-            <li>Paste the connector URL above and save. Choose <strong>Connect</strong>: you sign in here and approve access.</li>
+            <li>Open <strong>Settings → Customize → Connectors</strong>, then choose <strong>Add</strong> and <strong>Add custom connector</strong>.</li>
+            <li>Name it <strong>Sonorous Envelope</strong>, paste the connector URL above into <strong>MCP server URL</strong>, and choose <strong>Continue</strong>.</li>
+            <li>Choose <strong>Connect</strong>: you sign in here and approve access.</li>
             <li>In a new conversation, switch the connector on from the <strong>+</strong> menu in the message box.</li>
             <li>Claude gives you a player link. Open it and tap <strong>Start listening</strong>.</li>
           </ol>
@@ -118,7 +118,6 @@ export default function Home() {
         </section>
       </main>
 
-      <SiteFooter />
     </>
   );
 }

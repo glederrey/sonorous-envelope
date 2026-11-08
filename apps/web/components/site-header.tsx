@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "../lib/supabase/server";
 import { hasSupabaseEnv } from "../lib/env";
+import { signOut } from "../app/settings/actions";
 import { NavLinks } from "./nav-links";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -21,9 +22,14 @@ export async function SiteHeader({ overlay = false, hideAuth = false }: { overla
       <nav className="se-nav">
         <NavLinks />
         <ThemeToggle />
-        {hideAuth ? null : signedIn ? (
-          <Link className="se-btn" href="/sessions">Your sessions</Link>
-        ) : (
+        {signedIn ? (
+          <>
+            <Link className="se-btn" href="/sessions">Your sessions</Link>
+            <form action={signOut}>
+              <button type="submit" className="se-btn">Sign out</button>
+            </form>
+          </>
+        ) : hideAuth ? null : (
           <>
             <Link className="se-btn" href="/login">Sign in</Link>
             <Link className="se-btn se-btn-primary" href="/login?mode=signup">Sign up</Link>

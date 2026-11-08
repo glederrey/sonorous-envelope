@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
-import { SiteFooter } from "../../components/site-footer";
 import { createClient } from "../../lib/supabase/server";
 
 export const metadata = { title: "Your sessions · Sonorous Envelope" };
@@ -33,7 +32,6 @@ export default async function SessionsPage() {
           </section>
         </div>
       </main>
-      <SiteFooter />
     </>
   );
 }
