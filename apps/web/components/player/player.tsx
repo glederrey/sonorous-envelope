@@ -108,7 +108,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       .on("broadcast", { event: "session" }, () => void load())
       .subscribe();
     // a slow poll as a safety net if the live connection drops
-    const poll = setInterval(() => { if (document.visibilityState === "visible") void load(); }, 5000);
+    // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
+    const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 5000);
     return () => { cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
   }, [supabase, sessionId, apply]);
 
@@ -125,7 +126,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     if (phase !== "ready") return;
     void beat();
-    const t = setInterval(() => { if (document.visibilityState === "visible") void beat(); }, HEARTBEAT_MS);
+    const t = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void beat(); }, HEARTBEAT_MS);
     return () => clearInterval(t);
   }, [phase, beat]);
   useEffect(() => {
