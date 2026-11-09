@@ -13,11 +13,30 @@ function keepAliveAudio(): HTMLAudioElement {
 
 /** Thin wrapper around the AudioContext and the engine worklet. Created only after a user tap. */
 export class AudioOutput {
+  /** Timestamped statechange / pause / play events, newest last, for the ?debug=1 report. */
+  readonly events: string[] = [];
+  /** True while we paused the keep-alive file on purpose (mute): the auto-resume must leave it alone. */
+  private heldPaused = false;
   private constructor(private ctx: AudioContext, private node: AudioWorkletNode, private keepAlive: HTMLAudioElement) {}
+
+  private log(what: string) {
+    this.events.push(`${new Date().toLocaleTimeString("en-GB")} ${what}`);
+    if (this.events.length > 30) this.events.shift();
+  }
+
+  /** Restart without a tap when the phone took the audio (dictation, a call): the page had user activation at start. */
+  private autoResume(why: string) {
+    if (this.heldPaused) return;
+    this.log(`auto-resume after ${why}`);
+    void this.ctx.resume().catch(() => this.log("context resume refused"));
+    void this.keepAlive.play().catch(() => this.log("keep-alive play refused"));
+  }
 
   static async start(): Promise<AudioOutput> {
     // Safari 16.4+: play even when the ringer switch is on silent
-    try { (navigator as unknown as { audioSession?: { type: string } }).audioSession!.type = "playback"; } catch { /* not supported */ }
+    // ?audiosession=ambient|play-and-record|auto tries another type, to see whether one lets the sound coexist with the mic
+    const asked = new URLSearchParams(window.location.search).get("audiosession");
+    try { (navigator as unknown as { audioSession?: { type: string } }).audioSession!.type = asked ?? "playback"; } catch { /* not supported */ }
     const keepAlive = keepAliveAudio();
     void keepAlive.play().catch(() => { /* needs the tap's activation; the sound still works without it */ });
     const ctx = new AudioContext({ latencyHint: "playback" });
@@ -36,20 +55,28 @@ export class AudioOutput {
   setDelay(value: number, max: number) { this.node.port.postMessage({ type: "delay", value, max }); }
   get running() { return this.ctx.state === "running"; }
   get state() { return this.ctx.state as string; }
+  get audioSessionType(): string {
+    return (navigator as unknown as { audioSession?: { type: string } }).audioSession?.type ?? "not supported";
+  }
   get keepAlivePlaying() { return !this.keepAlive.paused; }
   /** Calls back with the context state ("running", "suspended", or "interrupted" on iOS) whenever it changes. */
   watch(cb: (state: string) => void) {
     const report = () => cb(this.ctx.state !== "running" ? this.ctx.state : this.keepAlive.paused ? "paused" : "running");
-    this.ctx.onstatechange = report;
-    // the phone can pause the element (another app took the audio): show the Resume button instead of silence
-    this.keepAlive.onpause = report;
-    this.keepAlive.onplay = report;
+    this.ctx.onstatechange = () => {
+      this.log(`context ${this.ctx.state}`);
+      if (this.ctx.state !== "running") this.autoResume(`context ${this.ctx.state}`);
+      report();
+    };
+    // the phone can pause the element (another app took the audio): try to restart, and show the Resume button if that fails
+    this.keepAlive.onpause = () => { this.log("keep-alive pause"); this.autoResume("keep-alive pause"); report(); };
+    this.keepAlive.onplay = () => { this.log("keep-alive play"); report(); };
     report();
   }
   /** Pause the keep-alive file, so the lock-screen player shows Play while muted. The synth itself keeps running. */
-  pauseElement() { this.keepAlive.pause(); }
+  pauseElement() { this.heldPaused = true; this.keepAlive.pause(); }
   /** Try to restart after the phone interrupted us. Browsers may refuse unless this runs inside a tap. */
   async resume() {
+    this.heldPaused = false;
     try { await this.ctx.resume(); } catch { /* needs a tap */ }
     void this.keepAlive.play().catch(() => {});
   }
