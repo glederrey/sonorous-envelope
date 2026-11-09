@@ -19,6 +19,9 @@ Only the signed-in owner (the account that connected Claude) can change limits, 
 - **Expressive:** wider range, still smooth transitions.
 - **Anything goes:** sudden changes and dissonance allowed.
 
+## Settings Claude can change
+Boundaries are the owner's alone and the server rejects any attempt to write them from the MCP. Settings that only express how Claude is (the fade after silence, its voice, the session title, the closing sound) are shared: the owner and Claude may both change them, each is told about the other's change, and none of them can raise volume, harshness or speed past the boundaries. Table: limits.md, "Who can change what".
+
 ## Hard rules (not configurable)
 - No flashing faster than 3 per second, and limited brightness swings (photosensitive epilepsy).
 - Mute is always one tap away and stays muted until the listener turns it back on.

@@ -131,6 +131,8 @@ Input:
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
+  rest_after?: number | null,   // planned: seconds before the sound fades with no update, null = never. Shared with the owner (limits.md, "Who can change what")
+  voice?: Voice,                // planned: see mood-mapping.md
   note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details, never sent back)
 }
 ```

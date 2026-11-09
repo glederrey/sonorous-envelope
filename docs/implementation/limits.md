@@ -19,6 +19,13 @@ const ListenerSettings = z.object({
 });
 ```
 
+## Who can change what
+Two kinds of setting, split by what they protect. The server enforces it with a field whitelist on each write path.
+- **Boundaries, owner only** (strict, never writable through the MCP): `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix`, `colour` limits, `image_feedback`. They exist to protect the listener from the model.
+- **Expression, shared** (the owner and Claude can both change them): `rest_after` (planned), the voice (mood-mapping.md), the session title, and the closing (`silence` with `end`). They say how Claude is, so Claude may change them when it feels like it. They have no safety dimension: nothing here can make the sound louder, harsher or faster than the boundaries allow.
+- **Last write wins, and both sides are told.** An owner change reaches Claude in `listener` (`"you: fade after 5 min → off"`); a Claude change shows in the owner panel and in the session details. Claude must not use `rest_after` to keep the sound going as if it were waiting (server-instructions.md).
+- **Strict, per player, local:** volume, echo and mute only affect that device.
+
 ## Consent levels
 Each level sets ceilings. The listener's own limits apply on top (the stricter wins).
 
