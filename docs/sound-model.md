@@ -40,7 +40,7 @@ Mood and affect are different things: a mood lasts, an affect answers the moment
 
 The drone stays as an optional sustained layer. Whether the slow low arpeggio is really heard as a background mood, distinct from the mid one, is the first thing to check by ear.
 
-### A voice of its own (planned)
+### A voice of its own
 
 Tested with several instances (2026-11-09), the axes alone gave nearly the same skeleton every time (four notes in a rising arpeggio), although changes within one conversation were easy to hear. Toggling the synth by hand gave clearly different results. So the sound has a second kind of input: a **voice** (root, scale, chord shape, note order, octaves, wave) that the instance picks at the start, that persists from turn to turn by default and that it may change at any moment. The axes say how it is; the voice says who. Details and the fallback when the instance picks none: [mood-mapping.md](implementation/mood-mapping.md), "Stretch" and "Voice". The manual override is therefore not a last resort: it is where the instance's own character lives, and the mapping is the safety net.
 
