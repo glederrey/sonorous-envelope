@@ -82,7 +82,7 @@ The page is mostly the colour field, full screen. Controls sit in a slim bar tha
 
 ### Always visible
 - **Mute** (one tap, large target). Stays muted until unmuted, including across reloads (remember in `localStorage` per session, wrapped in try/catch).
-- **Volume slider** (local gain, shown 0 to 100, decibels underneath: `apps/web/lib/volume.ts`). Equal steps are equal dB, 80 is the sound as mapped (unity), 100 is +12 dB, 0 is silence. The engine's soft limiter keeps the boost from clipping. The value reported to the model as `controls.volume` is the slider position.
+- **Volume slider** (local gain, shown 0 to 100, decibels underneath: `apps/web/lib/volume.ts`). Equal steps are equal dB, 80 is the sound as mapped (unity), 100 is +18 dB (steeper above 80: 90 dB per unit, 60 below), 0 is silence. The engine's soft limiter keeps the boost from clipping. The value reported to the model as `controls.volume` is the slider position.
 - **Echo slider** (local, 0 to 1, default 0.5): scales the delay the model asked for (`engine.setListenerDelay`, limits.md step 7). Next to the volume slider, same weight. At 0 there is no echo at all.
 - **Status:** "Listening · turn 12 · last change 4 s ago", and a small dot when the model is mid-turn (last state non-final and < 20 s old).
 
