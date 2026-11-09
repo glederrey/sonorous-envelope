@@ -12,6 +12,7 @@ const ListenerSettings = z.object({
   min_transition: z.number().min(0).max(30).default(3),   // seconds
   mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({}),
   gestures: z.boolean().default(true),
+  rest_after: z.number().min(60).max(3600).nullable().default(300),   // planned: seconds before the sound fades with no update; null = never. Default by mode: inner 300, outer null (player-ui.md)
   max_delay_mix: unit.default(0.4),   // ceiling for the echo (delay mix), applied after the listener's own echo control
   colour: z.object({ enabled: z.boolean().default(true), max_lightness: unit.default(0.5), max_saturation: unit.default(0.7) }).default({}),
   image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),

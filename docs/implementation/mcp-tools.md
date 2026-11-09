@@ -168,7 +168,7 @@ Rules:
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
 - `controls` is the owner's own player volume and echo (`delay`) setting, 0 to 1, as last reported by their player (realtime.md). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
-- `resting` (planned): `true` when this call arrives more than `REST_AFTER_S` after the previous state, with the note `"the sound faded after 5 min without an update from you"`.
+- `resting` (planned): only when the owner's `rest_after` setting is on. `true` when this call arrives more than `rest_after` seconds after the previous state, with the note `"the sound faded after N min without an update from you"`.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.
@@ -186,7 +186,8 @@ Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 
 ## `silence`
 
-Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean }`.
+Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean, end?: boolean /* planned */ }`.
+Planned: with `end: true` the session ends once the fade is over (`ended_at` set, state final). The model uses it when the user says the session is finished, after one `set_sound` that plays a short closing sound with a long transition. Further calls return `session_ended`.
 Sets volume 0 and drone off with the given fade, as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
 
 ## Session resolution
