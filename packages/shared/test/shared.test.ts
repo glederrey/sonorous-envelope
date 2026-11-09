@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback,
-  harmonyFor, harshness, moodToEngineState, nextSlowMood, parseSettings,
+  harmonyFor, harshness, isResting, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -277,5 +277,28 @@ describe("schemas and feedback", () => {
     const g = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: ["volume 0.7→0.5 (listener limit)"], players: 0, controls: { volume: 0.5, delay: 0.5 } });
     expect(g.clamped).toHaveLength(1); expect(g.controls).toEqual({ volume: 0.5, delay: 0.5 });
     expect(g.notes).toEqual(["no player open: nobody is hearing this"]);
+  });
+});
+
+describe("rest_after", () => {
+  const at = (secAgo: number) => new Date(1_000_000_000_000 - secAgo * 1000).toISOString();
+  const now = 1_000_000_000_000;
+  it("rests only after the delay, never when off", () => {
+    expect(isResting(at(299), 300, now)).toBe(false);
+    expect(isResting(at(301), 300, now)).toBe(true);
+    expect(isResting(at(99999), null, now)).toBe(false);
+  });
+  it("defaults to 300 for settings stored before it existed", () => {
+    expect(parseSettings({ consent: "ambient" }).rest_after).toBe(300);
+    expect(parseSettings({ rest_after: null }).rest_after).toBeNull();
+  });
+  it("tells undefined (keep) from null (off) in set_sound input", () => {
+    const base = { mood: { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.5, spontaneity: 0.5 } };
+    expect(SetSoundInput.parse(base).rest_after).toBeUndefined();
+    expect(SetSoundInput.parse({ ...base, rest_after: null }).rest_after).toBeNull();
+    expect(SetSoundInput.safeParse({ ...base, rest_after: 10 }).success).toBe(false);
+  });
+  it("words the resting note in minutes", () => {
+    expect(restingNote(300)).toBe("the sound faded after 5 min without an update from you");
   });
 });

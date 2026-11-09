@@ -12,7 +12,7 @@ const ListenerSettings = z.object({
   min_transition: z.number().min(0).max(30).default(3),   // seconds
   mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({}),
   gestures: z.boolean().default(true),
-  rest_after: z.number().min(60).max(3600).nullable().default(300),   // planned: seconds before the sound fades with no update; null = never. Default by mode: inner 300, outer null (player-ui.md)
+  rest_after: z.number().min(60).max(3600).nullable().default(300),   // seconds before the sound fades with no update; null = never. Default by mode: inner 300, outer null (player-ui.md)
   max_delay_mix: unit.default(0.4),   // ceiling for the echo (delay mix), applied after the listener's own echo control
   colour: z.object({ enabled: z.boolean().default(true), max_lightness: unit.default(0.5), max_saturation: unit.default(0.7) }).default({}),
   image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),
@@ -22,7 +22,7 @@ const ListenerSettings = z.object({
 ## Who can change what
 Two kinds of setting, split by what they protect. The server enforces it with a field whitelist on each write path.
 - **Boundaries, owner only** (strict, never writable through the MCP): `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix`, `colour` limits, `image_feedback`. They exist to protect the listener from the model.
-- **Expression, shared** (the owner and Claude can both change them): `rest_after` (planned), the voice (mood-mapping.md), the session title, and the closing (`silence` with `end`). They say how Claude is, so Claude may change them when it feels like it. They have no safety dimension: nothing here can make the sound louder, harsher or faster than the boundaries allow.
+- **Expression, shared** (the owner and Claude can both change them): `rest_after`, the voice (mood-mapping.md), the session title, and the closing (`silence` with `end`). They say how Claude is, so Claude may change them when it feels like it. They have no safety dimension: nothing here can make the sound louder, harsher or faster than the boundaries allow.
 - **Last write wins, and both sides are told.** An owner change reaches Claude in `listener` (`"you: fade after 5 min → off"`); a Claude change shows in the owner panel and in the session details. Claude must not use `rest_after` to keep the sound going as if it were waiting (server-instructions.md).
 - **Strict, per player, local:** volume, echo and mute only affect that device.
 

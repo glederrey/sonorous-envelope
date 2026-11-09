@@ -52,6 +52,7 @@ do $$ declare r jsonb; begin
   assert (r ->> 'ended') = 'false', 'not ended';
   assert (r -> 'settings' ->> 'max_volume') = '0.5', 'settings returned';
   assert (r -> 'state' -> 'effective' ->> 'volume') = '0.3', 'effective state returned';
+  assert (r ->> 'now')::timestamptz > now() - interval '1 minute', 'server time returned';
   assert public.get_player_state('nope') is null, 'unknown session gives null';
 
   perform public.player_heartbeat('sess1', 'device-1', 'playing', 0.4, 0.7);

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Eye, EyeOff, Play, Volume2, VolumeX } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
-import { hardCaps, parseSettings, type ListenerSettings } from "@sonorous/shared";
+import { hardCaps, isResting, parseSettings, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
+import { restedState } from "../../lib/rested-state";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -82,9 +83,33 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     hardCaps(state, settings.current); // second line of defence, the server already limited it
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
     latest.current = next;
+    restedFrom.current = null; // a new state brings the sound back, with its own transition
     if (document.visibilityState === "hidden") dbg.current.applied++;
     setPlaying(next);
     audio.current?.setState(state, next.seed);
+  }, []);
+
+  // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
+  // written). The clock is the server's: offset = server time minus ours, taken from get_player_state.
+  const clockOffset = useRef(0);
+  const restedFrom = useRef<Playing | null>(null);
+  const restTick = useCallback(() => {
+    const p = latest.current, r = settings.current.rest_after;
+    if (!p) return;
+    const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
+    if (resting && !restedFrom.current) {
+      restedFrom.current = p;
+      const state = restedState(p.state);
+      setPlaying({ ...p, state });
+      audio.current?.setState(state, p.seed);
+    } else if (!resting && restedFrom.current && restedFrom.current.at === p.at) {
+      // the owner or Claude turned the fade off or made it longer: bring the same state back
+      const orig = restedFrom.current; restedFrom.current = null;
+      const state: EngineState = JSON.parse(JSON.stringify(orig.state));
+      state.transition = { time: Math.max(3, orig.state.transition.time), curve: "smooth" };
+      setPlaying({ ...orig, state });
+      audio.current?.setState(state, orig.seed);
+    }
   }, []);
 
   // load the current state, then follow changes. The link is the only credential: no account, no sign-in.
@@ -111,7 +136,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       handle(data, error);
     };
     // shared by the page's own check and by the worker's check
-    const handle = (data: { settings?: unknown; ended?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
+    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
@@ -120,8 +145,22 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       }
       known.current = true;
       settings.current = parseSettings(data.settings);
-      if (data.ended) { ended = true; setPhase("ended"); return; }
+      if (data.now) clockOffset.current = Date.parse(data.now) - Date.now();
+      if (data.ended) {
+        ended = true;
+        // play the closing state first (silence with end): show "ended" once its fade is over
+        let wait = 0;
+        if (data.state) {
+          apply(data.state);
+          const age = Date.now() + clockOffset.current - new Date(data.state.created_at).getTime();
+          const fade = data.state.effective.transition?.time ?? 0;
+          if (controls.current.started && age < (fade + 5) * 1000) wait = Math.max(0, fade * 1000 - age) + 500;
+        }
+        setTimeout(() => { if (cancelled) return; setPhase("ended"); void audio.current?.close(); audio.current = null; }, wait);
+        return;
+      }
       if (data.state) apply(data.state);
+      restTick();
       setPhase((p) => (p === "joining" ? "ready" : p));
     };
     reload.current = () => void load();
@@ -162,6 +201,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         const hidden = document.visibilityState === "hidden";
         const m = e.data as { tick?: number; status?: number; data?: Parameters<typeof handle>[0]; error?: string };
         if (m.tick) {
+          restTick(); // the worker's timer is not throttled in the background
           if (hidden) {
             dbg.current.ticks++;
             // sample the audio while away: the state read on return says nothing about what happened meanwhile
@@ -179,7 +219,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     return () => {
       ticker?.terminate(); if (tickerUrl) URL.revokeObjectURL(tickerUrl);
       cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
-  }, [supabase, sessionId, apply]);
+  }, [supabase, sessionId, apply, restTick]);
 
   // heartbeat: tells the model who is listening and with what controls
   const beat = useCallback(async () => {
@@ -274,7 +314,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
 
   // status clock
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    const t = setInterval(() => { setTick((n) => n + 1); restTick(); }, 1000);
     return () => clearInterval(t);
   }, []);
   useEffect(() => () => { void audio.current?.close(); }, []);
@@ -287,7 +327,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       out.watch(setAudioState);
       out.setGain(muted ? 0 : sliderToGain(volume));
       out.setDelay(echo, settings.current.max_delay_mix);
-      if (latest.current) out.setState(latest.current.state, latest.current.seed);
+      // already resting when the listener taps Start: begin silent (the engine's first state jumps to its target)
+      if (latest.current) out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed);
       setStarted(true);
     } catch {
       setMessage("Your browser could not start audio.");

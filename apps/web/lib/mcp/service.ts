@@ -6,8 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
-  NEUTRAL_MOOD, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback, moodToEngineState,
-  nextSlowMood, parseSettings, type ListenerSettings, type Mood, type SetSoundInput,
+  NEUTRAL_MOOD, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback, isResting, moodToEngineState,
+  nextSlowMood, parseSettings, restingNote, type ListenerSettings, type Mood, type SetSoundInput,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
@@ -86,6 +86,12 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
   };
 }
 
+/** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
+function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number): { resting: boolean; notes: string[] } {
+  if (!prev || settings.rest_after === null || !isResting(prev.created_at, settings.rest_after, now)) return { resting: false, notes: [] };
+  return { resting: true, notes: [restingNote(settings.rest_after)] };
+}
+
 async function insertState(
   db: Db,
   at: number,
@@ -97,10 +103,10 @@ async function insertState(
   return data.id as string;
 }
 
-function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = []) {
+function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false) {
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
-    players: p.players, controls: p.controls, notes,
+    players: p.players, controls: p.controls, notes, resting,
   });
 }
 
@@ -173,15 +179,19 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     effective, clamps: allClamps, seed: randomSeed(), slow_mood: slow,
   });
   const title = input.title?.trim().slice(0, 80);
+  // Claude may change only rest_after here (an expression setting). Merge into the raw row so defaults are not frozen in.
+  const rawSettings = session.settings && typeof session.settings === "object" ? (session.settings as Record<string, unknown>) : {};
   const { error: uerr } = await db.from("sessions").update({
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
+    ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined].filter((x): x is string => Boolean(x));
+  const rest = restInfo(prev, settings, now);
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes });
+  return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -189,34 +199,39 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   const state = await currentState(db, session);
   if (!state) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   const p = await presence(db, session.id, session.owner_id, now);
-  return feedbackFor(state, p, note ? [note] : []);
+  const rest = restInfo(state, parseSettings(session.settings), now);
+  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting);
 }
 
-export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean }, now = Date.now()) {
+export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   assertOpen(session);
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   if (now - new Date(prev.created_at).getTime() < MIN_GAP_MS) throw new ToolError("too_fast", "Wait a moment between updates.");
 
-  const turn = planTurn(prev, input.final, now);
+  const final = input.final || Boolean(input.end);
+  const turn = planTurn(prev, final, now);
   const effective: EngineState = JSON.parse(JSON.stringify(prev.effective));
-  effective.volume = 0; effective.drone.on = false; effective.bass.on = false;
-  effective.arp.on = false; effective.gesture = null;
+  effective.volume = 0; effective.gesture = null;
+  // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
+  if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };
 
   const stateId = await insertState(db, now, {
-    session_id: session.id, turn: turn.stateTurn, final: input.final,
-    intent: { mood: prev.intent.mood ?? NEUTRAL_MOOD, silence: true, fade: input.fade }, effective, clamps: [],
+    session_id: session.id, turn: turn.stateTurn, final,
+    intent: { mood: prev.intent.mood ?? NEUTRAL_MOOD, silence: true, fade: input.fade, ...(input.end ? { end: true } : {}) }, effective, clamps: [],
     seed: randomSeed(), slow_mood: prev.slow_mood ?? NEUTRAL_MOOD,
   });
   const { error } = await db.from("sessions").update({
-    current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
-    turn: turn.sessionTurn(session.turn),
+    current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !final,
+    turn: turn.sessionTurn(session.turn), ...(input.end ? { ended_at: new Date(now).toISOString() } : {}),
   }).eq("id", session.id);
   if (error) fail("save the session", error);
 
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined].filter((x): x is string => Boolean(x));
-  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes });
+  const rest = restInfo(prev, parseSettings(session.settings), now);
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? "session ended" : undefined, ...rest.notes]
+    .filter((x): x is string => Boolean(x));
+  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting });
 }

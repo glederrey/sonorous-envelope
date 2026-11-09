@@ -94,6 +94,8 @@ export const ListenerSettings = z.object({
   mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({ joy: 0, calm: 0 }),
   gestures: z.boolean().default(true),
   max_delay_mix: unit.default(0.4),
+  // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
+  rest_after: z.number().min(60).max(3600).nullable().default(300),
   colour: z.object({
     enabled: z.boolean().default(true),
     max_lightness: unit.default(0.5),
@@ -118,5 +120,6 @@ export const SetSoundInput = z.object({
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
+  rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns: this is how the channel tells the truth about it. Leave it out to keep the current value"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
