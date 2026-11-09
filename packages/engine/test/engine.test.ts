@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Engine, neutralState, renderOffline, noteToMidi, buildCycle, mulberry32, type EngineState } from "../src";
+import { Engine, neutralState, renderOffline, noteToMidi, buildCycle, mulberry32, type EngineState, type NoteEvent } from "../src";
 
 const SR = 22050;
 const render = (s: EngineState, seconds = 4, seed = 7) => renderOffline(s, { seconds, sampleRate: SR, seed });
@@ -242,6 +242,38 @@ describe("stack, pad and the fast amp LFO", () => {
     const f = new Engine(SR, 9); f.setState(loud, 9); block(f, 1);
     f.setState(quiet, 9, 2); f.setState(loud, 9);        // replaced before it started
     expect(rms(block(f, 4))).toBeGreaterThan(0.01);
+  });
+
+  it("two devices play the same notes at the same moments, whenever they joined (the shared timeline)", () => {
+    const s = neutralState();
+    s.arp = { ...s.arp, pattern: "random", density: 0.6, jitterMs: 12, swing: 0.3, tempo: 111, rate: "1/8t", chord: [1, 3, 5, 7], octaves: 2 };
+    s.bass = { ...s.bass, on: true }; s.grid = { arp: 3.25, bass: 1.5 };
+    const run = (joinedAt: number, seconds: number) => {
+      const e = new Engine(SR, 77); const ev: NoteEvent[] = []; e.recordEvents(ev);
+      e.setState(s, 5, 0, joinedAt);
+      const l = new Float32Array(Math.round(SR * seconds)), r = new Float32Array(l.length); e.process(l, r, l.length);
+      return ev.map((x) => ({ ...x, time: x.time + joinedAt })); // times on the shared timeline
+    };
+    const early = run(0, 12), late = run(5.3, 6.7);
+    for (const layer of ["arp", "bass"] as const) {
+      const a = early.filter((x) => x.layer === layer && x.time >= 5.8), b = late.filter((x) => x.layer === layer && x.time >= 5.8);
+      expect(a.length).toBeGreaterThan(layer === "arp" ? 5 : 2);
+      expect(b.map((x) => x.midi)).toEqual(a.map((x) => x.midi));
+      for (let i = 0; i < a.length; i++) expect(Math.abs(a[i].time - b[i].time)).toBeLessThan(0.002);
+    }
+  });
+  it("a layer that is off still counts its steps, and resync only moves a grid that has drifted", () => {
+    const s = neutralState(); s.arp.tempo = 120; s.arp.rate = "1/8"; s.arp.chord = [1, 3, 5]; s.arp.root = 60; s.arp.scale = "major"; s.arp.pattern = "up";
+    const e = new Engine(SR, 3); const ev: NoteEvent[] = []; e.recordEvents(ev);
+    e.setState(s, 3, 0, 0); const l = new Float32Array(SR * 2), r = new Float32Array(SR * 2); e.process(l, r, l.length);
+    const before = ev.length;
+    e.syncGrid(2.0 + 0.01); e.process(l, r, l.length); // 10 ms off: within the tolerance, nothing moves
+    const gaps = ev.slice(before).map((x, i, a) => (i ? x.time - a[i - 1].time : 0)).slice(1);
+    for (const g of gaps) expect(g).toBeCloseTo(0.25, 2);
+    const n2 = ev.length;
+    e.syncGrid(4.0 + 0.1); e.process(l, r, l.length); // 100 ms off: pulled back, still on the 0.25 s grid afterwards
+    const later = ev.slice(n2).filter((x) => x.layer === "arp").map((x) => x.time);
+    for (let i = 2; i < later.length; i++) expect(later[i] - later[i - 1]).toBeCloseTo(0.25, 2);
   });
 });
 

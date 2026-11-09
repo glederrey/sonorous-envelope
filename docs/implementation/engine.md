@@ -121,3 +121,13 @@ When `setState` is called:
 
 ## Determinism test
 Rendering the same state with the same seed twice must produce bit-identical buffers. Browser vs Node may differ in the last float bits (Math functions), so compare the analysis features within tolerance, not raw samples.
+
+## Shared timeline (roadmap #34, built)
+Devices playing the same session now play the same notes at the same moments (within the accuracy of the clock estimate, tens of milliseconds). Option (a) of the roadmap, without server-rendered audio.
+- **Server:** every state carries `effective.grid = { arp, bass }`, the step counters (fractions) at the moment it was written, counted from the start of the session (`nextGrid` in `shared/src/grid.ts`: the previous counters plus the time since the previous state divided by that state's step length). The echo is Claude's, no longer per listener, so it was never a source of difference.
+- **Randomness per step:** the choice for step `k` (skipped or not, which note for `random`, jitter) comes from a hash of the session's grid seed (`voiceSeedOf(session id)`) and `k`, not from a stream consumed in order. A device that joins late needs no replay. The note for the non-random patterns is `cycle[k mod length]`; a skipped step skips its note, it no longer shifts the following ones (this changes how `density` sounds slightly).
+- **Grid follows the state, not the glide:** step length and the density and jitter that decide the steps use the state's own values. The tempo no longer glides over a transition; it changes at the state's start. Everything else still glides.
+- **Player:** keeps the server-clock offset from the request with the shortest round trip of the last twelve, and gives the engine `elapsed` (seconds since the state was written, minus a delay) when it applies a state and when the listener taps Start, so the grid lands where the server's clock puts it. Every poll (5 s) it sends `sync`: the engine moves a grid only if it is more than 40 ms off, so network jitter does not make the beat wobble.
+- **Not shared:** LFO and drone phases, voice start phases and the reverb tail are per device (random starting phases are not audible as a difference in the notes).
+- **How to check:** open the same session on two devices next to each other with `?debug=1`; the arpeggio should lock, notes and timing. A slow drift apart over minutes means the resync tolerance is too wide or the clock estimate is poor.
+

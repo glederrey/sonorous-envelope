@@ -103,6 +103,7 @@ export default function Home() {
               Best setup: the player in one window or device, the chat in another. On a phone you can switch to the chat
               and keep going: the sound keeps playing in the background and follows Claude. If the phone stops it, open
               the player again and tap resume.
+              Open the link on several devices and they play the same notes at the same time.
             </p>
           </div>
         </section>

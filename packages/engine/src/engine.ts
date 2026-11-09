@@ -72,6 +72,7 @@ export class Engine {
     this.bass = new Layer(sampleRate, mulberry32(seed ^ 0xb2), "bass", null);
     this.delay = new PingPongDelay(sampleRate);
     this.reverb = new Reverb(sampleRate);
+    this.setGridSeed(seed);
   }
 
   /** Start recording note events (for offline analysis). */
@@ -85,14 +86,32 @@ export class Engine {
 
   /** Play `incoming` now, or after `delaySec` seconds (a closing fade that waits for the sound before it to play out).
    *  A newer state replaces one that is still waiting. */
-  setState(incoming: EngineState, seed: number, delaySec = 0) {
-    if (delaySec > 0 && this.state !== null) { this.pending = { state: incoming, seed, at: this.t + Math.round(delaySec * this.sampleRate) }; return; }
+  setState(incoming: EngineState, seed: number, delaySec = 0, elapsedSec?: number) {
+    if (delaySec > 0 && this.state !== null) { this.pending = { state: incoming, seed, at: this.t + Math.round(delaySec * this.sampleRate), elapsed: elapsedSec }; return; }
     this.pending = null;
-    this.applyState(incoming, seed);
+    this.applyState(incoming, seed, elapsedSec);
   }
-  private pending: { state: EngineState; seed: number; at: number } | null = null;
+  private pending: { state: EngineState; seed: number; at: number; elapsed: number | undefined } | null = null;
 
-  private applyState(incoming: EngineState, seed: number) {
+  /** Sessions share one seed for the choices of each arpeggio step, so every device plays the same notes (roadmap #34). */
+  setGridSeed(seed: number) { this.arp.setGridSeed(seed); this.bass.setGridSeed(seed); }
+
+  /** The step length of each layer for a state, in seconds. Follows the state's own tempo, with no glide, so that every
+   *  device lands on the same grid. */
+  private stepSecondsOf(s: EngineState) {
+    return { arp: (60 / Math.max(20, s.arp.tempo)) * RATE_BEATS[s.arp.rate], bass: Math.max(0.2, s.bass.stepSeconds) };
+  }
+
+  /** Re-align the step grids to the shared timeline: `elapsedSec` is the time since the current state was written, by the
+   *  server's clock. Called now and then by the player; only moves the grid when it has drifted. */
+  syncGrid(elapsedSec: number) {
+    const s = this.state;
+    if (!s) return;
+    const g = s.grid ?? { arp: 0, bass: 0 }, d = this.stepSecondsOf(s);
+    this.arp.sync(this.t, g.arp, elapsedSec, d.arp, 0.04); this.bass.sync(this.t, g.bass, elapsedSec, d.bass, 0.04);
+  }
+
+  private applyState(incoming: EngineState, seed: number, elapsedSec?: number) {
     // states stored before the stack and the pad existed lack those keys: fill them in, once, outside the audio loop
     const state: EngineState = {
       ...incoming,
@@ -110,6 +129,12 @@ export class Engine {
       this.glideT = 0;
     }
     this.to = to;
+    // the shared timeline: on the first state, and whenever the caller says how long ago the state was written, put the
+    // step grids where the server's clock says they are; otherwise the grids just run on
+    if (first || elapsedSec !== undefined) {
+      const g = state.grid ?? { arp: 0, bass: 0 }, d = this.stepSecondsOf(state);
+      this.arp.align(this.t, g.arp, elapsedSec ?? 0, d.arp); this.bass.align(this.t, g.bass, elapsedSec ?? 0, d.bass);
+    }
     // drone: fade changed notes in and out over 3 s
     const want = new Map<number, Wave>();
     if (state.drone.on) for (const n of state.drone.notes) want.set(n, state.drone.wave);
@@ -129,14 +154,15 @@ export class Engine {
   /** Fills the two cached layer parameter objects in place (no allocation in the audio loop). */
   private fillLayerParams() {
     const s = this.state!, c = this.cur, a = this.arpP, b = this.bassP;
-    const beat = 60 / Math.max(20, c.tempo);
+    const to = this.to; // the grid follows the state's own values, not the glide, so every device has the same one
+    const beat = 60 / Math.max(20, to.tempo);
     a.on = s.arp.on; a.root = s.arp.root; a.scale = s.arp.scale; a.chord = s.arp.chord; a.octaves = s.arp.octaves;
     a.stack = s.osc.stack; b.stack = [];
     a.pattern = s.arp.pattern; a.stepSeconds = beat * RATE_BEATS[s.arp.rate]; a.gate = c.gate; a.swing = c.swing;
-    a.density = c.density; a.jitterMs = c.jitterMs; a.wave = s.osc.wave; a.voices = s.osc.voices; a.detune = c.detune;
+    a.density = to.density; a.jitterMs = to.jitterMs; a.wave = s.osc.wave; a.voices = s.osc.voices; a.detune = c.detune;
     a.attack = c.attack; a.decay = c.decay; a.sustain = c.sustain; a.release = c.release; a.level = 1;
     b.on = s.bass.on; b.root = s.bass.root; b.scale = s.bass.scale; b.chord = s.bass.chord; b.octaves = 1;
-    b.pattern = "up_down"; b.stepSeconds = Math.max(0.2, c.bassStep); b.gate = 1; b.swing = 0; b.density = 1; b.jitterMs = 0;
+    b.pattern = "up_down"; b.stepSeconds = Math.max(0.2, to.bassStep); b.gate = 1; b.swing = 0; b.density = 1; b.jitterMs = 0;
     b.wave = s.bass.wave; b.voices = 1; b.detune = 0; b.attack = 0.1; b.decay = 0.3; b.sustain = 0.8; b.release = 0.8;
     b.level = c.bassLevel;
   }
@@ -161,7 +187,7 @@ export class Engine {
     this.arp.configure(this.arpP); this.bass.configure(this.bassP);
     for (let i = 0; i < frames; i++) {
       if (i % BLOCK === 0) {
-        if (this.pending && this.t >= this.pending.at) { const p = this.pending; this.pending = null; this.applyState(p.state, p.seed); }
+        if (this.pending && this.t >= this.pending.at) { const p = this.pending; this.pending = null; this.applyState(p.state, p.seed, p.elapsed); }
         this.glide(BLOCK / sr);
         // keep the pad level whatever the number of notes: normalise by the live sum of the note gains (they slew, so no jump)
         let padSum = 0; for (const pd of this.pads) padSum += pd.gain;

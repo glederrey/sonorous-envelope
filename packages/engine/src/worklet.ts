@@ -15,10 +15,14 @@ class EngineProcessor extends AudioWorkletProcessor {
     super();
     this.port.onmessage = (e) => {
       const m = e.data as
-        | { type: "state"; state: EngineState; seed: number; delay?: number }
-        | { type: "gain"; value: number };
-      if (m.type === "state") this.engine.setState(m.state, m.seed, m.delay ?? 0);
+        | { type: "state"; state: EngineState; seed: number; delay?: number; elapsed?: number }
+        | { type: "gain"; value: number }
+        | { type: "grid"; seed: number }
+        | { type: "sync"; elapsed: number };
+      if (m.type === "state") this.engine.setState(m.state, m.seed, m.delay ?? 0, m.elapsed);
       else if (m.type === "gain") this.engine.setListenerGain(m.value);
+      else if (m.type === "grid") this.engine.setGridSeed(m.seed);
+      else if (m.type === "sync") this.engine.syncGrid(m.elapsed);
     };
   }
   process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {

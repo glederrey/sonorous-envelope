@@ -1,4 +1,5 @@
 import { buildCycle, midiToHz } from "./music";
+import { mulberry32 } from "./prng";
 import { oscSample } from "./oscillator";
 import type { NoteEvent, Pattern, ScaleName, Wave } from "./types";
 
@@ -34,14 +35,41 @@ export class Layer {
   private pendCount = 0;
   private cycle: number[] = [60];
   private seen = { root: -1, scale: "" as string, octaves: -1, pattern: "" as string, chord: [] as number[] };
-  private idx = 0; private step = 0;
+  private step = 0; // the shared step counter: step k happens at the same moment on every device (see `align`)
   private nextStep = 0;
+  private gridSeed = 1;
   private p!: LayerParams;
 
   constructor(private sr: number, private rand: () => number, private name: "arp" | "bass",
               private events: NoteEvent[] | null) {}
 
   reseed(rand: () => number) { this.rand = rand; }
+  setGridSeed(seed: number) { this.gridSeed = seed >>> 0; }
+
+  /** The randomness of one step depends only on the session's grid seed and the step number, never on what was played
+   *  before, so a device that joins late and a device that has played from the start choose the same notes. */
+  private stepRng(k: number) {
+    let h = (this.gridSeed ^ Math.imul(k + 1, 0x9e3779b1) ^ (this.name === "arp" ? 0xa1a1a1a1 : 0xb2b2b2b2)) >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); h ^= h >>> 16;
+    return mulberry32(h >>> 0);
+  }
+
+  /** Put the step grid on the shared timeline. `gridK` is the (fractional) step count at the moment the state was written,
+   *  `elapsed` the seconds since then, `stepSeconds` the state's step length. The next step is the next whole number. */
+  align(t: number, gridK: number, elapsed: number, stepSeconds: number) {
+    const at = gridK + elapsed / stepSeconds;
+    const k = Math.ceil(at - 1e-9);
+    this.step = k;
+    this.nextStep = t + (k - at) * stepSeconds * this.sr;
+  }
+  /** Periodic resync against the shared timeline (devices' audio clocks drift apart slowly): pull the grid back only when it
+   *  is further off than `toleranceSeconds`, so small network jitter in the clock estimate does not make the beat wobble. */
+  sync(t: number, gridK: number, elapsed: number, stepSeconds: number, toleranceSeconds: number) {
+    const at = gridK + elapsed / stepSeconds;
+    const k = Math.ceil(at - 1e-9);
+    const desired = t + (k - at) * stepSeconds * this.sr;
+    if (k !== this.step || Math.abs(desired - this.nextStep) > toleranceSeconds * this.sr) { this.step = k; this.nextStep = desired; }
+  }
   setEvents(e: NoteEvent[] | null) { this.events = e; }
 
   configure(p: LayerParams) {
@@ -53,13 +81,12 @@ export class Layer {
     if (same) return;
     k.root = p.root; k.scale = p.scale; k.octaves = p.octaves; k.pattern = p.pattern; k.chord = p.chord.slice();
     this.cycle = buildCycle(p.root, p.scale, p.chord, p.octaves, p.pattern);
-    if (this.idx >= this.cycle.length) this.idx = 0;
   }
 
   /** One sample of the layer (mono, before level). `t` = sample counter, `pitchMul` = vibrato multiplier. */
   process(t: number, pitchMul: number): number {
     const p = this.p;
-    if (p.on && t >= this.nextStep) this.runStep(t);
+    if (t >= this.nextStep) { if (p.on) this.runStep(t); else this.skipStep(t); }
     for (let i = 0; i < this.pendCount; ) {
       if (t >= this.pendAt[i]) {
         this.trigger(this.pendMidi[i], this.pendLen[i], t);
@@ -89,17 +116,24 @@ export class Layer {
     return out * 0.3;
   }
 
+  /** A step with the layer off still counts, so the grid stays the shared one when the layer comes back. */
+  private skipStep(t: number) {
+    this.step++;
+    this.nextStep += this.p.stepSeconds * this.sr;
+    if (this.nextStep < t) this.nextStep = t + this.p.stepSeconds * this.sr;
+  }
+
   private runStep(t: number) {
     const p = this.p, sr = this.sr;
     const stepS = p.stepSeconds * sr;
     const i = this.step++;
-    this.nextStep = t + stepS;
-    if (this.rand() > p.density) return;
-    let midi: number;
-    if (p.pattern === "random") midi = this.cycle[Math.floor(this.rand() * this.cycle.length)];
-    else { midi = this.cycle[this.idx % this.cycle.length]; this.idx = (this.idx + 1) % this.cycle.length; }
+    this.nextStep += stepS; // stays on the grid: a late or early call does not shift the following steps
+    if (this.nextStep < t) this.nextStep = t + stepS; // after a long pause, do not play the missed steps in a burst
+    const r = this.stepRng(i);
+    if (r() > p.density) return;
+    const midi = p.pattern === "random" ? this.cycle[Math.floor(r() * this.cycle.length)] : this.cycle[i % this.cycle.length];
     let delay = (i % 2 === 1 ? p.swing * 0.33 * stepS : 0);
-    if (p.jitterMs > 0) delay += (p.jitterMs / 1000) * sr * (1 + (this.rand() * 2 - 1));
+    if (p.jitterMs > 0) delay += (p.jitterMs / 1000) * sr * (1 + (r() * 2 - 1));
     if (this.pendCount < MAX_PENDING) {
       this.pendAt[this.pendCount] = t + delay;
       this.pendMidi[this.pendCount] = midi;

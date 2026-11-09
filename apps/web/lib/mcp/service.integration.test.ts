@@ -275,6 +275,17 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await expect(svc.inspect(dbB, B, { session_id, what: "history" })).rejects.toMatchObject({ code: "unknown_session" });
   });
 
+  it("writes the shared timeline into every state: the step counters keep counting from one state to the next", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const grid = () => JSON.parse(sql(`select effective->'grid' from states where session_id='${session_id}' order by created_at desc limit 1`));
+    expect(grid()).toEqual({ arp: 0, bass: 0 });
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(10_000));
+    const g1 = grid();
+    expect(g1.arp).toBeGreaterThan(5); expect(g1.bass).toBeGreaterThan(1); // 10 s of the neutral state's steps
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(10_000));
+    expect(grid().arp).toBeGreaterThan(g1.arp + 10);
+  });
+
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
     const mine = await svc.startSession(dbA, A, {}, tick());
     const f = await svc.getFeedback(dbA, A, {}, clock);

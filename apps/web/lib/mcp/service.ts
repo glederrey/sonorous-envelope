@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  analyze, callSynth, mergeSticky, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  analyze, callSynth, mergeSticky, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -160,6 +160,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
 
   const { state: mapped } = mapSound(id, NEUTRAL_MOOD, NEUTRAL_MOOD, input.voice, null, undefined);
   const { effective, clamps } = applyLimits({ mapped });
+  effective.grid = nextGrid(null, now);
   const stateId = await insertState(db, now, {
     session_id: id, turn: 0, final: true, intent: { mood: NEUTRAL_MOOD, initial: true }, effective,
     clamps: mergeClamps(clamps), seed: randomSeed(), slow_mood: NEUTRAL_MOOD,
@@ -206,6 +207,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     mapped: overridden, transition,
   });
   const allClamps = mergeClamps(clamps);
+  effective.grid = nextGrid(prev, now); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
   const analysis = measureState(effective, seed);
@@ -255,6 +257,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };
+  effective.grid = nextGrid(prev, now);
   // ending: let the closing sound sent just before play out first; the fade starts when its transition is over
   let delay = 0;
   if (input.end) {
