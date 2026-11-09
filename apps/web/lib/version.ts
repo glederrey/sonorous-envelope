@@ -1,5 +1,5 @@
 // The release tag (e.g. "v0.0.10") is set by the deploy workflow as APP_VERSION. Local builds and CI show "dev".
-const REPO = "https://github.com/glederrey/sonorous-envelope";
+export const REPO = "https://github.com/glederrey/sonorous-envelope";
 
 export function appVersion(): string {
   return process.env.NEXT_PUBLIC_APP_VERSION || "dev";
