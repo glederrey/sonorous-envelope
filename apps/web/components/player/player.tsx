@@ -9,6 +9,8 @@ import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
 import { restedState } from "../../lib/rested-state";
+import { unwrapHue } from "../../lib/hue";
+import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -57,6 +59,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
 
   const audio = useRef<AudioOutput | null>(null);
+  const lastHue = useRef({ h: 220, h2: 245 });
   const settings = useRef<ListenerSettings>(parseSettings({}));
   const latest = useRef<Playing | null>(null);
   const known = useRef(false);
@@ -333,9 +336,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   }
 
   const colour = playing?.state.colour;
+  // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
+  const hue = unwrapHue(lastHue.current.h, colour?.h ?? 220);
+  const hue2 = unwrapHue(lastHue.current.h2, colour?.secondary?.h ?? ((colour?.h ?? 220) + 25));
+  lastHue.current = { h: hue, h2: hue2 };
   const fieldStyle = {
-    "--pl-h": colour?.h ?? 220, "--pl-s": colour?.s ?? 0.15, "--pl-l": colour?.l ?? 0.12,
-    "--pl-h2": colour?.secondary?.h ?? ((colour?.h ?? 220) + 25), "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
+    "--pl-h": hue, "--pl-s": colour?.s ?? 0.15, "--pl-l": colour?.l ?? 0.12,
+    "--pl-h2": hue2, "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
     "--pl-l2": colour?.secondary?.l ?? Math.max(0, (colour?.l ?? 0.12) - 0.08),
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
@@ -419,6 +426,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </label>
               <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>
+
+            {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 
             <div className="pl-share se-sm">
               <p>{shareText}</p>

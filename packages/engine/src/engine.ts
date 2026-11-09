@@ -13,7 +13,7 @@ const RATE_BEATS: Record<Rate, number> = { "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, 
 /** The continuous parameters that glide between states. */
 interface P {
   tempo: number; cutoff: number; resonance: number; volume: number;
-  droneLevel: number; bassLevel: number;
+  droneLevel: number; bassLevel: number; padLevel: number;
   delayTime: number; delayFb: number; delayMix: number; revSize: number; revMix: number;
   width: number; detune: number; drive: number;
   lfo0Rate: number; lfo0Depth: number; lfo1Rate: number; lfo1Depth: number;
@@ -22,7 +22,7 @@ interface P {
   bassStep: number;
 }
 const KEYS = [
-  "tempo", "cutoff", "resonance", "volume", "droneLevel", "bassLevel", "delayTime", "delayFb", "delayMix",
+  "tempo", "cutoff", "resonance", "volume", "droneLevel", "bassLevel", "padLevel", "delayTime", "delayFb", "delayMix",
   "revSize", "revMix", "width", "detune", "drive", "lfo0Rate", "lfo0Depth", "lfo1Rate", "lfo1Depth",
   "gate", "swing", "density", "jitterMs", "attack", "decay", "sustain", "release", "bassStep",
 ] as const satisfies readonly (keyof P)[];
@@ -30,7 +30,7 @@ const KEYS = [
 function target(s: EngineState): P {
   return {
     tempo: s.arp.tempo, cutoff: s.filter.cutoff, resonance: s.filter.resonance, volume: s.volume,
-    droneLevel: s.drone.on ? s.drone.level : 0, bassLevel: s.bass.on ? s.bass.level : 0,
+    droneLevel: s.drone.on ? s.drone.level : 0, bassLevel: s.bass.on ? s.bass.level : 0, padLevel: s.pad.on ? s.pad.level : 0,
     delayTime: s.fx.delay.time, delayFb: s.fx.delay.feedback, delayMix: s.fx.delay.mix,
     revSize: s.fx.reverb.size, revMix: s.fx.reverb.mix, width: s.pan.width,
     detune: s.osc.detune, drive: s.osc.drive,
@@ -44,7 +44,7 @@ function target(s: EngineState): P {
 
 function emptyLayerParams(): LayerParams {
   return { on: false, root: 60, scale: "major", chord: [1], octaves: 1, pattern: "up", stepSeconds: 1, gate: 1, swing: 0,
-    density: 1, jitterMs: 0, wave: "sine", voices: 1, detune: 0, attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1, level: 1 };
+    density: 1, jitterMs: 0, wave: "sine", voices: 1, detune: 0, stack: [], attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.1, level: 1 };
 }
 
 interface DroneOsc { midi: number; gain: number; goal: number; ph: [number, number]; wave: Wave }
@@ -60,6 +60,7 @@ export class Engine {
   private filter = new Biquad();
   private delay: PingPongDelay; private reverb: Reverb;
   private drones: DroneOsc[] = [];
+  private pads: DroneOsc[] = []; private padAtk = 2; private padRel = 3; private padNorm = 0.3;
   private listenerGain = 1; private listenerGainCur = 1;
   private hpZ = 0;
   private tmp: [number, number] = [0, 0];
@@ -82,7 +83,13 @@ export class Engine {
   /** Snapshot of the currently gliding continuous parameters (for tests and debugging). */
   params(): Readonly<P> { return this.cur; }
 
-  setState(state: EngineState, seed: number) {
+  setState(incoming: EngineState, seed: number) {
+    // states stored before the stack and the pad existed lack those keys: fill them in, once, outside the audio loop
+    const state: EngineState = {
+      ...incoming,
+      osc: { ...incoming.osc, stack: incoming.osc.stack ?? [] },
+      pad: incoming.pad ?? { on: false, notes: [], wave: "sine", level: 0, attack: 2, release: 3 },
+    };
     const to = target(state);
     const first = this.state === null;
     this.state = state;
@@ -99,6 +106,12 @@ export class Engine {
     if (state.drone.on) for (const n of state.drone.notes) want.set(n, state.drone.wave);
     for (const d of this.drones) { d.goal = want.has(d.midi) ? 1 : 0; if (want.has(d.midi)) d.wave = want.get(d.midi)!; want.delete(d.midi); }
     for (const [midi, wave] of want) this.drones.push({ midi, gain: first ? 1 : 0, goal: 1, ph: [0, 0], wave });
+    // pad: a chord of its own, each note fades in with the pad's attack and out with its release
+    const wantPad = new Map<number, Wave>();
+    if (state.pad.on) for (const n of state.pad.notes.slice(0, 5)) wantPad.set(n, state.pad.wave);
+    this.padAtk = Math.max(0.05, state.pad.attack); this.padRel = Math.max(0.05, state.pad.release);
+    for (const d of this.pads) { d.goal = wantPad.has(d.midi) ? 1 : 0; if (wantPad.has(d.midi)) d.wave = wantPad.get(d.midi)!; wantPad.delete(d.midi); }
+    for (const [midi, wave] of wantPad) this.pads.push({ midi, gain: first ? 1 : 0, goal: 1, ph: [0, 0], wave });
   }
 
   private arpP: LayerParams = emptyLayerParams();
@@ -109,6 +122,7 @@ export class Engine {
     const s = this.state!, c = this.cur, a = this.arpP, b = this.bassP;
     const beat = 60 / Math.max(20, c.tempo);
     a.on = s.arp.on; a.root = s.arp.root; a.scale = s.arp.scale; a.chord = s.arp.chord; a.octaves = s.arp.octaves;
+    a.stack = s.osc.stack; b.stack = [];
     a.pattern = s.arp.pattern; a.stepSeconds = beat * RATE_BEATS[s.arp.rate]; a.gate = c.gate; a.swing = c.swing;
     a.density = c.density; a.jitterMs = c.jitterMs; a.wave = s.osc.wave; a.voices = s.osc.voices; a.detune = c.detune;
     a.attack = c.attack; a.decay = c.decay; a.sustain = c.sustain; a.release = c.release; a.level = 1;
@@ -139,6 +153,9 @@ export class Engine {
     for (let i = 0; i < frames; i++) {
       if (i % BLOCK === 0) {
         this.glide(BLOCK / sr);
+        // keep the pad level whatever the number of notes: normalise by the live sum of the note gains (they slew, so no jump)
+        let padSum = 0; for (const pd of this.pads) padSum += pd.gain;
+        this.padNorm = 0.3 / Math.sqrt(Math.max(1, padSum));
         this.fillLayerParams();
         this.arp.configure(this.arpP); this.bass.configure(this.bassP);
         this.filter.set(s.filter.type, this.cur.cutoff, this.cur.resonance, sr);
@@ -170,6 +187,17 @@ export class Engine {
         x += (oscSample(dr.wave, dr.ph[0], dt) + oscSample(dr.wave, dr.ph[1], dt * 1.0012)) * 0.5 * dr.gain * c.droneLevel * 0.3;
         dr.ph[0] += dt; if (dr.ph[0] >= 1) dr.ph[0] -= 1;
         dr.ph[1] += dt * 1.0012; if (dr.ph[1] >= 1) dr.ph[1] -= 1;
+      }
+      // pad
+      for (let d = this.pads.length - 1; d >= 0; d--) {
+        const pd = this.pads[d];
+        const rate = pd.goal > pd.gain ? 1 / (this.padAtk * sr) : 1 / (this.padRel * sr);
+        pd.gain += Math.sign(pd.goal - pd.gain) * Math.min(Math.abs(pd.goal - pd.gain), rate);
+        if (pd.gain <= 0 && pd.goal === 0) { this.pads.splice(d, 1); continue; }
+        const dt = midiToHz(pd.midi) / sr * pitchMul;
+        x += (oscSample(pd.wave, pd.ph[0], dt) + oscSample(pd.wave, pd.ph[1], dt * 1.0012)) * 0.5 * pd.gain * c.padLevel * this.padNorm;
+        pd.ph[0] += dt; if (pd.ph[0] >= 1) pd.ph[0] -= 1;
+        pd.ph[1] += dt * 1.0012; if (pd.ph[1] >= 1) pd.ph[1] -= 1;
       }
       // roughness: soft saturation before the filter
       if (c.drive > 0.001) { const g = 1 + 4 * c.drive; x = Math.tanh(x * g) / Math.tanh(g) ; }

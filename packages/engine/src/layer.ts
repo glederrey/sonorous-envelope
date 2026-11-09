@@ -2,14 +2,14 @@ import { buildCycle, midiToHz } from "./music";
 import { oscSample } from "./oscillator";
 import type { NoteEvent, Pattern, ScaleName, Wave } from "./types";
 
-const MAX_VOICES = 6;
+const MAX_VOICES = 16; // 6 notes in flight, each up to 4 voices with a stack
 const MAX_PENDING = 8;
 
 export interface LayerParams {
   on: boolean;
   root: number; scale: ScaleName; chord: number[]; octaves: number; pattern: Pattern;
   stepSeconds: number; gate: number; swing: number; density: number; jitterMs: number;
-  wave: Wave; voices: number; detune: number;
+  wave: Wave; voices: number; detune: number; stack: number[];
   attack: number; decay: number; sustain: number; release: number;
   level: number;
 }
@@ -110,6 +110,13 @@ export class Layer {
 
   private trigger(midi: number, lenSamples: number, t: number) {
     const p = this.p, sr = this.sr;
+    // one voice per interval: the note itself, then each stacked interval (a chord), quieter so the sum stays level
+    const count = 1 + p.stack.length;
+    for (let s = 0; s < count; s++) this.triggerVoice(midi + (s === 0 ? 0 : p.stack[s - 1]), lenSamples, t, 0.8 / Math.sqrt(count));
+  }
+
+  private triggerVoice(midi: number, lenSamples: number, t: number, velocity: number) {
+    const p = this.p, sr = this.sr;
     let v: Voice | undefined;
     for (let i = 0; i < this.voices.length; i++) if (!this.voices[i].active) { v = this.voices[i]; break; }
     if (!v) { v = this.voices[0]; for (let i = 1; i < this.voices.length; i++) if (this.voices[i].age < v.age) v = this.voices[i]; }
@@ -121,7 +128,7 @@ export class Layer {
     v.detuneMul[2] = d;
     if (v.n === 3) { v.detuneMul[0] = 1 / d; v.detuneMul[1] = 1; v.detuneMul[2] = d; }
     for (let k = 0; k < 3; k++) v.phases[k] = this.rand();
-    v.wave = p.wave; v.velocity = 0.8; v.stage = 0; v.env = 0; v.age = t;
+    v.wave = p.wave; v.velocity = velocity; v.stage = 0; v.env = 0; v.age = t;
     v.atk = 1 / Math.max(1, p.attack * sr);
     v.sus = Math.min(1, Math.max(0, p.sustain));
     v.decC = Math.exp(-1 / Math.max(1, (p.decay / 5) * sr));

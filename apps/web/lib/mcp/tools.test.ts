@@ -47,4 +47,20 @@ describe("MCP tools", () => {
     const r = await rpc("tools/call", { name: "set_sound", arguments: { mood: { warmth: 2, closeness: 0, joy: 0, calm: 0, spontaneity: 0 } } });
     expect(r.result?.isError ?? true).toBe(true);
   });
+
+  it("serialises the schemas the connector will load: new fields in, volume out, end on silence", async () => {
+    const r = await rpc("tools/list");
+    const tool = (n: string) => r.result.tools.find((t: { name: string }) => t.name === n);
+    const synth = tool("set_sound").inputSchema.properties.synth.properties;
+    expect(synth.osc.properties.stack).toBeDefined();
+    expect(synth.pad.properties.notes.maxItems).toBe(5);
+    expect(synth.lfo.items.properties.rate.maximum).toBe(80);
+    expect(synth).not.toHaveProperty("volume");
+    expect(tool("set_sound").inputSchema.properties).toHaveProperty("voice");
+    expect(tool("set_sound").inputSchema.properties).toHaveProperty("rest_after");
+    expect(tool("silence").inputSchema.properties).toHaveProperty("end");
+    expect(tool("start_session").inputSchema.properties).toHaveProperty("voice");
+    expect(JSON.stringify(tool("set_sound").inputSchema).length).toBeLessThan(11000);
+  });
 });
+

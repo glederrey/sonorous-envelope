@@ -57,7 +57,7 @@ Notes under the steps, in `body-sm`:
 A highlighted block (scrim-style panel on the colour field, not a warning colour):
 - **The sound plays in the player page, not in Claude.** Keep that page open for the whole conversation. Closing it stops the sound, and Claude stops getting your reactions.
 - Best setup: player on one device or window (laptop, tablet, or a speaker-connected computer), chat on another.
-- On a phone: keep the player page in the foreground with the screen on. Phones pause web audio when you switch apps or lock the screen. (Same wording as the mobile hint in the player, until the stream mode in mobile.md exists.)
+- On a phone: the sound keeps playing when you switch to the chat (keep-alive audio file and a worker ticker, mobile.md). If the phone stops it, open the player and tap resume. (Corrected 2026-11-09: this used to say to keep the player in the foreground with the screen on.)
 - If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
 
 ### 6. Safety and control
@@ -124,7 +124,7 @@ The model does not exist between two turns, but a sound that keeps playing reads
 - No information conveyed by colour alone.
 
 ## Mobile notes
-- Show a hint on iOS/Android: "Keep this page open in the foreground. Audio may stop if you switch apps or lock the screen." (Until the stream mode in mobile.md exists.)
+- No foreground warning any more: background playback works on phones. Show a Resume button when the phone stops the audio (built).
 - Use the Wake Lock API while playing, where available, wrapped in try/catch.
 - Handle `visibilitychange`: when the page becomes visible again, resume the `AudioContext` and re-apply the current state.
 - Handle the `AudioContext` `statechange` event too: when the state becomes `suspended` or `interrupted` (iOS) while the listener has not muted, call `resume()` without waiting for a tap, and re-apply the current state. Do the same if the keep-alive element fires `pause` and we did not pause it (mute does). This is for system interruptions such as the microphone opening for dictation (mobile.md, "Dictation"). Log each event in the `?debug=1` report.

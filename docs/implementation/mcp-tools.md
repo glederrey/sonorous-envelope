@@ -96,7 +96,7 @@ export const Transition = z.object({
 
 Keep every field description short in the tool schema: the model reads them.
 
-> **Planned changes (2026-11-09 test), not built:** `osc.stack` (intervals in semitones), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`), `lfo.rate` up to 80 for the `amp` target only (12 for the others; validate per target, for instance with a `superRefine`), (`voice` on `start_session` and `set_sound` and `resting` in the feedback are built.) Keep field descriptions short: the model reads every one.
+> **Built (2026-11-09):** `osc.stack` (intervals in semitones, max 3), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`; sending notes turns it on), `lfo.rate` up to 80 for the `amp` target only (12 for the others, validated per target). The fast amp LFO has no consent row or harshness term any more (limits are removed) and never drives the colour pulse. (`voice` on `start_session` and `set_sound` and `resting` in the feedback are built.) Keep field descriptions short: the model reads every one.
 
 > **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 

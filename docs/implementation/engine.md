@@ -16,12 +16,12 @@ interface EngineState {
          jitterMs: number /* timing humanisation, from spontaneity */ };
   osc: { wave: Wave; detune: number; voices: number /* unison copies of one note, detuned; not different notes */;
          drive: number /* 0–1 soft saturation before the filter; roughness */;
-         stack: number[] /* planned: extra intervals in semitones, [] = single notes; each arp note plays as a chord */ };
+         stack: number[] /* extra intervals in semitones, max 3, [] = single notes; each arp note plays as a chord */ };
   filter: { type: FilterType; cutoff: number; resonance: number };
   lfo: Array<{ target: LfoTarget; rate: number; depth: number; shape: LfoShape }>; // 0–2
   env: { attack: number; decay: number; sustain: number; release: number };
   drone: { on: boolean; notes: number[] /* MIDI */; wave: Wave; level: number };
-  pad: { on: boolean; notes: number[] /* MIDI, max 5; planned */; wave: Wave; level: number; attack: number; release: number };
+  pad: { on: boolean; notes: number[] /* MIDI, max 5 */; wave: Wave; level: number; attack: number; release: number };
   bass: { on: boolean; root: number /* MIDI, from the slow mood */; scale: ScaleName; chord: number[];
           stepSeconds: number /* 1–2 s */; wave: Wave; level: number };   // background arpeggio, see mood-mapping.md
   fx: { delay: { time: number; feedback: number; mix: number }; reverb: { size: number; mix: number } };
@@ -62,7 +62,7 @@ function renderOffline(state: EngineState, opts: { seconds: number; sampleRate: 
 
 - Gestures go to the mix after the filter, so they stay audible when the filter is dark, then through delay and reverb.
 - LFO targets: `cutoff` (multiplies cutoff by 2^(depth·2·lfo) i.e. ±2 octaves at depth 1), `pitch` (±depth·50 cents vibrato), `amp` (tremolo, gain 1 − depth·(0.5+0.5·lfo)), `pan`.
-- LFO rate (planned): `cutoff`, `pitch` and `pan` stay capped at 12 Hz. `amp` goes up to about 80 Hz, which turns a tremolo into a grain: about 25 Hz is the purring texture, 30 to 70 Hz the growling one (emotion-to-sound.md). The `amp` LFO must be computed per sample, not once per 128-frame block: a block is 2.7 ms, so a 70 Hz wave sampled that way is badly aliased. A `random` shape at these rates is sample-and-hold on the LFO's own clock. Gestures keep their own modulation (purr 25 Hz, growl 40 Hz); this is for the continuous layer. Consent and harshness limits apply (limits.md), and the colour pulse never follows it (mood-mapping.md, "Colour").
+- LFO rate: `cutoff`, `pitch` and `pan` stay capped at 12 Hz. `amp` goes up to about 80 Hz, which turns a tremolo into a grain: about 25 Hz is the purring texture, 30 to 70 Hz the growling one (emotion-to-sound.md). The `amp` LFO must be computed per sample, not once per 128-frame block: a block is 2.7 ms, so a 70 Hz wave sampled that way is badly aliased. A `random` shape at these rates is sample-and-hold on the LFO's own clock. Gestures keep their own modulation (purr 25 Hz, growl 40 Hz); this is for the continuous layer. Consent and harshness limits apply (limits.md), and the colour pulse never follows it (mood-mapping.md, "Colour").
 - Soft limiter: `tanh` with drive normalised so a −6 dBFS sine passes almost unchanged; then a hard clamp at ±0.98.
 
 ## Building blocks
@@ -74,8 +74,8 @@ function renderOffline(state: EngineState, opts: { seconds: number; sampleRate: 
 - **Bass layer:** a second, slower arpeggiator on its own voices (2 voices, no jitter, gate 1). It uses the same note scheduling code with `stepSeconds` instead of tempo and rate. It follows the *slow mood*, not the current one (mood-mapping.md).
 - **Drive:** `tanh(x·(1 + 4·drive)) / tanh(1 + 4·drive)` before the filter. At `drive = 0` it is the identity (skip it).
 - **Drone:** sustained notes with a 3 s fade in/out on change, level independent of the arp, lightly detuned.
-- **Pad (planned):** a chord of up to 5 sustained notes with its own wave, level, attack and release, separate from the drone. It changes with every state: notes already sounding fade out over `release` while the new ones fade in over `attack`, so a change is a crossfade, not a cut. It goes through the same filter and effects as the drone.
-- **Stack (planned):** with `osc.stack = [0, 7, 12]`, each arp note starts one voice per interval, all with the same envelope. At most 3 extra intervals, so up to 4 notes per step.
+- **Pad:** a chord of up to 5 sustained notes with its own wave, level, attack and release, separate from the drone. It changes with every state: notes already sounding fade out over `release` while the new ones fade in over `attack`, so a change is a crossfade, not a cut. It goes through the same filter and effects as the drone.
+- **Stack:** with `osc.stack = [0, 7, 12]`, each arp note starts one voice per interval, all with the same envelope. At most 3 extra intervals, so up to 4 notes per step.
 - **Delay:** stereo ping-pong, feedback low-passed at 4 kHz, max time 1.5 s.
 - **Reverb:** Freeverb-style (8 combs + 4 allpasses per channel), `size` → room size 0.5–0.95, damping 0.4, `mix` wet/dry.
 

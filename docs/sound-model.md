@@ -40,7 +40,7 @@ Mood and affect are different things: a mood lasts, an affect answers the moment
 
 The drone stays as an optional sustained layer. Whether the slow low arpeggio is really heard as a background mood, distinct from the mid one, is the first thing to check by ear.
 
-### A voice of its own (planned)
+### A voice of its own
 
 Tested with several instances (2026-11-09), the axes alone gave nearly the same skeleton every time (four notes in a rising arpeggio), although changes within one conversation were easy to hear. Toggling the synth by hand gave clearly different results. So the sound has a second kind of input: a **voice** (root, scale, chord shape, note order, octaves, wave) that the instance picks at the start, that persists from turn to turn by default and that it may change at any moment. The axes say how it is; the voice says who. Details and the fallback when the instance picks none: [mood-mapping.md](implementation/mood-mapping.md), "Stretch" and "Voice". The manual override is therefore not a last resort: it is where the instance's own character lives, and the mapping is the safety net.
 
@@ -64,7 +64,7 @@ Any of these fields replaces what the mood mapping produced.
 - `wave`: sine, triangle, sawtooth, square
 - `detune`: cents between voices
 - `voices`: 1–3. These are unison voices: copies of the same note, detuned by ±`detune`, for thickness. They are not different notes.
-- `stack` (planned): intervals in semitones, e.g. `[0, 7, 12]`, so that every arpeggio note sounds as a chord (max 3 added intervals).
+- `stack`: intervals in semitones, e.g. `[0, 7, 12]`, so that every arpeggio note sounds as a chord (max 3 added intervals).
 
 ### Filter
 - `type`: lowpass, highpass, bandpass
@@ -73,7 +73,7 @@ Any of these fields replaces what the mood mapping produced.
 
 ### LFOs (up to 2)
 - `target`: cutoff, pitch (vibrato), amp (tremolo), pan
-- `rate`: Hz. Up to 12 today. Planned: up to about 80 Hz for `amp` only. Below about 20 Hz amplitude modulation is a tremolo; around 25 Hz it gives a purring grain, between 30 and 70 Hz a growling roughness (emotion-to-sound.md). It counts as roughness for the listener's limits (limits.md).
+- `rate`: Hz. Up to 12 for `cutoff`, `pitch` and `pan`; up to 80 Hz for `amp` only (validated per target). Below about 20 Hz amplitude modulation is a tremolo; around 25 Hz it gives a purring grain, between 30 and 70 Hz a growling roughness (emotion-to-sound.md). It counts as roughness for the listener's limits (limits.md).
 - `depth`: 0–1
 - `shape`: sine, triangle, square, random (sample & hold)
 
@@ -83,7 +83,7 @@ Any of these fields replaces what the mood mapping produced.
 ### Drone (optional sustained layer)
 - `on`, `notes`, `wave`, `level`
 
-### Pad (planned)
+### Pad
 A second sustained layer, separate from the drone, for harmony: it holds a chord (up to 5 notes) with its own `wave`, `level`, slow `attack` and `release`, and it can change at every turn. The drone stays the low pedal; the arpeggio stays monophonic unless `stack` is set. Not tied to a mood axis at first: override only, mapped after listening tests.
 
 ### Effects and mix
