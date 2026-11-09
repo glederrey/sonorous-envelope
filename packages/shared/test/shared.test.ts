@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  harmonyFor, isResting, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  harmonyFor, isResting, analyze, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -352,6 +352,42 @@ describe("what stays on the session", () => {
     expect(f.playing).toHaveProperty("pattern"); expect(f.playing).toHaveProperty("echo"); expect(f.playing).toHaveProperty("chord");
     const plain = buildFeedback({ turn: 1, intent: neutral, effective: moodToEngineState(neutral), clamps: [], players: 1 }).playing as Record<string, unknown>;
     expect(plain).not.toHaveProperty("stack"); expect(plain).not.toHaveProperty("pad");
+  });
+});
+
+describe("analysis", () => {
+  const state = (o: Partial<MoodT> = {}) => moodToEngineState(stretchMood({ ...neutral, ...o }), stretchMood({ ...neutral, ...o }), voiceSeedOf("a"));
+  it("measures a state: plausible loudness, words and estimates in range", () => {
+    const a = analyze(state({ joy: 0.7, calm: 0.7 }), 3);
+    expect(a.sound.loudness_db).toBeLessThan(-5); expect(a.sound.loudness_db).toBeGreaterThan(-60);
+    expect(["very low", "low", "medium", "high", "very high"]).toContain(a.sound.brightness);
+    expect(["sparse", "medium", "dense"]).toContain(a.sound.density);
+    for (const v of Object.values(a.reads_as)) { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(1); }
+  });
+  it("reads a calm, warm sound as calmer than an urgent, cold one, from the audio alone", () => {
+    const calm = analyze(state({ calm: 0.95, warmth: 0.9, joy: 0.6, spontaneity: 0.1 }), 3).reads_as;
+    const urgent = analyze(state({ calm: 0.05, warmth: 0.1, joy: 0.3, spontaneity: 0.9 }), 3).reads_as;
+    expect(calm.calm).toBeGreaterThan(urgent.calm + 0.2);
+    expect(calm.warmth).toBeGreaterThan(urgent.warmth);
+  });
+  it("reads a major chord as more joyful than a minor one, and a stack as denser notes together", () => {
+    const base = state({ joy: 0.5 }); base.arp.chord = [1, 3, 5]; base.drone.on = false; base.bass.on = false; base.arp.scale = "major";
+    const minor = JSON.parse(JSON.stringify(base)); minor.arp.scale = "minor";
+    expect(analyze(base, 3).reads_as.joy).toBeGreaterThan(analyze(minor, 3).reads_as.joy);
+  });
+  it("is deterministic and does not change the state it measures", () => {
+    const s = state(); const copy = JSON.stringify(s);
+    expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);
+    expect(JSON.stringify(s)).toBe(copy);
+  });
+  it("is fast enough to run inside set_sound", () => {
+    const t = Date.now(); analyze(state(), 1); expect(Date.now() - t).toBeLessThan(1500);
+  });
+  it("puts sound and reads_as in the feedback only when it has them", () => {
+    const eff = state();
+    expect(buildFeedback({ turn: 1, intent: neutral, effective: eff, clamps: [], players: 1 })).not.toHaveProperty("reads_as");
+    const f = buildFeedback({ turn: 1, intent: neutral, effective: eff, clamps: [], players: 1, analysis: { sound: { brightness: "low" }, reads_as: { joy: 0.5 } } });
+    expect(f.sound).toEqual({ brightness: "low" }); expect(f.reads_as).toEqual({ joy: 0.5 });
   });
 });
 

@@ -16,6 +16,8 @@ export interface FeedbackInput {
   notes?: string[];
   /** Set only when the owner's rest_after is on and this call arrived after it. */
   resting?: boolean;
+  /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
+  analysis?: { sound: Record<string, unknown>; reads_as: Record<string, number> } | null;
 }
 
 /** What actually plays, in the vocabulary of what Claude can set, so it can check that its choices arrived.
@@ -45,6 +47,7 @@ export function buildFeedback(i: FeedbackInput) {
   if (i.clamps.length) out.clamped = i.clamps;
   out.colour = { h: Math.round(e.colour.h), s: r2(e.colour.s), l: r2(e.colour.l), motion: e.colour.motion };
   if (i.controls) out.controls = { volume: r2(i.controls.volume) };
+  if (i.analysis) { out.sound = i.analysis.sound; out.reads_as = i.analysis.reads_as; }
   out.players = i.players;
   if (i.resting) out.resting = true;
   const notes = [...(i.notes ?? [])];

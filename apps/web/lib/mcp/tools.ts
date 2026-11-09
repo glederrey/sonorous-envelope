@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { SetSoundInput, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, setSound, silence, startSession } from "./service";
+import { ToolError, getFeedback, inspect, setSound, silence, startSession } from "./service";
 
 type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } } };
 
@@ -47,6 +47,12 @@ export function registerTools(server: McpServer) {
     description: "Read what is playing and who is listening without changing the sound.",
     inputSchema: z.object({ session_id: z.string().optional() }),
   }, (args, ctx) => run(ctx as Ctx, (c) => getFeedback(c.db, c.userId, args)));
+
+  server.registerTool("inspect", {
+    title: "Recent history",
+    description: "The last 8 states as one line each: what you sent, what it read as, clamps and your note. Text only.",
+    inputSchema: z.object({ session_id: z.string().optional(), what: z.enum(["history"]).default("history") }),
+  }, (args, ctx) => run(ctx as Ctx, (c) => inspect(c.db, c.userId, args)));
 
   server.registerTool("silence", {
     title: "Silence",
