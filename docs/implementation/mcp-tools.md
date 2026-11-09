@@ -176,6 +176,11 @@ Rules:
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.
 - With `image_feedback: "every_turn"` and `final: true`, append the spectrogram image block.
 
+### What stays on the session
+The voice (`sessions.voice`) and a second set, `sessions.sticky` (migration 0005): the colour, `osc.stack`, `pad` and `lfo`. A call that sends none of them changes nothing; one that sends some merges field by field into what is kept. Clearing: colour `mode: "follow"`, `osc.stack: []`, `lfo: []` (back to the mapped LFOs, not "no LFOs"; use `depth: 0` for that). The pad stays but `pad.on: false` silences it. The rest of `synth` is for one call. Order: mapped, voice, kept settings, the call's `synth`, limits (`shared/src/sticky.ts`, `mapSound` in `service.ts`).
+
+The feedback's `playing` mirrors what Claude can set: scale, tempo, wave, cutoff, volume, drone, pattern, rate, octaves, chord, and when present `arp: "off"`, `stack`, `pad`, `lfo` (one string per LFO), plus `echo` and `reverb` mix.
+
 ## `get_feedback`
 
 Input: `{ session_id: string }`. Returns the feedback object for the current state without changing anything except claiming reactions. Uses the stored analysis.
@@ -190,7 +195,7 @@ Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 
 Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean, end?: boolean  }`.
 With `end: true` the session ends once the fade is over (`ended_at` set, state final). The model uses it when the user says the session is finished, after one `set_sound` that plays a short closing sound with a long transition. Further calls return `session_ended`.
-Sets volume 0 and drone off with the given fade (with `end`, the layers stay on and only the volume fades, so the closing sound is not cut; give it a fade of 10 to 30 s), as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
+Sets volume 0 and drone off with the given fade (with `end`, the layers stay on and only the volume fades, so the closing sound is not cut; give it a fade of 10 to 30 s). With `end` the state carries `transition.delay`: the time left of the previous state's transition (at most 30 s), so the closing sound plays out before the fade starts; the engine keeps the timing (`Engine.setState(state, seed, delaySec)`), a newer state replaces one that is still waiting. The returned `volume` is 0 at once because it reports the target, not the point in the fade, as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
 
 ## Session resolution
 Every tool except `start_session` takes `session_id`.

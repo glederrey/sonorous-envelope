@@ -68,7 +68,7 @@ export function voiceToSynth(v: Voice | null | undefined): SynthOverride | undef
 }
 
 /** The master volume is a constant: loudness belongs to the listener's slider, never to Claude or the mood. */
-export const MASTER_VOLUME = 0.46;
+export const MASTER_VOLUME = 0.5;
 
 export const NEUTRAL_MOOD: Mood = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.8, spontaneity: 0.2 };
 

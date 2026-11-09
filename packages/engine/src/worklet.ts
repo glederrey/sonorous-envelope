@@ -15,9 +15,9 @@ class EngineProcessor extends AudioWorkletProcessor {
     super();
     this.port.onmessage = (e) => {
       const m = e.data as
-        | { type: "state"; state: EngineState; seed: number }
+        | { type: "state"; state: EngineState; seed: number; delay?: number }
         | { type: "gain"; value: number };
-      if (m.type === "state") this.engine.setState(m.state, m.seed);
+      if (m.type === "state") this.engine.setState(m.state, m.seed, m.delay ?? 0);
       else if (m.type === "gain") this.engine.setListenerGain(m.value);
     };
   }

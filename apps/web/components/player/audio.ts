@@ -50,7 +50,7 @@ export class AudioOutput {
     return new AudioOutput(ctx, node, keepAlive);
   }
 
-  setState(state: EngineState, seed: number) { this.node.port.postMessage({ type: "state", state, seed }); }
+  setState(state: EngineState, seed: number, delay = 0) { this.node.port.postMessage({ type: "state", state, seed, delay }); }
   setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
   get running() { return this.ctx.state === "running"; }
   get state() { return this.ctx.state as string; }

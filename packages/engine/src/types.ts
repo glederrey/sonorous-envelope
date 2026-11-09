@@ -39,7 +39,8 @@ export interface EngineState {
   volume: number;
   gesture: null | { type: GestureType; intensity: number; id: string };
   colour: ResolvedColour;
-  transition: { time: number; curve: "smooth" | "sudden" };
+  /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
+  transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }
 
 export interface NoteEvent { time: number; midi: number; velocity: number; layer: "arp" | "bass" }

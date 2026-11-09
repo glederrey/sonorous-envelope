@@ -229,4 +229,19 @@ describe("stack, pad and the fast amp LFO", () => {
     const b = run(on5, on2);
     expect(b.worst).toBeLessThanOrEqual(b.before * 1.25);
   });
+
+  it("a state with a delay waits, the sound before it plays out, and a newer state replaces one that is waiting", () => {
+    const loud = neutralState(); loud.volume = 0.5;
+    const quiet = JSON.parse(JSON.stringify(loud)) as EngineState; quiet.volume = 0; quiet.transition = { time: 0.1, curve: "smooth" };
+    const block = (e: Engine, sec: number) => { const l = new Float32Array(Math.round(SR * sec)), r = new Float32Array(l.length); e.process(l, r, l.length); return l; };
+    const e = new Engine(SR, 9); e.setState(loud, 9); block(e, 1);
+    e.setState(quiet, 9, 2);
+    expect(rms(block(e, 1.5))).toBeGreaterThan(0.01);  // still playing during the delay
+    block(e, 0.9);                                       // past the delay (2 s) and its short fade
+    expect(rms(block(e, 1))).toBeLessThan(0.002);        // silent after it
+    const f = new Engine(SR, 9); f.setState(loud, 9); block(f, 1);
+    f.setState(quiet, 9, 2); f.setState(loud, 9);        // replaced before it started
+    expect(rms(block(f, 4))).toBeGreaterThan(0.01);
+  });
 });
+

@@ -37,7 +37,7 @@ export const SynthOverride = z.object({
     wave: Wave,
     detune: z.number().min(0).max(50).describe("cents"),
     voices: z.number().int().min(1).max(3),
-    stack: z.array(z.number().int().min(-24).max(24)).max(3).describe("extra intervals in semitones: [7, 12] makes every arp note a chord; [] for single notes"),
+    stack: z.array(z.number().int().min(-24).max(24)).max(3).describe("extra intervals in semitones: [7, 12] makes every arp note a chord. Stays until you change it; [] for single notes"),
   }).partial(),
   filter: z.object({
     type: z.enum(["lowpass", "highpass", "bandpass"]),
@@ -46,7 +46,7 @@ export const SynthOverride = z.object({
   }).partial(),
   lfo: z.array(z.object({
     target: z.enum(["cutoff", "pitch", "amp", "pan"]),
-    rate: z.number().min(0.01).max(80).describe("Hz. Up to 12 for cutoff, pitch and pan; up to 80 for amp, where above about 20 it is a grain, not a tremolo"),
+    rate: z.number().min(0.01).max(80).describe("Hz. Up to 12 for cutoff, pitch and pan; up to 80 for amp, where above about 20 it is a grain, not a tremolo. LFOs stay until you change them; send lfo [] to get the mapped ones back, depth 0 for none"),
     depth: unit,
     shape: z.enum(["sine", "triangle", "square", "random"]),
   }).refine((l) => l.target === "amp" || l.rate <= 12, { message: "rate above 12 Hz is only for the amp target", path: ["rate"] })).max(2),
@@ -58,7 +58,7 @@ export const SynthOverride = z.object({
   }).partial(),
   pad: z.object({
     on: z.boolean(),
-    notes: z.array(NoteName).max(5).describe("a sustained chord, separate from the drone"),
+    notes: z.array(NoteName).max(5).describe("a sustained chord, separate from the drone. The pad stays until you change it; on false silences it"),
     wave: Wave,
     level: unit,
     attack: z.number().min(0.05).max(8).describe("seconds to fade each note in"),
@@ -124,7 +124,7 @@ export const SetSoundInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
   mood: Mood,
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced"),
-  colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own"),
+  colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own. It stays until you change it; mode follow gives it back to the sound"),
   transition: Transition.optional(),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),

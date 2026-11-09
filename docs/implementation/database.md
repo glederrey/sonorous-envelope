@@ -7,7 +7,7 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | Table | What it holds |
 |---|---|
 | `profiles` | One row per user, created by a trigger on signup. Holds default listener settings. |
-| `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag, `voice` (jsonb, the instance's chosen voice, null if none; migration 0004). |
+| `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag, `voice` (jsonb, the instance's chosen voice, null if none; migration 0004), `sticky` (jsonb, colour, stack, pad and LFOs kept until Claude changes them; migration 0005). |
 | `states` | Every `set_sound` call: intent (what the model sent), effective state (what plays), clamps, analysis, PRNG seed. |
 | `listeners` | The owner gets a row with role `owner` and label `you` when the session is created. Link-only listeners have no row: they are not accounts. |
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |

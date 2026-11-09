@@ -60,6 +60,8 @@ describe("MCP tools", () => {
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("rest_after");
     expect(tool("silence").inputSchema.properties).toHaveProperty("end");
     expect(tool("start_session").inputSchema.properties).toHaveProperty("voice");
+    expect(synth.lfo.items.properties.rate.description).toMatch(/stay until you change them.*\[\]/);
+    expect(tool("set_sound").inputSchema.properties.colour.description).toMatch(/stays until you change it/);
     expect(JSON.stringify(tool("set_sound").inputSchema).length).toBeLessThan(11000);
   });
 });

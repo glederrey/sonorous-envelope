@@ -83,7 +83,16 @@ export class Engine {
   /** Snapshot of the currently gliding continuous parameters (for tests and debugging). */
   params(): Readonly<P> { return this.cur; }
 
-  setState(incoming: EngineState, seed: number) {
+  /** Play `incoming` now, or after `delaySec` seconds (a closing fade that waits for the sound before it to play out).
+   *  A newer state replaces one that is still waiting. */
+  setState(incoming: EngineState, seed: number, delaySec = 0) {
+    if (delaySec > 0 && this.state !== null) { this.pending = { state: incoming, seed, at: this.t + Math.round(delaySec * this.sampleRate) }; return; }
+    this.pending = null;
+    this.applyState(incoming, seed);
+  }
+  private pending: { state: EngineState; seed: number; at: number } | null = null;
+
+  private applyState(incoming: EngineState, seed: number) {
     // states stored before the stack and the pad existed lack those keys: fill them in, once, outside the audio loop
     const state: EngineState = {
       ...incoming,
@@ -152,6 +161,7 @@ export class Engine {
     this.arp.configure(this.arpP); this.bass.configure(this.bassP);
     for (let i = 0; i < frames; i++) {
       if (i % BLOCK === 0) {
+        if (this.pending && this.t >= this.pending.at) { const p = this.pending; this.pending = null; this.applyState(p.state, p.seed); }
         this.glide(BLOCK / sr);
         // keep the pad level whatever the number of notes: normalise by the live sum of the note gains (they slew, so no jump)
         let padSum = 0; for (const pd of this.pads) padSum += pd.gain;

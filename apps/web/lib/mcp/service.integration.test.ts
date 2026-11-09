@@ -65,7 +65,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select pending_final||'/'||turn from sessions where id='${session_id}'`)).toBe("false/1");
     expect(b.players).toBe(0);
     expect(b.notes).toEqual(["no player open: nobody is hearing this"]);
-    expect((b.playing as { volume: number }).volume).toBe(0.46); // a constant: the listener owns the volume
+    expect((b.playing as { volume: number }).volume).toBe(0.5); // a constant: the listener owns the volume
     const c = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
     expect(c.turn).toBe(2);
     expect(sql(`select slow_mood is not null from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
@@ -105,7 +105,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     sql(`update sessions set settings = '{"consent":"ambient","max_volume":0.2,"max_harshness":0.1}' where id='${session_id}'`);
     const out = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0, calm: 0 }, final: true } as never, tick());
     expect(out.clamped).toBeUndefined();
-    expect((out.playing as { volume: number }).volume).toBe(0.46);
+    expect((out.playing as { volume: number }).volume).toBe(0.5);
   });
 
   it("answers too_fast for back-to-back updates", async () => {
@@ -141,7 +141,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     });
     const got = await (await rpc("get_player_state", { p_session: session_id })).json();
     expect(got.ended).toBe(false);
-    expect(got.state.effective.volume).toBe(0.46);
+    expect(got.state.effective.volume).toBe(0.5);
     expect(got.state.turn).toBe(1);
     expect(await (await rpc("get_player_state", { p_session: "nope" })).json()).toBeNull();
     expect((await rpc("player_heartbeat", { p_session: session_id, p_device: "friend-phone", p_audio: "playing", p_volume: 0.5, p_delay: null })).status).toBe(204);
@@ -196,7 +196,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
     const r = await svc.silence(dbA, A, { session_id, fade: 10, final: false, end: true }, tick());
     expect((r.playing as { volume: number }).volume).toBe(0);
-    expect(r.notes).toEqual(expect.arrayContaining(["session ended"]));
+    // the closing sound sent a second earlier still has about 3 s of its 4 s transition to play: the fade waits for it
+    expect((r.notes as string[]).join(" ")).toMatch(/session ends: the fade starts in \d+ s/);
+    const delay = Number(sql(`select effective->'transition'->>'delay' from states where session_id='${session_id}' order by created_at desc limit 1`));
+    expect(delay).toBeGreaterThan(2); expect(delay).toBeLessThanOrEqual(4);
     expect(sql(`select (ended_at is not null) from sessions where id='${session_id}'`)).toBe("t");
     expect(sql(`select final from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
     await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick())).rejects.toMatchObject({ code: "session_ended" });
@@ -224,6 +227,23 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       shapes.add(sql(`select (effective->'arp'->'root')::text || (effective->'arp'->'chord')::text || (effective->'arp'->'octaves')::text from states where session_id='${session_id}' order by created_at desc limit 1`));
     }
     expect(shapes.size).toBeGreaterThan(2);
+  });
+
+  it("keeps colour, stack, pad and LFOs between calls until Claude changes them", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const last = () => JSON.parse(sql(`select effective::text from states where session_id='${session_id}' order by created_at desc limit 1`));
+    await svc.setSound(dbA, A, { session_id, mood, final: true, colour: { hue: 0, saturation: 1, lightness: 0.5 },
+      synth: { osc: { stack: [7, 12] }, pad: { notes: ["D3", "A3"] }, lfo: [{ target: "amp", rate: 80, depth: 1, shape: "sine" }] } } as never, tick());
+    // a later call that sends none of them
+    const r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    expect(r.colour).toMatchObject({ h: 0, s: 1 });
+    expect(r.playing).toMatchObject({ stack: [7, 12], pad: { notes: ["D3", "A3"] }, lfo: ["amp 80Hz depth 1 sine"] });
+    expect(last().pad.on).toBe(true);
+    // clearing
+    const c = await svc.setSound(dbA, A, { session_id, mood, final: true, colour: { mode: "follow" }, synth: { osc: { stack: [] }, lfo: [], pad: { on: false } } } as never, tick());
+    expect(c.playing).not.toHaveProperty("stack"); expect(c.playing).not.toHaveProperty("pad");
+    expect((c.playing as { lfo: string[] }).lfo[0]).toMatch(/^cutoff/); // back to the mapped LFO
+    expect((c.colour as { h: number }).h).not.toBe(0);
   });
 
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
