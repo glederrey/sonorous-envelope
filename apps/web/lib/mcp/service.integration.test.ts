@@ -188,6 +188,30 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick())).rejects.toMatchObject({ code: "session_ended" });
   });
 
+  it("keeps the voice from turn to turn, and a new voice replaces it with a long transition", async () => {
+    const voice = { root: "A2", scale: "dorian", chord: [1, 5, 9], pattern: "as_played", octaves: 2, wave: "square" };
+    const { session_id } = await svc.startSession(dbA, A, { voice } as never, tick());
+    const arp = () => JSON.parse(sql(`select effective->'arp' from states where session_id='${session_id}' order by created_at desc limit 1`));
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    expect(arp()).toMatchObject({ scale: "dorian", chord: [1, 5, 9], pattern: "as_played", octaves: 2 });
+    await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0.2 }, final: true } as never, tick());
+    expect(arp()).toMatchObject({ scale: "dorian", chord: [1, 5, 9] }); // the mood moved, the voice stayed
+    await svc.setSound(dbA, A, { session_id, mood, final: true, voice: { scale: "lydian", chord: [1, 3, 5] } } as never, tick());
+    expect(arp()).toMatchObject({ scale: "lydian", chord: [1, 3, 5] });
+    expect(sql(`select effective->'transition'->>'time' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("8");
+    expect(JSON.parse(sql(`select voice::text from sessions where id='${session_id}'`))).toEqual({ scale: "lydian", chord: [1, 3, 5] });
+  });
+
+  it("gives two sessions with the same axes different characters", async () => {
+    const shapes = new Set<string>();
+    for (let i = 0; i < 8; i++) {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: { warmth: 0.55, closeness: 0.55, joy: 0.6, calm: 0.6, spontaneity: 0.5 }, final: true } as never, tick());
+      shapes.add(sql(`select (effective->'arp'->'root')::text || (effective->'arp'->'chord')::text || (effective->'arp'->'octaves')::text from states where session_id='${session_id}' order by created_at desc limit 1`));
+    }
+    expect(shapes.size).toBeGreaterThan(2);
+  });
+
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
     const mine = await svc.startSession(dbA, A, {}, tick());
     const f = await svc.getFeedback(dbA, A, {}, clock);
