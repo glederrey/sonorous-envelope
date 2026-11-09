@@ -37,6 +37,7 @@ export const SynthOverride = z.object({
     wave: Wave,
     detune: z.number().min(0).max(50).describe("cents"),
     voices: z.number().int().min(1).max(3),
+    stack: z.array(z.number().int().min(-24).max(24)).max(3).describe("extra intervals in semitones: [7, 12] makes every arp note a chord; [] for single notes"),
   }).partial(),
   filter: z.object({
     type: z.enum(["lowpass", "highpass", "bandpass"]),
@@ -45,15 +46,23 @@ export const SynthOverride = z.object({
   }).partial(),
   lfo: z.array(z.object({
     target: z.enum(["cutoff", "pitch", "amp", "pan"]),
-    rate: z.number().min(0.01).max(12).describe("Hz"),
+    rate: z.number().min(0.01).max(80).describe("Hz. Up to 12 for cutoff, pitch and pan; up to 80 for amp, where above about 20 it is a grain, not a tremolo"),
     depth: unit,
     shape: z.enum(["sine", "triangle", "square", "random"]),
-  })).max(2),
+  }).refine((l) => l.target === "amp" || l.rate <= 12, { message: "rate above 12 Hz is only for the amp target", path: ["rate"] })).max(2),
   env: z.object({
     attack: z.number().min(0.001).max(4),
     decay: z.number().min(0.01).max(4),
     sustain: unit,
     release: z.number().min(0.01).max(8),
+  }).partial(),
+  pad: z.object({
+    on: z.boolean(),
+    notes: z.array(NoteName).max(5).describe("a sustained chord, separate from the drone"),
+    wave: Wave,
+    level: unit,
+    attack: z.number().min(0.05).max(8).describe("seconds to fade each note in"),
+    release: z.number().min(0.05).max(8).describe("seconds to fade each note out"),
   }).partial(),
   drone: z.object({
     on: z.boolean(),

@@ -282,3 +282,34 @@ describe("stretch, variety and voice", () => {
     expect(voiceToSynth({})).toBeUndefined();
   });
 });
+
+describe("stack, pad and the amp LFO in the synth override", () => {
+  const base = { mood: neutral };
+  it("accepts a stack of up to 3 intervals and a pad of up to 5 notes", () => {
+    expect(SetSoundInput.safeParse({ ...base, synth: { osc: { stack: [7, 12, 16] }, pad: { notes: ["D3", "A3", "C4", "E4", "G4"] } } }).success).toBe(true);
+    expect(SetSoundInput.safeParse({ ...base, synth: { osc: { stack: [1, 2, 3, 4] } } }).success).toBe(false);
+    expect(SetSoundInput.safeParse({ ...base, synth: { pad: { notes: ["D3", "A3", "C4", "E4", "G4", "B4"] } } }).success).toBe(false);
+  });
+  it("allows an amp LFO up to 80 Hz but the other targets only up to 12 Hz", () => {
+    const lfo = (target: string, rate: number) => SetSoundInput.safeParse({ ...base, synth: { lfo: [{ target, rate, depth: 0.5, shape: "sine" }] } }).success;
+    expect(lfo("amp", 80)).toBe(true); expect(lfo("amp", 25)).toBe(true); expect(lfo("amp", 81)).toBe(false);
+    expect(lfo("cutoff", 12)).toBe(true); expect(lfo("cutoff", 13)).toBe(false);
+    expect(lfo("pitch", 30)).toBe(false); expect(lfo("pan", 30)).toBe(false);
+  });
+  it("puts the stack and the pad on the state, and a pad with notes turns itself on", () => {
+    const { state, overridden } = applyOverride(moodToEngineState(neutral), {
+      osc: { stack: [7, 12] }, pad: { notes: ["D3", "A3"], attack: 3 },
+    });
+    expect(state.osc.stack).toEqual([7, 12]);
+    expect(state.pad).toMatchObject({ on: true, notes: [50, 57], attack: 3 });
+    expect(overridden).toEqual(expect.arrayContaining(["osc.stack", "pad.notes", "pad.attack"]));
+    expect(moodToEngineState(neutral).osc.stack).toEqual([]);
+    expect(moodToEngineState(neutral).pad.on).toBe(false);
+  });
+  it("the colour pulse never follows the amp LFO, whatever its rate", () => {
+    const { state } = applyOverride(moodToEngineState(m({ calm: 0.1 })), { lfo: [{ target: "amp", rate: 70, depth: 1, shape: "sine" }] });
+    expect(state.colour.pulseHz).toBeLessThanOrEqual(1);
+    expect(applyLimits({ mapped: state }).effective.colour.pulseHz).toBeLessThanOrEqual(3);
+  });
+});
+

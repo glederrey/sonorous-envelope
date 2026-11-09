@@ -25,11 +25,14 @@ export interface EngineState {
     octaves: number; tempo: number; rate: Rate; gate: number; swing: number; density: number;
     jitterMs: number;
   };
-  osc: { wave: Wave; detune: number; voices: number; drive: number };
+  /** `stack`: extra intervals in semitones (max 3); each arp note then sounds as a chord. */
+  osc: { wave: Wave; detune: number; voices: number; drive: number; stack: number[] };
   filter: { type: FilterType; cutoff: number; resonance: number };
   lfo: Array<{ target: LfoTarget; rate: number; depth: number; shape: LfoShape }>;
   env: { attack: number; decay: number; sustain: number; release: number };
   drone: { on: boolean; notes: number[]; wave: Wave; level: number };
+  /** A sustained chord (MIDI notes, max 5), separate from the drone, with its own slow attack and release. */
+  pad: { on: boolean; notes: number[]; wave: Wave; level: number; attack: number; release: number };
   bass: { on: boolean; root: number; scale: ScaleName; chord: number[]; stepSeconds: number; wave: Wave; level: number };
   fx: { delay: { time: number; feedback: number; mix: number }; reverb: { size: number; mix: number } };
   pan: { width: number };

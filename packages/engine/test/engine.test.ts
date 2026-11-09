@@ -165,3 +165,43 @@ describe("engine", () => {
     expect(rms(l)).toBeGreaterThan(early * 2);
   });
 });
+
+describe("stack, pad and the fast amp LFO", () => {
+  it("a stack makes every arp note a chord: one voice per interval at the same time", () => {
+    const s = neutralState();
+    s.arp.tempo = 120; s.arp.chord = [1, 3, 5]; s.arp.root = 60; s.arp.scale = "major"; s.arp.pattern = "up"; s.osc.stack = [7, 12];
+    const ev = render(s, 2).events.filter((e) => e.layer === "arp");
+    expect(ev.slice(0, 3).map((e) => e.midi)).toEqual([60, 67, 72]);
+    expect(ev[0].time).toBe(ev[1].time);
+    expect(ev[3].midi).toBe(64);
+    const plain = neutralState(); plain.arp.chord = [1, 3, 5]; plain.arp.root = 60; plain.arp.scale = "major"; plain.arp.tempo = 120;
+    expect(peak(render(s, 4).left)).toBeLessThanOrEqual(0.98);
+    expect(same(render(s, 2).left, render(plain, 2).left)).toBe(false);
+  });
+  it("a pad sounds on its own with the arp off, fades in slowly and stays finite", () => {
+    const s = neutralState(); s.arp.on = false; s.pad = { on: true, notes: [48, 55, 60, 64, 67], wave: "triangle", level: 0.5, attack: 2, release: 2 };
+    const out = render(s, 6).left;
+    const first = rms(out.slice(0, SR / 4)), later = rms(out.slice(SR * 4));
+    expect(later).toBeGreaterThan(0.001);
+    expect(Number.isFinite(later)).toBe(true);
+    const e = new Engine(SR, 3); const off = neutralState(); off.arp.on = false; off.pad = { ...s.pad, on: false };
+    e.setState(s, 3); const l = new Float32Array(SR * 2), r = new Float32Array(SR * 2); e.process(l, r, l.length);
+    e.setState({ ...off, transition: { time: 0.1, curve: "smooth" } }, 3);
+    const tail = new Float32Array(SR * 6), tr = new Float32Array(SR * 6); e.process(tail, tr, tail.length);
+    expect(rms(tail.slice(SR * 5))).toBeLessThan(first + later); // the pad dies away with its release
+    expect(rms(tail.slice(SR * 5))).toBeLessThan(1e-3);
+  });
+  it("an amp LFO at 80 Hz changes the sound and stays finite and under the clip", () => {
+    const base = neutralState(); base.arp.on = false; base.drone = { on: true, notes: [50, 57], wave: "sawtooth", level: 0.5 };
+    const grain = JSON.parse(JSON.stringify(base)) as EngineState;
+    grain.lfo = [{ target: "amp", rate: 80, depth: 1, shape: "sine" }];
+    const a = render(base, 3).left, b = render(grain, 3).left;
+    expect(same(a, b)).toBe(false);
+    expect(Number.isFinite(rms(b))).toBe(true); expect(peak(b)).toBeLessThanOrEqual(0.98);
+    // the modulation is audible as amplitude movement within 100 ms windows
+    const win = Math.floor(SR / 100);
+    const levels: number[] = []; for (let i = SR * 2; i + win < b.length; i += win) levels.push(rms(b.slice(i, i + win)));
+    expect(Math.max(...levels) - Math.min(...levels)).toBeGreaterThan(0.001);
+  });
+});
+

@@ -178,7 +178,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
       density: clamp(lerp(1, 0.6, s) * lerp(0.75, 1, 1 - k), 0.35, 1),
       jitterMs: Math.min(30, lerp(0, 25, s) + 5 * (1 - j) * k),
     },
-    osc: { wave, voices: w > 0.5 ? 2 : 1, detune: lerp(2, 14, w) + 10 * drive, drive },
+    osc: { wave, voices: w > 0.5 ? 2 : 1, detune: lerp(2, 14, w) + 10 * drive, drive, stack: [] },
     filter: { type: "lowpass", cutoff, resonance: lerp(0.7, 6, (1 - w) * (1 - k)) },
     lfo,
     env: {
@@ -237,6 +237,7 @@ export function applyOverride(mapped: EngineState, synth: SynthOverride | undefi
     if (o.wave) set("osc.wave", () => { s.osc.wave = o.wave!; });
     if (o.detune !== undefined) set("osc.detune", () => { s.osc.detune = o.detune!; });
     if (o.voices !== undefined) set("osc.voices", () => { s.osc.voices = o.voices!; });
+    if (o.stack) set("osc.stack", () => { s.osc.stack = [...o.stack!]; });
   }
   const f = synth.filter;
   if (f) {
@@ -261,6 +262,18 @@ export function applyOverride(mapped: EngineState, synth: SynthOverride | undefi
     }
     if (d.wave) set("drone.wave", () => { s.drone.wave = d.wave!; });
     if (d.level !== undefined) set("drone.level", () => { s.drone.level = d.level!; });
+  }
+  const pd = synth.pad;
+  if (pd) {
+    if (pd.on !== undefined) set("pad.on", () => { s.pad.on = pd.on!; });
+    if (pd.notes) {
+      const midi = pd.notes.map(noteToMidi).filter((x): x is number => x !== undefined);
+      set("pad.notes", () => { s.pad.notes = midi; if (midi.length && pd.on === undefined) s.pad.on = true; });
+    }
+    if (pd.wave) set("pad.wave", () => { s.pad.wave = pd.wave!; });
+    if (pd.level !== undefined) set("pad.level", () => { s.pad.level = pd.level!; });
+    if (pd.attack !== undefined) set("pad.attack", () => { s.pad.attack = pd.attack!; });
+    if (pd.release !== undefined) set("pad.release", () => { s.pad.release = pd.release!; });
   }
   const fx = synth.fx;
   if (fx?.delay) for (const k of ["time", "feedback", "mix"] as const)
