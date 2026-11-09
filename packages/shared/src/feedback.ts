@@ -14,6 +14,8 @@ export interface FeedbackInput {
   players: number;
   controls?: { volume: number; delay: number } | null;
   notes?: string[];
+  /** Set only when the owner's rest_after is on and this call arrived after it. */
+  resting?: boolean;
 }
 
 /** The compact object returned by set_sound and get_feedback. Empty arrays and unknown fields are left out. */
@@ -31,6 +33,7 @@ export function buildFeedback(i: FeedbackInput) {
   out.colour = { h: Math.round(e.colour.h), s: r2(e.colour.s), l: r2(e.colour.l), motion: e.colour.motion };
   if (i.controls) out.controls = { volume: r2(i.controls.volume), delay: r2(i.controls.delay) };
   out.players = i.players;
+  if (i.resting) out.resting = true;
   const notes = [...(i.notes ?? [])];
   if (i.players === 0) notes.unshift("no player open: nobody is hearing this");
   if (notes.length) out.notes = notes;
