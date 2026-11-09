@@ -7,8 +7,8 @@ type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  nextSlowMood, parseSettings, restingNote, stretchMood, voiceSeedOf, voiceToSynth,
-  type ListenerSettings, type Mood, type SetSoundInput, type Voice,
+  callSynth, mergeSticky, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
@@ -23,7 +23,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string;
@@ -89,11 +89,13 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
   return { resting: true, notes: [restingNote(settings.rest_after)] };
 }
 
-/** Mapped from the (stretched) mood, then the session's voice, then the call's own synth override. */
-function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, synth: SetSoundInput["synth"]) {
+/** Mapped from the (stretched) mood, then the session's voice, then what the session keeps (stack, pad, LFOs), then the
+ *  call's own synth override. */
+function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, sticky: Sticky | null | undefined, synth: SetSoundInput["synth"]) {
   const mapped = moodToEngineState(mood, slow, voiceSeedOf(sessionId));
   const a = applyOverride(mapped, voiceToSynth(voice));
-  const b = applyOverride(a.state, synth);
+  const k = applyOverride(a.state, stickyToSynth(sticky));
+  const b = applyOverride(k.state, callSynth(synth));
   return { state: b.state, overridden: [...new Set([...a.overridden.map((f) => `voice:${f}`), ...b.overridden])] };
 }
 
@@ -136,7 +138,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   const { error: lerr } = await db.from("listeners").insert({ session_id: id, user_id: userId, role: "owner", label: "you" });
   if (lerr) fail("start the session", lerr);
 
-  const { state: mapped } = mapSound(id, NEUTRAL_MOOD, NEUTRAL_MOOD, input.voice, undefined);
+  const { state: mapped } = mapSound(id, NEUTRAL_MOOD, NEUTRAL_MOOD, input.voice, null, undefined);
   const { effective, clamps } = applyLimits({ mapped });
   const stateId = await insertState(db, now, {
     session_id: id, turn: 0, final: true, intent: { mood: NEUTRAL_MOOD, initial: true }, effective,
@@ -176,8 +178,10 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const voice = input.voice !== undefined ? input.voice : session.voice;
   const transition = input.voice !== undefined && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
 
-  const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, input.synth);
-  overridden.colour = applyColour(overridden.colour, input.colour);
+  // colour, stack, pad and LFOs stay until Claude changes them (like the voice); fold this call into what the session keeps
+  const sticky = mergeSticky(session.sticky, input);
+  const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
+  overridden.colour = applyColour(overridden.colour, sticky.colour);
   const { effective, clamps } = applyLimits({
     mapped: overridden, transition,
   });
@@ -196,6 +200,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
     ...(input.voice !== undefined ? { voice: input.voice } : {}),
+    sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 

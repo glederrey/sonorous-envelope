@@ -29,7 +29,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
 - Every database access from the MCP endpoint uses the caller's token so Row Level Security applies. Use the service role key only where the docs say so.
 - The same DSP engine code renders in the browser and on the server. Do not reimplement the synth twice.
 - Randomness in the engine is seeded, so a state renders identically everywhere.
-- Keep tool results compact (target ~150 tokens of JSON for `set_sound`).
+- Keep tool results compact (target ~250 tokens of JSON for `set_sound`; `playing` mirrors what Claude can set, so it can check its choices arrived).
 
 ## Things to verify before relying on them
 Library APIs move. Check the installed versions and their docs for:

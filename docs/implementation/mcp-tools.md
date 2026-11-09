@@ -176,6 +176,11 @@ Rules:
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.
 - With `image_feedback: "every_turn"` and `final: true`, append the spectrogram image block.
 
+### What stays on the session
+The voice (`sessions.voice`) and a second set, `sessions.sticky` (migration 0005): the colour, `osc.stack`, `pad` and `lfo`. A call that sends none of them changes nothing; one that sends some merges field by field into what is kept. Clearing: colour `mode: "follow"`, `osc.stack: []`, `lfo: []` (back to the mapped LFOs, not "no LFOs"; use `depth: 0` for that). The pad stays but `pad.on: false` silences it. The rest of `synth` is for one call. Order: mapped, voice, kept settings, the call's `synth`, limits (`shared/src/sticky.ts`, `mapSound` in `service.ts`).
+
+The feedback's `playing` mirrors what Claude can set: scale, tempo, wave, cutoff, volume, drone, pattern, rate, octaves, chord, and when present `arp: "off"`, `stack`, `pad`, `lfo` (one string per LFO), plus `echo` and `reverb` mix.
+
 ## `get_feedback`
 
 Input: `{ session_id: string }`. Returns the feedback object for the current state without changing anything except claiming reactions. Uses the stored analysis.

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  harmonyFor, isResting, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  harmonyFor, isResting, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -213,7 +213,7 @@ describe("schemas and feedback", () => {
     const eff = moodToEngineState(neutral);
     const f = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: [], players: 1 });
     expect(f).not.toHaveProperty("clamped"); expect(f).not.toHaveProperty("notes"); expect(f).not.toHaveProperty("controls");
-    expect(JSON.stringify(f).length).toBeLessThan(450);
+    expect(JSON.stringify(f).length).toBeLessThan(900);
     const g = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: ["volume 1→0.9 (safety)"], players: 0, controls: { volume: 0.5 } });
     expect(g.clamped).toHaveLength(1); expect(g.controls).toEqual({ volume: 0.5 });
     expect(g.notes).toEqual(["no player open: nobody is hearing this"]);
@@ -310,6 +310,40 @@ describe("stack, pad and the amp LFO in the synth override", () => {
     const { state } = applyOverride(moodToEngineState(m({ calm: 0.1 })), { lfo: [{ target: "amp", rate: 70, depth: 1, shape: "sine" }] });
     expect(state.colour.pulseHz).toBeLessThanOrEqual(1);
     expect(applyLimits({ mapped: state }).effective.colour.pulseHz).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("what stays on the session", () => {
+  const colourOwn = { hue: 10, saturation: 0.9 };
+  it("keeps the colour, stack, pad and LFOs from one call to the next, merging field by field", () => {
+    let s = mergeSticky(null, { colour: colourOwn, synth: { osc: { stack: [7, 12] }, pad: { notes: ["D3", "A3"], attack: 3 }, lfo: [{ target: "amp", rate: 80, depth: 1, shape: "sine" }] } });
+    expect(s.colour).toEqual(colourOwn); expect(s.stack).toEqual([7, 12]); expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3 }); expect(s.lfo).toHaveLength(1);
+    s = mergeSticky(s, { colour: { lightness: 0.7 }, synth: { pad: { level: 0.4 } } });
+    expect(s.colour).toEqual({ hue: 10, saturation: 0.9, lightness: 0.7 });
+    expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3, level: 0.4 });
+    expect(s.stack).toEqual([7, 12]); expect(s.lfo).toHaveLength(1);
+    expect(mergeSticky(s, {})).toEqual(s); // a call that sends none of them changes nothing
+  });
+  it("clears: colour follow, stack [], lfo [] go back to the mapped values; the pad is silenced with on false", () => {
+    const s = mergeSticky(null, { colour: colourOwn, synth: { osc: { stack: [7] }, lfo: [{ target: "amp", rate: 30, depth: 1, shape: "sine" }], pad: { notes: ["D3"] } } });
+    const c = mergeSticky(s, { colour: { mode: "follow" }, synth: { osc: { stack: [] }, lfo: [] } });
+    expect(c.colour).toBeUndefined(); expect(c.stack).toBeUndefined(); expect(c.lfo).toBeUndefined(); expect(c.pad).toBeDefined();
+    expect(stickyToSynth(mergeSticky(c, { synth: { pad: { on: false } } }))?.pad).toMatchObject({ on: false, notes: ["D3"] });
+  });
+  it("turns kept settings into a synth override, and an empty lfo in a call into nothing", () => {
+    expect(stickyToSynth(null)).toBeUndefined(); expect(stickyToSynth({})).toBeUndefined();
+    expect(stickyToSynth({ stack: [7], lfo: [{ target: "amp", rate: 30, depth: 1, shape: "sine" }] })).toEqual({ osc: { stack: [7] }, lfo: [{ target: "amp", rate: 30, depth: 1, shape: "sine" }] });
+    expect(callSynth({ lfo: [] })).toBeUndefined();
+    expect(callSynth({ lfo: [], filter: { cutoff: 900 } })).toEqual({ filter: { cutoff: 900 } });
+    expect(callSynth({ lfo: [{ target: "pan", rate: 1, depth: 1, shape: "sine" }] })?.lfo).toHaveLength(1);
+  });
+  it("reports pad, stack, LFOs, echo and the pattern in the feedback", () => {
+    const { state } = applyOverride(moodToEngineState(neutral), { osc: { stack: [7, 12] }, pad: { notes: ["D3", "A3"] }, lfo: [{ target: "amp", rate: 80, depth: 1, shape: "sine" }] });
+    const f = buildFeedback({ turn: 1, intent: neutral, effective: state, clamps: [], players: 1 });
+    expect(f.playing).toMatchObject({ stack: [7, 12], pad: { notes: ["D3", "A3"], wave: "sine" }, lfo: ["amp 80Hz depth 1 sine"] });
+    expect(f.playing).toHaveProperty("pattern"); expect(f.playing).toHaveProperty("echo"); expect(f.playing).toHaveProperty("chord");
+    const plain = buildFeedback({ turn: 1, intent: neutral, effective: moodToEngineState(neutral), clamps: [], players: 1 }).playing as Record<string, unknown>;
+    expect(plain).not.toHaveProperty("stack"); expect(plain).not.toHaveProperty("pad");
   });
 });
 

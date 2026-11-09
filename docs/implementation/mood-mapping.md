@@ -50,7 +50,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8 · max(0, 0.6−j)/0.6 · max(0, 0.6−k)/0.6 · max(0, 0.9−w)/0.9`, so it is exactly 0 whenever joy ≥ 0.6, calm ≥ 0.6 or warmth ≥ 0.9. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Counted in harshness (limits.md), so only "expressive" and "anything" allow it. Detune also widens: `detune += 10·drive` cents.
 
 ## Space (mainly closeness)
-- **Volume:** the constant `MASTER_VOLUME` (0.46), whatever the mood. Loudness belongs to the listener's slider.
+- **Volume:** the constant `MASTER_VOLUME` (0.5), whatever the mood. Loudness belongs to the listener's slider.
 - **Reverb:** `mix = lerp(0.5, 0.12, c)`, `size = lerp(0.9, 0.5, c)`.
 - **Delay:** `time = min(0.75, 60/tempo · 0.75)` s (dotted eighth), `feedback = min(0.6, lerp(0.45, 0.15, c))`, `mix = lerp(0.35, 0.1, c) · (0.5 + 0.5·k)`. The delay amplifies the emotion that is present instead of adding one, so it is not tied to a single axis. The caps keep the resonance from becoming unpleasant. The listener's own delay control is added on top (limits.md).
 - **Width:** `lerp(1.0, 0.3, c)` (close = narrower, centred).
