@@ -9,6 +9,7 @@ import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
 import { restedState } from "../../lib/rested-state";
+import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -419,6 +420,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </label>
               <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>
+
+            {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 
             <div className="pl-share se-sm">
               <p>{shareText}</p>

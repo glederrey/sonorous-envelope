@@ -929,6 +929,11 @@ html:has(.pl-field) .se-header {
 .pl-slider input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--on-scrim); border: 3px solid var(--tide); }
 .pl-debug { white-space: pre-line; }
 .pl-local { margin: 0; color: var(--on-scrim-muted); font-size: 13px; }
+.pl-set { padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
+.pl-set summary { cursor: pointer; color: var(--on-scrim); min-height: 24px; }
+.pl-set dl { display: grid; gap: 4px; margin: 10px 0 0; }
+.pl-set dt { font-weight: 500; color: var(--on-scrim); margin-top: 6px; }
+.pl-set dd { margin: 0; overflow-wrap: anywhere; }
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
