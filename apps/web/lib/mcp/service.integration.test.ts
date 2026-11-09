@@ -246,6 +246,21 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((c.colour as { h: number }).h).not.toBe(0);
   });
 
+  it("keep_voice freezes what plays now as the voice, and says so when the mood redraws it", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const happy = { warmth: 0.9, closeness: 0.8, joy: 0.9, calm: 0.8, spontaneity: 0.2 };
+    const sad = { warmth: 0.1, closeness: 0.3, joy: 0.1, calm: 0.2, spontaneity: 0.8 };
+    await svc.setSound(dbA, A, { session_id, mood: happy, final: true } as never, tick());
+    const moved = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick());
+    expect((moved.notes as string[]).join(" ")).toMatch(/no full voice: the mood moved the voice/);
+    const kept = await svc.setSound(dbA, A, { session_id, mood: sad, final: true, keep_voice: true } as never, tick());
+    expect((kept.notes as string[]).join(" ")).toMatch(/voice kept/);
+    const scale = (kept.playing as { scale: string }).scale;
+    const after = await svc.setSound(dbA, A, { session_id, mood: happy, final: true } as never, tick());
+    expect((after.playing as { scale: string }).scale).toBe(scale);
+    expect((after.playing as { wave: string }).wave).toBe((kept.playing as { wave: string }).wave);
+  });
+
   it("ends sessions that had no sound for a week when a new one starts, and leaves recent ones alone", async () => {
     const old = await svc.startSession(dbA, A, {}, tick());
     const recent = await svc.startSession(dbA, A, {}, tick());

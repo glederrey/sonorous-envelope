@@ -24,6 +24,10 @@ export function noteToMidi(name: string): number | undefined {
   return 12 * (Number(m[3]) + 1) + semis;
 }
 
+const PITCH_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+/** 50 → "D3", 42 → "F#2" (C4 = 60): the inverse of `noteToMidi`. */
+export const midiToNoteName = (midi: number) => `${PITCH_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+
 export const midiToHz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 
 /** Scale degree (1-based) to MIDI. Degrees past the top of the scale continue into the next octave (8 = 1 up an octave in a 7-note scale). */

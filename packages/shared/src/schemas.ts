@@ -130,6 +130,7 @@ export const SetSoundInput = z.object({
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
   voice: Voice.optional().describe("your voice: root, scale, chord, note order, octaves, wave. It stays from turn to turn; send a new one to change it, for instance when the conversation turns"),
+  keep_voice: z.boolean().optional().describe("true: keep the scale, root, note order and wave that play now as your voice, so later mood changes no longer redraw them. Without a voice of your own they are redrawn from the mood on every call"),
   rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns: this is how the channel tells the truth about it. Leave it out to keep the current value"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;

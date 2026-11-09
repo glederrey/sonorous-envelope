@@ -41,10 +41,10 @@ Last updated at v0.1.0 (2026-11-09, after the first outside test). Step numbers 
 - [x] **Step 4, second half. Analysis.** (built: `sound`, `reads_as`, `inspect` history; see analysis.md. Spectrogram stays with step 10.) Offline render with the shared engine, perceptual features, `sound`, `reads_as`; the `inspect` tool.
 - [x] **Audience (`aud`) check** on OAuth tokens (step 2 leftover). Supabase documents `aud` as the constant `authenticated`, so the check is a token-type check, not resource binding (auth.md). Confirm the connector still works after the release.
 - [ ] **Second outside test (2026-11-09, a model tested through the connector; ChatGPT works too).** Done: `rest_after` default 5 to 15 min; user-facing text says "the model" instead of "Claude". Still open, each small:
-  - **Voice drifts when none is set.** Without a `voice`, every `set_sound` redraws scale, wave, note order and tempo from the mood (B dorian to C# major, triangle to sine), which made isolated tests hard. Options: keep the last mapped voice until the mood moves past a threshold, or add `voice_changed` to the result. Decide with a listening test first.
+  - [x] **Voice drifts when none is set** (v0.1.9). Without a `voice`, scale, root and wave are redrawn from the mood on every call. Now `set_sound` takes `keep_voice: true`, which stores what plays now as the session voice, and a call that moved the voice says so in `notes` ("no full voice: the mood moved the voice from X to Y"). Spec: mcp-tools.md.
   - **Say how a tempo change was applied.** The result shows only the end state; the tempo steps at the state start (shared grid, #34). Add a short `tempo` note (`stepped`) to `playing` or state it in the tool description.
   - **`reads_as` hint.** Joy sent at 0.6 read about 0.28, and brightness stayed "very low" at a 3200 Hz cutoff. Add a one-line "pulled by" hint per axis (mode, density, wave, cutoff) so the model can see which parameters move it. Check the joy estimate in the calibration by ear.
-  - **Mood-free synth test.** A `mood: null` (or `keep`) path so a synth-only change does not rewrite the voice. Overlaps with the first item.
+  - **Mood-free synth test.** Mostly covered by `keep_voice`; a `mood`-less call is not built.
   - Not changing: the fade itself (correct), a wait tool (not our channel).
 - [ ] **Calibration by ear** (below), after the above.
 

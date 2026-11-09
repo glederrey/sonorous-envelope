@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // The tables are untyped here; generic params are loose so any client (including test clients) fits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
-import type { EngineState } from "@sonorous/engine";
+import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   analyze, callSynth, mergeSticky, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
@@ -104,6 +104,15 @@ function measureState(effective: EngineState, seed: number): Compact | null {
   }
 }
 
+/** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
+function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean): string | undefined {
+  if (held) return "voice kept: scale, root, note order and wave now stay until you send a voice";
+  if (!prev || (voice && voice.scale && voice.wave && voice.root)) return undefined;
+  const a = prev.effective, name = (s: EngineState) => `${midiToNoteName(s.arp.root)} ${s.arp.scale}, ${s.osc.wave}`;
+  const from = name(a), to = name(now);
+  return from === to ? undefined : `no full voice: the mood moved the voice from ${from} to ${to}. Send keep_voice to hold it`;
+}
+
 /** Mapped from the (stretched) mood, then the session's voice, then what the session keeps (stack, pad, LFOs), then the
  *  call's own synth override. */
 function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, sticky: Sticky | null | undefined, synth: SetSoundInput["synth"]) {
@@ -196,7 +205,14 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
   // a new voice replaces the old one for good; it is a big change, so without a transition of its own it gets a long one
-  const voice = input.voice !== undefined ? input.voice : session.voice;
+  let voice = input.voice !== undefined ? input.voice : session.voice;
+  // keep_voice: freeze what plays now as the voice, so the mood stops redrawing it. The notes are the same, so no long transition.
+  let held = false;
+  if (input.keep_voice && input.voice === undefined && prev) {
+    const e = prev.effective.arp;
+    voice = { root: midiToNoteName(e.root), scale: e.scale, chord: e.chord.slice(0, 8), pattern: e.pattern, octaves: e.octaves, wave: prev.effective.osc.wave, ...(session.voice ?? {}) };
+    held = true;
+  }
   const transition = input.voice !== undefined && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
 
   // colour, stack, pad and LFOs stay until Claude changes them (like the voice); fold this call into what the session keeps
@@ -223,13 +239,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
-    ...(input.voice !== undefined ? { voice: input.voice } : {}),
+    ...(input.voice !== undefined || held ? { voice } : {}),
     sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis });
 }
