@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  callSynth, mergeSticky, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  analyze, callSynth, mergeSticky, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -27,8 +27,8 @@ interface SessionRow {
   turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null;
 }
 interface StateRow {
-  id: string; session_id: string; turn: number; final: boolean; created_at: string;
-  intent: { mood?: Mood }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 function fail(action: string, error: { message: string } | null): never {
@@ -90,6 +90,20 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
   return { resting: true, notes: [restingNote(settings.rest_after)] };
 }
 
+type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number> };
+
+/** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
+function measureState(effective: EngineState, seed: number): Compact | null {
+  try {
+    if (effective.volume <= 0) return null;
+    const a = analyze(effective, seed);
+    return { sound: a.sound, reads_as: a.reads_as };
+  } catch (e) {
+    console.error("analysis failed:", e);
+    return null;
+  }
+}
+
 /** Mapped from the (stretched) mood, then the session's voice, then what the session keeps (stack, pad, LFOs), then the
  *  call's own synth override. */
 function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, sticky: Sticky | null | undefined, synth: SetSoundInput["synth"]) {
@@ -103,7 +117,7 @@ function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null
 async function insertState(
   db: Db,
   at: number,
-  row: { session_id: string; turn: number; final: boolean; intent: unknown; effective: EngineState; clamps: string[]; seed: number; slow_mood: Mood },
+  row: { session_id: string; turn: number; final: boolean; intent: unknown; effective: EngineState; clamps: string[]; seed: number; slow_mood: Mood; analysis?: Compact | null },
 ) {
   // created_at comes from this server's clock, so the rate-limit and new-turn checks compare one clock
   const { data, error } = await db.from("states").insert({ ...row, created_at: new Date(at).toISOString() }).select("id").single();
@@ -112,9 +126,11 @@ async function insertState(
 }
 
 function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false) {
+  // states written before the analysis existed have none: measure them now (the engine is deterministic)
+  const analysis = state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
-    players: p.players, controls: p.controls, notes, resting,
+    players: p.players, controls: p.controls, notes, resting, analysis,
   });
 }
 
@@ -191,10 +207,12 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   });
   const allClamps = mergeClamps(clamps);
 
+  const seed = randomSeed();
+  const analysis = measureState(effective, seed);
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
     intent: { mood: input.mood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
-    effective, clamps: allClamps, seed: randomSeed(), slow_mood: slow,
+    effective, clamps: allClamps, seed, slow_mood: slow, analysis,
   });
   const title = input.title?.trim().slice(0, 80);
   // Claude may change only rest_after here (an expression setting). Merge into the raw row so defaults are not frozen in.
@@ -209,9 +227,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting });
+  return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -261,4 +279,24 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, ...rest.notes]
     .filter((x): x is string => Boolean(x));
   return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting });
+}
+
+/** The last states, one line each: what was sent, what it read as, clamps and the note. Text only. */
+export async function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" }, _now = Date.now()) {
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  const { data, error } = await db.from("states").select("turn,final,created_at,intent,clamps,analysis")
+    .eq("session_id", session.id).order("created_at", { ascending: false }).limit(8);
+  if (error) fail("read the history", error);
+  const short: Record<string, string> = { warmth: "warm", closeness: "close", joy: "joy", calm: "calm", spontaneity: "spont" };
+  const f = (m: Record<string, number> | undefined, keys: string[]) => (m ? keys.map((k) => `${short[k]} ${Math.round((m[k] ?? 0) * 100) / 100}`).join(" ") : "-");
+  const axes = ["warmth", "closeness", "joy", "calm", "spontaneity"];
+  const lines = ((data ?? []) as Array<Pick<StateRow, "turn" | "final" | "created_at" | "intent" | "clamps" | "analysis">>).reverse().map((r) => {
+    const time = new Date(r.created_at).toISOString().slice(11, 19);
+    const sent = r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, axes)}`;
+    const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, axes)}` : "";
+    const clamps = r.clamps?.length ? ` · ${r.clamps.length} clamp${r.clamps.length > 1 ? "s" : ""}` : "";
+    const n = r.intent.note ? ` · "${r.intent.note}"` : "";
+    return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}`;
+  });
+  return { history: lines, ...(note ? { notes: [note] } : {}) };
 }

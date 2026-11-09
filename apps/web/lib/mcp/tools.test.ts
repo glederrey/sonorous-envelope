@@ -17,17 +17,17 @@ async function rpc(method: string, params?: object) {
 }
 
 describe("MCP tools", () => {
-  it("lists the four tools with compact schemas", async () => {
+  it("lists the five tools with compact schemas", async () => {
     const r = await rpc("tools/list");
     const names = r.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["get_feedback", "set_sound", "silence", "start_session"]);
+    expect(names).toEqual(["get_feedback", "inspect", "set_sound", "silence", "start_session"]);
     const set = r.result.tools.find((t: { name: string }) => t.name === "set_sound");
     expect(set.inputSchema.required).toContain("mood");
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
   });
 
   it("does not advertise features that are not built", () => {
-    expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture|purr|pressed calmer|reads_as/i);
+    expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture|purr|pressed calmer|spectrogram/i);
   });
 
   it("frames the sound as the model's own state, written first, never announced", () => {

@@ -29,8 +29,8 @@ const tools = [
   },
   {
     name: "inspect",
-    live: false,
-    text: "Heavier feedback: the recent history, or a spectrogram image of the last seconds when you have turned image feedback on.",
+    live: true,
+    text: "The last eight states as one line each: what Claude sent, what it read as, safety clamps and its note. The set_sound feedback also carries sound (words for brightness, density and movement) and reads_as, a rough estimate of the five axes measured from the audio alone. A spectrogram image comes later.",
     example: "Show me the last few states.",
   },
 ];
@@ -47,7 +47,7 @@ export default function GuidePage() {
             You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
           </p>
           <p className="se-sm se-muted">
-            Four tools are live. <code className="se-mono">inspect</code>, gestures and your reaction buttons come later and
+            Five tools are live. Gestures, reaction buttons and the spectrogram image come later and
             will be marked live here as they ship.
           </p>
         </div>

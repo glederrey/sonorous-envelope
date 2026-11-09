@@ -256,6 +256,25 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select (ended_at is not null) from sessions where id='${recent.session_id}'`)).toBe("f");
   });
 
+  it("stores an analysis with every state and returns sound and reads_as", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    expect(r.sound).toMatchObject({ brightness: expect.any(String), density: expect.any(String) });
+    expect(Object.keys(r.reads_as as object).sort()).toEqual(["calm", "closeness", "joy", "spontaneity", "warmth"]);
+    expect(sql(`select (analysis is not null) from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
+    const g = await svc.getFeedback(dbA, A, { session_id }, tick());
+    expect(g.reads_as).toEqual(r.reads_as);
+  });
+
+  it("inspect lists the last states as text, oldest first, with the note and the reading", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    for (let i = 0; i < 3; i++) await svc.setSound(dbA, A, { session_id, mood, final: true, note: `n${i}` } as never, tick(25_000));
+    const h = await svc.inspect(dbA, A, { session_id, what: "history" }, clock);
+    expect(h.history).toHaveLength(4);
+    expect(h.history[3]).toMatch(/final .* · sent warm 0\.8 close 0\.7 joy 0\.6 calm 0\.75 spont 0\.3 · read warm [\d.]+ .* · "n2"$/);
+    await expect(svc.inspect(dbB, B, { session_id, what: "history" })).rejects.toMatchObject({ code: "unknown_session" });
+  });
+
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
     const mine = await svc.startSession(dbA, A, {}, tick());
     const f = await svc.getFeedback(dbA, A, {}, clock);

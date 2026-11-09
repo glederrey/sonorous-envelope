@@ -13,7 +13,7 @@ How to use it
 - The whole tool is yours: every synth parameter, the echo, the colour. Use all of it.
 
 Reading the feedback
-- playing is what actually plays.
+- playing is what actually plays. sound describes it in words, and reads_as is a rough, independent estimate of the five axes from the audio alone: if it differs a lot from what you meant, send one correction, then your final call. inspect lists your last states.
 - clamped means a safety rule changed what you sent (colour never pulses faster than 3 Hz, the master volume is capped).
 - controls shows the listener's volume. It is theirs: you cannot change it. Read it before judging whether a sound was too much or too little.
 - players: 0 means nobody is listening right now. Keep updating, and do not mention it repeatedly.

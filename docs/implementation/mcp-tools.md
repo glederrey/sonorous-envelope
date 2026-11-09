@@ -185,7 +185,7 @@ The feedback's `playing` mirrors what Claude can set: scale, tempo, wave, cutoff
 
 Input: `{ session_id: string }`. Returns the feedback object for the current state without changing anything except claiming reactions. Uses the stored analysis.
 
-## `inspect`
+## `inspect` (history built; spectrogram not)
 
 Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 - `spectrogram`: only if `settings.image_feedback` is `on_request` or `every_turn`. Otherwise return `{"error":"image_feedback_off","message":"The listener has image feedback turned off."}`. Returns a PNG (see analysis.md) plus a one-line caption.

@@ -1,5 +1,9 @@
 # Analysis
 
+> **Built (2026-11-09).** `analyze(effective, seed)` in `packages/shared/src/analysis.ts` (not a separate package), called by `set_sound` before the state is stored; the result is in `states.analysis` (the column already existed) and `sound` and `reads_as` are in the feedback. The render is 6 s at 22 050 Hz, the first second skipped; `fft` is a small in-file radix-2. Differences from the plan below: 32 log-spaced bands instead of 64 mel bands for the flux; the mode estimate uses the notes the layers cycle through (a few seconds of events is too little for a key profile) plus the third above the lowest note, not only the key profiles; the closeness reverb term is the ratio of the quietest frame to the mean frame (tails and drones fill the gaps); constants are in `RANGES` and come from `pnpm calibrate`. Spectrogram image (step 10) is not built; `inspect` has `what: "history"` only. On any failure the call still returns, with the note `analysis unavailable this time`; silence states have no analysis. States written before this have none and are measured on the fly by `get_feedback`.
+>
+> **Calibration (200 random moods, `pnpm calibrate`):** correlation of `reads_as` with the mood that was sent: warmth 0.72, closeness 0.41, joy 0.54, calm 0.89, spontaneity 0.54. None is near zero; closeness and joy are the weakest and are the ones to revise first. It is a rough second opinion, not a measurement of emotion.
+
 `analyze(effective: EngineState, seed: number) → Analysis` in `packages/analysis`. Called by `set_sound` after the state is stored.
 
 ## Render
