@@ -65,7 +65,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select pending_final||'/'||turn from sessions where id='${session_id}'`)).toBe("false/1");
     expect(b.players).toBe(0);
     expect(b.notes).toEqual(["no player open: nobody is hearing this"]);
-    expect((b.playing as { volume: number }).volume).toBeLessThanOrEqual(0.6);
+    expect((b.playing as { volume: number }).volume).toBe(0.46); // a constant: the listener owns the volume
     const c = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
     expect(c.turn).toBe(2);
     expect(sql(`select slow_mood is not null from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
@@ -81,17 +81,31 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select title from sessions where id='${session_id}'`)).toBe("Dinner ideas");
   });
 
-  it("starts new sessions at the anything consent level", async () => {
+  it("starts new sessions with no listener limits, and does not clamp extreme choices", async () => {
     const r = await svc.startSession(dbA, A, {}, tick());
-    expect(r.settings.consent).toBe("anything");
-    expect(sql(`select settings->>'consent' from sessions where id='${r.session_id}'`)).toBe("anything");
+    expect(r.settings).toEqual({ rest_after: 300 });
+    expect(sql(`select settings ? 'consent' from sessions where id='${r.session_id}'`)).toBe("f");
+    const out = await svc.setSound(dbA, A, {
+      session_id: r.session_id, mood: { warmth: 0, closeness: 0, joy: 0, calm: 0, spontaneity: 1 }, final: true,
+      synth: { arp: { tempo: 200, rate: "1/16" }, filter: { resonance: 20 }, osc: { wave: "square" }, fx: { delay: { mix: 1, feedback: 0.85, time: 1.5 } } },
+      transition: { time: 0.3, curve: "sudden" },
+    } as never, tick());
+    expect(out.clamped).toBeUndefined();
+    expect(sql(`select concat(effective->'osc'->>'wave', effective->'transition'->>'curve') from states where session_id='${r.session_id}' order by created_at desc limit 1`)).toBe("squaresudden");
   });
 
-  it("applies the mood floor and reports it", async () => {
+  it("applies a colour sent without a mode", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
-    sql(`update sessions set settings = jsonb_set(settings, '{consent}', '"ambient"') where id='${session_id}'`); // the floor is an ambient rule
-    const r = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0, calm: 0 }, final: true } as never, tick());
-    expect(r.clamped).toEqual(expect.arrayContaining(["joy 0→0.2 (mood floor)", "calm 0→0.3 (mood floor)"]));
+    const r = await svc.setSound(dbA, A, { session_id, mood, final: true, colour: { hue: 0, saturation: 1, lightness: 0.5 } } as never, tick());
+    expect(r.colour).toMatchObject({ h: 0, s: 1, l: 0.5 });
+  });
+
+  it("settings of old sessions that still carry the removed limit keys are read without them", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    sql(`update sessions set settings = '{"consent":"ambient","max_volume":0.2,"max_harshness":0.1}' where id='${session_id}'`);
+    const out = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0, calm: 0 }, final: true } as never, tick());
+    expect(out.clamped).toBeUndefined();
+    expect((out.playing as { volume: number }).volume).toBe(0.46);
   });
 
   it("answers too_fast for back-to-back updates", async () => {
@@ -110,12 +124,12 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   it("counts players and reports the listener controls", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
-    sql(`insert into player_heartbeats (session_id, user_id, device_id, audio, volume, delay) values ('${session_id}', '${A}', 'd1', 'playing', 0.4, 0.7)`);
+    sql(`insert into player_heartbeats (session_id, user_id, device_id, audio, volume, delay) values ('${session_id}', '${A}', 'd1', 'playing', 0.4, null)`);
     // the trigger stamps seen_at from the database clock; switch it off to place the heartbeat on the test clock
     sql(`alter table player_heartbeats disable trigger player_heartbeats_touch; update player_heartbeats set seen_at = to_timestamp(${clock} / 1000.0) where session_id='${session_id}'; alter table player_heartbeats enable trigger player_heartbeats_touch`);
     const f = await svc.getFeedback(dbA, A, { session_id }, clock);
     expect(f.players).toBe(1);
-    expect(f.controls).toEqual({ volume: 0.4, delay: 0.7 });
+    expect(f.controls).toEqual({ volume: 0.4 });
     expect(f).not.toHaveProperty("notes");
   });
 
@@ -127,10 +141,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     });
     const got = await (await rpc("get_player_state", { p_session: session_id })).json();
     expect(got.ended).toBe(false);
-    expect(got.state.effective.volume).toBeLessThanOrEqual(0.6);
+    expect(got.state.effective.volume).toBe(0.46);
     expect(got.state.turn).toBe(1);
     expect(await (await rpc("get_player_state", { p_session: "nope" })).json()).toBeNull();
-    expect((await rpc("player_heartbeat", { p_session: session_id, p_device: "friend-phone", p_audio: "playing", p_volume: 0.5, p_delay: 0.2 })).status).toBe(204);
+    expect((await rpc("player_heartbeat", { p_session: session_id, p_device: "friend-phone", p_audio: "playing", p_volume: 0.5, p_delay: null })).status).toBe(204);
     const tables = await fetch(`${REST}/states?select=id`);
     expect(tables.status).toBeGreaterThanOrEqual(400); // the tables are closed to anon (permission denied)
     // a listener with only the link counts as a listener, but their controls are not reported to the model
@@ -138,10 +152,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(fb.players).toBe(1);
     expect(fb).not.toHaveProperty("controls");
     // the owner's own device is the one whose controls the model sees
-    expect((await dbA.rpc("player_heartbeat", { p_session: session_id, p_device: "owner-laptop", p_audio: "playing", p_volume: 0.3, p_delay: 0.9 })).error).toBeNull();
+    expect((await dbA.rpc("player_heartbeat", { p_session: session_id, p_device: "owner-laptop", p_audio: "playing", p_volume: 0.3, p_delay: null })).error).toBeNull();
     fb = await svc.getFeedback(dbA, A, { session_id }, Date.now());
     expect(fb.players).toBe(2);
-    expect(fb.controls).toEqual({ volume: 0.3, delay: 0.9 });
+    expect(fb.controls).toEqual({ volume: 0.3 });
   });
 
   it("silences with a fade and logs it as a state", async () => {

@@ -61,7 +61,6 @@ export class Engine {
   private delay: PingPongDelay; private reverb: Reverb;
   private drones: DroneOsc[] = [];
   private listenerGain = 1; private listenerGainCur = 1;
-  private listenerDelay = 0.5; private delayCap = 0.6;
   private hpZ = 0;
   private tmp: [number, number] = [0, 0];
   private tmp2: [number, number] = [0, 0];
@@ -79,11 +78,6 @@ export class Engine {
 
   /** Local volume. 1 is the sound as mapped; up to 8 (+18 dB) boosts it, and the soft limiter below keeps it from clipping. */
   setListenerGain(gain: number) { this.listenerGain = Math.min(8, Math.max(0, gain)); }
-  /** Local echo control 0..1 (0.5 = as mapped). Scales the delay mix, capped at `maxMix`. */
-  setListenerDelay(amount: number, maxMix = 0.6) {
-    this.listenerDelay = Math.min(1, Math.max(0, amount));
-    this.delayCap = maxMix;
-  }
 
   /** Snapshot of the currently gliding continuous parameters (for tests and debugging). */
   params(): Readonly<P> { return this.cur; }
@@ -182,8 +176,9 @@ export class Engine {
       x = this.filter.process(x) * amp;
 
       // echo and reverb
-      const dMix = Math.min(c.delayMix * 2 * this.listenerDelay, this.delayCap);
-      this.delay.process(x, c.delayTime, Math.min(c.delayFb, 0.6), this.tmp);
+      // the echo is Claude's: mix as sent. Feedback stays below 1 so the echo cannot run away (a stability limit).
+      const dMix = c.delayMix;
+      this.delay.process(x, c.delayTime, Math.min(c.delayFb, 0.85), this.tmp);
       const dryL = x * (1 - Math.max(0, pan) * 0.5);
       const dryR = x * (1 + Math.min(0, pan) * 0.5);
       const mixL = dryL + this.tmp[0] * dMix, mixR = dryR + this.tmp[1] * dMix;

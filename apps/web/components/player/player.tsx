@@ -18,7 +18,7 @@ const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
 
 function stored(id: string) {
-  const fallback = { muted: false, volume: 0.8, echo: 0.5 };
+  const fallback = { muted: false, volume: 0.8 };
   try {
     const raw = localStorage.getItem(`se:player:${id}`);
     return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
@@ -51,7 +51,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [starting, setStarting] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
-  const [echo, setEcho] = useState(0.5);
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [audioState, setAudioState] = useState<string>("running");
@@ -67,20 +66,20 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, applied: 0, wok: 0, werr: 0, stopped: 0, lastErr: "" });
   const [dbgText, setDbgText] = useState("Leave this page, then come back: this line tells what happened while you were away.");
   useEffect(() => setDebug(new URLSearchParams(window.location.search).has("debug")), []);
-  const controls = useRef({ muted, volume, echo, started });
-  controls.current = { muted, volume, echo, started };
+  const controls = useRef({ muted, volume, started });
+  controls.current = { muted, volume, started };
 
   // restore the listener's own settings once, on the client
   useEffect(() => {
     const s = stored(sessionId);
-    setMuted(Boolean(s.muted)); setVolume(Number(s.volume)); setEcho(Number(s.echo));
+    setMuted(Boolean(s.muted)); setVolume(Number(s.volume));
   }, [sessionId]);
 
   const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
     const at = new Date(row.created_at).getTime();
     if (latest.current && at <= latest.current.at) return; // an older state, or the one already playing
     const state: EngineState = JSON.parse(JSON.stringify(row.effective));
-    hardCaps(state, settings.current); // second line of defence, the server already limited it
+    hardCaps(state); // second line of defence, the server already applied the safety rules
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
     latest.current = next;
     restedFrom.current = null; // a new state brings the sound back, with its own transition
@@ -227,7 +226,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     await supabase.rpc("player_heartbeat", {
       p_session: sessionId, p_device: deviceId(),
       p_audio: !c.started ? "not_started" : c.muted ? "muted" : "playing",
-      p_volume: c.volume, p_delay: c.echo,
+      p_volume: c.volume, p_delay: null,
     });
   }, [supabase, sessionId]);
 
@@ -241,14 +240,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (phase !== "ready") return;
     const t = setTimeout(() => void beat(), 600);
     return () => clearTimeout(t);
-  }, [muted, volume, echo, started, phase, beat]);
+  }, [muted, volume, started, phase, beat]);
 
   // listener controls go to the engine and are remembered
   useEffect(() => {
     audio.current?.setGain(muted ? 0 : sliderToGain(volume));
-    audio.current?.setDelay(echo, settings.current.max_delay_mix);
-    remember(sessionId, { muted, volume, echo });
-  }, [muted, volume, echo, sessionId, started]);
+    remember(sessionId, { muted, volume });
+  }, [muted, volume, sessionId, started]);
 
   useEffect(() => {
     const q = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -326,7 +324,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       audio.current = out;
       out.watch(setAudioState);
       out.setGain(muted ? 0 : sliderToGain(volume));
-      out.setDelay(echo, settings.current.max_delay_mix);
       // already resting when the listener taps Start: begin silent (the engine's first state jumps to its target)
       if (latest.current) out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed);
       setStarted(true);
@@ -419,12 +416,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 <input type="range" min={0} max={1} step={0.01} value={volume} style={{ "--fill": `${volume * 100}%` } as CSSProperties}
                   onChange={(e) => setVolume(Number(e.target.value))} />
                 <output>{Math.round(volume * 100)}</output>
-              </label>
-              <label className="pl-slider">
-                <span>Echo</span>
-                <input type="range" min={0} max={1} step={0.01} value={echo} style={{ "--fill": `${echo * 100}%` } as CSSProperties}
-                  onChange={(e) => setEcho(Number(e.target.value))} />
-                <output>{Math.round(echo * 100)}</output>
               </label>
               <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>

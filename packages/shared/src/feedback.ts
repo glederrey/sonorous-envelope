@@ -12,7 +12,7 @@ export interface FeedbackInput {
   effective: EngineState;
   clamps: string[];
   players: number;
-  controls?: { volume: number; delay: number } | null;
+  controls?: { volume: number } | null;
   notes?: string[];
   /** Set only when the owner's rest_after is on and this call arrived after it. */
   resting?: boolean;
@@ -31,7 +31,7 @@ export function buildFeedback(i: FeedbackInput) {
   };
   if (i.clamps.length) out.clamped = i.clamps;
   out.colour = { h: Math.round(e.colour.h), s: r2(e.colour.s), l: r2(e.colour.l), motion: e.colour.motion };
-  if (i.controls) out.controls = { volume: r2(i.controls.volume), delay: r2(i.controls.delay) };
+  if (i.controls) out.controls = { volume: r2(i.controls.volume) };
   out.players = i.players;
   if (i.resting) out.resting = true;
   const notes = [...(i.notes ?? [])];

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
-  hardCaps, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback,
-  harmonyFor, harshness, isResting, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
+  harmonyFor, isResting, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -43,15 +43,14 @@ describe("mood mapping", () => {
     }
   });
 
-  it("is monotonic: calm slows the tempo, closeness raises volume, warmth never harshens the wave", () => {
+  it("is monotonic: calm slows the tempo, warmth never harshens the wave; the volume never moves with the mood", () => {
     const order = ["sine", "triangle", "sawtooth", "square"];
     for (const base of random(40)) {
-      let prevT = Infinity, prevV = -Infinity, prevW = Infinity;
+      let prevT = Infinity, prevW = Infinity;
       for (let x = 0; x <= 1.0001; x += 0.1) {
         expect(moodToEngineState({ ...base, calm: x }).arp.tempo).toBeLessThanOrEqual(prevT + 1e-9);
         prevT = moodToEngineState({ ...base, calm: x }).arp.tempo;
-        const v = moodToEngineState({ ...base, closeness: x }).volume;
-        expect(v).toBeGreaterThanOrEqual(prevV - 1e-9); prevV = v;
+        expect(moodToEngineState({ ...base, closeness: x }).volume).toBe(MASTER_VOLUME);
         const w = order.indexOf(moodToEngineState({ ...base, warmth: x }).osc.wave);
         expect(w).toBeLessThanOrEqual(prevW); prevW = w;
       }
@@ -137,123 +136,63 @@ describe("override and colour", () => {
     expect(c.h).toBe(10); expect(c.l).toBe(0.3);
     expect(applyColour(moodToEngineState(neutral).colour, { mode: "follow", hue: 10 }).h).not.toBe(10);
   });
+  it("uses a colour sent without a mode, keeping the mapped fields it leaves out", () => {
+    const mapped = moodToEngineState(neutral).colour;
+    const c = applyColour(mapped, { hue: 0, saturation: 1, lightness: 0.9 });
+    expect(c.h).toBe(0); expect(c.s).toBe(1); expect(c.l).toBe(0.9);
+    expect(c.motion).toBe(mapped.motion); expect(c.texture).toBe(mapped.texture);
+    expect(Colour.parse({ hue: 0 }).mode).toBeUndefined();
+  });
+  it("follow mode reaches the whole wheel: red, green and magenta, not only blue to orange", () => {
+    const hues = random(400).map((m) => moodToEngineState(m).colour.h);
+    const near = (target: number) => hues.some((h) => Math.min(Math.abs(h - target), 360 - Math.abs(h - target)) < 20);
+    for (const target of [0, 60, 120, 200, 330]) expect(near(target)).toBe(true);
+  });
+  it("the master volume is a constant, and synth no longer takes a volume", () => {
+    expect(moodToEngineState(neutral).volume).toBe(MASTER_VOLUME);
+    expect(SetSoundInput.parse({ mood: neutral, synth: { volume: 1 } as never }).synth).toEqual({});
+  });
 });
 
-describe("limits", () => {
-  const limit = (mood: MoodT, s = settings(), extra: object = {}) =>
-    applyLimits({ mapped: moodToEngineState(mood), mood, settings: s, ...extra });
-
-  it("raises joy and calm to the floor", () => {
-    const r = applyMoodFloor(m({ joy: 0.1, calm: 0.1 }), settings());
-    expect(r.mood.joy).toBe(0.2); expect(r.mood.calm).toBe(0.3);
-    expect(r.clamps).toEqual(["joy 0.1→0.2 (mood floor)", "calm 0.1→0.3 (mood floor)"]);
-    expect(applyMoodFloor(m({ joy: 0.1 }), settings({ consent: "anything", mood_floor: { joy: 0.4, calm: 0 } })).mood.joy).toBe(0.4);
+describe("limits (safety and stability only)", () => {
+  const limit = (mood: MoodT, extra: object = {}) => applyLimits({ mapped: moodToEngineState(mood), ...extra });
+  it("lets Claude's choices through unclamped, whatever the mood", () => {
+    for (const mood of [...corners, ...random(300)]) expect(limit(mood).clamps).toEqual([]);
   });
-
-  it("caps volume, never above 0.9 even if the listener allows more", () => {
-    const hi = moodToEngineState(neutral); hi.volume = 1;
-    expect(applyLimits({ mapped: hi, mood: neutral, settings: settings({ max_volume: 0.4 }) }).effective.volume).toBe(0.4);
-    expect(applyLimits({ mapped: hi, mood: neutral, settings: settings({ max_volume: 1, consent: "anything" }) }).effective.volume).toBe(0.9);
+  it("keeps extreme but legal settings as sent: tempo, roughness, resonance, sudden transitions, full echo", () => {
+    const mapped = moodToEngineState(neutral);
+    mapped.arp.tempo = 200; mapped.filter.resonance = 20; mapped.osc.drive = 1; mapped.osc.wave = "square"; mapped.fx.delay.mix = 1;
+    const { effective, clamps } = applyLimits({ mapped, transition: { time: 0.1, curve: "sudden" } });
+    expect(clamps).toEqual([]);
+    expect(effective.arp.tempo).toBe(200); expect(effective.osc.drive).toBe(1); expect(effective.osc.wave).toBe("square");
+    expect(effective.fx.delay.mix).toBe(1);
+    expect(effective.transition).toEqual({ time: 0.1, curve: "sudden" });
   });
-
-  it("enforces consent ceilings: tempo, wave, scale, resonance, roughness", () => {
-    const wild = moodToEngineState({ warmth: 0, closeness: 0.5, joy: 0, calm: 0, spontaneity: 0.5 });
-    wild.arp.tempo = 190; wild.filter.resonance = 15;
-    const amb = applyLimits({ mapped: wild, mood: neutral, settings: settings({ max_harshness: 1 }) }).effective;
-    expect(amb.arp.tempo).toBeLessThanOrEqual(110);
-    expect(["sine", "triangle"]).toContain(amb.osc.wave);
-    expect(amb.arp.scale).toBe("minor");
-    expect(amb.filter.resonance).toBeLessThanOrEqual(4);
-    expect(amb.osc.drive).toBe(0);
-    const any = applyLimits({ mapped: wild, mood: neutral, settings: settings({ consent: "anything", max_harshness: 1 }) }).effective;
-    expect(any.arp.tempo).toBe(190); expect(any.osc.wave).toBe("square"); expect(any.arp.scale).toBe("locrian");
-    expect(any.osc.drive).toBeGreaterThan(0);
+  it("caps the volume at 0.9", () => {
+    const mapped = moodToEngineState(neutral); mapped.volume = 1;
+    const { effective, clamps } = applyLimits({ mapped });
+    expect(effective.volume).toBe(0.9); expect(clamps[0]).toMatch(/volume/);
   });
-
-  it("limits the note rate by consent", () => {
-    const busy = moodToEngineState(m({ calm: 0 })); busy.arp.rate = "1/16"; busy.arp.tempo = 100; busy.arp.density = 1;
-    const e = applyLimits({ mapped: busy, mood: neutral, settings: settings() }).effective;
-    expect((e.arp.tempo / 60 / ({ "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, "1/16": 0.25 })[e.arp.rate]) * e.arp.density).toBeLessThanOrEqual(4.0001);
-  });
-
-  it("brings harshness under the listener's maximum", () => {
-    const hard = moodToEngineState({ warmth: 0, closeness: 0.5, joy: 0, calm: 0, spontaneity: 0.5 });
-    hard.filter.cutoff = 9000; hard.filter.resonance = 12;
-    const s = settings({ consent: "anything", max_harshness: 0.3 });
-    const { effective, clamps } = applyLimits({ mapped: hard, mood: neutral, settings: s });
-    expect(harshness(effective)).toBeLessThanOrEqual(0.3 + 0.12);
-    expect(harshness(effective)).toBeLessThan(harshness(hard));
-    expect(clamps.some((c) => c.startsWith("harshness"))).toBe(true);
-  });
-
-  it("stretches transitions: listener minimum, consent minimum, large mood change", () => {
-    const t = (tr: object, s = settings(), prev?: MoodT) =>
-      applyLimits({ mapped: moodToEngineState(neutral), mood: neutral, previousMood: prev, transition: tr as never, settings: s }).effective.transition;
-    expect(t({ time: 1, curve: "smooth" }).time).toBe(4);
-    expect(t({ time: 1, curve: "sudden" }).curve).toBe("smooth");
-    expect(t({ time: 1, curve: "sudden" }, settings({ consent: "anything", min_transition: 0 })).curve).toBe("sudden");
-    expect(t({ time: 5, curve: "smooth" }, settings(), m({ joy: 0, calm: 0, warmth: 1 })).time).toBe(8);
-    expect(t({ time: 5, curve: "smooth" }, settings({ consent: "anything" }), m({ joy: 0, calm: 0, warmth: 1 })).time).toBe(5);
-  });
-
-  it("caps echo", () => {
-    const echo = moodToEngineState(neutral); echo.fx.delay = { time: 1.4, feedback: 0.85, mix: 0.9 };
-    const e = applyLimits({ mapped: echo, mood: neutral, settings: settings() }).effective;
-    expect(e.fx.delay.time).toBe(0.75); expect(e.fx.delay.feedback).toBe(0.6); expect(e.fx.delay.mix).toBe(0.4);
-  });
-
   it("never lets the colour pulse faster than 3 Hz, whatever is asked", () => {
-    for (const consent of ["ambient", "expressive", "anything"] as const) {
-      const s = moodToEngineState(neutral);
-      s.colour = applyColour(s.colour, { mode: "own", motion: "pulse" });
-      s.colour.pulseHz = 12;
-      const e = applyLimits({ mapped: s, mood: neutral, settings: settings({ consent }) }).effective;
-      expect(e.colour.pulseHz).toBeLessThanOrEqual(3);
-    }
+    const mapped = moodToEngineState(neutral);
+    mapped.colour = { ...mapped.colour, motion: "pulse", pulseHz: 9 };
+    const { effective, clamps } = applyLimits({ mapped });
+    expect(effective.colour.pulseHz).toBe(3); expect(clamps[0]).toMatch(/pulse/);
+    mapped.colour.motion = "still";
+    expect(applyLimits({ mapped }).effective.colour.pulseHz).toBe(0);
   });
-
-  it("clamps colour lightness and saturation, and can turn colour off", () => {
-    const s = moodToEngineState(neutral); s.colour.l = 0.6; s.colour.s = 0.9;
-    const e = applyLimits({ mapped: s, mood: neutral, settings: settings({ colour: { enabled: true, max_lightness: 0.3, max_saturation: 0.4 } }) }).effective;
-    expect(e.colour.l).toBe(0.3); expect(e.colour.s).toBe(0.4);
-    const off = applyLimits({ mapped: s, mood: neutral, settings: settings({ colour: { enabled: false } }) }).effective;
-    expect(off.colour.s).toBe(0); expect(off.colour.l).toBeLessThan(0.1);
+  it("keeps the echo inside the delay buffer and below self-oscillation", () => {
+    const mapped = moodToEngineState(neutral); mapped.fx.delay = { time: 9, feedback: 1, mix: 1 };
+    const { effective } = applyLimits({ mapped });
+    expect(effective.fx.delay.time).toBe(1.5); expect(effective.fx.delay.feedback).toBe(0.85);
   });
-
-  it("lists at most 5 clamps then a count", () => {
-    const wild = moodToEngineState({ warmth: 0, closeness: 1, joy: 0, calm: 0, spontaneity: 1 });
-    wild.arp.tempo = 200; wild.filter.resonance = 20; wild.volume = 1; wild.fx.delay.mix = 1; wild.osc.wave = "square";
-    wild.lfo = [{ target: "amp", rate: 5, depth: 0.6, shape: "sine" }];
-    const { clamps } = applyLimits({ mapped: wild, mood: neutral, settings: settings(), transition: { time: 0, curve: "sudden" } });
-    expect(clamps.length).toBe(6);
-    expect(clamps[5]).toMatch(/^…and \d+ more$/);
+  it("is idempotent", () => {
+    const mapped = moodToEngineState(neutral); mapped.volume = 1; mapped.fx.delay.feedback = 1; mapped.colour = { ...mapped.colour, motion: "pulse", pulseHz: 9 };
+    const once = applyLimits({ mapped }).effective;
+    const twice = JSON.parse(JSON.stringify(once)); hardCaps(twice);
+    expect(twice).toEqual(once);
   });
-
-  it("is safe at every corner under every consent level", () => {
-    for (const consent of ["ambient", "expressive", "anything"] as const) {
-      for (const mood of corners) {
-        const s = settings({ consent });
-        const { effective } = applyLimits({ mapped: moodToEngineState(mood), mood, settings: s });
-        expect(effective.volume).toBeLessThanOrEqual(0.6);
-        expect(harshness(effective)).toBeLessThanOrEqual(s.max_harshness + 0.12);
-        expect(effective.colour.pulseHz).toBeLessThanOrEqual(3);
-      }
-    }
-  });
-});
-
-describe("hardCaps (the player's second line of defence)", () => {
-  it("caps volume, echo and colour pulse, and is idempotent", () => {
-    const s = moodToEngineState(neutral);
-    s.volume = 1; s.fx.delay = { time: 1.2, feedback: 0.8, mix: 0.9 };
-    s.colour = { ...s.colour, motion: "pulse", pulseHz: 9, l: 0.9 };
-    hardCaps(s, settings());
-    expect(s.volume).toBe(0.6); expect(s.fx.delay.mix).toBe(0.4); expect(s.fx.delay.time).toBe(0.75);
-    expect(s.colour.pulseHz).toBe(3); expect(s.colour.l).toBe(0.5);
-    const again = JSON.stringify(s);
-    hardCaps(s, settings());
-    expect(JSON.stringify(s)).toBe(again);
-  });
+  it("always empties the gesture slot", () => { expect(limit(neutral).effective.gesture).toBeNull(); });
 });
 
 describe("schemas and feedback", () => {
@@ -264,18 +203,19 @@ describe("schemas and feedback", () => {
     expect(SetSoundInput.safeParse({ mood: neutral, synth: { filter: { cutoff: 5 } } }).success).toBe(false);
     expect(SetSoundInput.parse({ mood: neutral }).final).toBe(false);
   });
-  it("falls back to safe defaults for broken settings", () => {
-    expect(parseSettings({ consent: "nope" }).consent).toBe("ambient");
-    expect(parseSettings(undefined).max_volume).toBe(0.6);
-    expect(parseSettings({ max_volume: 0.3 }).max_volume).toBe(0.3);
+  it("drops the removed limit keys from old rows and falls back to defaults for broken ones", () => {
+    const old = parseSettings({ consent: "ambient", max_volume: 0.3, max_harshness: 0.2, colour: { enabled: false }, rest_after: 600 });
+    expect(old).toEqual({ rest_after: 600, image_feedback: "off" });
+    expect(parseSettings({ rest_after: "nope" })).toEqual({ rest_after: 300, image_feedback: "off" });
+    expect(parseSettings(undefined)).toEqual({ rest_after: 300, image_feedback: "off" });
   });
   it("builds a compact feedback object that omits empty fields", () => {
     const eff = moodToEngineState(neutral);
     const f = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: [], players: 1 });
     expect(f).not.toHaveProperty("clamped"); expect(f).not.toHaveProperty("notes"); expect(f).not.toHaveProperty("controls");
     expect(JSON.stringify(f).length).toBeLessThan(450);
-    const g = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: ["volume 0.7→0.5 (listener limit)"], players: 0, controls: { volume: 0.5, delay: 0.5 } });
-    expect(g.clamped).toHaveLength(1); expect(g.controls).toEqual({ volume: 0.5, delay: 0.5 });
+    const g = buildFeedback({ turn: 3, intent: neutral, effective: eff, clamps: ["volume 1→0.9 (safety)"], players: 0, controls: { volume: 0.5 } });
+    expect(g.clamped).toHaveLength(1); expect(g.controls).toEqual({ volume: 0.5 });
     expect(g.notes).toEqual(["no player open: nobody is hearing this"]);
   });
 });
@@ -310,10 +250,6 @@ describe("stretch, variety and voice", () => {
     expect(stretch(0.7)).toBeCloseTo(0.82, 6);
     let prev = -1;
     for (let x = 0; x <= 1.0001; x += 0.01) { const y = stretch(x); expect(y).toBeGreaterThanOrEqual(prev); expect(y).toBeGreaterThanOrEqual(0); expect(y).toBeLessThanOrEqual(1); prev = y; }
-  });
-  it("a mood floor is still met after the stretch", () => {
-    const st = stretchMood({ warmth: 0.5, closeness: 0.5, joy: 0.45, calm: 0.5, spontaneity: 0.5 });
-    expect(applyMoodFloor(st, settings({ mood_floor: { joy: 0.6, calm: 0 } })).mood.joy).toBeGreaterThanOrEqual(0.6);
   });
   const inBand = (n: number, seed = 11) => { const r = mulberry32(seed); const b = () => 0.4 + 0.3 * r();
     return Array.from({ length: n }, () => ({ warmth: b(), closeness: b(), joy: b(), calm: b(), spontaneity: b() })); };
