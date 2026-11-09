@@ -78,7 +78,7 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 - **Saturation:** `lerp(0.15, 0.6, 0.5·j + 0.5·(1−k))`.
 - **Lightness:** `lerp(0.12, 0.45, 0.6·j + 0.4·(cutoff normalised))`. The page stays dark overall; never above 0.6.
 - **Secondary:** hue + 25°, lightness − 0.08, for a slow gradient.
-- **Motion:** `k > 0.7 → "still"` or `"drift"`, else `"pulse"` synced to LFO 1, with `pulseHz = min(LFO1.rate, 1.0)`. Never above 3 Hz (limits.md enforces it).
+- **Motion:** `k > 0.7 → "still"` or `"drift"`, else `"pulse"` synced to LFO 1, with `pulseHz = min(LFO1.rate, 1.0)`. Never above 3 Hz (limits.md enforces it). The pulse only ever follows the cutoff LFO. An `amp` LFO at audio-like rates (20 to 80 Hz, planned) is sound only and never drives the colour: a pulse at that rate would break the 3 Hz rule.
 - **Texture:** `"grain"` if `w < 0.3`, else `"soft_noise"` if `s > 0.6`, else `"flat"`.
 
 In `own` mode, the model's HSL values replace hue/saturation/lightness; motion and pulse limits still apply.

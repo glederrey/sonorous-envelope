@@ -31,6 +31,7 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 | Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
 | Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
 | Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
+| Fast amp LFO (rate ≥ 20 Hz) | not allowed (rate capped at 12 Hz) | depth ≤ 0.3, rate ≤ 40 Hz (purr grain) | up to 80 Hz, depth ≤ 0.6 (growl grain) |
 | Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
 | Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
 | Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
@@ -38,6 +39,8 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 ## Harshness
 `harshness ∈ [0,1]` is computed from the mapped state:
 `0.3·waveHarsh + 0.2·norm(resonance, 0.7, 12) + 0.2·norm(log cutoff, log 400, log 9000) + 0.1·norm(tempo·rateFactor, 1, 12 notes/s) + 0.2·drive` with `waveHarsh = {sine:0, triangle:0.2, sawtooth:0.7, square:1}`. (The weights sum to 1; roughness took 0.2 from the other terms.)
+Planned: an `amp` LFO with rate ≥ 20 Hz is roughness too. It is the same sound as the `growl` gesture (amplitude modulation between 30 and 70 Hz), so it must not be a way to get a growl at a consent level that bars the gesture. It counts as `drive` does: use `rough = max(drive, depth)` in the formula above, and reduce it first (depth to 0, then rate down to 12 Hz) when over `max_harshness`, with a clamp entry.
+
 If above `max_harshness`, reduce in this order until it fits: drive (to 0), cutoff (down, max 1.5 octaves), resonance (down to 0.7), wave (one step softer), note rate (halve). Each step adds a clamp entry. The `growl` gesture counts as harshness 0.7 while it plays and is dropped if that exceeds `max_harshness`.
 
 ## Order of operations
