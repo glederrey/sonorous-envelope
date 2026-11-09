@@ -46,7 +46,7 @@ export const SynthOverride = z.object({
   }).partial(),
   lfo: z.array(z.object({
     target: z.enum(["cutoff", "pitch", "amp", "pan"]),
-    rate: z.number().min(0.01).max(80).describe("Hz. Up to 12 for cutoff, pitch and pan; up to 80 for amp, where above about 20 it is a grain, not a tremolo"),
+    rate: z.number().min(0.01).max(80).describe("Hz. Up to 12 for cutoff, pitch and pan; up to 80 for amp, where above about 20 it is a grain, not a tremolo. LFOs stay until you change them; send lfo [] to get the mapped ones back, depth 0 for none"),
     depth: unit,
     shape: z.enum(["sine", "triangle", "square", "random"]),
   }).refine((l) => l.target === "amp" || l.rate <= 12, { message: "rate above 12 Hz is only for the amp target", path: ["rate"] })).max(2),

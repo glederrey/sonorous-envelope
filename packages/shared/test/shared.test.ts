@@ -317,10 +317,10 @@ describe("what stays on the session", () => {
   const colourOwn = { hue: 10, saturation: 0.9 };
   it("keeps the colour, stack, pad and LFOs from one call to the next, merging field by field", () => {
     let s = mergeSticky(null, { colour: colourOwn, synth: { osc: { stack: [7, 12] }, pad: { notes: ["D3", "A3"], attack: 3 }, lfo: [{ target: "amp", rate: 80, depth: 1, shape: "sine" }] } });
-    expect(s.colour).toEqual(colourOwn); expect(s.stack).toEqual([7, 12]); expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3 }); expect(s.lfo).toHaveLength(1);
+    expect(s.colour).toEqual(colourOwn); expect(s.stack).toEqual([7, 12]); expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3, on: true }); expect(s.lfo).toHaveLength(1);
     s = mergeSticky(s, { colour: { lightness: 0.7 }, synth: { pad: { level: 0.4 } } });
     expect(s.colour).toEqual({ hue: 10, saturation: 0.9, lightness: 0.7 });
-    expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3, level: 0.4 });
+    expect(s.pad).toEqual({ notes: ["D3", "A3"], attack: 3, level: 0.4, on: true });
     expect(s.stack).toEqual([7, 12]); expect(s.lfo).toHaveLength(1);
     expect(mergeSticky(s, {})).toEqual(s); // a call that sends none of them changes nothing
   });
@@ -329,6 +329,14 @@ describe("what stays on the session", () => {
     const c = mergeSticky(s, { colour: { mode: "follow" }, synth: { osc: { stack: [] }, lfo: [] } });
     expect(c.colour).toBeUndefined(); expect(c.stack).toBeUndefined(); expect(c.lfo).toBeUndefined(); expect(c.pad).toBeDefined();
     expect(stickyToSynth(mergeSticky(c, { synth: { pad: { on: false } } }))?.pad).toMatchObject({ on: false, notes: ["D3"] });
+  });
+  it("new pad notes switch the pad back on after it was silenced", () => {
+    let s = mergeSticky(null, { synth: { pad: { notes: ["D3"] } } });
+    s = mergeSticky(s, { synth: { pad: { on: false } } });
+    expect(stickyToSynth(s)?.pad?.on).toBe(false);
+    s = mergeSticky(s, { synth: { pad: { notes: ["G2", "D3"] } } });
+    const { state } = applyOverride(moodToEngineState(neutral), stickyToSynth(s));
+    expect(state.pad.on).toBe(true); expect(state.pad.notes).toEqual([43, 50]);
   });
   it("turns kept settings into a synth override, and an empty lfo in a call into nothing", () => {
     expect(stickyToSynth(null)).toBeUndefined(); expect(stickyToSynth({})).toBeUndefined();

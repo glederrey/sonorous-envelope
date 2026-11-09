@@ -25,7 +25,8 @@ export function mergeSticky(prev: Sticky | null | undefined, input: { colour?: C
   const stack = input.synth?.osc?.stack;
   if (stack !== undefined) { if (stack.length) s.stack = [...stack]; else delete s.stack; }
   const pad = input.synth?.pad;
-  if (pad) s.pad = { ...(s.pad ?? {}), ...defined(pad) };
+  // new notes without `on` switch the pad on, also after it was silenced with on false
+  if (pad) s.pad = { ...(s.pad ?? {}), ...defined(pad), ...(pad.notes && pad.on === undefined ? { on: true } : {}) };
   const lfo = input.synth?.lfo;
   if (lfo !== undefined) { if (lfo.length) s.lfo = lfo.map((l) => ({ ...l })); else delete s.lfo; }
   return s;

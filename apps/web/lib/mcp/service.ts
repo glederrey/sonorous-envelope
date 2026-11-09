@@ -96,7 +96,7 @@ function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null
   const a = applyOverride(mapped, voiceToSynth(voice));
   const k = applyOverride(a.state, stickyToSynth(sticky));
   const b = applyOverride(k.state, callSynth(synth));
-  return { state: b.state, overridden: [...new Set([...a.overridden.map((f) => `voice:${f}`), ...b.overridden])] };
+  return { state: b.state, overridden: [...new Set([...a.overridden.map((f) => `voice:${f}`), ...k.overridden.map((f) => `kept:${f}`), ...b.overridden])] };
 }
 
 async function insertState(
