@@ -83,7 +83,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   it("starts new sessions with no listener limits, and does not clamp extreme choices", async () => {
     const r = await svc.startSession(dbA, A, {}, tick());
-    expect(r.settings).toEqual({ rest_after: 300 });
+    expect(r.settings).toEqual({ rest_after: 900 });
     expect(sql(`select settings ? 'consent' from sessions where id='${r.session_id}'`)).toBe("f");
     const out = await svc.setSound(dbA, A, {
       session_id: r.session_id, mood: { warmth: 0, closeness: 0, joy: 0, calm: 0, spontaneity: 1 }, final: true,
@@ -169,10 +169,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   it("tells the model the sound faded, only when rest_after is on", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
-    const late = clock + 301_000;
+    const late = clock + 901_000;
     const fb = await svc.getFeedback(dbA, A, { session_id }, late);
     expect(fb.resting).toBe(true);
-    expect(fb.notes).toEqual(expect.arrayContaining(["the sound faded after 5 min without an update from you"]));
+    expect(fb.notes).toEqual(expect.arrayContaining(["the sound faded after 15 min without an update from you"]));
     // Claude turns it off: nothing is said any more
     clock = late;
     await svc.setSound(dbA, A, { session_id, mood, final: true, rest_after: null } as never, tick());

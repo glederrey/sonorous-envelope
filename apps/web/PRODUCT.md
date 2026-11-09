@@ -8,9 +8,9 @@ web
 
 ## Users
 
-Primary: a person who talks to Claude (claude.ai, Desktop, Code) and listens to the sound beside the chat. They sign in once, to connect the connector, and then mostly use the player.
+Primary: a person who talks to an AI model (claude.ai, ChatGPT, Claude Desktop or Code, any MCP client) and listens to the sound beside the chat. They sign in once, to connect the connector, and then mostly use the player.
 
-Secondary: friends who open a shared player link (`/s/<id>`) with no account, to listen while someone else's Claude plays.
+Secondary: friends who open a shared player link (`/s/<id>`) with no account, to listen while someone else's model plays.
 
 ## Product Purpose
 

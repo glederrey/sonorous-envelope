@@ -109,7 +109,7 @@ export type Transition = z.infer<typeof Transition>;
 // decides, and the listener's only control is the volume in the player. Old rows still carry those keys; zod strips them.
 export const ListenerSettings = z.object({
   // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
-  rest_after: z.number().min(60).max(3600).nullable().default(300),
+  rest_after: z.number().min(60).max(3600).nullable().default(900),
   image_feedback: z.enum(["off", "on_request", "every_turn"]).default("off"),
 });
 export type ListenerSettings = z.infer<typeof ListenerSettings>;

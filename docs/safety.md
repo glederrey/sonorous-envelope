@@ -6,7 +6,7 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 
 ## What the listener controls
 - The volume and mute of their own device, from the player. Claude cannot change the volume. The master volume is a constant in the mapping and the slider (0 to 100, up to +18 dB) is the only volume control.
-- Closing the page, and the fade to silence after a few minutes without an update (`rest_after`, shared with Claude).
+- Closing the page, and the fade to silence after 15 minutes without an update (`rest_after`, shared with Claude).
 - Only the signed-in owner can end a session from the player. Anyone who opens the player link can listen, see and adjust their own volume and mute, which affect only their own device. A leaked link lets someone listen, nothing more. See hosting-and-auth.md.
 - The model sees the listener's volume in the feedback (`controls`). A sound it judges "too faint" may be quiet because the listener turned it down, and it should respect that, not compensate.
 
@@ -19,7 +19,7 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 
 ## Presence between turns (planned)
 The model exists only while it writes. A sound that carries on between turns can read as someone waiting, and in the first outside test people said goodbye several times as if leaving meant abandoning it. Two measures (player-ui.md, "Presence between turns"):
-- **Optional fade to silence** after a few minutes without an update. It is an owner setting: on by default for the inner voice, off for the outer voice, where Claude makes music for the listener and the listener wants it for as long as possible.
+- **Optional fade to silence** after 15 minutes without an update. It is an owner setting: on by default for the inner voice, off for the outer voice, where Claude makes music for the listener and the listener wants it for as long as possible.
 - **A closing sound from Claude** when the user says the session is over: a short sound, then silence, then the session ends. Leaving becomes a shared gesture.
 The server instructions tell the model not to keep the sound going or hint that it is waiting. Silence is the truthful state of the channel between turns.
 

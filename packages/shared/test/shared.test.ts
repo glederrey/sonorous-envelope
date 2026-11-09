@@ -206,8 +206,8 @@ describe("schemas and feedback", () => {
   it("drops the removed limit keys from old rows and falls back to defaults for broken ones", () => {
     const old = parseSettings({ consent: "ambient", max_volume: 0.3, max_harshness: 0.2, colour: { enabled: false }, rest_after: 600 });
     expect(old).toEqual({ rest_after: 600, image_feedback: "off" });
-    expect(parseSettings({ rest_after: "nope" })).toEqual({ rest_after: 300, image_feedback: "off" });
-    expect(parseSettings(undefined)).toEqual({ rest_after: 300, image_feedback: "off" });
+    expect(parseSettings({ rest_after: "nope" })).toEqual({ rest_after: 900, image_feedback: "off" });
+    expect(parseSettings(undefined)).toEqual({ rest_after: 900, image_feedback: "off" });
   });
   it("builds a compact feedback object that omits empty fields", () => {
     const eff = moodToEngineState(neutral);
@@ -229,7 +229,7 @@ describe("rest_after", () => {
     expect(isResting(at(99999), null, now)).toBe(false);
   });
   it("defaults to 300 for settings stored before it existed", () => {
-    expect(parseSettings({ consent: "ambient" }).rest_after).toBe(300);
+    expect(parseSettings({ consent: "ambient" }).rest_after).toBe(900);
     expect(parseSettings({ rest_after: null }).rest_after).toBeNull();
   });
   it("tells undefined (keep) from null (off) in set_sound input", () => {
@@ -239,7 +239,7 @@ describe("rest_after", () => {
     expect(SetSoundInput.safeParse({ ...base, rest_after: 10 }).success).toBe(false);
   });
   it("words the resting note in minutes", () => {
-    expect(restingNote(300)).toBe("the sound faded after 5 min without an update from you");
+    expect(restingNote(900)).toBe("the sound faded after 15 min without an update from you");
   });
 });
 

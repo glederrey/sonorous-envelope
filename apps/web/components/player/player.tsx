@@ -317,7 +317,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     if (!started || !("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
-    ms.metadata = new MediaMetadata({ title: "Claude's sound", artist: "Sonorous Envelope", album: "Live session" });
+    ms.metadata = new MediaMetadata({ title: "The model's sound", artist: "Sonorous Envelope", album: "Live session" });
     ms.setActionHandler("play", () => { setMuted(false); void audio.current?.resume(); reload.current(); });
     ms.setActionHandler("pause", () => { setMuted(true); audio.current?.pauseElement(); });
     // this is a live sound, not a 60 s track: no seeking, and no progress bar if the browser accepts an endless duration
@@ -381,10 +381,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
 
   const shareText = signedIn
     ? "Anyone with the link can listen. Nobody else can change anything."
-    : "Want Claude to make sound for you too?";
+    : "Want your AI to make sound for you too?";
   const shareAction = signedIn
     ? <CopyLink path={`/s/${sessionId}`} label="Copy link" />
-    : <a className="se-btn" href="/#add">Add it to your Claude</a>;
+    : <a className="se-btn" href="/#add">Add it to your AI app</a>;
 
   return (
     <div
@@ -401,7 +401,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && !started && (
           <div className="pl-start">
-            <p className="pl-lede">Someone&apos;s Claude is making this sound. You stay in control of the volume.</p>
+            <p className="pl-lede">Someone&apos;s AI is making this sound. You stay in control of the volume.</p>
             <button type="button" className="se-btn se-btn-primary pl-start-btn" onClick={start} disabled={starting}>
               {starting ? "Starting…" : "Start listening"}
             </button>
@@ -424,7 +424,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
                 {playing
-                  ? `Turn ${playing.turn} · ${midTurn ? "Claude is mid-answer" : `changed ${age(ageSec)}`}`
+                  ? `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
                   : "Waiting for the first sound"}
               </p>
               <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
