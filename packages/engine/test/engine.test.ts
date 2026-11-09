@@ -275,5 +275,21 @@ describe("stack, pad and the fast amp LFO", () => {
     const later = ev.slice(n2).filter((x) => x.layer === "arp").map((x) => x.time);
     for (let i = 2; i < later.length; i++) expect(later[i] - later[i - 1]).toBeCloseTo(0.25, 2);
   });
+
+  it("a resync while a delayed state waits does not move the grid of the sound that plays, nor the one that follows", () => {
+    const a = neutralState(); a.arp.tempo = 120; a.arp.rate = "1/8"; a.arp.pattern = "up"; a.arp.chord = [1, 3, 5]; a.grid = { arp: 0, bass: 0 };
+    const b = JSON.parse(JSON.stringify(a)) as EngineState; b.volume = 0; b.grid = { arp: 24, bass: 0 }; b.transition = { time: 2, curve: "smooth", delay: 4 };
+    const run = (sync: boolean) => {
+      const e = new Engine(SR, 3); const ev: NoteEvent[] = []; e.recordEvents(ev);
+      e.setState(a, 3, 0, 0);
+      const l = new Float32Array(SR), r = new Float32Array(SR); e.process(l, r, l.length);
+      e.setState(b, 3, 3, 4);                         // written at 6 s on the shared clock, starts 4 s later, we heard it at 1 s
+      for (let i = 0; i < 6; i++) { if (sync && i <= 3) e.syncGrid(0.2 + i); e.process(l, r, l.length); } // wrong elapsed on purpose, only while the state waits
+      return ev.filter((x) => x.layer === "arp").map((x) => x.time);
+    };
+    const plain = run(false), synced = run(true);
+    expect(synced).toEqual(plain);
+    for (let i = 1; i < plain.length; i++) expect(plain[i] - plain[i - 1]).toBeCloseTo(0.25, 2);
+  });
 });
 

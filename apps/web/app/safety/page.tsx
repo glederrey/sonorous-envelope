@@ -22,6 +22,7 @@ export default function SafetyPage() {
             <ul className="doc-list">
               <li>The volume, on every device that plays the sound. Claude cannot change it.</li>
               <li>Mute, one tap away. It stays muted until you turn it back on.</li>
+              <li>Ending a session yourself, from the sessions page.</li>
               <li>Closing the page. A session that gets no update fades to silence by itself after a few minutes, unless Claude turns that off.</li>
             </ul>
           </section>

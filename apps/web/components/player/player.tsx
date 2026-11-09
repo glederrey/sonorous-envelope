@@ -95,7 +95,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (wait > 0) setTimeout(() => { if (latest.current === next) setPlaying(next); }, wait * 1000);
     else setPlaying(next);
     // `elapsed`: seconds since the state started, by the server's clock, so this device lands on the shared step grid
-    audio.current?.setState(state, next.seed, wait, Math.max(0, age - delay));
+    audio.current?.setState(state, next.seed, wait, Math.max(age, delay)); // seconds since it was written, at the moment it starts
   }, []);
 
   // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
@@ -182,7 +182,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       // now and then, pull this device's step grid back onto the shared one (audio clocks drift apart slowly)
       if (data.state && latest.current && !restedFrom.current) {
         const age = (Date.now() + clockOffset.current - latest.current.at) / 1000;
-        audio.current?.syncGrid(Math.max(0, age - (latest.current.state.transition.delay ?? 0)));
+        audio.current?.syncGrid(Math.max(0, age)); // seconds since the state was written (the engine ignores it while a delayed state waits)
       }
       restTick();
       setPhase((p) => (p === "joining" ? "ready" : p));
@@ -354,7 +354,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       if (latest.current) {
         // joining late: start on the shared step grid, by the server's clock
         const age = (Date.now() + clockOffset.current - latest.current.at) / 1000, delay = latest.current.state.transition.delay ?? 0;
-        out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed, Math.max(0, delay - age), Math.max(0, age - delay));
+        out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed, Math.max(0, delay - age), Math.max(age, delay));
       }
       setStarted(true);
     } catch {

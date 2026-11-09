@@ -106,7 +106,7 @@ export class Engine {
    *  server's clock. Called now and then by the player; only moves the grid when it has drifted. */
   syncGrid(elapsedSec: number) {
     const s = this.state;
-    if (!s) return;
+    if (!s || this.pending) return; // a delayed state is waiting: the sound that plays now keeps its own grid
     const g = s.grid ?? { arp: 0, bass: 0 }, d = this.stepSecondsOf(s);
     this.arp.sync(this.t, g.arp, elapsedSec, d.arp, 0.04); this.bass.sync(this.t, g.bass, elapsedSec, d.bass, 0.04);
   }
