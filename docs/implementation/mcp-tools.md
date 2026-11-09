@@ -50,7 +50,7 @@ export const SynthOverride = z.object({
   }).partial(),
   lfo: z.array(z.object({
     target: z.enum(["cutoff","pitch","amp","pan"]),
-    rate: z.number().min(0.01).max(12),                               // Hz, see limits for colour
+    rate: z.number().min(0.01).max(12),                               // Hz, see limits for colour. Planned: max 80 when target is "amp", see engine.md
     depth: unit,
     shape: z.enum(["sine","triangle","square","random"]),
   })).max(2),
@@ -96,6 +96,8 @@ export const Transition = z.object({
 
 Keep every field description short in the tool schema: the model reads them.
 
+> **Planned changes (2026-11-09 test), not built:** `osc.stack` (intervals in semitones), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`), `lfo.rate` up to 80 for the `amp` target only (12 for the others; validate per target, for instance with a `superRefine`), a `voice` object on `start_session` and `set_sound` (mood-mapping.md, "Voice"), and `resting` in the feedback (player-ui.md, "Presence between turns"). Keep field descriptions short: the model reads every one.
+
 > **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
 ## `start_session`
@@ -129,13 +131,15 @@ Input:
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
-  note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details, never sent back)
+  rest_after?: number | null,   // planned: seconds before the sound fades with no update, null = never. Shared with the owner (limits.md, "Who can change what")
+  voice?: Voice,                // planned: see mood-mapping.md
+  note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details and in the player's "What Claude set" panel; not echoed back in the feedback, the model already has it; listed in `inspect` history)
 }
 ```
 Behaviour, in order:
 1. Resolve the session (see "Session resolution"). Reject if ended.
 2. Load `settings` and the current effective state.
-3. `mapped = moodToEngineState(mood)` (mood-mapping.md), then deep-merge `synth` over it.
+3. `mapped = moodToEngineState(mood)` (mood-mapping.md), then deep-merge `synth` over it. Planned: `stretch` runs on the mood first, then the mood floor, then mapping, then voice, then `synth` (mood-mapping.md, "Stretch" and "Voice").
 4. `{effective, clamps} = applyLimits(mapped, gesture, colour, transition, settings, previousEffective)` (limits.md). This also drops the gesture if gestures are off.
 5. Pick a `seed` (random 32-bit). Insert the state row with `intent`, `effective`, `clamps`, `seed`, `final`, `turn` (= session.turn + 1 if this is the first update of a new turn, else the same).
 6. Update the session: `current_state_id`, `last_active_at`, `pending_final = !final`, and `turn += 1` when `final` is true.
@@ -166,6 +170,7 @@ Rules:
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
 - `controls` is the owner's own player volume and echo (`delay`) setting, 0 to 1, as last reported by their player (realtime.md). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
+- `resting` (planned): only when the owner's `rest_after` setting is on. `true` when this call arrives more than `rest_after` seconds after the previous state, with the note `"the sound faded after N min without an update from you"`.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.
@@ -179,11 +184,12 @@ Input: `{ session_id: string }`. Returns the feedback object for the current sta
 
 Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 - `spectrogram`: only if `settings.image_feedback` is `on_request` or `every_turn`. Otherwise return `{"error":"image_feedback_off","message":"The listener has image feedback turned off."}`. Returns a PNG (see analysis.md) plus a one-line caption.
-- `history`: the last 8 states as one line each: turn, final, intent mood, reads_as, clamps count. Text only.
+- `history`: the last 8 states as one line each: turn, final, intent mood, reads_as, clamps count, and the note if there was one. Text only.
 
 ## `silence`
 
-Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean }`.
+Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean, end?: boolean /* planned */ }`.
+Planned: with `end: true` the session ends once the fade is over (`ended_at` set, state final). The model uses it when the user says the session is finished, after one `set_sound` that plays a short closing sound with a long transition. Further calls return `session_ended`.
 Sets volume 0 and drone off with the given fade, as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
 
 ## Session resolution

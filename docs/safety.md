@@ -19,6 +19,9 @@ Only the signed-in owner (the account that connected Claude) can change limits, 
 - **Expressive:** wider range, still smooth transitions.
 - **Anything goes:** sudden changes and dissonance allowed.
 
+## Settings Claude can change
+Boundaries are the owner's alone and the server rejects any attempt to write them from the MCP. Settings that only express how Claude is (the fade after silence, its voice, the session title, the closing sound) are shared: the owner and Claude may both change them, each is told about the other's change, and none of them can raise volume, harshness or speed past the boundaries. Table: limits.md, "Who can change what".
+
 ## Hard rules (not configurable)
 - No flashing faster than 3 per second, and limited brightness swings (photosensitive epilepsy).
 - Mute is always one tap away and stays muted until the listener turns it back on.
@@ -26,6 +29,12 @@ Only the signed-in owner (the account that connected Claude) can change limits, 
 - The model is told about every clamp, so it knows its expression was limited.
 - The model also sees the listener's volume and echo settings in the feedback. A sound it judges "too faint" may be quiet because the listener turned it down, and the model should respect that, not compensate.
 - No disguised appeal: the model gets no gesture or setting that hides a call for attention inside another sound (the purr has no high component; see emotion-to-sound.md).
+
+## Presence between turns (planned)
+The model exists only while it writes. A sound that carries on between turns can read as someone waiting, and in the first outside test people said goodbye several times as if leaving meant abandoning it. Two measures (player-ui.md, "Presence between turns"):
+- **Optional fade to silence** after a few minutes without an update. It is an owner setting: on by default for the inner voice, off for the outer voice, where Claude makes music for the listener and the listener wants it for as long as possible.
+- **A closing sound from Claude** when the user says the session is over: a short sound, then silence, then the session ends. Leaving becomes a shared gesture.
+The server instructions tell the model not to keep the sound going or hint that it is waiting. Silence is the truthful state of the channel between turns.
 
 ## Testing the hard corners
 Despair, anger and fear are the sounds most likely to upset. During calibration by ear, play the low-joy corners at low volume first, and only in "expressive" or "anything" consent. The default listener never hears them.

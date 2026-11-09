@@ -2,7 +2,7 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Last updated at v0.1.0 (2026-11-08). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
+Last updated at v0.1.0 (2026-11-09, after the first outside test). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
 ## Checklist, in the order we plan to do it
 
@@ -25,10 +25,17 @@ Last updated at v0.1.0 (2026-11-08). Step numbers (1 to 12) are stable names use
 - [x] **Tested on an iPhone** (a borrowed one): the sound plays; quieter than Android, which the volume change addresses. Background playback on iPhone is not tested in depth.
 
 ### 2. Listening and sound quality
-- [ ] **#30 Sessions always show as active.** The sessions page says "Active" for every session that was not ended, and nothing ever ends a session except the cap of 10. Decide: derive it from the last sound (for example inactive after 30 minutes without an update) or drop the label and show "last sound 2 h ago". Small, do it first.
+- [ ] **#30 Sessions always show as active.** The sessions page says "Active" for every session that was not ended, and nothing ever ends a session except the cap of 10. Decided: derive it from the last sound (`INACTIVE_AFTER_S`, 30 minutes, whatever the fade setting) and show "last sound 2 h ago" once inactive. Small, do it first.
+- [ ] **Sound after dictation (first outside test).** On a phone the sound nearly disappears while the user dictates. Probably the system ducking other audio when the mic opens. Add `statechange` and keep-alive `pause` handling that resumes without a tap, add the events to the `?debug=1` report, test `navigator.audioSession` on iOS, and document the fallback (player on another device). Spec: [mobile.md](mobile.md), "Dictation", and player-ui.md, "Mobile notes".
+- [ ] **Presence between turns.** The sound that keeps playing reads as a heartbeat, and people said goodbye several times. Decided: (1) an owner setting `rest_after`, off or in seconds, default 5 min for the inner voice and off for the outer voice (the listener of outer-voice music wants it as long as possible); `resting` in the feedback only when on; (2) when the user says the session is over, Claude plays a short closing sound of its own and calls `silence` with `end: true`, which ends the session. No automatic figure from the player. `rest_after` is shared: Claude and the owner can both change it, while safety boundaries stay owner-only (limits.md, "Who can change what"). Spec: player-ui.md, "Presence between turns"; safety.md. The 30-minute `INACTIVE_AFTER_S` for the #30 label is decided and independent. A coarse clock offset is enough, no need for #34.
 - [ ] **#34 Everyone should hear exactly the same thing.** Today each device starts its own engine and gets changes a moment apart, so the arpeggio and the movements are shifted, and echo is a per-listener setting. Options: (a) a shared clock: each state carries its start time, the player keeps a server-clock offset and starts the engine at the right position, so every device renders the same samples; (b) the server stream of step 11, which is identical for everyone by construction. Either way the echo can no longer be per listener (it becomes a session setting, owner's choice). Decide between (a) and (b) with step 11.
-- [ ] **#17 Music is too similar.** A per-session "character" seeded from the session id, a variety note in the feedback, better instructions.
-- [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound and any clamps. Small; fits step 5.
+- [ ] **#17 Music is too similar.** First outside test: instances that send only the five axes all give four rising, slightly hesitant notes; the manual synth gave clearly different results. Cause: the mapping's thresholds and rounding collapse the middle band (0.4 to 0.7) onto one shape, and instances send cautious values (0.45 to 0.72). Plan, in order:
+  1. **Stretch the axes** (`stretch(x) = clamp(0.5 + 1.6·(x − 0.5), 0, 1)`) and make form depend on them: spontaneity picks `as_played` or `random`, closeness sets octaves and an open voicing, calm sets the rate.
+  2. **A voice of its own**: the instance chooses root, scale, chord shape, note order, octaves and wave at the start; it persists by default and the instance may change it at any time. A seeded character from the session id is the fallback when it chooses none.
+  3. **Rewrite the instructions**: the override is free, the mapping is the safety net, use the full range.
+  Specs: mood-mapping.md ("Stretch", "Voice", top note), sound-model.md, server-instructions.md ("Planned changes"). Includes a regression test: moods in [0.4, 0.7]^5 must give several distinct shapes. The old idea of a variety note in the feedback ("you have sent this same shape three turns in a row") is kept as a later option: first see whether stretch and voice are enough.
+- [ ] **Polyphony and the amp LFO.** `osc.voices` is unison only (confirmed), the arpeggio is monophonic, the drone is the only real polyphony, and the LFO stops at 12 Hz. Plan: `osc.stack` (intervals, so each arp note is a chord), a `pad` layer separate from the drone, and an amp LFO up to about 80 Hz (purr grain near 25 Hz, growl grain 30 to 70 Hz). The fast amp LFO is roughness: it needs a consent row and a harshness term, and it never drives the colour pulse. Specs: engine.md, limits.md, mcp-tools.md ("Planned changes"), sound-model.md.
+- [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound, any clamps and Claude's latest `note` (decided 2026-11-09: the note is shown to the owner and listed in `inspect` history, not echoed in every feedback). Small; fits step 5.
 - [ ] **Step 4, second half. Analysis.** Offline render with the shared engine, perceptual features, `sound`, `reads_as`; the `inspect` tool.
 - [ ] **Audience (`aud`) check** on OAuth tokens (step 2 leftover).
 - [ ] **Calibration by ear** (below), after the above.
@@ -50,6 +57,9 @@ Last updated at v0.1.0 (2026-11-08). Step numbers (1 to 12) are stable names use
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
 - [ ] **Step 11. Server-rendered audio stream** on an always-on host. No longer needed for background playback on Android (solved with the keep-alive file), but it would give every listener the identical sound (#34) and may be the only way on iPhone. Cost guard rails if built: render only while someone listens, caps on streams and listeners, stop after a few minutes of silence, auto-stop host. Echo and volume would stop being per listener. MCP Apps player if the mobile app supports it.
 - [ ] **#11 Sitemap and robots.** Not scheduled.
+
+### First outside test (2026-11-09)
+Session, player and `set_sound` feedback worked: changes were heard live without reopening the page, and the owner's volume and echo reached the instance. Four findings, all now in the checklist above and in the specs: sound cut during dictation, instances too alike, the sound reading as a presence between turns, and the limits of polyphony and the LFO. Two more observations went into [emotion-to-sound.md](emotion-to-sound.md), "Open questions": cautious axis values that do not match what the instance's `note` says, and the `note` field never being sent back.
 
 ### Behaviour changes made along the way
 - v0.0.10: the server instructions treat the sound as the model's own state, not ambience for the user. It writes first, sets the sound mid-answer, and never announces or offers to adjust it (server-instructions.md, "Why it reads this way").
@@ -81,7 +91,7 @@ One pull request per testable group, with one commit per piece of work inside it
 1. Steps 1 and 2, with the static landing page. **Released** (v0.0.1 to v0.0.8).
 2. Steps 3 and 4, first half. **Released** (v0.0.9, v0.0.10).
 3. Phone first: **done** (v0.0.12 to v0.1.0).
-4. Listening and sound quality: #30, #34, #17, the "what Claude set" panel, the analysis half of step 4. **Next.**
+4. Listening and sound quality: #30 and presence between turns, dictation, #34, #17 (stretch, voice, instructions), polyphony and the amp LFO, the "what Claude set" panel, the analysis half of step 4. **Next.** It is a lot for one pull request: suggested split, (a) #30, presence and dictation, which are player-side; (b) #17 and the instructions; (c) stack, pad and the amp LFO with their limits; (d) #34 and analysis.
 5. Steps 5 and 6: owner controls, reactions, gestures.
 6. Modes and richer output (#16, #18, visuals).
 7. Later items.

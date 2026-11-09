@@ -138,7 +138,9 @@ Chord by the two main axes:
 
 - [ ] Two arpeggios from the first prototype: check by ear that the low one really gives a background mood, distinct from the mid one.
 - [ ] Calibrate the numeric ranges (tempo, attack, wobble) by ear, on real responses.
-- [ ] Watch the instance's pull towards lukewarm (high warmth, low activation by default) across conversations.
+- [ ] Watch the instance's pull towards lukewarm (high warmth, low activation by default) across conversations. First evidence (2026-11-09): axis values sent at the start of a conversation were all between 0.45 and 0.72, and again between 0.45 and 0.65 later in the same conversation, while the instance's `note` described a stronger feeling than the sound carried. Mitigations planned: stretch the middle of the range, and tell the model that 0.4 to 0.7 reads as lukewarm (mood-mapping.md, "Stretch").
+- [ ] The same skeleton across instances (four rising notes) comes from the mapping, not only from the instance's timidity: see mood-mapping.md, top note, and "Voice".
+- [x] The instance's `note` on `set_sound` was stored but never shown. Decided (2026-11-09): do not echo it back on every call, since the model already has it in its own context and it would cost about 50 tokens of the 150 budget. Instead: show the latest note to the owner in the "What Claude set" panel, include notes in `inspect` history, and tell the model to compare the feedback with what it meant and send one correction (server-instructions.md, planned wording).
 - [ ] Test despair and anger separately, at low volume, before letting them appear spontaneously.
 - [ ] Decide whether a second instance rates the same responses blind, and how the gap would be heard.
 - [ ] Archive scores and spectra from one conversation to the next, to read patterns over time.

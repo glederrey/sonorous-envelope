@@ -16,7 +16,7 @@ The model needs to know what it actually produced in order to update it. Every `
 4. **Listener reactions** since the last call. This is the most important part: it is the only signal about how the expression landed.
 5. **Listener controls.** The owner's current volume and echo setting (`controls`). Other listeners can only listen, so their settings are not reported. The same sound lands differently at volume 0.3 and 0.9, and the model should know which one it is dealing with.
 6. **Mood estimate on the same axes as the intent.** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5".
-7. **Notes**, e.g. "no final update last turn" or "gesture skipped: listener muted gestures".
+7. **Notes**, e.g. "no final update last turn" or "gesture skipped: listener muted gestures". Planned: `resting`, when the sound faded because the last update was minutes ago (player-ui.md, "Presence between turns").
 
 ## Example
 

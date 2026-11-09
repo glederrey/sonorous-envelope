@@ -12,11 +12,19 @@ const ListenerSettings = z.object({
   min_transition: z.number().min(0).max(30).default(3),   // seconds
   mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({}),
   gestures: z.boolean().default(true),
+  rest_after: z.number().min(60).max(3600).nullable().default(300),   // planned: seconds before the sound fades with no update; null = never. Default by mode: inner 300, outer null (player-ui.md)
   max_delay_mix: unit.default(0.4),   // ceiling for the echo (delay mix), applied after the listener's own echo control
   colour: z.object({ enabled: z.boolean().default(true), max_lightness: unit.default(0.5), max_saturation: unit.default(0.7) }).default({}),
   image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),
 });
 ```
+
+## Who can change what
+Two kinds of setting, split by what they protect. The server enforces it with a field whitelist on each write path.
+- **Boundaries, owner only** (strict, never writable through the MCP): `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix`, `colour` limits, `image_feedback`. They exist to protect the listener from the model.
+- **Expression, shared** (the owner and Claude can both change them): `rest_after` (planned), the voice (mood-mapping.md), the session title, and the closing (`silence` with `end`). They say how Claude is, so Claude may change them when it feels like it. They have no safety dimension: nothing here can make the sound louder, harsher or faster than the boundaries allow.
+- **Last write wins, and both sides are told.** An owner change reaches Claude in `listener` (`"you: fade after 5 min → off"`); a Claude change shows in the owner panel and in the session details. Claude must not use `rest_after` to keep the sound going as if it were waiting (server-instructions.md).
+- **Strict, per player, local:** volume, echo and mute only affect that device.
 
 ## Consent levels
 Each level sets ceilings. The listener's own limits apply on top (the stricter wins).
@@ -31,6 +39,7 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 | Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
 | Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
 | Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
+| Fast amp LFO (rate ≥ 20 Hz) | not allowed (rate capped at 12 Hz) | purr grain only: rate ≤ 28 Hz, depth ≤ 0.3 | up to 80 Hz, depth ≤ 0.6 (growl grain, 30 to 70 Hz, only here) |
 | Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
 | Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
 | Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
@@ -38,9 +47,12 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 ## Harshness
 `harshness ∈ [0,1]` is computed from the mapped state:
 `0.3·waveHarsh + 0.2·norm(resonance, 0.7, 12) + 0.2·norm(log cutoff, log 400, log 9000) + 0.1·norm(tempo·rateFactor, 1, 12 notes/s) + 0.2·drive` with `waveHarsh = {sine:0, triangle:0.2, sawtooth:0.7, square:1}`. (The weights sum to 1; roughness took 0.2 from the other terms.)
+Planned: an `amp` LFO with rate ≥ 20 Hz is roughness too. It is the same sound as the `growl` gesture (amplitude modulation between 30 and 70 Hz), so it must not be a way to get a growl at a consent level that bars the gesture. It counts as `drive` does: use `rough = max(drive, depth)` in the formula above, and reduce it first (depth to 0, then rate down to 12 Hz) when over `max_harshness`, with a clamp entry.
+
 If above `max_harshness`, reduce in this order until it fits: drive (to 0), cutoff (down, max 1.5 octaves), resonance (down to 0.7), wave (one step softer), note rate (halve). Each step adds a clamp entry. The `growl` gesture counts as harshness 0.7 while it plays and is dropped if that exceeds `max_harshness`.
 
 ## Order of operations
+0. **Stretch (planned):** each axis goes through `stretch` (mood-mapping.md, "Stretch"). It runs first so the floor below is never lowered by it.
 1. **Mood floor:** before mapping, raise `joy` and `calm` to the floor (settings floor and consent floor, whichever is higher). Clamp entry: `"joy 0.1→0.3 (mood floor)"`. (So call `applyMoodFloor` before `moodToEngineState`; `set_sound` step 3 does this.)
 2. **Consent ceilings:** tempo, resonance, wave, scale (a disallowed scale is replaced by a fixed fallback: locrian and phrygian → minor, chromatic → pentatonic), LFO depth, note rate, gesture type.
 3. **Harshness.**
