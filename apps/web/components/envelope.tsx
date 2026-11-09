@@ -91,7 +91,7 @@ export function Envelope({ className }: { className?: string }) {
     }
     const start = performance.now();
     let pulses: Pulse[] = [];
-    // Event times: the first at once, then every 2.5 to 6 s. About a third of
+    // Event times: the first at once, then every 2.5 to 4 s. About a third of
     // the events come twice in quick succession.
     const events: number[] = [0];
     let frame = 0;
@@ -101,7 +101,7 @@ export function Envelope({ className }: { className?: string }) {
         const at = events.shift() as number;
         pulses.push(spawnMain(t));
         if (events.length === 0) {
-          events.push(at + rand(2.5, 6));
+          events.push(at + rand(2.5, 4));
           if (Math.random() < 0.35) {
             const gap = t + rand(0.25, 0.8);
             // Now and then a third wave follows the second.
