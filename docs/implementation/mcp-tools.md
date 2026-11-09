@@ -96,7 +96,7 @@ export const Transition = z.object({
 
 Keep every field description short in the tool schema: the model reads them.
 
-> **Planned changes (2026-11-09 test), not built:** `osc.stack` (intervals in semitones), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`), `lfo.rate` up to 80 for the `amp` target only (12 for the others; validate per target, for instance with a `superRefine`), a `voice` object on `start_session` and `set_sound` (mood-mapping.md, "Voice"), and `resting` in the feedback (player-ui.md, "Presence between turns"). Keep field descriptions short: the model reads every one.
+> **Planned changes (2026-11-09 test), not built:** `osc.stack` (intervals in semitones), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`), `lfo.rate` up to 80 for the `amp` target only (12 for the others; validate per target, for instance with a `superRefine`), (`voice` on `start_session` and `set_sound` and `resting` in the feedback are built.) Keep field descriptions short: the model reads every one.
 
 > **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
@@ -132,7 +132,7 @@ Input:
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
   rest_after?: number | null,   // seconds before the sound fades with no update, null = never. Shared with the owner (limits.md, "Who can change what")
-  voice?: Voice,                // planned: see mood-mapping.md
+  voice?: Voice,                // replaces the session's voice (mood-mapping.md); {} clears it; transition at least 8 s
   note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details and in the player's "What Claude set" panel; not echoed back in the feedback, the model already has it; listed in `inspect` history)
 }
 ```
