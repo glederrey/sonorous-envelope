@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Eye, EyeOff, Play, Volume2, VolumeX } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
-import { hardCaps, isResting, parseSettings, type ListenerSettings } from "@sonorous/shared";
+import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
@@ -89,15 +89,26 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (document.visibilityState === "hidden") dbg.current.applied++;
     // a state with a delay (the closing fade after a closing sound) waits that long from when it was written; the engine
     // keeps the timing, and the colour waits the same time
-    const wait = Math.max(0, (state.transition.delay ?? 0) - (Date.now() + clockOffset.current - at) / 1000);
+    const age = (Date.now() + clockOffset.current - at) / 1000;
+    const delay = state.transition.delay ?? 0;
+    const wait = Math.max(0, delay - age);
     if (wait > 0) setTimeout(() => { if (latest.current === next) setPlaying(next); }, wait * 1000);
     else setPlaying(next);
-    audio.current?.setState(state, next.seed, wait);
+    // `elapsed`: seconds since the state started, by the server's clock, so this device lands on the shared step grid
+    audio.current?.setState(state, next.seed, wait, Math.max(age, delay)); // seconds since it was written, at the moment it starts
   }, []);
 
   // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
   // written). The clock is the server's: offset = server time minus ours, taken from get_player_state.
   const clockOffset = useRef(0);
+  const clockSamples = useRef<Array<{ rtt: number; offset: number }>>([]);
+  // The offset between the server's clock and ours, from the request with the shortest round trip among the last twelve:
+  // a short trip means the least time spent on the network, so the midpoint is the best guess for when the server answered.
+  const noteClock = (serverMs: number, t0: number, t1: number) => {
+    const list = clockSamples.current; list.push({ rtt: t1 - t0, offset: serverMs - (t0 + t1) / 2 });
+    if (list.length > 12) list.shift();
+    clockOffset.current = list.reduce((best, s) => (s.rtt < best.rtt ? s : best)).offset;
+  };
   const restedFrom = useRef<Playing | null>(null);
   const restTick = useCallback(() => {
     const p = latest.current, r = settings.current.rest_after;
@@ -130,12 +141,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     };
     const check = async () => {
       let result: Awaited<ReturnType<typeof supabase.rpc>>;
+      const t0 = Date.now();
       try {
         result = await supabase.rpc("get_player_state", { p_session: sessionId });
       } catch (e) {
         result = { data: null, error: { message: String(e) } } as unknown as typeof result;
       }
       const { data, error } = result;
+      if (data && typeof data === "object" && "now" in data && data.now) noteClock(Date.parse(String(data.now)), t0, Date.now());
       if (document.visibilityState === "hidden") {
         if (error) { dbg.current.err++; dbg.current.lastErr = String(error.message ?? error).slice(0, 80); } else dbg.current.ok++;
       }
@@ -151,7 +164,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       }
       known.current = true;
       settings.current = parseSettings(data.settings);
-      if (data.now) clockOffset.current = Date.parse(data.now) - Date.now();
+      if (data.now && clockSamples.current.length === 0) clockOffset.current = Date.parse(data.now) - Date.now(); // a first guess, from the worker
       if (data.ended) {
         ended = true;
         // play the closing state first (silence with end): show "ended" once its fade is over
@@ -166,6 +179,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         return;
       }
       if (data.state) apply(data.state);
+      // now and then, pull this device's step grid back onto the shared one (audio clocks drift apart slowly)
+      if (data.state && latest.current && !restedFrom.current) {
+        const age = (Date.now() + clockOffset.current - latest.current.at) / 1000;
+        audio.current?.syncGrid(Math.max(0, age)); // seconds since the state was written (the engine ignores it while a delayed state waits)
+      }
       restTick();
       setPhase((p) => (p === "joining" ? "ready" : p));
     };
@@ -332,7 +350,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       out.watch(setAudioState);
       out.setGain(muted ? 0 : sliderToGain(volume));
       // already resting when the listener taps Start: begin silent (the engine's first state jumps to its target)
-      if (latest.current) out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed);
+      out.setGridSeed(voiceSeedOf(sessionId));
+      if (latest.current) {
+        // joining late: start on the shared step grid, by the server's clock
+        const age = (Date.now() + clockOffset.current - latest.current.at) / 1000, delay = latest.current.state.transition.delay ?? 0;
+        out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed, Math.max(0, delay - age), Math.max(age, delay));
+      }
       setStarted(true);
     } catch {
       setMessage("Your browser could not start audio.");

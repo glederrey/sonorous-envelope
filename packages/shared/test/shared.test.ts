@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  harmonyFor, isResting, analyze, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -388,6 +388,25 @@ describe("analysis", () => {
     expect(buildFeedback({ turn: 1, intent: neutral, effective: eff, clamps: [], players: 1 })).not.toHaveProperty("reads_as");
     const f = buildFeedback({ turn: 1, intent: neutral, effective: eff, clamps: [], players: 1, analysis: { sound: { brightness: "low" }, reads_as: { joy: 0.5 } } });
     expect(f.sound).toEqual({ brightness: "low" }); expect(f.reads_as).toEqual({ joy: 0.5 });
+  });
+});
+
+describe("the shared timeline", () => {
+  const st = (tempo: number, rate: "1/8" | "1/4" = "1/8") => { const s = moodToEngineState(neutral); s.arp.tempo = tempo; s.arp.rate = rate; s.bass.stepSeconds = 2; return s; };
+  it("starts at zero and counts steps forward at the previous state's step length", () => {
+    expect(nextGrid(null, 1000)).toEqual({ arp: 0, bass: 0 });
+    const a = st(120); a.grid = { arp: 0, bass: 0 };
+    const prev = { effective: a, created_at: new Date(10_000).toISOString() };
+    const g = nextGrid(prev, 10_000 + 3_000); // 3 s later: 0.25 s steps and 2 s bass steps
+    expect(g.arp).toBeCloseTo(12, 9); expect(g.bass).toBeCloseTo(1.5, 9);
+    const b = st(60, "1/4"); b.grid = g;
+    const g2 = nextGrid({ effective: b, created_at: new Date(13_000).toISOString() }, 13_000 + 2_000);
+    expect(g2.arp).toBeCloseTo(14, 9); // 1 s steps now
+  });
+  it("never goes backwards, and copes with states that have no grid", () => {
+    const a = st(100);
+    expect(nextGrid({ effective: a, created_at: new Date(5000).toISOString() }, 4000).arp).toBe(0);
+    expect(stepSecondsOf(a).arp).toBeCloseTo(0.3, 9);
   });
 });
 

@@ -5,3 +5,4 @@ export * from "./feedback";
 export * from "./rest";
 export * from "./sticky";
 export * from "./analysis";
+export * from "./grid";

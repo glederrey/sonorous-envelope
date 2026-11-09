@@ -39,6 +39,9 @@ export interface EngineState {
   volume: number;
   gesture: null | { type: GestureType; intensity: number; id: string };
   colour: ResolvedColour;
+  /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
+   *  was written. The server fills it in; with the state's creation time every device knows where each step is. */
+  grid?: { arp: number; bass: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
   transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }
