@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, sessionStatus } from "./session-status";
+import { ago, isOlder, sessionStatus } from "./session-status";
 
 const now = Date.parse("2026-11-09T12:00:00Z");
 const at = (minAgo: number) => new Date(now - minAgo * 60_000).toISOString();
@@ -13,6 +13,12 @@ describe("sessionStatus", () => {
   });
   it("is inactive after 30 minutes", () => {
     expect(sessionStatus({ ended_at: null, last_active_at: at(31) }, now)).toBe("inactive");
+    expect(sessionStatus({ ended_at: null, last_active_at: at(60 * 24 * 6) }, now)).toBe("inactive");
+  });
+  it("shows a session as ended after a week without a sound, and lists it as older after a day", () => {
+    expect(sessionStatus({ ended_at: null, last_active_at: at(60 * 24 * 8) }, now)).toBe("ended");
+    expect(isOlder({ last_active_at: at(60 * 23) }, now)).toBe(false);
+    expect(isOlder({ last_active_at: at(60 * 25) }, now)).toBe(true);
   });
 });
 
