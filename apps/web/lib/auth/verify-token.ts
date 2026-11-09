@@ -7,13 +7,15 @@ type KeySource = JWTVerifyGetKey | CryptoKey | KeyObject | JWK | Uint8Array;
 /**
  * Builds a verifier for Supabase OAuth access tokens.
  * Plain web-session tokens carry no client_id and are rejected: only OAuth clients may call the MCP endpoint.
- * TODO: add an audience check once a real token shows what Supabase puts in `aud` for OAuth tokens.
+ * `aud` is checked against "authenticated", the constant Supabase puts in every user access token (documented). It is a
+ * token-type check, not a binding to this resource: Supabase does not issue per-resource audiences unless a custom access
+ * token hook sets one. Signature, issuer, role and client_id carry the real guarantees.
  */
 export function createVerifier(getKey: KeySource, issuer: string) {
   return async function verifyToken(_req: Request, bearer?: string): Promise<AuthInfo | undefined> {
     if (!bearer) return undefined;
     try {
-      const { payload } = await jwtVerify(bearer, getKey as JWTVerifyGetKey, { issuer });
+      const { payload } = await jwtVerify(bearer, getKey as JWTVerifyGetKey, { issuer, audience: "authenticated" });
       if (payload.role !== "authenticated" || typeof payload.sub !== "string") return undefined;
       if (typeof payload.client_id !== "string") return undefined;
       return {

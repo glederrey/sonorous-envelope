@@ -24,7 +24,7 @@ beforeAll(async () => {
   verify = createVerifier(createLocalJWKSet({ keys: [jwk] }), ISSUER);
 });
 
-const ok = { sub: "user-1", role: "authenticated", client_id: "claude", scope: "openid email" };
+const ok = { aud: "authenticated", sub: "user-1", role: "authenticated", client_id: "claude", scope: "openid email" };
 
 describe("verifyToken", () => {
   it("accepts a valid OAuth token", async () => {
@@ -53,6 +53,12 @@ describe("verifyToken", () => {
 
   it("rejects a role other than authenticated", async () => {
     expect(await verify(req, await token({ ...ok, role: "anon" }))).toBeUndefined();
+  });
+
+  it("rejects another audience, or none", async () => {
+    expect(await verify(req, await token({ ...ok, aud: "https://other.example" }))).toBeUndefined();
+    const { aud: _omit, ...none } = ok;
+    expect(await verify(req, await token(none))).toBeUndefined();
   });
 
   it("rejects a token signed by another key", async () => {
