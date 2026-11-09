@@ -1,6 +1,6 @@
 import { clone } from "./util";
-import { neutralState, noteToMidi, type EngineState, type ResolvedColour, type ScaleName, type Wave } from "@sonorous/engine";
-import type { Colour, Mood, SynthOverride } from "./schemas";
+import { mulberry32, neutralState, noteToMidi, type EngineState, type ResolvedColour, type ScaleName, type Wave } from "@sonorous/engine";
+import type { Colour, Mood, SynthOverride, Voice } from "./schemas";
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -12,6 +12,60 @@ export const TUNING = {
   slowFraction: 0.25,
   scalesByJoy: ["phrygian", "harmonic_minor", "minor", "dorian", "mixolydian", "major", "lydian"] as ScaleName[],
 };
+
+/** Instances send cautious values (0.4 to 0.7). Stretch the middle before mapping: 0.4 becomes 0.34, 0.7 becomes 0.82. */
+export const stretch = (x: number) => clamp(0.5 + 1.6 * (x - 0.5));
+export const stretchMood = (m: Mood): Mood => ({
+  warmth: stretch(m.warmth), closeness: stretch(m.closeness), joy: stretch(m.joy), calm: stretch(m.calm), spontaneity: stretch(m.spontaneity),
+});
+
+/** The per-session seed behind the fallback voice and the `as_played` order: fixed for the session id. */
+export function voiceSeedOf(sessionId: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < sessionId.length; i++) { h ^= sessionId.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+export type ChordShape = "closed" | "open" | "ninth" | "suspended";
+
+/** What an instance sounds like when it chose no voice: drawn from the voice seed, so two instances sending the same axes differ. */
+export interface Character { rootOffset: number; shape: ChordShape; octaveDelta: number }
+export function characterFor(seed: number): Character {
+  const r = mulberry32(seed ^ 0x5eed);
+  return {
+    rootOffset: Math.floor(r() * 7) - 3,
+    shape: pick(["closed", "open", "ninth", "suspended"] as const, r()),
+    octaveDelta: Math.floor(r() * 3) - 1,
+  };
+}
+
+/** Spread a chord: the second note moves up an octave ([1,3,5,7] becomes [1,5,7,10]). */
+export function openVoicing(degrees: number[]): number[] {
+  if (degrees.length < 3) return degrees;
+  const out = [...degrees]; out[1] += 7;
+  return out.sort((a, b) => a - b);
+}
+
+const permute = <T>(list: T[], seed: number): T[] => {
+  const r = mulberry32(seed ^ 0xa5ed), out = [...list];
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+};
+
+/** A voice is a partial synth override: root, scale, chord, note order, octaves, wave. It replaces the mapped fields. */
+export function voiceToSynth(v: Voice | null | undefined): SynthOverride | undefined {
+  if (!v) return undefined;
+  const arp: NonNullable<SynthOverride["arp"]> = {};
+  if (v.root) arp.root = v.root;
+  if (v.scale) arp.scale = v.scale;
+  if (v.chord) arp.chord = v.chord;
+  if (v.pattern) arp.pattern = v.pattern;
+  if (v.octaves !== undefined) arp.octaves = v.octaves;
+  const out: SynthOverride = {};
+  if (Object.keys(arp).length) out.arp = arp;
+  if (v.wave) out.osc = { wave: v.wave };
+  return Object.keys(out).length ? out : undefined;
+}
 
 export const NEUTRAL_MOOD: Mood = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.8, spontaneity: 0.2 };
 
@@ -68,16 +122,24 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
   };
 }
 
-/** Axes to a full engine state. `slow` is the slow mood for the background layer (defaults to the mood itself). */
-export function moodToEngineState(m: Mood, slow: Mood = m): EngineState {
+/** Axes to a full engine state. `slow` is the slow mood for the background layer (defaults to the mood itself).
+ *  `voiceSeed` (from the session id) gives the instance a character when it chose no voice; without it the mapping is purely the axes. */
+export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): EngineState {
   const { warmth: w, closeness: c, joy: j, calm: k, spontaneity: s } = m;
   const base = neutralState();
 
   // harmony
   const harmony = harmonyFor(m, true);
-  const root = rootFor(m);
+  const ch = voiceSeed === undefined ? null : characterFor(voiceSeed);
+  const root = rootFor(m) + (ch?.rootOffset ?? 0);
+  // closeness spreads the chord; the character may add a shape of its own
+  let degrees = harmony.degrees;
+  if (m.closeness < 0.4 || ch?.shape === "open") degrees = openVoicing(degrees);
+  if (ch?.shape === "ninth" && !degrees.includes(9)) degrees = [...degrees, 9].sort((a, b) => a - b);
+  if (ch?.shape === "suspended" && !degrees.includes(4)) degrees = [...degrees, 4].sort((a, b) => a - b);
   const tempo = lerp(150, 56, k) * lerp(0.9, 1.1, j);
   const notes = 3 + Math.round(3 * (1 - k));
+  const pattern: EngineState["arp"]["pattern"] = s <= 0.4 ? (j >= 0.6 ? "up" : j <= 0.4 ? "down" : "up_down") : s <= 0.6 ? "as_played" : "random";
   const rate = k > 0.75 ? "1/4" : k > 0.45 ? (s > 0.6 ? "1/8t" : "1/8") : "1/16";
   const drive = 0.8 * (Math.max(0, 0.6 - j) / 0.6) * (Math.max(0, 0.6 - k) / 0.6) * (Math.max(0, 0.9 - w) / 0.9);
   const cutoff = Math.pow(2, lerp(Math.log2(400), Math.log2(6000), 0.5 * (1 - w) + 0.35 * j + 0.15 * (1 - k)));
@@ -99,9 +161,11 @@ export function moodToEngineState(m: Mood, slow: Mood = m): EngineState {
     ...base,
     arp: {
       on: !(k > 0.9 && j < 0.3),
-      root, scale: harmony.scale, chord: expandDegrees(harmony.degrees, Math.max(notes, harmony.degrees.length)),
-      pattern: s > 0.75 ? "random" : j >= 0.6 ? "up" : j <= 0.4 ? "down" : "up_down",
-      octaves: clamp(1 + Math.round(2 * s * (1 - k)), 1, 3),
+      root, scale: harmony.scale,
+      // as_played keeps the order we give it: shuffle once from the voice seed so it does not simply climb
+      chord: ((c) => (pattern === "as_played" && voiceSeed !== undefined ? permute(c, voiceSeed) : c))(expandDegrees(degrees, Math.max(notes, degrees.length))),
+      pattern,
+      octaves: clamp(1 + Math.round(3 * (1 - c) * (0.5 + 0.5 * s)) + (ch?.octaveDelta ?? 0), 1, 4),
       tempo, rate,
       gate: lerp(0.3, 0.95, 0.6 * k + 0.4 * w),
       swing: 0.4 * s,
