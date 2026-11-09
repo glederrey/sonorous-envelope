@@ -2,23 +2,24 @@
 
 import { useEffect, useRef } from "react";
 
-// Seven lines, each a flat baseline that pulses travel along. A pulse is an
-// envelope: fast attack, slow release. It widens and fades as it moves right.
-// The centre line sends a clean upward pulse; the others vary (up, down, or
-// up then down) at random intervals. Everything is slow geometry, nowhere near
-// the 3 Hz flashing limit.
+// Seven lines. The centre line carries the pulses: an envelope with a fast
+// attack and a slow release that widens and fades as it travels right, and may
+// go up, down, or up then down. Every other line repeats exactly that shape,
+// scaled down by its own opacity, so the fainter the line the flatter its copy.
+// Everything is slow geometry, nowhere near the 3 Hz flashing limit.
 const X0 = 2;
 const X1 = 598;
 const SAMPLES = 90;
 const SPACING = 80;
 const BASELINES = Array.from({ length: 7 }, (_, i) => 90 + i * SPACING);
 const MAIN = 3;
-// Largest upward excursion per line (always below SPACING, so a line never
-// reaches the baseline of the one above). Only the middle line can also dip,
-// and its dip plus the next line's rise stays under SPACING.
-const CAPS_UP = [34, 44, 54, 64, 54, 44, 34];
+// Largest excursion of the centre line. Every other line moves the same way by
+// less (see GAIN), so no line reaches the baseline of its neighbour.
+const CAP_UP = 64;
 const CAP_DOWN = 16;
 const OPACITY = [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2];
+// How much of the centre line's movement each line repeats: the fainter, the less.
+const GAIN = OPACITY.map((o, i) => (i === MAIN ? 1 : o * 0.85));
 const STAGGER_MS = 240;
 
 type Pulse = { t0: number; speed: number; w0: number; grow: number; amp: number; decay: number; biphasic: boolean };
@@ -35,25 +36,30 @@ function pulseValue(p: Pulse, x: number, t: number) {
   return p.amp * Math.exp(-p.decay * age) * g;
 }
 
-function linePath(i: number, pulses: Pulse[], t: number) {
-  const up = CAPS_UP[i];
-  const down = i === MAIN ? CAP_DOWN : 1;
-  let d = "";
+/** The centre line's vertical excursion (up is positive) at each sample, for the pulses alive at time t. */
+function displacement(pulses: Pulse[], t: number) {
+  const out = new Float32Array(SAMPLES + 1);
   for (let k = 0; k <= SAMPLES; k++) {
     const x = X0 + ((X1 - X0) * k) / SAMPLES;
     let sum = 0;
     for (const p of pulses) sum += pulseValue(p, x, t);
-    const y = BASELINES[i] - (sum >= 0 ? up * Math.tanh(sum / up) : down * Math.tanh(sum / down));
-    d += `${k === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)} `;
+    out[k] = sum >= 0 ? CAP_UP * Math.tanh(sum / CAP_UP) : CAP_DOWN * Math.tanh(sum / CAP_DOWN);
+  }
+  return out;
+}
+
+function linePath(i: number, disp: Float32Array) {
+  let d = "";
+  for (let k = 0; k <= SAMPLES; k++) {
+    const x = X0 + ((X1 - X0) * k) / SAMPLES;
+    d += `${k === 0 ? "M" : "L"}${x.toFixed(1)} ${(BASELINES[i] - GAIN[i] * disp[k]).toFixed(1)} `;
   }
   return d;
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
-// The middle line sets the pulse and may go up, down, or up then down. Every
-// other line sends an upward variant at the same moment: faster or slower,
-// wider or narrower. Waves keep their height until they leave at the right.
+// A new pulse on the centre line: it may go up, down, or up then down.
 function spawnMain(t: number): Pulse {
   const r = Math.random();
   const dip = r > 0.5 && r <= 0.72;
@@ -66,21 +72,9 @@ function spawnMain(t: number): Pulse {
     speed: swell ? rand(38, 60) : spike ? rand(110, 150) : rand(65, 105),
     w0: swell ? rand(75, 125) : spike ? rand(16, 28) : rand(40, 70),
     grow: swell ? rand(0, 0.03) : rand(0.02, 0.08),
-    amp: (dip ? -1 : 1) * (dip ? CAP_DOWN * 1.4 : CAPS_UP[MAIN]) * rand(0.55, 1),
+    amp: (dip ? -1 : 1) * (dip ? CAP_DOWN * 1.4 : CAP_UP) * rand(0.55, 1),
     decay: rand(0, 0.025),
     biphasic: r > 0.72,
-  };
-}
-
-function spawnVariant(i: number, main: Pulse, t: number): Pulse {
-  return {
-    t0: t + (Math.random() < 0.2 ? rand(0.4, 1.4) : rand(0, 0.5)),
-    speed: main.speed * rand(0.65, 1.5),
-    w0: Math.abs(main.w0) * rand(0.55, 1.8),
-    grow: main.grow * rand(0.4, 2.2),
-    amp: CAPS_UP[i] * rand(0.35, 1),
-    decay: rand(0, 0.025),
-    biphasic: false,
   };
 }
 
@@ -89,15 +83,14 @@ export function Envelope({ className }: { className?: string }) {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // One frozen pulse per line.
-      paths.current.forEach((el, i) => {
-        const frozen: Pulse = { t0: 0, speed: 0, w0: 60, grow: 0, amp: CAPS_UP[i] * 0.8, decay: 0, biphasic: false };
-        el?.setAttribute("d", linePath(i, [{ ...frozen, speed: 1 }], 200));
-      });
+      // One frozen pulse, repeated on every line.
+      const frozen: Pulse = { t0: 0, speed: 1, w0: 60, grow: 0, amp: CAP_UP * 0.8, decay: 0, biphasic: false };
+      const disp = displacement([frozen], 200);
+      paths.current.forEach((el, i) => el?.setAttribute("d", linePath(i, disp)));
       return;
     }
     const start = performance.now();
-    const lines = BASELINES.map(() => [] as Pulse[]);
+    let pulses: Pulse[] = [];
     // Event times: the first at once, then every 2.5 to 6 s. About a third of
     // the events come twice in quick succession.
     const events: number[] = [0];
@@ -106,11 +99,7 @@ export function Envelope({ className }: { className?: string }) {
       const t = (now - start) / 1000;
       while (events.length && t >= events[0]) {
         const at = events.shift() as number;
-        const main = spawnMain(t);
-        lines.forEach((pulses, i) => {
-          if (i === MAIN) pulses.push(main);
-          else if (Math.random() > 0.12) pulses.push(spawnVariant(i, main, t));
-        });
+        pulses.push(spawnMain(t));
         if (events.length === 0) {
           events.push(at + rand(2.5, 6));
           if (Math.random() < 0.35) {
@@ -121,13 +110,12 @@ export function Envelope({ className }: { className?: string }) {
           }
         }
       }
-      lines.forEach((pulses, i) => {
-        lines[i] = pulses.filter((p) => {
-          const age = t - p.t0;
-          return centre(p, age) - 2.5 * width(p, age) < X1 && Math.abs(p.amp) * Math.exp(-p.decay * age) > 1;
-        });
-        paths.current[i]?.setAttribute("d", linePath(i, lines[i], t));
+      pulses = pulses.filter((p) => {
+        const age = t - p.t0;
+        return centre(p, age) - 2.5 * width(p, age) < X1 && Math.abs(p.amp) * Math.exp(-p.decay * age) > 1;
       });
+      const disp = displacement(pulses, t);
+      paths.current.forEach((el, i) => el?.setAttribute("d", linePath(i, disp)));
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -140,7 +128,7 @@ export function Envelope({ className }: { className?: string }) {
       viewBox="0 46 600 568"
       fill="none"
       role="img"
-      aria-label="Seven lines with slow pulses travelling along them, like envelopes passing through"
+      aria-label="Seven lines repeating the same slow pulse, each fainter and flatter than the one before, like envelopes passing through"
     >
       <defs>
         <linearGradient id="env-stroke" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
@@ -156,7 +144,7 @@ export function Envelope({ className }: { className?: string }) {
           }}
           className="lp-env-line"
           pathLength={1}
-          d={linePath(i, [], 0)}
+          d={linePath(i, displacement([], 0))}
           stroke="url(#env-stroke)"
           strokeWidth={4}
           strokeOpacity={OPACITY[i]}
