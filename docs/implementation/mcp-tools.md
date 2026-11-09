@@ -137,7 +137,7 @@ Input:
 Behaviour, in order:
 1. Resolve the session (see "Session resolution"). Reject if ended.
 2. Load `settings` and the current effective state.
-3. `mapped = moodToEngineState(mood)` (mood-mapping.md), then deep-merge `synth` over it.
+3. `mapped = moodToEngineState(mood)` (mood-mapping.md), then deep-merge `synth` over it. Planned: `stretch` runs on the mood first, then the mood floor, then mapping, then voice, then `synth` (mood-mapping.md, "Stretch" and "Voice").
 4. `{effective, clamps} = applyLimits(mapped, gesture, colour, transition, settings, previousEffective)` (limits.md). This also drops the gesture if gestures are off.
 5. Pick a `seed` (random 32-bit). Insert the state row with `intent`, `effective`, `clamps`, `seed`, `final`, `turn` (= session.turn + 1 if this is the first update of a new turn, else the same).
 6. Update the session: `current_state_id`, `last_active_at`, `pending_final = !final`, and `turn += 1` when `final` is true.

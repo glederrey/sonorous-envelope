@@ -31,7 +31,7 @@ Each level sets ceilings. The listener's own limits apply on top (the stricter w
 | Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
 | Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
 | Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
-| Fast amp LFO (rate ≥ 20 Hz) | not allowed (rate capped at 12 Hz) | depth ≤ 0.3, rate ≤ 40 Hz (purr grain) | up to 80 Hz, depth ≤ 0.6 (growl grain) |
+| Fast amp LFO (rate ≥ 20 Hz) | not allowed (rate capped at 12 Hz) | purr grain only: rate ≤ 28 Hz, depth ≤ 0.3 | up to 80 Hz, depth ≤ 0.6 (growl grain, 30 to 70 Hz, only here) |
 | Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
 | Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
 | Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
@@ -44,6 +44,7 @@ Planned: an `amp` LFO with rate ≥ 20 Hz is roughness too. It is the same sound
 If above `max_harshness`, reduce in this order until it fits: drive (to 0), cutoff (down, max 1.5 octaves), resonance (down to 0.7), wave (one step softer), note rate (halve). Each step adds a clamp entry. The `growl` gesture counts as harshness 0.7 while it plays and is dropped if that exceeds `max_harshness`.
 
 ## Order of operations
+0. **Stretch (planned):** each axis goes through `stretch` (mood-mapping.md, "Stretch"). It runs first so the floor below is never lowered by it.
 1. **Mood floor:** before mapping, raise `joy` and `calm` to the floor (settings floor and consent floor, whichever is higher). Clamp entry: `"joy 0.1→0.3 (mood floor)"`. (So call `applyMoodFloor` before `moodToEngineState`; `set_sound` step 3 does this.)
 2. **Consent ceilings:** tempo, resonance, wave, scale (a disallowed scale is replaced by a fixed fallback: locrian and phrygian → minor, chromatic → pentatonic), LFO depth, note rate, gesture type.
 3. **Harshness.**

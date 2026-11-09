@@ -33,7 +33,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Rate:** `k > 0.75 → "1/4"`, `k > 0.45 → "1/8"`, else `"1/16"`. Triplets (`"1/8t"`) if `s > 0.6` and `k > 0.45`.
 - **Pattern** (planned: spontaneity chooses the family, joy the contour inside the measured one):
   - `s ≤ 0.4`: contour follows joy, as before: `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`.
-  - `0.4 < s ≤ 0.6`: `"as_played"` over a chord order permuted once from the seed, so the notes do not simply climb.
+  - `0.4 < s ≤ 0.6`: `"as_played"` over a chord order permuted once from the session's voice seed (below), so the notes do not simply climb and do not reorder on every update (the per-state `seed` changes each time).
   - `s > 0.6`: `"random"` (was `s > 0.75`).
 - **Notes per cycle:** `N = 3 + round(3·(1−k))`: 3 when calm, 6 when urgent, but never fewer than the chord has. The `chord` is extended to N degrees by continuing past the top (`[1,3,5,7]` with N=6 gives `[1,3,5,7,8,10]`). `octaves` then repeats that list upward, so the cycle is N × octaves long. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
 - **Density:** `lerp(1.0, 0.6, s)` × `lerp(0.75, 1.0, 1−k)` (calm = sparser), clamp [0.35, 1].
@@ -67,7 +67,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 
 ## Background (bass) layer
 A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). It is the mood; the foreground arpeggio above is the affect.
-- **Slow mood:** per axis, `slow = lerp(slow, mood, 0.25)`, updated on every `final: true` update and not on mid-turn ones, starting from the first mood of the session. Stored on the state row (`slow_mood`). 0.25 is a starting value: it takes about four responses to cover most of a change. It barely moves by design.
+- **Slow mood** (follows the stretched values, like everything else after step 0 of limits.md): per axis, `slow = lerp(slow, mood, 0.25)`, updated on every `final: true` update and not on mid-turn ones, starting from the first mood of the session. Stored on the state row (`slow_mood`). 0.25 is a starting value: it takes about four responses to cover most of a change. It barely moves by design.
 - **Chord:** the chord-quality rules applied to `slow`, at root − 12.
 - **Steps:** one note every `lerp(1, 2, slow.calm)` s, pattern `up_down`, gate 1, wave `sine` if `slow.warmth > 0.5` else `triangle`, level `lerp(0.1, 0.25, slow.calm)`.
 - If the bass layer and the drone sound muddy together, drop the mapped drone (it stays available through the override). Check by ear.
@@ -93,7 +93,8 @@ A voice is the part of the sound that says who is playing, as opposed to how it 
 - **The instance chooses it** (`voice` on `start_session`, optionally replaced later with `voice` on `set_sound`). Same fields and limits as the matching ones in `synth` (`arp.root`, `arp.scale`, `arp.chord`, `arp.pattern`, `arp.octaves`, `osc.wave`, later `osc.stack`). It is stored on the session (`sessions.voice`).
 - **It persists by default** from turn to turn, which gives the unity of a voice. The axes keep driving everything else (tempo, rate, filter, envelope, space).
 - **It is never a prison.** `set_sound` can replace it at any time, for instance when the conversation turns (anger, disrespect, a change of subject). A replacement uses a longer transition, like any big change.
-- **Fallback when the instance chooses none:** a default voice drawn from the session seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule and the consent fallbacks; an explicit voice does not.
+- **Voice seed:** `voiceSeed = hash(session id)`, fixed for the session. It drives the fallback voice and the `as_played` permutation. It is separate from the per-state seed of `set_sound`, which only drives the engine's randomness.
+- **Fallback when the instance chooses none:** a default voice drawn from the voice seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule and the consent fallbacks; an explicit voice does not.
 - **Merge order:** mapped → voice → `synth` of this call → limits. Consent ceilings (scales, waves) apply to the voice like to any override, and the clamp is reported.
 - **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
 
