@@ -2,7 +2,7 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Last updated at v0.1.0 (2026-11-09, after the first outside test). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
+Last updated at v0.1.9 (2026-11-09, after the second outside test). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
 ## Checklist, in the order we plan to do it
 
