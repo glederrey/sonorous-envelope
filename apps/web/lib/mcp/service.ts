@@ -90,18 +90,25 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
   return { resting: true, notes: [restingNote(settings.rest_after)] };
 }
 
-type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number> };
+type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> };
 
 /** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
 function measureState(effective: EngineState, seed: number): Compact | null {
   try {
     if (effective.volume <= 0) return null;
     const a = analyze(effective, seed);
-    return { sound: a.sound, reads_as: a.reads_as };
+    return { sound: a.sound, reads_as: a.reads_as, why: a.why };
   } catch (e) {
     console.error("analysis failed:", e);
     return null;
   }
+}
+
+/** The tempo does not glide: it changes when the new state starts. Say so when it changed. */
+function tempoNote(prev: StateRow | null | undefined, now: EngineState): string | undefined {
+  if (!prev) return undefined;
+  const a = Math.round(prev.effective.arp.tempo), b = Math.round(now.arp.tempo);
+  return a === b ? undefined : `tempo ${a} to ${b}: it changes at once when this state starts, it does not glide`;
 }
 
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
@@ -201,7 +208,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
 
   const turn = planTurn(prev, input.final, now);
   // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
-  const mood = stretchMood(input.mood);
+  const sentMood = input.mood ?? prev?.intent.mood ?? NEUTRAL_MOOD; // no mood: the last one stays
+  const mood = stretchMood(sentMood);
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
   // a new voice replaces the old one for good; it is a big change, so without a transition of its own it gets a long one
@@ -229,7 +237,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const analysis = measureState(effective, seed);
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
-    intent: { mood: input.mood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
+    intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
     effective, clamps: allClamps, seed, slow_mood: slow, analysis,
   });
   const title = input.title?.trim().slice(0, 80);
@@ -245,9 +253,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: input.mood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis });
+  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {

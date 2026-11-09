@@ -261,6 +261,20 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((after.playing as { wave: string }).wave).toBe((kept.playing as { wave: string }).wave);
   });
 
+  it("says when the tempo changed (it steps), and keeps the last mood when none is sent", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const slow = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.95, spontaneity: 0.2 };
+    const fast = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.05, spontaneity: 0.2 };
+    const a = await svc.setSound(dbA, A, { session_id, mood: slow, final: true } as never, tick());
+    const b = await svc.setSound(dbA, A, { session_id, mood: fast, final: true } as never, tick());
+    expect((b.notes as string[]).join(" ")).toMatch(/tempo \d+ to \d+: it changes at once/);
+    const c = await svc.setSound(dbA, A, { session_id, final: true, synth: { filter: { cutoff: 900 } } } as never, tick());
+    expect(c.intent).toEqual(b.intent);
+    expect((c.playing as { scale: string }).scale).toBe((b.playing as { scale: string }).scale);
+    expect((c.notes as string[]).join(" ")).toMatch(/mood kept from your last call/);
+    expect(a.notes ?? []).not.toContain("mood kept from your last call");
+  });
+
   it("ends sessions that had no sound for a week when a new one starts, and leaves recent ones alone", async () => {
     const old = await svc.startSession(dbA, A, {}, tick());
     const recent = await svc.startSession(dbA, A, {}, tick());
