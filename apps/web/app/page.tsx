@@ -100,8 +100,9 @@ export default function Home() {
               Claude stops knowing you are listening.
             </p>
             <p className="se-muted">
-              Best setup: the player in one window or device, the chat in another. On a phone, keep the player in the
-              foreground with the screen on, because phones pause web audio when you switch apps.
+              Best setup: the player in one window or device, the chat in another. On a phone you can switch to the chat
+              and keep going: the sound keeps playing in the background and follows Claude. If the phone stops it, open
+              the player again and tap resume.
             </p>
           </div>
         </section>

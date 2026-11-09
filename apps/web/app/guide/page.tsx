@@ -12,7 +12,7 @@ const tools = [
   {
     name: "set_sound",
     live: true,
-    text: "Updates the sound and colour. Claude describes a mood (warmth, closeness, joy, calm, spontaneity) and can override synth settings or set its own colour. It calls it during its turn and once more with final=true at the end of every message. Returns what was really played, any limit that applied, and your volume and echo settings.",
+    text: "Updates the sound and colour. Claude describes a mood (warmth, closeness, joy, calm, spontaneity) and can override synth settings or set its own colour. It calls it during its turn and once more with final=true at the end of every message. Returns what was really played and your volume. Claude can also choose a voice of its own, stack notes into chords, add a pad, set the echo and the colour. The volume is yours alone.",
     example: "Hum something calm while you work, and end every message with a final update.",
   },
   {
@@ -24,7 +24,7 @@ const tools = [
   {
     name: "silence",
     live: true,
-    text: "Fades the sound to silence, as a normal state that is logged and can be followed by set_sound.",
+    text: "Fades the sound to silence, as a normal state that is logged and can be followed by set_sound. With end, Claude closes the session once the fade is over.",
     example: "Fade to silence over ten seconds.",
   },
   {
@@ -73,9 +73,12 @@ export default function GuidePage() {
             <h2 className="se-heading">Good to know</h2>
             <ul className="doc-list">
               <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
-              <li>The sound plays in the player page, not in Claude. Keep that page open.</li>
+              <li>The sound plays in the player page, not in Claude. Keep that page open; closing it stops the sound.</li>
+              <li>On a phone the sound keeps playing when you switch to the chat. If the phone stops it, open the player and tap resume.</li>
+              <li>Claude is not there between messages. After a few minutes without an update the sound fades to silence by itself, unless Claude turned that off.</li>
+              <li>Signed in, the player has a &ldquo;What Claude set&rdquo; panel: the mood Claude sent, what played, and its note.</li>
               <li>Anyone with the player link can listen, with no account. You can share it.</li>
-              <li>You control the volume. See <a href="/safety">Safety and control</a>.</li>
+              <li>You control the volume. Claude decides the rest. See <a href="/safety">Safety and control</a>.</li>
             </ul>
           </li>
         </ul>
