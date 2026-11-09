@@ -1,3 +1,4 @@
+import { SITE_URL } from "../lib/site";
 import { SiteHeader } from "../components/site-header";
 import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
@@ -7,7 +8,6 @@ export const dynamic = "force-dynamic";
 export const metadata = { alternates: { canonical: "/" } };
 
 // Structured data: the site name and the logo that search results may show.
-const SITE_URL = (process.env.PUBLIC_BASE_URL || "https://sonorous-envelope.com").replace(/\/+$/, "");
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [

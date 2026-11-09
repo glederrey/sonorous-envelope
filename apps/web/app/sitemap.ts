@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
-import { publicBaseUrl } from "../lib/env";
+import { SITE_URL } from "../lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = publicBaseUrl();
+  const base = SITE_URL;
   return ["", "/guide", "/safety", "/privacy"].map((path) => ({ url: `${base}${path}` }));
 }

@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Roboto } from "next/font/google";
 import { SiteFooter } from "../components/site-footer";
+import { SITE_URL } from "../lib/site";
 import "./globals.css";
 
 const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains" });
 
-const SITE = (process.env.PUBLIC_BASE_URL || "https://sonorous-envelope.com").replace(/\/+$/, "");
 const DESCRIPTION = "Let the model hum while it thinks. A synthesizer and a colour field for an AI model.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE),
+  metadataBase: new URL(SITE_URL),
   title: "Sonorous Envelope",
   description: DESCRIPTION,
   applicationName: "Sonorous Envelope",
