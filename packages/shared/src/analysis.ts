@@ -184,6 +184,15 @@ const word = (x: number, cuts: number[], names: string[]) => names[cuts.findInde
 export interface Analysis {
   sound: { brightness: string; density: string; movement: string; loudness_db: number; roughness: number };
   reads_as: { warmth: number; closeness: number; joy: number; calm: number; spontaneity: number };
+  /** Per axis: what holds the reading down ("low") and what lifts it ("high"), as the two biggest terms of its formula. */
+  why: Record<string, { low: string; high: string }>;
+}
+
+type Term = [name: string, weight: number, towardHigh: number];
+/** The two terms of an axis formula that cost it the most (`low`) and that give it the most (`high`). Names say what to change. */
+function explain(terms: Term[]): { low: string; high: string } {
+  const top = (key: (t: Term) => number) => [...terms].sort((a, b) => key(b) - key(a)).slice(0, 2).map((t) => t[0]).join(", ");
+  return { low: top((t) => t[1] * (1 - t[2])), high: top((t) => t[1] * t[2]) };
 }
 
 /** The compact reading returned to Claude, from the measured features and the tempo of the state. */
@@ -195,6 +204,13 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   const warmth = 1 - (0.45 * c + 0.3 * clamp01(f.highFreqRatio * 8) + 0.25 * f.roughness);
   const closeness = 0.4 * loud + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
+  const why = {
+    joy: explain([["mode", 0.4, f.modeBrightness], ["brightness", 0.25, c], ["tempo", 0.15, norm(tempo, RANGES.tempo)], ["smoothness", 0.2, 1 - f.roughness]]),
+    calm: explain([["density", 0.35, 1 - den], ["loudness", 0.25, 1 - loud], ["movement", 0.2, 1 - flux], ["brightness", 0.2, 1 - c]]),
+    warmth: explain([["brightness", 0.45, 1 - c], ["high_frequencies", 0.3, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.25, 1 - f.roughness]]),
+    closeness: explain([["loudness", 0.4, loud], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
+    spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
+  };
   return {
     sound: {
       brightness: word(f.centroidHz, [250, 500, 900, 1500], ["very low", "low", "medium", "high", "very high"]),
@@ -203,6 +219,7 @@ export function readFeatures(f: Features, tempo: number): Analysis {
       loudness_db: Math.round(f.loudnessDb), roughness: r2(f.roughness),
     },
     reads_as: { warmth: r2(clamp01(warmth)), closeness: r2(clamp01(closeness)), joy: r2(clamp01(joy)), calm: r2(clamp01(calm)), spontaneity: r2(clamp01(spontaneity)) },
+    why,
   };
 }
 

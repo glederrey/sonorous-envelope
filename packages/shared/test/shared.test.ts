@@ -357,6 +357,15 @@ describe("what stays on the session", () => {
 
 describe("analysis", () => {
   const state = (o: Partial<MoodT> = {}) => moodToEngineState(stretchMood({ ...neutral, ...o }), stretchMood({ ...neutral, ...o }), voiceSeedOf("a"));
+  it("explains a reading that is far from what was sent: names the parts that pull it", () => {
+    const eff = state({ joy: 0.1, calm: 0.2 });
+    const an = analyze(eff, 3);
+    const fb = buildFeedback({ turn: 1, intent: { ...neutral, joy: 1 }, effective: eff, clamps: [], players: 1, analysis: an }) as { reads_why?: Record<string, string> };
+    expect(fb.reads_why?.joy).toMatch(/^held down by \w+(, \w+)?$/);
+    const close = buildFeedback({ turn: 1, intent: { ...neutral, joy: an.reads_as.joy, calm: an.reads_as.calm, warmth: an.reads_as.warmth, closeness: an.reads_as.closeness, spontaneity: an.reads_as.spontaneity },
+      effective: eff, clamps: [], players: 1, analysis: an });
+    expect(close).not.toHaveProperty("reads_why");
+  });
   it("measures a state: plausible loudness, words and estimates in range", () => {
     const a = analyze(state({ joy: 0.7, calm: 0.7 }), 3);
     expect(a.sound.loudness_db).toBeLessThan(-5); expect(a.sound.loudness_db).toBeGreaterThan(-60);

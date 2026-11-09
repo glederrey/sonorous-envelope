@@ -122,7 +122,7 @@ export function parseSettings(raw: unknown): ListenerSettings {
 
 export const SetSoundInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
-  mood: Mood,
+  mood: Mood.optional().describe("leave it out to keep the mood of your last call: a synth, voice or colour change then does not move the voice the mood draws"),
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced"),
   colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own. It stays until you change it; mode follow gives it back to the sound"),
   transition: Transition.optional(),
