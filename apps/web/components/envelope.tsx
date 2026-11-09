@@ -9,7 +9,8 @@ import { useEffect, useRef } from "react";
 // line, the flatter its copy), with a small random spread per wave so the copies
 // are not exact. Added life: a faint idle breathing on every line, a small
 // undershoot after each wave, opacity that rises while a wave passes, a
-// gradient that drifts, and lines that lean towards the pointer.
+// gradient that drifts, lines that lean towards the pointer, and a pulse of its own
+// wherever the visitor clicks.
 // Everything is slow geometry, nowhere near the 3 Hz flashing limit.
 const X0 = 2;
 const X1 = 598;
@@ -114,6 +115,14 @@ function spawnMain(t: number): Pulse {
   };
 }
 
+// A pulse the visitor starts by clicking: it begins under the click and travels right.
+// A click above the centre line sends a swell up, a click below sends a dip.
+function spawnAt(t: number, x: number, up: boolean): Pulse {
+  const p = spawnMain(t);
+  const age0 = Math.max(0, (x - X0 + p.w0) / p.speed);
+  return { ...p, t0: t - age0, amp: (up ? 1 : -1) * (up ? CAP_UP : CAP_DOWN * 1.4) * rand(0.6, 1), biphasic: false };
+}
+
 export function Envelope({ className }: { className?: string }) {
   const svg = useRef<SVGSVGElement | null>(null);
   const paths = useRef<(SVGPathElement | null)[]>([]);
@@ -147,6 +156,18 @@ export function Envelope({ className }: { className?: string }) {
       if (inside) { pointer.x = p.x; pointer.y = p.y; }
     };
     const onLeave = () => { pointer.target = 0; };
+    // Clicks and taps on the animation start a pulse (links and buttons on top of it keep their own job).
+    const clicks: { x: number; up: boolean }[] = [];
+    let lastClick = -1;
+    const onDown = (e: PointerEvent) => {
+      const el = svg.current, ctm = el?.getScreenCTM();
+      if (!el || !ctm || (e.target as Element | null)?.closest?.("a, button, input, select, textarea, [role=button]")) return;
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      if (p.x < 0 || p.x > 600 || p.y < 46 || p.y > 614 || e.timeStamp - lastClick < 150) return;
+      lastClick = e.timeStamp;
+      clicks.push({ x: p.x, up: p.y <= BASELINES[MAIN] });
+    };
+    window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerleave", onLeave);
     let frame = 0;
@@ -165,6 +186,7 @@ export function Envelope({ className }: { className?: string }) {
           }
         }
       }
+      for (const c of clicks.splice(0)) if (pulses.length < 8) pulses.push(spawnAt(t, c.x, c.up));
       // keep a pulse until the most delayed line has seen it leave too
       pulses = pulses.filter((p) => {
         const age = t - DELAY_S * 3 - p.t0;
@@ -189,6 +211,7 @@ export function Envelope({ className }: { className?: string }) {
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown);
       document.removeEventListener("pointerleave", onLeave);
     };
   }, []);
