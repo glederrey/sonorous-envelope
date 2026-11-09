@@ -19,7 +19,7 @@ const CAP_UP = 64;
 const CAP_DOWN = 16;
 const OPACITY = [0.2, 0.4, 0.68, 1, 0.68, 0.4, 0.2];
 // How much of the centre line's movement each line repeats: the fainter, the less.
-const GAIN = OPACITY.map((o, i) => (i === MAIN ? 1 : o * 0.85));
+const GAIN = OPACITY.map((o, i) => (i === MAIN ? 1 : Math.sqrt(o)));
 const STAGGER_MS = 240;
 
 type Pulse = { t0: number; speed: number; w0: number; grow: number; amp: number; decay: number; biphasic: boolean };
