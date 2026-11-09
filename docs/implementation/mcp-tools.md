@@ -133,7 +133,7 @@ Input:
   final?: boolean,              // default false; true on the last call of each message
   rest_after?: number | null,   // planned: seconds before the sound fades with no update, null = never. Shared with the owner (limits.md, "Who can change what")
   voice?: Voice,                // planned: see mood-mapping.md
-  note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details, never sent back)
+  note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details and in the player's "What Claude set" panel; not echoed back in the feedback, the model already has it; listed in `inspect` history)
 }
 ```
 Behaviour, in order:
@@ -184,7 +184,7 @@ Input: `{ session_id: string }`. Returns the feedback object for the current sta
 
 Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 - `spectrogram`: only if `settings.image_feedback` is `on_request` or `every_turn`. Otherwise return `{"error":"image_feedback_off","message":"The listener has image feedback turned off."}`. Returns a PNG (see analysis.md) plus a one-line caption.
-- `history`: the last 8 states as one line each: turn, final, intent mood, reads_as, clamps count. Text only.
+- `history`: the last 8 states as one line each: turn, final, intent mood, reads_as, clamps count, and the note if there was one. Text only.
 
 ## `silence`
 

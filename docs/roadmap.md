@@ -35,7 +35,7 @@ Last updated at v0.1.0 (2026-11-09, after the first outside test). Step numbers 
   3. **Rewrite the instructions**: the override is free, the mapping is the safety net, use the full range.
   Specs: mood-mapping.md ("Stretch", "Voice", top note), sound-model.md, server-instructions.md ("Planned changes"). Includes a regression test: moods in [0.4, 0.7]^5 must give several distinct shapes. The old idea of a variety note in the feedback ("you have sent this same shape three turns in a row") is kept as a later option: first see whether stretch and voice are enough.
 - [ ] **Polyphony and the amp LFO.** `osc.voices` is unison only (confirmed), the arpeggio is monophonic, the drone is the only real polyphony, and the LFO stops at 12 Hz. Plan: `osc.stack` (intervals, so each arp note is a chord), a `pad` layer separate from the drone, and an amp LFO up to about 80 Hz (purr grain near 25 Hz, growl grain 30 to 70 Hz). The fast amp LFO is roughness: it needs a consent row and a harshness term, and it never drives the colour pulse. Specs: engine.md, limits.md, mcp-tools.md ("Planned changes"), sound-model.md.
-- [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound and any clamps. Small; fits step 5.
+- [ ] **"What Claude set" panel** in the player: shows the last mood, the effective sound, any clamps and Claude's latest `note` (decided 2026-11-09: the note is shown to the owner and listed in `inspect` history, not echoed in every feedback). Small; fits step 5.
 - [ ] **Step 4, second half. Analysis.** Offline render with the shared engine, perceptual features, `sound`, `reads_as`; the `inspect` tool.
 - [ ] **Audience (`aud`) check** on OAuth tokens (step 2 leftover).
 - [ ] **Calibration by ear** (below), after the above.
