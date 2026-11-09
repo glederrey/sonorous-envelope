@@ -9,8 +9,8 @@ import { useEffect, useRef } from "react";
 // line, the flatter its copy), with a small random spread per wave so the copies
 // are not exact. Added life: a faint idle breathing on every line, a small
 // undershoot after each wave, opacity that rises while a wave passes, a
-// gradient that drifts, lines that lean towards the pointer, and a pulse of its own
-// wherever the visitor clicks.
+// gradient that drifts, a ripple field the pointer disturbs, and a wave
+// that runs both ways from wherever the visitor clicks.
 // Everything is slow geometry, nowhere near the 3 Hz flashing limit.
 const X0 = 2;
 const X1 = 598;
@@ -28,7 +28,20 @@ const BASE_GAIN = OPACITY.map((o, i) => (i === MAIN ? 1 : Math.sqrt(o)));
 const CAP = BASE_GAIN.map((g) => Math.min(1, g * 1.12));
 const DELAY_S = 0.11; // each step away from the centre repeats the wave this much later
 const BREATH_PX = 1.6;
-const POINTER_PX = 10;
+// The ripple field: every line also carries a small damped wave (a row of springs). Moving the
+// pointer across it kicks the lines; a click drops a bump that splits and runs left and right.
+const SIM_C2 = 0.15;       // wave speed squared, in samples per step (about 150 px/s at 60 fps)
+const SIM_DAMP = 0.012;
+const SIM_SPRING = 0.0018; // pulls a line back to rest
+const SIM_MAX = 22;        // px, so a ripple can never reach the next line
+const KICK = 0.03;
+// A click starts two waves that run left and right. Each grows from nothing to its height as it travels.
+const CLICK_PX = 20;
+const CLICK_SPEED = 170;   // px/s
+const CLICK_GROW_S = 0.22; // time constant of the growth: about 90% of the height after half a second
+const CLICK_DECAY = 0.55;  // per second
+const CLICK_W0 = 26;       // px
+type ClickWave = { t0: number; x: number; sign: number; y: number };
 const STAGGER_MS = 240;
 
 type Pulse = { t0: number; speed: number; w0: number; grow: number; amp: number; decay: number; biphasic: boolean; gains: number[] };
@@ -65,9 +78,9 @@ function displacement(i: number, pulses: Pulse[], t: number, out: Float32Array) 
   return peak;
 }
 
-interface Extras { t: number; pointer: { x: number; y: number; k: number } | null }
+interface Extras { t: number; ripple: Float32Array }
 
-/** The path of line i: the wave, the idle breathing and the pointer lean added on the baseline. */
+/** The path of line i: the wave, the idle breathing and the ripple field added on the baseline. */
 function linePath(i: number, disp: Float32Array, ex: Extras | null) {
   const by = BASELINES[i];
   let d = "";
@@ -78,11 +91,7 @@ function linePath(i: number, disp: Float32Array, ex: Extras | null) {
       // two slow waves per line, each with its own period and phase
       const a = ex.t / (7 + i * 0.9), b = ex.t / (11 - i * 0.6);
       y += BREATH_PX * (Math.sin(2 * Math.PI * (x / 310 + a + i * 0.37)) + 0.5 * Math.sin(2 * Math.PI * (x / 170 - b + i * 0.71))) / 1.5;
-      const ptr = ex.pointer;
-      if (ptr && ptr.k > 0.001) {
-        const dx = (x - ptr.x) / 90, dy = (by - ptr.y) / 130;
-        y += Math.max(-POINTER_PX, Math.min(POINTER_PX, (ptr.y - by) * 0.12)) * Math.exp(-dx * dx - dy * dy) * ptr.k;
-      }
+      y -= ex.ripple[k];
     }
     d += `${k === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)} `;
   }
@@ -115,12 +124,10 @@ function spawnMain(t: number): Pulse {
   };
 }
 
-// A pulse the visitor starts by clicking: it begins under the click and travels right.
-// A click above the centre line sends a swell up, a click below sends a dip.
-function spawnAt(t: number, x: number, up: boolean): Pulse {
-  const p = spawnMain(t);
-  const age0 = Math.max(0, (x - X0 + p.w0) / p.speed);
-  return { ...p, t0: t - age0, amp: (up ? 1 : -1) * (up ? CAP_UP : CAP_DOWN * 1.4) * rand(0.6, 1), biphasic: false };
+/** Advance one line's ripple field by one step: a damped wave equation with fixed ends. */
+function stepRipple(h: Float32Array, v: Float32Array) {
+  for (let k = 1; k < SAMPLES; k++) v[k] += SIM_C2 * (h[k - 1] + h[k + 1] - 2 * h[k]) - SIM_SPRING * h[k] - SIM_DAMP * v[k];
+  for (let k = 1; k < SAMPLES; k++) h[k] = Math.max(-SIM_MAX, Math.min(SIM_MAX, h[k] + v[k]));
 }
 
 export function Envelope({ className }: { className?: string }) {
@@ -145,30 +152,43 @@ export function Envelope({ className }: { className?: string }) {
     // the events come twice in quick succession.
     const events: number[] = [0];
     const energy = BASELINES.map(() => 0);
-    // The pointer, in the svg's own coordinates; `k` eases in and out so the lean never jumps.
-    const pointer = { x: 0, y: 0, k: 0, target: 0 };
+    const scratch = new Float32Array(SAMPLES + 1);
+    const ripple = BASELINES.map(() => ({ h: new Float32Array(SAMPLES + 1), v: new Float32Array(SAMPLES + 1) }));
+    const toSvg = (e: PointerEvent) => {
+      const el = svg.current, ctm = el?.getScreenCTM();
+      if (!el || !ctm) return null;
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+      return p.x > -40 && p.x < 640 && p.y > 6 && p.y < 654 ? p : null;
+    };
+    const sampleAt = (x: number) => Math.round(((x - X0) / (X1 - X0)) * SAMPLES);
+    let last: { x: number; y: number } | null = null;
+    // Moving the pointer over the lines kicks the ones near it, away from the pointer, harder the faster it moves.
     const onMove = (e: PointerEvent) => {
-      const el = svg.current, ctm = el?.getScreenCTM();
-      if (!el || !ctm) return;
-      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-      const inside = p.x > -40 && p.x < 640 && p.y > 6 && p.y < 654;
-      pointer.target = inside ? 1 : 0;
-      if (inside) { pointer.x = p.x; pointer.y = p.y; }
+      const p = toSvg(e);
+      if (!p) { last = null; return; }
+      const speed = last ? Math.min(60, Math.hypot(p.x - last.x, p.y - last.y)) : 0;
+      last = { x: p.x, y: p.y };
+      const c = sampleAt(p.x);
+      if (speed < 0.5 || c < 1 || c >= SAMPLES) return;
+      BASELINES.forEach((by, i) => {
+        const near = Math.exp(-(((by - p.y) / 110) ** 2));
+        if (near < 0.03) return;
+        const push = KICK * speed * near * Math.tanh((p.y - by) / 25); // above the pointer: up, below: down
+        for (let d = -2; d <= 2; d++) if (c + d > 0 && c + d < SAMPLES) ripple[i].v[c + d] += push * Math.exp(-(d * d) / 3);
+      });
     };
-    const onLeave = () => { pointer.target = 0; };
-    // Clicks and taps on the animation start a pulse (links and buttons on top of it keep their own job).
-    const clicks: { x: number; up: boolean }[] = [];
-    let lastClick = -1;
+    const onLeave = () => { last = null; };
+    // A click or tap starts a small wave, up above the centre line and down below it, that runs both left and
+    // right and grows as it goes (links and buttons on top keep their own job).
+    const waves: ClickWave[] = [];
     const onDown = (e: PointerEvent) => {
-      const el = svg.current, ctm = el?.getScreenCTM();
-      if (!el || !ctm || (e.target as Element | null)?.closest?.("a, button, input, select, textarea, [role=button]")) return;
-      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-      if (p.x < 0 || p.x > 600 || p.y < 46 || p.y > 614 || e.timeStamp - lastClick < 150) return;
-      lastClick = e.timeStamp;
-      clicks.push({ x: p.x, up: p.y <= BASELINES[MAIN] });
+      if ((e.target as Element | null)?.closest?.("a, button, input, select, textarea, [role=button]")) return;
+      const p = toSvg(e);
+      if (!p || p.x < 0 || p.x > 600 || p.y < 46 || p.y > 614) return;
+      if (waves.length < 8) waves.push({ t0: (e.timeStamp - start) / 1000, x: p.x, sign: p.y <= BASELINES[MAIN] ? 1 : -1, y: p.y });
     };
-    window.addEventListener("pointerdown", onDown, { passive: true });
     window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
     document.addEventListener("pointerleave", onLeave);
     let frame = 0;
     const tick = (now: number) => {
@@ -186,15 +206,29 @@ export function Envelope({ className }: { className?: string }) {
           }
         }
       }
-      for (const c of clicks.splice(0)) if (pulses.length < 8) pulses.push(spawnAt(t, c.x, c.up));
+      for (let n = waves.length - 1; n >= 0; n--) if (t - waves[n].t0 > 5) waves.splice(n, 1);
       // keep a pulse until the most delayed line has seen it leave too
       pulses = pulses.filter((p) => {
         const age = t - DELAY_S * 3 - p.t0;
         return centre(p, age) - 2.5 * width(p, age) < X1 && Math.abs(p.amp) * Math.exp(-p.decay * age) > 1;
       });
-      pointer.k += (pointer.target - pointer.k) * 0.06;
-      const ex: Extras = { t, pointer };
       paths.current.forEach((el, i) => {
+        stepRipple(ripple[i].h, ripple[i].v);
+        const field = scratch;
+        field.set(ripple[i].h);
+        for (const w of waves) {
+          const age = t - w.t0;
+          const amp = w.sign * CLICK_PX * Math.exp(-(((BASELINES[i] - w.y) / 170) ** 2)) * (1 - Math.exp(-age / CLICK_GROW_S)) * Math.exp(-CLICK_DECAY * age);
+          const wd = CLICK_W0 * (1 + 0.25 * age);
+          for (const dir of [-1, 1]) {
+            const cx = w.x + dir * CLICK_SPEED * age;
+            for (let k = 0; k <= SAMPLES; k++) {
+              const u = (X0 + ((X1 - X0) * k) / SAMPLES - cx) / wd;
+              if (u > -3 && u < 3) field[k] += amp * Math.exp(-u * u);
+            }
+          }
+        }
+        const ex: Extras = { t, ripple: field };
         const peak = displacement(i, pulses, t, out[i]);
         el?.setAttribute("d", linePath(i, out[i], ex));
         // a line glows a little while a wave passes through it (eased, so it never flickers)
