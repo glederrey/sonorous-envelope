@@ -1,76 +1,25 @@
-# Limits and consent
+# Limits
 
-`applyLimits(mapped, gesture, colour, transition, settings, previous) → { effective: EngineState, clamps: string[] }` in `packages/shared/src/limits.ts`. Runs on the server for every update. The player re-applies the same function before playing, as a second line of defence (never the only one).
+> **Listener limits and consent levels are removed for now (2026-11-09, Gael's decision).** Claude decides how it sounds and looks; the listener only sets the volume. The old design (consent levels, harshness cap, mood floor, colour limits, echo cap, `ListenerSettings` with those keys, the "Who can change what" split) is in the git history before this change and is the starting point when limits come back. They need a fresh design first: what each limit protects, who sets it, how the model is told.
 
-## ListenerSettings (stored in `sessions.settings`)
+`applyLimits({ mapped, transition? }) → { effective, clamps }` and `hardCaps(state)` in `packages/shared/src/limits.ts`. They run on the server for every update, and `hardCaps` runs again in the player on every state it receives. Both are pure, and `hardCaps` is idempotent.
 
+## What still applies
+| Rule | Kind | Value |
+|---|---|---|
+| Colour pulse | safety | `pulseHz` at most 3, and 0 unless `motion` is `pulse`. The player also glides the colour over at least 1 s, so state updates (at most one per 300 ms) cannot flash faster than the rule. |
+| Master volume | safety | at most 0.9. The mapping uses a constant (`MASTER_VOLUME`, 0.46); `synth.volume` no longer exists. The listener's slider (up to +18 dB, `lib/volume.ts`) is the volume control. |
+| Echo | stability | time at most 1.5 s (the buffer), feedback at most 0.85 (below 1, so it cannot run away). Mix is free. |
+| Stereo width | stability | clamped to 0..1 |
+| Transition | none | as requested (default 4 s). Sudden curves and very short times are allowed. A new voice without a transition of its own gets 8 s. |
+
+Clamps from these rules are reported in the feedback (`clamped`), usually empty.
+
+## Session settings (`sessions.settings`)
 ```ts
 const ListenerSettings = z.object({
-  consent: z.enum(["ambient","expressive","anything"]).default("ambient"),
-  max_volume: unit.default(0.6),
-  max_harshness: unit.default(0.5),
-  min_transition: z.number().min(0).max(30).default(3),   // seconds
-  mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({}),
-  gestures: z.boolean().default(true),
-  rest_after: z.number().min(60).max(3600).nullable().default(300),   // seconds before the sound fades with no update; null = never. Default by mode: inner 300, outer null (player-ui.md)
-  max_delay_mix: unit.default(0.4),   // ceiling for the echo (delay mix), applied after the listener's own echo control
-  colour: z.object({ enabled: z.boolean().default(true), max_lightness: unit.default(0.5), max_saturation: unit.default(0.7) }).default({}),
+  rest_after: z.number().min(60).max(3600).nullable().default(300), // seconds without an update before the fade; null = never
   image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),
 });
 ```
-
-## Who can change what
-Two kinds of setting, split by what they protect. The server enforces it with a field whitelist on each write path.
-- **Boundaries, owner only** (strict, never writable through the MCP): `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix`, `colour` limits, `image_feedback`. They exist to protect the listener from the model.
-- **Expression, shared** (the owner and Claude can both change them): `rest_after`, the voice (mood-mapping.md), the session title, and the closing (`silence` with `end`). They say how Claude is, so Claude may change them when it feels like it. They have no safety dimension: nothing here can make the sound louder, harsher or faster than the boundaries allow.
-- **Last write wins, and both sides are told.** An owner change reaches Claude in `listener` (`"you: fade after 5 min → off"`); a Claude change shows in the owner panel and in the session details. Claude must not use `rest_after` to keep the sound going as if it were waiting (server-instructions.md).
-- **Strict, per player, local:** volume, echo and mute only affect that device.
-
-## Consent levels
-Each level sets ceilings. The listener's own limits apply on top (the stricter wins).
-
-| Rule | ambient | expressive | anything |
-|---|---|---|---|
-| Transition curve | always smooth | always smooth | sudden allowed |
-| Min transition | 4 s | 2 s | 0.3 s |
-| Max tempo | 110 BPM | 150 | 200 |
-| Max resonance | 4 | 10 | 20 |
-| Wave allowed | sine, triangle | + sawtooth | + square |
-| Scales allowed | all except locrian, chromatic, phrygian | all except chromatic | all |
-| Max LFO amp/tremolo depth | 0.2 | 0.4 | 0.6 |
-| Max roughness (`osc.drive`) | 0 | 0.5 | 0.8 |
-| Fast amp LFO (rate ≥ 20 Hz) | not allowed (rate capped at 12 Hz) | purr grain only: rate ≤ 28 Hz, depth ≤ 0.3 | up to 80 Hz, depth ≤ 0.6 (growl grain, 30 to 70 Hz, only here) |
-| Max density × rate | ≤ 4 notes/s | ≤ 8 notes/s | ≤ 16 notes/s |
-| Gestures | purr, hum, breath, chirp, meow_up | all except growl | all (growl included) |
-| Mood floor (joy, calm) | 0.2, 0.3 | 0 | 0 |
-
-## Harshness
-`harshness ∈ [0,1]` is computed from the mapped state:
-`0.3·waveHarsh + 0.2·norm(resonance, 0.7, 12) + 0.2·norm(log cutoff, log 400, log 9000) + 0.1·norm(tempo·rateFactor, 1, 12 notes/s) + 0.2·drive` with `waveHarsh = {sine:0, triangle:0.2, sawtooth:0.7, square:1}`. (The weights sum to 1; roughness took 0.2 from the other terms.)
-Planned: an `amp` LFO with rate ≥ 20 Hz is roughness too. It is the same sound as the `growl` gesture (amplitude modulation between 30 and 70 Hz), so it must not be a way to get a growl at a consent level that bars the gesture. It counts as `drive` does: use `rough = max(drive, depth)` in the formula above, and reduce it first (depth to 0, then rate down to 12 Hz) when over `max_harshness`, with a clamp entry.
-
-If above `max_harshness`, reduce in this order until it fits: drive (to 0), cutoff (down, max 1.5 octaves), resonance (down to 0.7), wave (one step softer), note rate (halve). Each step adds a clamp entry. The `growl` gesture counts as harshness 0.7 while it plays and is dropped if that exceeds `max_harshness`.
-
-## Order of operations
-0. **Stretch (planned):** each axis goes through `stretch` (mood-mapping.md, "Stretch"). It runs first so the floor below is never lowered by it.
-1. **Mood floor:** before mapping, raise `joy` and `calm` to the floor (settings floor and consent floor, whichever is higher). Clamp entry: `"joy 0.1→0.3 (mood floor)"`. (So call `applyMoodFloor` before `moodToEngineState`; `set_sound` step 3 does this.)
-2. **Consent ceilings:** tempo, resonance, wave, scale (a disallowed scale is replaced by a fixed fallback: locrian and phrygian → minor, chromatic → pentatonic), LFO depth, note rate, gesture type.
-3. **Harshness.**
-4. **Volume:** `min(volume, max_volume)`.
-5. **Transition:** `time = max(time, min_transition, consent min)`; `curve = "smooth"` unless consent is `anything`.
-6. **Big-change rule:** if the mood distance from the previous state (Euclidean over the 5 axes) is > 0.6 and consent isn't `anything`, `time = max(time, 8 s)`. Clamp entry: `"transition 2s→8s (large change)"`.
-7. **Echo:** `delay.mix = min(delay.mix · 2·listener_delay, max_delay_mix)`, `delay.time ≤ 0.75 s`, `delay.feedback ≤ 0.6`. `listener_delay` (0 to 1, default 0.5) is the player's echo control, so at the default the mapped mix is unchanged and at 0 there is no echo. The engine applies this itself (`setListenerDelay(amount, max_delay_mix)`); the server only caps the mapped value. Clamp entry only when the cap changes the value.
-8. **Gesture:** drop if `gestures` is false or the type isn't allowed. Clamp entry: `"gesture sigh dropped (gestures off)"`. At most 1 gesture per 10 s per session; extra ones are dropped with a clamp entry.
-9. **Colour:**
-   - `enabled: false` → colour field off (neutral dark background).
-   - Clamp lightness and saturation to the listener's max.
-   - **Hard rule, not configurable:** pulse frequency ≤ 3 Hz, and lightness swing (peak-to-peak) ≤ 0.2 for any motion faster than 1 Hz. Hue changes glide over at least 1 s.
-10. **Absolute safety caps** (never configurable): volume ≤ 0.9, output soft limiter always on, no sub-20 Hz content above −30 dB (high-pass the master at 25 Hz).
-
-## Clamp entries
-Short, human-readable, one per adjustment: `"<field> <from>→<to> (<reason>)"`. The model sees them in `clamped`. Max 5 listed; then `"…and N more"`.
-
-## Defaults for a new user
-`consent: "ambient", max_volume: 0.6, max_harshness: 0.5, min_transition: 3, gestures: true, image_feedback: "off"`, colour enabled with max lightness 0.5.
-
-**Temporary exception:** while testing, new sessions start at `consent: "anything"` (`NEW_SESSION_CONSENT` in `apps/web/lib/mcp/service.ts`). The schema default stays `"ambient"`: it is what a missing or invalid settings value falls back to. The owner's profile defaults still win. Existing sessions keep the level they were created with. Revert the one constant to go back to ambient; the safety docs describe ambient as the intended default.
+Old rows still carry `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix` and `colour`; zod strips them on read, and nothing reads them. `rest_after` is shared: Claude can change it with `set_sound`, and the owner will be able to from the owner panel (roadmap step 5).

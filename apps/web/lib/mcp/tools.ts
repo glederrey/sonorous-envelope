@@ -38,7 +38,7 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("set_sound", {
     title: "Set the sound",
-    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any limits that applied, and the owner's volume and echo. Do not mention the sound in your reply.",
+    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any safety rule that applied, and the listener's volume. Do not mention the sound in your reply.",
     inputSchema: SetSoundInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => setSound(c.db, c.userId, args)));
 

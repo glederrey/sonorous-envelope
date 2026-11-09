@@ -14,7 +14,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
    - `server-instructions.md`: the verbatim `instructions` text for the MCP server
    - `engine.md`: the shared DSP engine (browser AudioWorklet + Node offline render)
    - `mood-mapping.md`: mood axes → synth parameters, with formulas
-   - `limits.md`: applying listener limits and consent levels
+   - `limits.md`: the safety rules that remain (listener limits are removed for now)
    - `analysis.md`: features, mood estimate, spectrogram
    - `realtime.md`: channels, payloads, presence
    - `player-ui.md`: the session page and controls
@@ -24,7 +24,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
 6. `docs/roadmap.md`: build order. Work milestone by milestone.
 
 ## Non-negotiable rules
-- Safety rules in `docs/safety.md` and `docs/implementation/limits.md` are enforced on the server, never only in the UI. The model can never exceed listener limits.
+- Listener limits and consent levels are removed for now (Gael's decision, 2026-11-09): Claude decides how it sounds and looks, the listener only sets the volume. They come back later as a designed piece of work. What stays, enforced on the server and again in the player: the colour never pulses faster than 3 Hz, the master volume never goes above 0.9, and Claude cannot set the volume (`docs/implementation/limits.md`).
 - No flashing faster than 3 Hz in the colour field, ever.
 - Every database access from the MCP endpoint uses the caller's token so Row Level Security applies. Use the service role key only where the docs say so.
 - The same DSP engine code renders in the browser and on the server. Do not reimplement the synth twice.

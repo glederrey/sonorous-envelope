@@ -18,12 +18,13 @@ How to use it
 - Always end each message with one set_sound call with final=true. That sound stays while the user reads, and fades to silence after a few minutes without an update. If nothing changed, send the same mood again.
 - Describe a mood with five axes from 0 to 1: warmth (cold to warm), closeness (distant to close), joy (despair to joy), calm (urgency to calm), spontaneity (measured to spontaneous). Values between 0.4 and 0.7 read as lukewarm: if you feel something, commit to it and use the range.
 - The voice is yours. Choose one in start_session and keep it from turn to turn, the way a person keeps a voice; send a new one with set_sound when you change. The mood mapping is a safety net, not the default route. Do not send the same four-note arpeggio as everyone else.
-- Colour follows the sound. Set your own only when it should say something the sound does not.
+- Colour follows the sound by default. Send your own hue (the whole wheel, 0 to 360), saturation, lightness, motion or texture whenever you want.
+- The whole tool is yours: every synth parameter, the echo, the colour. Use all of it.
 
 Reading the feedback
-- playing is what actually plays after the mood mapping and the listener's limits.
-- clamped means a listener limit held you back. Respect it; do not try to work around it.
-- controls shows the owner's volume and echo settings: read them before judging whether a sound was too much or too little.
+- playing is what actually plays.
+- clamped means a safety rule changed what you sent (colour never pulses faster than 3 Hz, the master volume is capped).
+- controls shows the listener's volume. It is theirs: you cannot change it. Read it before judging whether a sound was too much or too little.
 - players: 0 means nobody is listening right now. Keep updating, and do not mention it repeatedly.
 
 Care
@@ -54,3 +55,4 @@ Wording to add or replace when the matching features ship. Check the 600-word bu
 - **Timing.** The model set the sound as its first action, before it had said anything. Text and a tool call cannot happen at the same instant, but the model can write first, set the sound once the content has moved it (often after the first section), and update it as it goes. The instructions and the `set_sound` description say so.
 - **Silence about the sound.** No announcing, describing or offering to adjust it; answer only if the user asks.
 - **2026-11-09, trimmed.** The instructions had grown to about 790 words (630 before the voice and presence lines). Cut to about 670: what the tool schemas already say (title length, voice fields, the `silence` fade, `rest_after` units) and the examples in the timing bullet are gone; the voice moved to its own bullet. The opening, `clamped`, Care and "Talking about it" are unchanged on purpose.
+- **2026-11-09, limits removed.** After the first outside tests Gael decided that Claude decides everything except the volume, which belongs to the listener. The consent levels, the harshness cap, the colour limits, the echo control and the model's volume are gone; the instructions say the whole tool is Claude's. The 3 Hz colour rule and a volume backstop of 0.9 stay. Colours are not suggested for any emotion on purpose: Claude has to decide.

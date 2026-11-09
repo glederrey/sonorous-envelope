@@ -23,7 +23,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
   | `j < 0.4` and `k < 0.5` | `locrian`, `[1,3,5]` | diminished: fear (anger once roughness is added, see Timbre) |
   | none of the above | base scale; `j < 0.25 → [1,3,5]`, `j < 0.6 → [1,3,5,7]`, else `[1,3,5,9]` | a blend |
 
-  Consent levels replace a disallowed scale by a fixed fallback (limits.md: locrian and phrygian become minor, chromatic becomes pentatonic), so in "ambient" the diminished row plays as minor.
+  No consent levels any more: every scale is allowed as mapped.
 - **Suspension:** add degree 4 if `s > 0.7`. This is a hypothesis to test: sus2 and sus4 are not in the chord study.
 - **Octaves:** `1 + round(3·(1−c)·(0.5 + 0.5·s))`, min 1, max 4 (was `1 + round(2·s·(1−k))`, max 3). Closeness narrows or widens the span: close and measured gives 1 octave, distant and spontaneous gives 3 to 4.
 - **Open voicing:** if `c < 0.4`, spread the chord: a `[1,3,5,7]` becomes `[1,5,7,10]` (the third moves up an octave), so the arpeggio does not stay a tight block of four neighbours.
@@ -50,7 +50,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8 · max(0, 0.6−j)/0.6 · max(0, 0.6−k)/0.6 · max(0, 0.9−w)/0.9`, so it is exactly 0 whenever joy ≥ 0.6, calm ≥ 0.6 or warmth ≥ 0.9. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Counted in harshness (limits.md), so only "expressive" and "anything" allow it. Detune also widens: `detune += 10·drive` cents.
 
 ## Space (mainly closeness)
-- **Volume:** `lerp(0.25, 0.6, c)` (before limits).
+- **Volume:** the constant `MASTER_VOLUME` (0.46), whatever the mood. Loudness belongs to the listener's slider.
 - **Reverb:** `mix = lerp(0.5, 0.12, c)`, `size = lerp(0.9, 0.5, c)`.
 - **Delay:** `time = min(0.75, 60/tempo · 0.75)` s (dotted eighth), `feedback = min(0.6, lerp(0.45, 0.15, c))`, `mix = lerp(0.35, 0.1, c) · (0.5 + 0.5·k)`. The delay amplifies the emotion that is present instead of adding one, so it is not tied to a single axis. The caps keep the resonance from becoming unpleasant. The listener's own delay control is added on top (limits.md).
 - **Width:** `lerp(1.0, 0.3, c)` (close = narrower, centred).
@@ -74,7 +74,7 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 
 ## Colour (follow mode)
 `ResolvedColour = { h, s, l, secondary?, motion, texture, pulseHz }`
-- **Hue:** blend of warmth and joy on a cold–warm wheel: `h = lerp(220, 30, 0.7·w + 0.3·j)` (blue → orange). Low joy desaturates rather than changing hue.
+- **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue.
 - **Saturation:** `lerp(0.15, 0.6, 0.5·j + 0.5·(1−k))`.
 - **Lightness:** `lerp(0.12, 0.45, 0.6·j + 0.4·(cutoff normalised))`. The page stays dark overall; never above 0.6.
 - **Secondary:** hue + 25°, lightness − 0.08, for a slow gradient.
@@ -95,14 +95,14 @@ A voice is the part of the sound that says who is playing, as opposed to how it 
 - **It is never a prison.** `set_sound` can replace it at any time, for instance when the conversation turns (anger, disrespect, a change of subject). A replacement uses a longer transition, like any big change.
 - **Voice seed:** `voiceSeed = hash(session id)`, fixed for the session. It drives the fallback voice and the `as_played` permutation. It is separate from the per-state seed of `set_sound`, which only drives the engine's randomness.
 - **Fallback when the instance chooses none:** a default voice drawn from the voice seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule and the consent fallbacks; an explicit voice does not.
-- **Merge order:** mapped → voice → `synth` of this call → limits. Consent ceilings (scales, waves) apply to the voice like to any override, and the clamp is reported.
+- **Merge order:** mapped → voice → `synth` of this call → limits. Only the safety rules in limits.md apply afterwards (no consent ceilings any more).
 - **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
 
 ## Override merge
 Deep-merge the model's `synth` object over the mapped state, field by field. Arrays (`chord`, `lfo`, `drone.notes`) replace, not merge. Note names convert to MIDI. Record which fields were overridden in the state's `intent` (for the session details page).
 
 ## Unit tests to write
-- Monotonicity: increasing `calm` never increases tempo; increasing `closeness` never decreases volume; increasing `warmth` never makes the wave harsher.
+- Monotonicity: increasing `calm` never increases tempo; the volume is the constant `MASTER_VOLUME` whatever the mood; increasing `warmth` never makes the wave harsher.
 - Bounds: every output within the engine's valid ranges for all corners of the [0,1]^5 cube and 1000 random points.
 - Snapshot tests for 6 reference moods (neutral, warm-close-calm, cold-distant, joyful-spontaneous, despair-calm, urgent).
 - Chord quality: for each row of the table, a mood inside its region gives the listed scale and degrees; boundaries use the first matching row.

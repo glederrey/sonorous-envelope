@@ -367,7 +367,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && !started && (
           <div className="pl-start">
-            <p className="pl-lede">Someone&apos;s Claude is making this sound. It starts quietly, and you stay in control of the volume.</p>
+            <p className="pl-lede">Someone&apos;s Claude is making this sound. You stay in control of the volume.</p>
             <button type="button" className="se-btn se-btn-primary pl-start-btn" onClick={start} disabled={starting}>
               {starting ? "Starting…" : "Start listening"}
             </button>
