@@ -246,6 +246,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((c.colour as { h: number }).h).not.toBe(0);
   });
 
+  it("ends sessions that had no sound for a week when a new one starts, and leaves recent ones alone", async () => {
+    const old = await svc.startSession(dbA, A, {}, tick());
+    const recent = await svc.startSession(dbA, A, {}, tick());
+    sql(`update sessions set last_active_at = now() - interval '8 days' where id='${old.session_id}'`);
+    sql(`update sessions set last_active_at = now() - interval '2 days' where id='${recent.session_id}'`);
+    await svc.startSession(dbA, A, {}, Date.now());
+    expect(sql(`select (ended_at is not null) from sessions where id='${old.session_id}'`)).toBe("t");
+    expect(sql(`select (ended_at is not null) from sessions where id='${recent.session_id}'`)).toBe("f");
+  });
+
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
     const mine = await svc.startSession(dbA, A, {}, tick());
     const f = await svc.getFeedback(dbA, A, {}, clock);

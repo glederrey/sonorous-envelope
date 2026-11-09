@@ -11,6 +11,7 @@ import {
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
+import { ENDED_AFTER_S } from "../session-status";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
@@ -125,6 +126,9 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   for (const old of (active ?? []).slice(MAX_ACTIVE_SESSIONS - 1)) {
     await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("id", old.id);
   }
+  // a session with no sound for a week is over (roadmap: sessions lifecycle); done here so no scheduled job is needed
+  await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("owner_id", userId).is("ended_at", null)
+    .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
   const settings: ListenerSettings = parseSettings(profile?.default_settings ?? {});

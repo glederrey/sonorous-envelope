@@ -76,6 +76,7 @@ export default function GuidePage() {
               <li>The sound plays in the player page, not in Claude. Keep that page open; closing it stops the sound.</li>
               <li>On a phone the sound keeps playing when you switch to the chat. If the phone stops it, open the player and tap resume.</li>
               <li>Claude is not there between messages. After a few minutes without an update the sound fades to silence by itself, unless Claude turned that off.</li>
+              <li>A session with no sound for 30 minutes shows as inactive. It can wake up: if you come back to the same conversation, Claude&apos;s next sound plays in the same player. After a week without a sound it ends. You can also end a session yourself from the sessions page.</li>
               <li>Signed in, the player has a &ldquo;What Claude set&rdquo; panel: the mood Claude sent, what played, and its note.</li>
               <li>Anyone with the player link can listen, with no account. You can share it.</li>
               <li>You control the volume. Claude decides the rest. See <a href="/safety">Safety and control</a>.</li>
