@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
-  NEUTRAL_MOOD, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback, isResting, moodToEngineState,
+  NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   nextSlowMood, parseSettings, restingNote, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
@@ -19,10 +19,6 @@ export class ToolError extends Error {
 }
 
 const MAX_ACTIVE_SESSIONS = 10;
-// For the moment new sessions start at "anything" (the owner's choice while testing). The schema default stays
-// "ambient", which is what a missing or broken settings value falls back to, so the safe fallback is unchanged.
-// The owner's profile defaults still win. Revert this one line to go back to ambient.
-const NEW_SESSION_CONSENT = "anything";
 const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
@@ -76,14 +72,14 @@ async function currentState(db: Db, s: SessionRow): Promise<StateRow | null> {
 /** Counts listeners. Only the owner's own controls are reported: other listeners can only listen. */
 async function presence(db: Db, sessionId: string, ownerId: string, now: number) {
   const since = new Date(now - PRESENCE_WINDOW_MS).toISOString();
-  const { data, error } = await db.from("player_heartbeats").select("user_id,audio,volume,delay,seen_at")
+  const { data, error } = await db.from("player_heartbeats").select("user_id,audio,volume,seen_at")
     .eq("session_id", sessionId).gte("seen_at", since).order("seen_at", { ascending: false });
   if (error) fail("check who is listening", error);
-  const rows = (data ?? []) as Array<{ user_id: string | null; audio: string; volume: number | null; delay: number | null }>;
-  const pick = rows.find((r) => r.user_id === ownerId && r.volume !== null && r.delay !== null); // most recent first
+  const rows = (data ?? []) as Array<{ user_id: string | null; audio: string; volume: number | null }>;
+  const pick = rows.find((r) => r.user_id === ownerId && r.volume !== null); // most recent first
   return {
     players: rows.filter((r) => r.audio === "playing").length,
-    controls: pick ? { volume: pick.volume as number, delay: pick.delay as number } : null,
+    controls: pick ? { volume: pick.volume as number } : null,
   };
 }
 
@@ -129,7 +125,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   }
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
-  const settings: ListenerSettings = parseSettings({ consent: NEW_SESSION_CONSENT, ...(profile?.default_settings ?? {}) });
+  const settings: ListenerSettings = parseSettings(profile?.default_settings ?? {});
   const id = newSessionId();
 
   const { error: serr } = await db.from("sessions").insert({
@@ -140,12 +136,11 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   const { error: lerr } = await db.from("listeners").insert({ session_id: id, user_id: userId, role: "owner", label: "you" });
   if (lerr) fail("start the session", lerr);
 
-  const { mood, clamps: floorClamps } = applyMoodFloor(NEUTRAL_MOOD, settings);
-  const { state: mapped } = mapSound(id, mood, mood, input.voice, { volume: 0.3 });
-  const { effective, clamps } = applyLimits({ mapped, mood, settings });
+  const { state: mapped } = mapSound(id, NEUTRAL_MOOD, NEUTRAL_MOOD, input.voice, undefined);
+  const { effective, clamps } = applyLimits({ mapped });
   const stateId = await insertState(db, now, {
     session_id: id, turn: 0, final: true, intent: { mood: NEUTRAL_MOOD, initial: true }, effective,
-    clamps: mergeClamps(floorClamps, clamps), seed: randomSeed(), slow_mood: mood,
+    clamps: mergeClamps(clamps), seed: randomSeed(), slow_mood: NEUTRAL_MOOD,
   });
   const { error: uerr } = await db.from("sessions").update({ current_state_id: stateId }).eq("id", id);
   if (uerr) fail("start the session", uerr);
@@ -153,7 +148,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   return {
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
-    settings: { consent: settings.consent, max_volume: settings.max_volume, image_feedback: settings.image_feedback },
+    settings: { rest_after: settings.rest_after },
     note: "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
   };
 }
@@ -173,22 +168,20 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
 
   const turn = planTurn(prev, input.final, now);
-  // the axes are stretched first (instances send 0.4 to 0.7), then the mood floor applies on top
-  const { mood, clamps: floorClamps } = applyMoodFloor(stretchMood(input.mood), settings);
+  // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
+  const mood = stretchMood(input.mood);
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
-  // a new voice replaces the old one for good; it is a big change, so it gets a long transition
+  // a new voice replaces the old one for good; it is a big change, so without a transition of its own it gets a long one
   const voice = input.voice !== undefined ? input.voice : session.voice;
-  const transition = input.voice !== undefined
-    ? { curve: input.transition?.curve ?? "smooth" as const, time: Math.max(input.transition?.time ?? 4, 8) }
-    : input.transition;
+  const transition = input.voice !== undefined && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
 
   const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, input.synth);
   overridden.colour = applyColour(overridden.colour, input.colour);
   const { effective, clamps } = applyLimits({
-    mapped: overridden, mood, previousMood: prev?.intent.mood ? stretchMood(prev.intent.mood) : null, transition, settings,
+    mapped: overridden, transition,
   });
-  const allClamps = mergeClamps(floorClamps, clamps);
+  const allClamps = mergeClamps(clamps);
 
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,

@@ -52,7 +52,6 @@ export class AudioOutput {
 
   setState(state: EngineState, seed: number) { this.node.port.postMessage({ type: "state", state, seed }); }
   setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
-  setDelay(value: number, max: number) { this.node.port.postMessage({ type: "delay", value, max }); }
   get running() { return this.ctx.state === "running"; }
   get state() { return this.ctx.state as string; }
   get audioSessionType(): string {

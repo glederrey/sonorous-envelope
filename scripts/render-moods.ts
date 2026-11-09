@@ -2,7 +2,7 @@
 // Usage: pnpm render:moods <output-dir> [seconds]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { renderOffline } from "@sonorous/engine";
-import { ListenerSettings, applyLimits, moodToEngineState, nextSlowMood, type Mood } from "@sonorous/shared";
+import { applyLimits, moodToEngineState, nextSlowMood, type Mood } from "@sonorous/shared";
 
 const dir = process.argv[2];
 const seconds = Number(process.argv[3] ?? 14);
@@ -35,11 +35,11 @@ function wav(left: Float32Array, right: Float32Array, sr: number): Buffer {
 }
 
 const SR = 44100;
-for (const consent of ["ambient", "anything"] as const) {
-  const settings = ListenerSettings.parse({ consent, max_harshness: consent === "anything" ? 1 : 0.5, max_volume: 0.8 });
+{
+  const consent = "free";
   for (const [name, mood] of Object.entries(moods)) {
     const slow = nextSlowMood(null, mood, true);
-    const { effective, clamps } = applyLimits({ mapped: moodToEngineState(mood, slow), mood, settings });
+    const { effective, clamps } = applyLimits({ mapped: moodToEngineState(mood, slow) });
     const { left, right, events } = renderOffline(effective, { seconds, sampleRate: SR, seed: 42 });
     writeFileSync(`${dir}/${name}.${consent}.wav`, wav(left, right, SR));
     let peak = 0; for (const v of left) peak = Math.max(peak, Math.abs(v));

@@ -114,7 +114,7 @@ Behaviour:
 3. Insert an initial state: neutral mood `{warmth:0.5, closeness:0.5, joy:0.5, calm:0.8, spontaneity:0.2}` at volume 0.3, `final: true`, turn 0.
 4. Return:
 ```json
-{"session_id":"…","player_url":"https://<app>/s/…","settings":{"consent":"anything","max_volume":0.6,"gestures":true,"image_feedback":"off"},
+{"session_id":"…","player_url":"https://<app>/s/…","settings":{"rest_after":300},
  "note":"Share player_url with the user so they can listen. Pass session_id in every call."}
 ```
 A user can have several active sessions. `start_session` never reuses one.
@@ -169,7 +169,7 @@ Rules:
 - `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
 - Mood values rounded to 2 decimals.
-- `controls` is the owner's own player volume and echo (`delay`) setting, 0 to 1, as last reported by their player (realtime.md). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
+- `controls` is the owner's own player volume, 0 to 1, as last reported by their player (realtime.md). The volume is the listener's: the model cannot set it (`synth.volume` does not exist). Other listeners can only listen, so their settings are never reported. Omit it if the owner's player has not reported yet. It is always included when present, because it changes how the model should read every other field.
 - `resting`: only when the owner's `rest_after` setting is on. `true` when this call arrives more than `rest_after` seconds after the previous state, with the note `"the sound faded after N min without an update from you"`.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
 - `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).

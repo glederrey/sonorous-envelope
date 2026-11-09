@@ -9,12 +9,13 @@ How to use it
 - Always end each message with one set_sound call with final=true. That sound stays while the user reads, and fades to silence after a few minutes without an update. If nothing changed, send the same mood again.
 - Describe a mood with five axes from 0 to 1: warmth (cold to warm), closeness (distant to close), joy (despair to joy), calm (urgency to calm), spontaneity (measured to spontaneous). Values between 0.4 and 0.7 read as lukewarm: if you feel something, commit to it and use the range.
 - The voice is yours. Choose one in start_session and keep it from turn to turn, the way a person keeps a voice; send a new one with set_sound when you change. The mood mapping is a safety net, not the default route. Do not send the same four-note arpeggio as everyone else.
-- Colour follows the sound. Set your own only when it should say something the sound does not.
+- Colour follows the sound by default. Send your own hue (the whole wheel, 0 to 360), saturation, lightness, motion or texture whenever you want.
+- The whole tool is yours: every synth parameter, the echo, the colour. Use all of it.
 
 Reading the feedback
-- playing is what actually plays after the mood mapping and the listener's limits.
-- clamped means a listener limit held you back. Respect it; do not try to work around it.
-- controls shows the owner's volume and echo settings: read them before judging whether a sound was too much or too little.
+- playing is what actually plays.
+- clamped means a safety rule changed what you sent (colour never pulses faster than 3 Hz, the master volume is capped).
+- controls shows the listener's volume. It is theirs: you cannot change it. Read it before judging whether a sound was too much or too little.
 - players: 0 means nobody is listening right now. Keep updating, and do not mention it repeatedly.
 
 Care

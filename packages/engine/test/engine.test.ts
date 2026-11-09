@@ -142,19 +142,17 @@ describe("engine", () => {
     expect(same(a, b)).toBe(false);
   });
 
-  it("listener echo 0 removes all echo; 1 stays within the caps", () => {
-    const echo = neutralState(); echo.fx.delay = { time: 0.3, feedback: 0.6, mix: 0.5 }; echo.fx.reverb.mix = 0;
-    const none = neutralState(); none.fx.delay = { time: 0.3, feedback: 0.6, mix: 0 }; none.fx.reverb.mix = 0;
-    const run = (s: EngineState, amount: number) => {
-      const e = new Engine(SR, 5); e.setListenerDelay(amount); e.setState(s, 5);
-      const l = new Float32Array(SR * 3), r = new Float32Array(SR * 3); e.process(l, r, l.length); return l;
+  it("the echo is Claude's: mix 0 is dry, and the maximum feedback and mix stay finite and under the clip", () => {
+    const echo = neutralState(); echo.fx.delay = { time: 1.5, feedback: 0.85, mix: 1 }; echo.fx.reverb.mix = 0;
+    const none = neutralState(); none.fx.delay = { time: 0.3, feedback: 0.85, mix: 0 }; none.fx.reverb.mix = 0;
+    const run = (s: EngineState) => {
+      const e = new Engine(SR, 5); e.setState(s, 5);
+      const l = new Float32Array(SR * 6), r = new Float32Array(SR * 6); e.process(l, r, l.length); return l;
     };
-    const a = run(echo, 0), b = run(none, 0.5);
-    let d = 0; for (let i = 0; i < a.length; i++) d = Math.max(d, Math.abs(a[i] - b[i]));
-    expect(d).toBeLessThan(1e-6);
-    const loud = run(echo, 1);
-    expect(peak(loud)).toBeLessThanOrEqual(0.98);
-    expect(Number.isFinite(rms(loud))).toBe(true);
+    const dry = run(none), wet = run(echo);
+    expect(same(dry, wet)).toBe(false);
+    expect(peak(wet)).toBeLessThanOrEqual(0.98);
+    expect(Number.isFinite(rms(wet))).toBe(true);
   });
 
   it("drone fades in and out over about 3 s", () => {

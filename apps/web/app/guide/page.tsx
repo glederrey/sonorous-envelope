@@ -75,7 +75,7 @@ export default function GuidePage() {
               <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
               <li>The sound plays in the player page, not in Claude. Keep that page open.</li>
               <li>Anyone with the player link can listen, with no account. You can share it.</li>
-              <li>Your limits are enforced on the server. See <a href="/safety">Safety and control</a>.</li>
+              <li>You control the volume. See <a href="/safety">Safety and control</a>.</li>
             </ul>
           </li>
         </ul>

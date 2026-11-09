@@ -67,6 +67,9 @@ export function voiceToSynth(v: Voice | null | undefined): SynthOverride | undef
   return Object.keys(out).length ? out : undefined;
 }
 
+/** The master volume is a constant: loudness belongs to the listener's slider, never to Claude or the mood. */
+export const MASTER_VOLUME = 0.46;
+
 export const NEUTRAL_MOOD: Mood = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.8, spontaneity: 0.2 };
 
 export interface Harmony { scale: ScaleName; degrees: number[] }
@@ -109,7 +112,10 @@ export function nextSlowMood(prev: Mood | null | undefined, mood: Mood, final: b
 export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): ResolvedColour {
   const { warmth: w, joy: j, calm: k, spontaneity: s } = m;
   const cutNorm = clamp((Math.log2(cutoff) - Math.log2(400)) / (Math.log2(6000) - Math.log2(400)));
-  const h = lerp(220, 30, 0.7 * w + 0.3 * j);
+  // The follow-mode hue walks the whole wheel (blue, cyan, green, yellow, orange, red, magenta) so that moods that sound
+  // different also look different. It is only a default: Claude can send any hue.
+  const t = 0.45 * w + 0.3 * j + 0.25 * (1 - k);
+  const h = (((250 - 300 * t) % 360) + 360) % 360;
   const sat = lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j);
   const l = Math.min(0.6, lerp(0.12, 0.45, 0.6 * j + 0.4 * cutNorm));
   const motion = k > 0.85 ? "still" : k > 0.7 ? "drift" : "pulse";
@@ -197,7 +203,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
       reverb: { size: lerp(0.9, 0.5, c), mix: lerp(0.5, 0.12, c) },
     },
     pan: { width: lerp(1, 0.3, c) },
-    volume: lerp(0.25, 0.6, c),
+    volume: MASTER_VOLUME,
     gesture: null,
     transition: { time: 4, curve: "smooth" },
   };
@@ -261,19 +267,19 @@ export function applyOverride(mapped: EngineState, synth: SynthOverride | undefi
     if (fx.delay[k] !== undefined) set(`fx.delay.${k}`, () => { s.fx.delay[k] = fx.delay![k]!; });
   if (fx?.reverb) for (const k of ["size", "mix"] as const)
     if (fx.reverb[k] !== undefined) set(`fx.reverb.${k}`, () => { s.fx.reverb[k] = fx.reverb![k]!; });
-  if (synth.volume !== undefined) set("volume", () => { s.volume = synth.volume!; });
   return { state: s, overridden };
 }
 
 /** In `own` mode the model's HSL values replace the mapped ones; limits still apply afterwards. */
 export function applyColour(mapped: ResolvedColour, input: Colour | undefined): ResolvedColour {
+  // Anything sent is used, unless the call says mode "follow". Fields left out keep the mapped value.
   if (!input || input.mode === "follow") return mapped;
   const out: ResolvedColour = { ...mapped };
   if (input.hue !== undefined) out.h = input.hue;
   if (input.saturation !== undefined) out.s = input.saturation;
   if (input.lightness !== undefined) out.l = input.lightness;
   if (input.secondary) out.secondary = { h: input.secondary.hue, s: input.secondary.saturation, l: input.secondary.lightness };
-  if (input.motion) { out.motion = input.motion; if (input.motion !== "pulse") out.pulseHz = 0; }
+  if (input.motion) { out.motion = input.motion; out.pulseHz = input.motion === "pulse" ? (mapped.pulseHz || 0.3) : 0; }
   if (input.texture) out.texture = input.texture;
   return out;
 }

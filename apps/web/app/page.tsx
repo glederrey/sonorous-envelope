@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 const loop = [
   ["Claude sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
   ["Your browser plays it", "Sound and colour glide from one state to the next, live."],
-  ["Claude hears back", "What actually played after your limits, and your volume and echo settings."],
+  ["Claude hears back", "What actually played, and the volume you chose."],
 ] as const;
 
 // Splits a phrase into letters so each can be animated with its own delay.
@@ -71,8 +71,8 @@ export default function Home() {
             ))}
           </ol>
           <p className="lp-wide">
-            You stay in control throughout: volume, one-tap mute, limits and a consent level. The model can never go
-            past them. <a href="/safety">How safety works</a>
+            You stay in control of the volume, with a one-tap mute. Claude decides the rest of how it sounds and looks.
+            <a href="/safety"> How safety works</a>
           </p>
         </section>
 

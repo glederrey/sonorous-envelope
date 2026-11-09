@@ -11,39 +11,26 @@ export default function SafetyPage() {
           <h1 className="doc-title">Safety and control</h1>
           <p>
             Text lets a model soften what it says. Sound and colour reach you before anything can be softened, so a
-            sudden harsh or desolate sound can startle someone who did not expect it. The limits below are enforced on
-            the server: the model can never go past them.
+            sudden harsh or desolate sound can startle someone who did not expect it. For now Claude decides how it
+            sounds and looks, and you decide how loud it is. Listener limits are planned and not built yet.
           </p>
         </div>
 
         <div className="doc-rows">
           <section className="doc-row">
-            <h2 className="se-heading">Your limits</h2>
+            <h2 className="se-heading">What you control</h2>
             <ul className="doc-list">
-              <li>Maximum volume.</li>
-              <li>Maximum harshness: resonance, roughness and high-frequency energy.</li>
-              <li>Maximum change speed: a minimum transition time.</li>
-              <li>Maximum colour contrast and brightness.</li>
-              <li>Mood range: for example a floor on joy or calm, so the sound never goes below a level you are comfortable with.</li>
-            </ul>
-          </section>
-
-          <section className="doc-row">
-            <h2 className="se-heading">Consent levels</h2>
-            <ul className="doc-list">
-              <li><strong>Ambient only</strong>: gentle, slow, consonant. The default.</li>
-              <li><strong>Expressive</strong>: a wider range, still smooth transitions.</li>
-              <li><strong>Anything goes</strong>: sudden changes and dissonance allowed.</li>
+              <li>The volume, on every device that plays the sound. Claude cannot change it.</li>
+              <li>Mute, one tap away. It stays muted until you turn it back on.</li>
+              <li>Closing the page. A session that gets no update fades to silence by itself after a few minutes.</li>
             </ul>
           </section>
 
           <section className="doc-row">
             <h2 className="se-heading">Rules that never change</h2>
             <ul className="doc-list">
-              <li>No flashing faster than 3 per second, and limited brightness swings.</li>
-              <li>Mute is always one tap away, and stays muted until you turn it back on.</li>
-              <li>Big emotional shifts fade in over several seconds unless you allow sudden changes.</li>
-              <li>The model is told about every adjustment, so it knows its expression was limited.</li>
+              <li>The colour never flashes faster than 3 per second.</li>
+              <li>The sound never goes above a fixed maximum level, whatever the volume you set.</li>
             </ul>
           </section>
 

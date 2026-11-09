@@ -65,7 +65,6 @@ export const SynthOverride = z.object({
     delay: z.object({ time: z.number().min(0.05).max(1.5), feedback: z.number().min(0).max(0.85), mix: unit }).partial(),
     reverb: z.object({ size: unit, mix: unit }).partial(),
   }).partial(),
-  volume: unit,
 }).partial();
 export type SynthOverride = z.infer<typeof SynthOverride>;
 
@@ -81,8 +80,8 @@ export const Voice = z.object({
 export type Voice = z.infer<typeof Voice>;
 
 export const Colour = z.object({
-  mode: z.enum(["follow", "own"]).default("follow"),
-  hue: z.number().min(0).max(360).optional(),
+  mode: z.enum(["follow", "own"]).optional().describe("leave it out: any hue, saturation, lightness or secondary you send is used. \"follow\" ignores them"),
+  hue: z.number().min(0).max(360).optional().describe("the full colour wheel: 0 red, 30 orange, 60 yellow, 120 green, 180 cyan, 240 blue, 280 violet, 320 magenta"),
   saturation: unit.optional(),
   lightness: unit.optional(),
   secondary: z.object({ hue: z.number().min(0).max(360), saturation: unit, lightness: unit }).optional(),
@@ -97,21 +96,11 @@ export const Transition = z.object({
 });
 export type Transition = z.infer<typeof Transition>;
 
+// Session settings. The listener limits (consent, volume cap, harshness, colour limits...) are removed for now: Claude
+// decides, and the listener's only control is the volume in the player. Old rows still carry those keys; zod strips them.
 export const ListenerSettings = z.object({
-  consent: z.enum(["ambient", "expressive", "anything"]).default("ambient"),
-  max_volume: unit.default(0.6),
-  max_harshness: unit.default(0.5),
-  min_transition: z.number().min(0).max(30).default(3),
-  mood_floor: z.object({ joy: unit.default(0), calm: unit.default(0) }).default({ joy: 0, calm: 0 }),
-  gestures: z.boolean().default(true),
-  max_delay_mix: unit.default(0.4),
   // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
   rest_after: z.number().min(60).max(3600).nullable().default(300),
-  colour: z.object({
-    enabled: z.boolean().default(true),
-    max_lightness: unit.default(0.5),
-    max_saturation: unit.default(0.7),
-  }).default({ enabled: true, max_lightness: 0.5, max_saturation: 0.7 }),
   image_feedback: z.enum(["off", "on_request", "every_turn"]).default("off"),
 });
 export type ListenerSettings = z.infer<typeof ListenerSettings>;
@@ -126,7 +115,7 @@ export const SetSoundInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
   mood: Mood,
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced"),
-  colour: Colour.optional().describe("colour follows the sound unless you set mode own"),
+  colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own"),
   transition: Transition.optional(),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),

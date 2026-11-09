@@ -8,7 +8,7 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 |---|---|---|
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
 | `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
-| `/safety` | Safety and control: limits, consent levels, the rules that never change | public |
+| `/safety` | Safety and control: what the listener controls, the rules that never change | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
@@ -38,7 +38,7 @@ Four steps, each with a small icon and two lines of text (a horizontal row on de
 1. **Claude sets a mood.** While it works, and at the end of every message, it calls the connector with a mood and, optionally, exact sounds, short gestures and colour.
 2. **Your browser plays it.** The player page renders the sound and the colour field live and glides between states.
 3. **Claude hears back.** It gets what was really played: the settings after your limits, how the sound reads on the same mood axes, and your reactions.
-4. **You stay in control.** Volume, one-tap mute, limits, a consent level, and buttons like "calmer" or "softer". The model can never go past your limits.
+4. **You stay in control of the volume.** Volume and one-tap mute (limits and reaction buttons come later). Claude decides the rest and cannot change the volume.
 
 ### 4. Add it to Claude
 Numbered steps with the connector URL in a `CopyField` (`${PUBLIC_BASE_URL}/api/mcp`):
@@ -61,7 +61,7 @@ A highlighted block (scrim-style panel on the colour field, not a warning colour
 - If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
 
 ### 6. Safety and control
-Short list from safety.md: listener limits, consent levels (ambient by default), mute always one tap away, no flashing faster than 3 per second, every clamp reported to the model. Link to the `/safety` page (not to files on GitHub).
+Short list from safety.md: what the listener controls, mute always one tap away, no flashing faster than 3 per second. Listener limits are removed for now. Link to the `/safety` page (not to files on GitHub).
 
 ### 7. Footer
 GitHub link, "Your sessions", "Settings".
@@ -83,16 +83,14 @@ The page is mostly the colour field, full screen. Controls sit in a slim bar tha
 ### Always visible
 - **Mute** (one tap, large target). Stays muted until unmuted, including across reloads (remember in `localStorage` per session, wrapped in try/catch).
 - **Volume slider** (local gain, shown 0 to 100, decibels underneath: `apps/web/lib/volume.ts`). Equal steps are equal dB, 80 is the sound as mapped (unity), 100 is +18 dB (steeper above 80: 90 dB per unit, 60 below), 0 is silence. The engine's soft limiter keeps the boost from clipping. The value reported to the model as `controls.volume` is the slider position.
-- **Echo slider** (local, 0 to 1, default 0.5): scales the delay the model asked for (`engine.setListenerDelay`, limits.md step 7). Next to the volume slider, same weight. At 0 there is no echo at all.
+- **No echo slider** (removed 2026-11-09): the echo is Claude's. The volume slider is the only listener control.
 - **Status:** "Listening · turn 12 · last change 4 s ago", and a small dot when the model is mid-turn (last state non-final and < 20 s old).
 
 ### Reaction buttons
 calmer, softer, darker, brighter, slower, faster, more of this, less of this. Icon + short label. Brief confirmation ("sent") after a press. Disabled for 1 s after a press to avoid floods.
 
 ### Owner panel (slide-up sheet)
-- Consent level: ambient / expressive / anything, each with a one-line explanation.
-- Max volume, max harshness, minimum transition time.
-- Mood floor for joy and calm.
+- Limits are removed for now; this panel will hold the owner's settings when limits come back (roadmap step 5). `rest_after` is the one shared setting.
 - Gestures on/off.
 - Colour on/off, max brightness.
 - Image feedback: off / on request / every turn, with "uses more of the model's context (about N tokens per image)".
