@@ -196,7 +196,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
     const r = await svc.silence(dbA, A, { session_id, fade: 10, final: false, end: true }, tick());
     expect((r.playing as { volume: number }).volume).toBe(0);
-    expect(r.notes).toEqual(expect.arrayContaining(["session ended"]));
+    // the closing sound sent a second earlier still has about 3 s of its 4 s transition to play: the fade waits for it
+    expect((r.notes as string[]).join(" ")).toMatch(/session ends: the fade starts in \d+ s/);
+    const delay = Number(sql(`select effective->'transition'->>'delay' from states where session_id='${session_id}' order by created_at desc limit 1`));
+    expect(delay).toBeGreaterThan(2); expect(delay).toBeLessThanOrEqual(4);
     expect(sql(`select (ended_at is not null) from sessions where id='${session_id}'`)).toBe("t");
     expect(sql(`select final from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
     await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick())).rejects.toMatchObject({ code: "session_ended" });

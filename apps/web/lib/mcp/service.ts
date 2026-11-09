@@ -233,6 +233,13 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };
+  // ending: let the closing sound sent just before play out first; the fade starts when its transition is over
+  let delay = 0;
+  if (input.end) {
+    const prevT = prev.effective.transition?.time ?? 0;
+    delay = Math.min(30, Math.max(0, (new Date(prev.created_at).getTime() + prevT * 1000 - now) / 1000));
+    if (delay > 0) effective.transition.delay = Math.round(delay * 10) / 10;
+  }
 
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final,
@@ -247,7 +254,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
 
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, parseSettings(session.settings), now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? "session ended" : undefined, ...rest.notes]
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, ...rest.notes]
     .filter((x): x is string => Boolean(x));
   return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting });
 }

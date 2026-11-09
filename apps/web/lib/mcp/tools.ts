@@ -50,7 +50,7 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("silence", {
     title: "Silence",
-    description: "Fade the sound to silence. With end=true the session ends after the fade: use it only when the user says the session is over, after one set_sound that plays a short closing sound of your own with a long transition, and give silence a long fade (10 to 30 s).",
+    description: "Fade the sound to silence. With end=true the session ends after the fade: use it only when the user says the session is over, right after one set_sound that plays a short closing sound of your own with a long transition. The fade starts by itself when that sound has finished its transition, so call silence at once, with a fade of 10 to 30 s.",
     inputSchema: z.object({
       session_id: z.string().optional(),
       fade: z.number().min(0).max(30).default(4).describe("seconds"),

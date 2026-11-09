@@ -195,7 +195,7 @@ Input: `{ session_id: string, what: "spectrogram" | "history" }`.
 
 Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean, end?: boolean  }`.
 With `end: true` the session ends once the fade is over (`ended_at` set, state final). The model uses it when the user says the session is finished, after one `set_sound` that plays a short closing sound with a long transition. Further calls return `session_ended`.
-Sets volume 0 and drone off with the given fade (with `end`, the layers stay on and only the volume fades, so the closing sound is not cut; give it a fade of 10 to 30 s), as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
+Sets volume 0 and drone off with the given fade (with `end`, the layers stay on and only the volume fades, so the closing sound is not cut; give it a fade of 10 to 30 s). With `end` the state carries `transition.delay`: the time left of the previous state's transition (at most 30 s), so the closing sound plays out before the fade starts; the engine keeps the timing (`Engine.setState(state, seed, delaySec)`), a newer state replaces one that is still waiting. The returned `volume` is 0 at once because it reports the target, not the point in the fade, as a normal state (so it is logged and can be followed by `set_sound`). Returns the feedback object.
 
 ## Session resolution
 Every tool except `start_session` takes `session_id`.

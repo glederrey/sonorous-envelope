@@ -87,8 +87,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     latest.current = next;
     restedFrom.current = null; // a new state brings the sound back, with its own transition
     if (document.visibilityState === "hidden") dbg.current.applied++;
-    setPlaying(next);
-    audio.current?.setState(state, next.seed);
+    // a state with a delay (the closing fade after a closing sound) waits that long from when it was written; the engine
+    // keeps the timing, and the colour waits the same time
+    const wait = Math.max(0, (state.transition.delay ?? 0) - (Date.now() + clockOffset.current - at) / 1000);
+    if (wait > 0) setTimeout(() => { if (latest.current === next) setPlaying(next); }, wait * 1000);
+    else setPlaying(next);
+    audio.current?.setState(state, next.seed, wait);
   }, []);
 
   // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
@@ -155,7 +159,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         if (data.state) {
           apply(data.state);
           const age = Date.now() + clockOffset.current - new Date(data.state.created_at).getTime();
-          const fade = data.state.effective.transition?.time ?? 0;
+          const fade = (data.state.effective.transition?.delay ?? 0) + (data.state.effective.transition?.time ?? 0);
           if (controls.current.started && age < (fade + 5) * 1000) wait = Math.max(0, fade * 1000 - age) + 500;
         }
         setTimeout(() => { if (cancelled) return; setPhase("ended"); void audio.current?.close(); audio.current = null; }, wait);
