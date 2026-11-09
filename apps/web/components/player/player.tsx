@@ -8,6 +8,7 @@ import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
+import { restedState } from "../../lib/rested-state";
 import { AudioOutput } from "./audio";
 
 type Phase = "joining" | "ready" | "ended" | "error";
@@ -98,9 +99,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
       restedFrom.current = p;
-      const state: EngineState = JSON.parse(JSON.stringify(p.state));
-      state.volume = 0; state.transition = { time: 30, curve: "smooth" };
-      state.colour = { ...state.colour, l: 0.04, motion: "still", pulseHz: 0, ...(state.colour.secondary ? { secondary: { ...state.colour.secondary, l: 0.02 } } : {}) };
+      const state = restedState(p.state);
       setPlaying({ ...p, state });
       audio.current?.setState(state, p.seed);
     } else if (!resting && restedFrom.current && restedFrom.current.at === p.at) {
@@ -328,7 +327,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       out.watch(setAudioState);
       out.setGain(muted ? 0 : sliderToGain(volume));
       out.setDelay(echo, settings.current.max_delay_mix);
-      if (latest.current) out.setState(latest.current.state, latest.current.seed);
+      // already resting when the listener taps Start: begin silent (the engine's first state jumps to its target)
+      if (latest.current) out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed);
       setStarted(true);
     } catch {
       setMessage("Your browser could not start audio.");
