@@ -23,10 +23,13 @@ Found in the first outside test (2026-11-09, phone). While the user dictates a m
 
 **Likely cause: the phone, not the page.** When the microphone opens, Android and iOS give priority to the recording and lower ("duck") or pause other audio sources. A web page has little say in that. The keep-alive file (roadmap, "Phone: music follows Claude in the background") makes Chrome treat the page as media, which also means it takes part in the system's audio focus and can be ducked or paused when something else takes focus.
 
-**What we can check from the page** (none of it is verified yet):
+**What we can check from the page** (implemented on branch `listening-player-side`, none of it verified on a phone yet):
 - Listen to the `AudioContext` `statechange` event as well as `visibilitychange`, and call `resume()` when the state is `suspended` or `interrupted` (iOS reports `interrupted`), without waiting for a tap. A context that was interrupted does not always restart by itself.
 - Listen to the `pause` event of the keep-alive element. If we did not pause it (mute pauses it on purpose), call `play()` again. It may need user activation; the page had one at start, so try it.
 - On iOS, test the `navigator.audioSession.type` value (`playback`, `ambient`, `play-and-record`) to see whether one lets the sound coexist with the dictation mic. This is a thing to test, not a known fix.
 - Add the `AudioContext` state, the keep-alive element's `paused` state and every `statechange` / `pause` event with a timestamp to the `?debug=1` report, then dictate once. The report is what found the earlier background problem (it showed the page alive and requests stalled); it should say here whether the context was suspended, the element paused, or the sound merely ducked.
 
 **If the system forces it**, it cannot be worked around from a web page. Fallback to document in the guide: open the player on another device (computer, speaker) and dictate on the phone. That is option 1 above.
+
+### How to test it (dev server)
+Open the player with `?debug=1`. A "Live" line shows the engine state, the keep-alive state, the audio session type and the last events with timestamps. The page now calls `resume()` / `play()` by itself on a `statechange` away from `running` and on a keep-alive `pause` (unless muted). Dictate once and read the events. To try another iOS audio session type, add `&audiosession=ambient` (or `play-and-record`, `auto`); the default is `playback`.

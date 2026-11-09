@@ -234,6 +234,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
           `State checks by the page: ${d.ok} ok, ${d.err} failed. By the worker: ${d.wok} ok, ${d.werr} failed${d.lastErr ? ` (last error: ${d.lastErr})` : ""}.`,
           `New sounds received while away: ${d.applied}.`,
           `Now: audio engine ${a?.state ?? "not started"}, keep-alive file ${a ? (a.keepAlivePlaying ? "playing" : "paused") : "n/a"}, lock-screen player ${player}.`,
+          `Audio session type: ${a?.audioSessionType ?? "n/a"}.`,
+          ...(a?.events.length ? ["Audio events:", ...a.events.slice(-12)] : ["Audio events: none."]),
         ];
         setDbgText(lines.join("\n"));
         d.hiddenAt = 0;
@@ -343,6 +345,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         {phase === "ready" && started && !hidden && (
           <section className="pl-panel" aria-label="Listening controls">
             {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}</p>}
+            {debug && <p className="pl-local se-sm pl-debug" role="status">
+              {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}, session type ${audio.current?.audioSessionType ?? "n/a"}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
+            </p>}
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
