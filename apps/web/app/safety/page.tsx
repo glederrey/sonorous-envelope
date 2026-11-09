@@ -11,7 +11,7 @@ export default function SafetyPage() {
           <h1 className="doc-title">Safety and control</h1>
           <p>
             Text lets a model soften what it says. Sound and colour reach you before anything can be softened, so a
-            sudden harsh or desolate sound can startle someone who did not expect it. For now Claude decides how it
+            sudden harsh or desolate sound can startle someone who did not expect it. For now the model decides how it
             sounds and looks, and you decide how loud it is. Listener limits are planned and not built yet.
           </p>
         </div>
@@ -20,10 +20,10 @@ export default function SafetyPage() {
           <section className="doc-row">
             <h2 className="se-heading">What you control</h2>
             <ul className="doc-list">
-              <li>The volume, on every device that plays the sound. Claude cannot change it.</li>
+              <li>The volume, on every device that plays the sound. The model cannot change it.</li>
               <li>Mute, one tap away. It stays muted until you turn it back on.</li>
               <li>Ending a session yourself, from the sessions page.</li>
-              <li>Closing the page. A session that gets no update fades to silence by itself after a few minutes, unless Claude turns that off.</li>
+              <li>Closing the page. A session that gets no update fades to silence by itself after 15 minutes, unless the model turns that off.</li>
             </ul>
           </section>
 

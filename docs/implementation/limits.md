@@ -18,7 +18,7 @@ Clamps from these rules are reported in the feedback (`clamped`), usually empty.
 ## Session settings (`sessions.settings`)
 ```ts
 const ListenerSettings = z.object({
-  rest_after: z.number().min(60).max(3600).nullable().default(300), // seconds without an update before the fade; null = never
+  rest_after: z.number().min(60).max(3600).nullable().default(900), // seconds without an update before the fade; null = never
   image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),
 });
 ```

@@ -6,9 +6,9 @@ import { mcpResourceUrl } from "../lib/env";
 export const dynamic = "force-dynamic";
 
 const loop = [
-  ["Claude sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
+  ["The model sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
   ["Your browser plays it", "Sound and colour glide from one state to the next, live."],
-  ["Claude hears back", "What actually played, and the volume you chose."],
+  ["The model hears back", "What actually played, and the volume you chose."],
 ] as const;
 
 // Splits a phrase into letters so each can be animated with its own delay.
@@ -45,7 +45,7 @@ export default function Home() {
               </span>
             </h1>
           <p className="lp-lede">
-            A small synthesizer and a colour field for Claude. It sets the mood while it works, you hear and see it
+            A small synthesizer and a colour field for an AI model. It sets the mood while it works, you hear and see it
             beside the chat, and it hears back what really played.
           </p>
           <div className="lp-connect">
@@ -71,22 +71,22 @@ export default function Home() {
             ))}
           </ol>
           <p className="lp-wide">
-            You stay in control of the volume, with a one-tap mute. Claude decides the rest of how it sounds and looks.
+            You stay in control of the volume, with a one-tap mute. The model decides the rest of how it sounds and looks.
             <a href="/safety"> How safety works</a>
           </p>
         </section>
 
         <section className="lp-split" id="add">
           <div>
-            <h2 className="se-title">Add it to Claude</h2>
-            <p className="se-muted">Takes a minute. It works in the web, desktop and mobile apps on the same account.</p>
+            <h2 className="se-title">Add it to your AI app</h2>
+            <p className="se-muted">Takes a minute. It works in the web, desktop and mobile apps on the same account. The steps below are for claude.ai; other apps with custom MCP connectors (ChatGPT, for example) have a similar menu.</p>
           </div>
           <ol className="lp-steps">
             <li>Open <strong>Settings → Customize → Connectors</strong>, then choose <strong>Add</strong> and <strong>Add custom connector</strong>.</li>
             <li>Name it <strong>Sonorous Envelope</strong>, paste the connector URL above into <strong>MCP server URL</strong>, and choose <strong>Continue</strong>.</li>
             <li>Choose <strong>Connect</strong>: you sign in here and approve access.</li>
             <li>In a new conversation, switch the connector on from the <strong>+</strong> menu in the message box.</li>
-            <li>Claude gives you a player link. Open it and tap <strong>Start listening</strong>.</li>
+            <li>The model gives you a player link. Open it and tap <strong>Start listening</strong>.</li>
           </ol>
         </section>
 
@@ -96,12 +96,12 @@ export default function Home() {
           </div>
           <div className="se-stack">
             <p>
-              <strong>The sound plays in the player page, not in Claude.</strong> Closing the page stops the sound, and
-              Claude stops knowing you are listening.
+              <strong>The sound plays in the player page, not in the chat app.</strong> Closing the page stops the sound, and
+              the model stops knowing you are listening.
             </p>
             <p className="se-muted">
               Best setup: the player in one window or device, the chat in another. On a phone you can switch to the chat
-              and keep going: the sound keeps playing in the background and follows Claude. If the phone stops it, open
+              and keep going: the sound keeps playing in the background and follows the model. If the phone stops it, open
               the player again and tap resume.
               Open the link on several devices and they play the same notes at the same time.
             </p>

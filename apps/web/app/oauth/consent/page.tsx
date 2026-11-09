@@ -17,7 +17,7 @@ export default async function ConsentPage({
         <SiteHeader />
         <main className="se-narrow se-stack">
           <h1 className="se-title">Authorization failed</h1>
-          <p className="se-muted">This request is invalid or has expired. Go back to Claude and connect again.</p>
+          <p className="se-muted">This request is invalid or has expired. Go back to your AI app and connect again.</p>
         </main>
       </>
     );
@@ -36,7 +36,7 @@ export default async function ConsentPage({
         <SiteHeader />
         <main className="se-narrow se-stack">
           <h1 className="se-title">Authorization failed</h1>
-          <p className="se-muted">This request is invalid or has expired. Go back to Claude and connect again.</p>
+          <p className="se-muted">This request is invalid or has expired. Go back to your AI app and connect again.</p>
         </main>
       </>
     );

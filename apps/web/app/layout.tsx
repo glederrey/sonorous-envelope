@@ -8,7 +8,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], v
 
 export const metadata: Metadata = {
   title: "Sonorous Envelope",
-  description: "Let the model hum while it thinks. A synthesizer and a colour field for Claude.",
+  description: "Let the model hum while it thinks. A synthesizer and a colour field for an AI model.",
   icons: { icon: "/icon.svg" },
 };
 

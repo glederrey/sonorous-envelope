@@ -16,7 +16,7 @@ export const templates = {
     preheader: "One tap to finish creating your account.",
     title: "Confirm your email",
     body: [
-      "Welcome. Confirm <strong>{{ .Email }}</strong> to finish creating your account, then connect Claude and start a session.",
+      "Welcome. Confirm <strong>{{ .Email }}</strong> to finish creating your account, then connect your AI app and start a session.",
     ],
     button: { label: "Confirm email", url: "{{ .ConfirmationURL }}" },
     note: "The link works for one hour. If you did not sign up, you can ignore this email.",
@@ -121,7 +121,7 @@ function render(t) {
       </table>
     </td></tr>
     <tr><td class="muted" style="padding:20px 8px 0;font-family:${sans};font-size:12px;line-height:18px;color:#586170;">
-      Sonorous Envelope gives Claude a sound and colour channel. You got this email because someone used this address on <a class="link" href="{{ .SiteURL }}" style="color:#0b766b;">{{ .SiteURL }}</a>.
+      Sonorous Envelope gives an AI model a sound and colour channel. You got this email because someone used this address on <a class="link" href="{{ .SiteURL }}" style="color:#0b766b;">{{ .SiteURL }}</a>.
     </td></tr>
   </table>
 </td></tr>
