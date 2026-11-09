@@ -152,6 +152,42 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select effective->'transition'->>'time' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("6");
   });
 
+  it("tells the model the sound faded, only when rest_after is on", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    const late = clock + 301_000;
+    const fb = await svc.getFeedback(dbA, A, { session_id }, late);
+    expect(fb.resting).toBe(true);
+    expect(fb.notes).toEqual(expect.arrayContaining(["the sound faded after 5 min without an update from you"]));
+    // Claude turns it off: nothing is said any more
+    clock = late;
+    await svc.setSound(dbA, A, { session_id, mood, final: true, rest_after: null } as never, tick());
+    const fb2 = await svc.getFeedback(dbA, A, { session_id }, clock + 3_600_000);
+    expect(fb2.resting).toBeUndefined();
+  });
+
+  it("lets Claude change rest_after and nothing else in the settings", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const before = JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`));
+    await svc.setSound(dbA, A, { session_id, mood, final: true, rest_after: 600 } as never, tick());
+    const after = JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`));
+    expect(after).toEqual({ ...before, rest_after: 600 });
+    // leaving it out keeps the value
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    expect(JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`)).rest_after).toBe(600);
+  });
+
+  it("ends the session with silence end, keeping the layers on while the volume fades", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+    const r = await svc.silence(dbA, A, { session_id, fade: 10, final: false, end: true }, tick());
+    expect((r.playing as { volume: number }).volume).toBe(0);
+    expect(r.notes).toEqual(expect.arrayContaining(["session ended"]));
+    expect(sql(`select (ended_at is not null) from sessions where id='${session_id}'`)).toBe("t");
+    expect(sql(`select final from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
+    await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick())).rejects.toMatchObject({ code: "session_ended" });
+  });
+
   it("falls back to the latest session when none is given, and refuses other people's sessions", async () => {
     const mine = await svc.startSession(dbA, A, {}, tick());
     const f = await svc.getFeedback(dbA, A, {}, clock);
