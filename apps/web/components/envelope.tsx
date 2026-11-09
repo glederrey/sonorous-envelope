@@ -36,10 +36,10 @@ const SIM_SPRING = 0.0018; // pulls a line back to rest
 const SIM_MAX = 22;        // px, so a ripple can never reach the next line
 const KICK = 0.03;
 // A click starts two waves that run left and right. Each grows from nothing to its height as it travels.
-const CLICK_PX = 20;
+const CLICK_PX = 34;
 const CLICK_SPEED = 170;   // px/s
 const CLICK_GROW_S = 0.22; // time constant of the growth: about 90% of the height after half a second
-const CLICK_DECAY = 0.55;  // per second
+const CLICK_DECAY = 0.45;  // per second
 const CLICK_W0 = 26;       // px
 type ClickWave = { t0: number; x: number; sign: number; y: number };
 const STAGGER_MS = 240;
