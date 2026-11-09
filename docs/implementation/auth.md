@@ -89,7 +89,7 @@ async function authed(req: Request) {
 export { authed as GET, authed as POST, authed as DELETE };
 ```
 
-Audience: not checked yet. Decode a real access token from claude.ai (or MCP Inspector) against production, see what `aud` holds, then add the check and a test.
+Audience: `verifyToken` requires `aud` to be `"authenticated"`. Supabase documents that constant for every user access token (OAuth ones included) and only changes it through a custom access token hook. So this is a token-type check, not a binding to our resource: the guarantees come from the signature, the issuer, `role` and `client_id`. If a hook ever sets a per-client audience, change the check to `<public base>/api/mcp`.
 
 Protected resource metadata uses `protectedResourceHandler({ authServerUrls: [issuer], resourceUrl: MCP_RESOURCE_URL })`, built per request in `lib/mcp/protected-resource.ts`.
 
