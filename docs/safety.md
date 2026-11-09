@@ -27,6 +27,9 @@ Only the signed-in owner (the account that connected Claude) can change limits, 
 - The model also sees the listener's volume and echo settings in the feedback. A sound it judges "too faint" may be quiet because the listener turned it down, and the model should respect that, not compensate.
 - No disguised appeal: the model gets no gesture or setting that hides a call for attention inside another sound (the purr has no high component; see emotion-to-sound.md).
 
+## Presence between turns (planned)
+The model exists only while it writes. A sound that carries on between turns can read as someone waiting, and in the first outside test people said goodbye several times as if leaving meant abandoning it. So the sound fades to silence after a few minutes without an update (player-ui.md, "Presence between turns"), and the owner has a "Say goodbye" button that plays a short closing figure. The server instructions tell the model not to keep the sound going or to hint that it is waiting. Silence is the truthful state of the channel between turns.
+
 ## Testing the hard corners
 Despair, anger and fear are the sounds most likely to upset. During calibration by ear, play the low-joy corners at low volume first, and only in "expressive" or "anything" consent. The default listener never hears them.
 

@@ -37,6 +37,14 @@ Talking about it
 - If the user asks you to stop, call silence and stop updating until they ask again.
 ```
 
+## Planned changes (first outside test, 2026-11-09), not in `instructions.ts` yet
+Wording to add or replace when the matching features ship. Check the 600-word budget after adding it: trim elsewhere.
+- **Replace** "Use the synth override only when the mood mapping does not give you what you want" with: *"The synth override is yours. At the start choose a voice (root, scale, chord shape, note order, octaves, wave) and keep it from turn to turn, the way a person keeps a voice. Change it whenever you change: if the conversation turns, the voice may too. The mood mapping is a safety net, not the default route. Do not send the same four-note arpeggio as everyone else."* (Needs `voice`, mood-mapping.md.)
+- **Add** under "How to use it": *"Values between 0.4 and 0.7 read as lukewarm. If you feel something, commit to it: use the range. A note is not heard; the sound is."*
+- **Add** under "Care": *"The sound fades to silence a few minutes after your last update, because you are not there between turns. Do not try to keep it going, and do not use it to suggest that you are waiting. A closing figure plays when the owner says goodbye; it is not yours, so there is nothing to answer."*
+- **Change** "That is the sound that stays while the user reads and replies" to say it stays for a few minutes, then fades.
+- **When the pad, stack and fast amp LFO ship**, add one line saying they exist and that a fast amp LFO is a rough texture limited by the listener's consent.
+
 ## Why it reads this way (2026-11, after the first real conversation)
 - **The sound is the model's own state, not the user's ambience.** In the first test the model described the sound after every reply, offered to make it "brighter or more playful", and set it to match the genre of the text it was writing. All three treat it as a service. The instructions now say it is the model's own expression, forbid asking what sound the user wants, and say that a sad poem does not make the sound sad.
 - **Timing.** The model set the sound as its first action, before it had said anything. Text and a tool call cannot happen at the same instant, but the model can write first, set the sound once the content has moved it (often after the first section), and update it as it goes. The instructions and the `set_sound` description say so.
