@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
 import { CopyLink } from "../../components/copy-link";
 import { createClient } from "../../lib/supabase/server";
+import { ago, sessionStatus } from "../../lib/session-status";
 
 export const metadata = { title: "Your sessions · Sonorous Envelope" };
 
@@ -13,6 +14,8 @@ export default async function SessionsPage() {
   const { data: rows } = await supabase.from("sessions").select("id,title,created_at,last_active_at,ended_at")
     .eq("owner_id", data.user.id).order("last_active_at", { ascending: false }).limit(50);
   const sessions = rows ?? [];
+  const now = Date.now();
+  const status = (s: { ended_at: string | null; last_active_at: string }) => sessionStatus(s, now);
 
   return (
     <>
@@ -42,7 +45,7 @@ export default async function SessionsPage() {
                 <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
                 <div className="se-stack">
                   <p className="se-sm se-muted" style={{ margin: 0 }}>
-                    {s.ended_at ? "Ended" : "Active"} · last sound {new Date(s.last_active_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+                    {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"} · last sound {ago(s.last_active_at, now)}
                   </p>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {!s.ended_at && <a className="se-btn se-btn-primary" href={`/s/${s.id}`}>Open player</a>}
