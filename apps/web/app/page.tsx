@@ -4,6 +4,17 @@ import { Envelope } from "../components/envelope";
 import { mcpResourceUrl } from "../lib/env";
 
 export const dynamic = "force-dynamic";
+export const metadata = { alternates: { canonical: "/" } };
+
+// Structured data: the site name and the logo that search results may show.
+const SITE_URL = (process.env.PUBLIC_BASE_URL || "https://sonorous-envelope.com").replace(/\/+$/, "");
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A synthesizer and a colour field for an AI model." },
+    { "@type": "Organization", name: "Sonorous Envelope", url: SITE_URL, logo: `${SITE_URL}/brand/logo-512.png` },
+  ],
+};
 
 const loop = [
   ["The model sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
@@ -33,6 +44,7 @@ function Letters({ text, className }: { text: string; className: string }) {
 export default function Home() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="lp-hero">
         <div className="lp-field" aria-hidden />
         <SiteHeader overlay />

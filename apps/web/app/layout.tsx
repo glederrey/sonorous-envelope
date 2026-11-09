@@ -6,10 +6,27 @@ import "./globals.css";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains" });
 
+const SITE = (process.env.PUBLIC_BASE_URL || "https://sonorous-envelope.com").replace(/\/+$/, "");
+const DESCRIPTION = "Let the model hum while it thinks. A synthesizer and a colour field for an AI model.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE),
   title: "Sonorous Envelope",
-  description: "Let the model hum while it thinks. A synthesizer and a colour field for an AI model.",
-  icons: { icon: "/icon.svg" },
+  description: DESCRIPTION,
+  applicationName: "Sonorous Envelope",
+  // Google picks the favicon from these: an SVG plus PNGs that are a multiple of 48 px
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/brand/apple-touch-icon.png",
+  },
+  openGraph: {
+    type: "website", siteName: "Sonorous Envelope", title: "Sonorous Envelope", description: DESCRIPTION, url: "/",
+    images: [{ url: "/brand/og-image.png", width: 1200, height: 630, alt: "Sonorous Envelope" }],
+  },
+  twitter: { card: "summary_large_image", title: "Sonorous Envelope", description: DESCRIPTION, images: ["/brand/og-image.png"] },
 };
 
 export const viewport: Viewport = {
