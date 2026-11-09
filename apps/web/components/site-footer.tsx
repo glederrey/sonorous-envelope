@@ -6,6 +6,7 @@ export function SiteFooter() {
   const links = sourceLinks(version);
   return (
     <footer className="se-footer">
+      <a href="/privacy">Privacy</a>
       <a href={links.license} rel="noopener">AGPL-3.0</a>
       <a href={links.source} rel="noopener">Source code</a>
       {links.release ? <a href={links.release} rel="noopener">{version}</a> : <span>{version}</span>}
