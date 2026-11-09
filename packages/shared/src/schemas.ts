@@ -69,6 +69,17 @@ export const SynthOverride = z.object({
 }).partial();
 export type SynthOverride = z.infer<typeof SynthOverride>;
 
+/** The part of the sound that says who is playing. Chosen by the instance at start_session, replaceable with set_sound. */
+export const Voice = z.object({
+  root: NoteName.describe("root note, like D3"),
+  scale: Scale,
+  chord: z.array(z.number().int().min(1).max(14)).min(1).max(8).describe("scale degrees; their order is the note order when pattern is as_played"),
+  pattern: z.enum(["up", "down", "up_down", "random", "as_played"]),
+  octaves: z.number().int().min(1).max(4),
+  wave: Wave,
+}).partial();
+export type Voice = z.infer<typeof Voice>;
+
 export const Colour = z.object({
   mode: z.enum(["follow", "own"]).default("follow"),
   hue: z.number().min(0).max(360).optional(),
@@ -120,6 +131,7 @@ export const SetSoundInput = z.object({
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
+  voice: Voice.optional().describe("your voice: root, scale, chord, note order, octaves, wave. It stays from turn to turn; send a new one to change it, for instance when the conversation turns"),
   rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns: this is how the channel tells the truth about it. Leave it out to keep the current value"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;

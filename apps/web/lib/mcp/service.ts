@@ -7,7 +7,8 @@ type Db = SupabaseClient<any, any, any>;
 import type { EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback, isResting, moodToEngineState,
-  nextSlowMood, parseSettings, restingNote, type ListenerSettings, type Mood, type SetSoundInput,
+  nextSlowMood, parseSettings, restingNote, stretchMood, voiceSeedOf, voiceToSynth,
+  type ListenerSettings, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
@@ -26,7 +27,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string;
@@ -92,6 +93,14 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
   return { resting: true, notes: [restingNote(settings.rest_after)] };
 }
 
+/** Mapped from the (stretched) mood, then the session's voice, then the call's own synth override. */
+function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, synth: SetSoundInput["synth"]) {
+  const mapped = moodToEngineState(mood, slow, voiceSeedOf(sessionId));
+  const a = applyOverride(mapped, voiceToSynth(voice));
+  const b = applyOverride(a.state, synth);
+  return { state: b.state, overridden: [...new Set([...a.overridden.map((f) => `voice:${f}`), ...b.overridden])] };
+}
+
 async function insertState(
   db: Db,
   at: number,
@@ -110,7 +119,7 @@ function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, n
   });
 }
 
-export async function startSession(db: Db, userId: string, input: { title?: string }, now = Date.now()) {
+export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice }, now = Date.now()) {
   // keep at most 10 active sessions: end the oldest
   const { data: active, error: aerr } = await db.from("sessions").select("id").eq("owner_id", userId).is("ended_at", null)
     .order("last_active_at", { ascending: false });
@@ -125,13 +134,14 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
 
   const { error: serr } = await db.from("sessions").insert({
     id, owner_id: userId, title: input.title?.slice(0, 80) ?? null, settings, last_active_at: new Date(now).toISOString(),
+    voice: input.voice ?? null,
   });
   if (serr) fail("start the session", serr);
   const { error: lerr } = await db.from("listeners").insert({ session_id: id, user_id: userId, role: "owner", label: "you" });
   if (lerr) fail("start the session", lerr);
 
   const { mood, clamps: floorClamps } = applyMoodFloor(NEUTRAL_MOOD, settings);
-  const { state: mapped } = applyOverride(moodToEngineState(mood, mood), { volume: 0.3 });
+  const { state: mapped } = mapSound(id, mood, mood, input.voice, { volume: 0.3 });
   const { effective, clamps } = applyLimits({ mapped, mood, settings });
   const stateId = await insertState(db, now, {
     session_id: id, turn: 0, final: true, intent: { mood: NEUTRAL_MOOD, initial: true }, effective,
@@ -163,13 +173,20 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
 
   const turn = planTurn(prev, input.final, now);
-  const { mood, clamps: floorClamps } = applyMoodFloor(input.mood, settings);
+  // the axes are stretched first (instances send 0.4 to 0.7), then the mood floor applies on top
+  const { mood, clamps: floorClamps } = applyMoodFloor(stretchMood(input.mood), settings);
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
-  const { state: overridden, overridden: fields } = applyOverride(moodToEngineState(mood, slow), input.synth);
+  // a new voice replaces the old one for good; it is a big change, so it gets a long transition
+  const voice = input.voice !== undefined ? input.voice : session.voice;
+  const transition = input.voice !== undefined
+    ? { curve: input.transition?.curve ?? "smooth" as const, time: Math.max(input.transition?.time ?? 4, 8) }
+    : input.transition;
+
+  const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, input.synth);
   overridden.colour = applyColour(overridden.colour, input.colour);
   const { effective, clamps } = applyLimits({
-    mapped: overridden, mood, previousMood: prev?.intent.mood ?? null, transition: input.transition, settings,
+    mapped: overridden, mood, previousMood: prev?.intent.mood ? stretchMood(prev.intent.mood) : null, transition, settings,
   });
   const allClamps = mergeClamps(floorClamps, clamps);
 
@@ -185,6 +202,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
+    ...(input.voice !== undefined ? { voice: input.voice } : {}),
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 

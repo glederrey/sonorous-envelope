@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { SetSoundInput } from "@sonorous/shared";
+import { SetSoundInput, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
 import { ToolError, getFeedback, setSound, silence, startSession } from "./service";
 
@@ -30,7 +30,10 @@ export function registerTools(server: McpServer) {
   server.registerTool("start_session", {
     title: "Start a sound session",
     description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link in one short sentence and say nothing else about the sound.",
-    inputSchema: z.object({ title: z.string().max(80).optional().describe("optional short name for the session (2 to 5 words); you can also send title later with set_sound") }),
+    inputSchema: z.object({
+      title: z.string().max(80).optional().describe("optional short name for the session (2 to 5 words); you can also send title later with set_sound"),
+      voice: Voice.optional().describe("optional: choose your voice now (root, scale, chord, note order, octaves, wave) and it stays for the session. If you send none, one is drawn for you"),
+    }),
   }, (args, ctx) => run(ctx as Ctx, (c) => startSession(c.db, c.userId, args)));
 
   server.registerTool("set_sound", {

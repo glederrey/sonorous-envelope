@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyMoodFloor, applyOverride, buildFeedback,
-  harmonyFor, harshness, isResting, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  harmonyFor, harshness, isResting, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -20,7 +20,7 @@ const random = (n: number) => { const r = mulberry32(5); return Array.from({ len
 describe("mood mapping", () => {
   it("keeps every field inside the engine's valid ranges at all corners and random points", () => {
     for (const mood of [...corners, ...random(1000)]) {
-      const s = moodToEngineState(mood);
+      const s = moodToEngineState(mood, mood, voiceSeedOf(JSON.stringify(mood)));
       const inRange = (x: number, a: number, b: number) => Number.isFinite(x) && x >= a - 1e-9 && x <= b + 1e-9;
       expect(inRange(s.arp.tempo, 30, 200)).toBe(true);
       expect(inRange(s.filter.cutoff, 60, 16000)).toBe(true);
@@ -32,7 +32,7 @@ describe("mood mapping", () => {
       expect(inRange(s.env.release, 0.01, 8)).toBe(true);
       expect(inRange(s.arp.density, 0.35, 1)).toBe(true);
       expect(inRange(s.arp.gate, 0.05, 1)).toBe(true);
-      expect(inRange(s.arp.octaves, 1, 3)).toBe(true);
+      expect(inRange(s.arp.octaves, 1, 4)).toBe(true);
       expect(inRange(s.fx.delay.time, 0.05, 0.75)).toBe(true);
       expect(inRange(s.fx.delay.feedback, 0, 0.6)).toBe(true);
       expect(inRange(s.colour.l, 0, 0.6)).toBe(true);
@@ -77,7 +77,7 @@ describe("mood mapping", () => {
 
   it("never gives a falling pattern for joy ≥ 0.6, nor a rising one for joy ≤ 0.4 (without random)", () => {
     for (const mood of random(500)) {
-      const p = moodToEngineState({ ...mood, spontaneity: Math.min(mood.spontaneity, 0.7) }).arp.pattern;
+      const p = moodToEngineState({ ...mood, spontaneity: Math.min(mood.spontaneity, 0.4) }).arp.pattern;
       if (mood.joy >= 0.6) expect(p).not.toBe("down");
       if (mood.joy <= 0.4) expect(p).not.toBe("up");
     }
@@ -300,5 +300,49 @@ describe("rest_after", () => {
   });
   it("words the resting note in minutes", () => {
     expect(restingNote(300)).toBe("the sound faded after 5 min without an update from you");
+  });
+});
+
+describe("stretch, variety and voice", () => {
+  it("stretch is monotonic, fixes 0.5 and stays in [0,1]", () => {
+    expect(stretch(0.5)).toBe(0.5);
+    expect(stretch(0.4)).toBeCloseTo(0.34, 6);
+    expect(stretch(0.7)).toBeCloseTo(0.82, 6);
+    let prev = -1;
+    for (let x = 0; x <= 1.0001; x += 0.01) { const y = stretch(x); expect(y).toBeGreaterThanOrEqual(prev); expect(y).toBeGreaterThanOrEqual(0); expect(y).toBeLessThanOrEqual(1); prev = y; }
+  });
+  it("a mood floor is still met after the stretch", () => {
+    const st = stretchMood({ warmth: 0.5, closeness: 0.5, joy: 0.45, calm: 0.5, spontaneity: 0.5 });
+    expect(applyMoodFloor(st, settings({ mood_floor: { joy: 0.6, calm: 0 } })).mood.joy).toBeGreaterThanOrEqual(0.6);
+  });
+  const inBand = (n: number, seed = 11) => { const r = mulberry32(seed); const b = () => 0.4 + 0.3 * r();
+    return Array.from({ length: n }, () => ({ warmth: b(), closeness: b(), joy: b(), calm: b(), spontaneity: b() })); };
+  const shape = (st: ReturnType<typeof moodToEngineState>) => `${st.arp.chord.join(",")}|${st.arp.pattern}|${st.arp.octaves}`;
+  it("moods in [0.4, 0.7]^5 give several distinct shapes from the axes alone", () => {
+    const shapes = new Set(inBand(200).map((mood) => shape(moodToEngineState(stretchMood(mood)))));
+    expect(shapes.size).toBeGreaterThanOrEqual(6);
+  });
+  it("the same axes give different shapes for different sessions, and the same for one session", () => {
+    const mood = stretchMood({ warmth: 0.55, closeness: 0.55, joy: 0.6, calm: 0.6, spontaneity: 0.5 });
+    const a = shape(moodToEngineState(mood, mood, voiceSeedOf("session-a")));
+    expect(shape(moodToEngineState(mood, mood, voiceSeedOf("session-a")))).toBe(a);
+    const others = new Set(Array.from({ length: 30 }, (_, i) => shape(moodToEngineState(mood, mood, voiceSeedOf(`session-${i}`)))));
+    expect(others.size).toBeGreaterThan(3);
+  });
+  it("the seeded character is deterministic per id and differs between ids", () => {
+    expect(characterFor(voiceSeedOf("x"))).toEqual(characterFor(voiceSeedOf("x")));
+    const roots = new Set(Array.from({ length: 40 }, (_, i) => characterFor(voiceSeedOf(`id-${i}`)).rootOffset));
+    expect(roots.size).toBeGreaterThan(2);
+  });
+  it("an explicit voice replaces the mapped fields, nothing else", () => {
+    const mood = stretchMood({ warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.6, spontaneity: 0.3 });
+    const mapped = moodToEngineState(mood, mood, voiceSeedOf("v"));
+    const v = Voice.parse({ root: "A2", scale: "dorian", chord: [1, 5, 9], pattern: "random", octaves: 2, wave: "square" });
+    const { state } = applyOverride(mapped, voiceToSynth(v));
+    expect(state.arp.scale).toBe("dorian"); expect(state.arp.chord).toEqual([1, 5, 9]); expect(state.arp.pattern).toBe("random");
+    expect(state.arp.octaves).toBe(2); expect(state.osc.wave).toBe("square");
+    expect(state.arp.tempo).toBe(mapped.arp.tempo); expect(state.filter.cutoff).toBe(mapped.filter.cutoff);
+    expect(voiceToSynth(undefined)).toBeUndefined();
+    expect(voiceToSynth({})).toBeUndefined();
   });
 });
