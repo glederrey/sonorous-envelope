@@ -203,5 +203,30 @@ describe("stack, pad and the fast amp LFO", () => {
     const levels: number[] = []; for (let i = SR * 2; i + win < b.length; i += win) levels.push(rms(b.slice(i, i + win)));
     expect(Math.max(...levels) - Math.min(...levels)).toBeGreaterThan(0.001);
   });
-});
 
+  it("plays a state stored before the stack and the pad existed, the same as one with defaults", () => {
+    const full = neutralState();
+    const old = JSON.parse(JSON.stringify(full)); delete old.pad; delete old.osc.stack;
+    expect(() => render(old as EngineState, 1)).not.toThrow();
+    expect(same(render(old as EngineState, 2).left, render(full, 2).left)).toBe(true);
+  });
+  it("does not jump in level when the pad turns off or changes its number of notes", () => {
+    const run = (from: EngineState, to: EngineState) => {
+      const e = new Engine(SR, 4); e.setState(from, 4);
+      const warm = new Float32Array(SR * 6), wr = new Float32Array(SR * 6); e.process(warm, wr, warm.length);
+      const before = rms(warm.slice(SR * 5));
+      e.setState({ ...to, transition: { time: 0.03, curve: "smooth" } }, 4);
+      const win = Math.floor(SR / 10);
+      let worst = 0;
+      for (let i = 0; i < 20; i++) { const l = new Float32Array(win), r = new Float32Array(win); e.process(l, r, win); worst = Math.max(worst, rms(l)); }
+      return { before, worst };
+    };
+    const on5 = neutralState(); on5.arp.on = false; on5.pad = { on: true, notes: [48, 55, 60, 64, 67], wave: "triangle", level: 0.5, attack: 1, release: 4 };
+    const off = JSON.parse(JSON.stringify(on5)) as EngineState; off.pad.on = false;
+    const a = run(on5, off);
+    expect(a.worst).toBeLessThanOrEqual(a.before * 1.25);
+    const on2 = JSON.parse(JSON.stringify(on5)) as EngineState; on2.pad.notes = [48, 55];
+    const b = run(on5, on2);
+    expect(b.worst).toBeLessThanOrEqual(b.before * 1.25);
+  });
+});

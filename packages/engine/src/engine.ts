@@ -60,7 +60,7 @@ export class Engine {
   private filter = new Biquad();
   private delay: PingPongDelay; private reverb: Reverb;
   private drones: DroneOsc[] = [];
-  private pads: DroneOsc[] = []; private padAtk = 2; private padRel = 3; private padCount = 1;
+  private pads: DroneOsc[] = []; private padAtk = 2; private padRel = 3; private padNorm = 0.3;
   private listenerGain = 1; private listenerGainCur = 1;
   private hpZ = 0;
   private tmp: [number, number] = [0, 0];
@@ -83,7 +83,13 @@ export class Engine {
   /** Snapshot of the currently gliding continuous parameters (for tests and debugging). */
   params(): Readonly<P> { return this.cur; }
 
-  setState(state: EngineState, seed: number) {
+  setState(incoming: EngineState, seed: number) {
+    // states stored before the stack and the pad existed lack those keys: fill them in, once, outside the audio loop
+    const state: EngineState = {
+      ...incoming,
+      osc: { ...incoming.osc, stack: incoming.osc.stack ?? [] },
+      pad: incoming.pad ?? { on: false, notes: [], wave: "sine", level: 0, attack: 2, release: 3 },
+    };
     const to = target(state);
     const first = this.state === null;
     this.state = state;
@@ -104,7 +110,6 @@ export class Engine {
     const wantPad = new Map<number, Wave>();
     if (state.pad.on) for (const n of state.pad.notes.slice(0, 5)) wantPad.set(n, state.pad.wave);
     this.padAtk = Math.max(0.05, state.pad.attack); this.padRel = Math.max(0.05, state.pad.release);
-    this.padCount = Math.max(1, wantPad.size);
     for (const d of this.pads) { d.goal = wantPad.has(d.midi) ? 1 : 0; if (wantPad.has(d.midi)) d.wave = wantPad.get(d.midi)!; wantPad.delete(d.midi); }
     for (const [midi, wave] of wantPad) this.pads.push({ midi, gain: first ? 1 : 0, goal: 1, ph: [0, 0], wave });
   }
@@ -148,6 +153,9 @@ export class Engine {
     for (let i = 0; i < frames; i++) {
       if (i % BLOCK === 0) {
         this.glide(BLOCK / sr);
+        // keep the pad level whatever the number of notes: normalise by the live sum of the note gains (they slew, so no jump)
+        let padSum = 0; for (const pd of this.pads) padSum += pd.gain;
+        this.padNorm = 0.3 / Math.sqrt(Math.max(1, padSum));
         this.fillLayerParams();
         this.arp.configure(this.arpP); this.bass.configure(this.bassP);
         this.filter.set(s.filter.type, this.cur.cutoff, this.cur.resonance, sr);
@@ -187,7 +195,7 @@ export class Engine {
         pd.gain += Math.sign(pd.goal - pd.gain) * Math.min(Math.abs(pd.goal - pd.gain), rate);
         if (pd.gain <= 0 && pd.goal === 0) { this.pads.splice(d, 1); continue; }
         const dt = midiToHz(pd.midi) / sr * pitchMul;
-        x += (oscSample(pd.wave, pd.ph[0], dt) + oscSample(pd.wave, pd.ph[1], dt * 1.0012)) * 0.5 * pd.gain * c.padLevel * (0.3 / Math.sqrt(this.padCount));
+        x += (oscSample(pd.wave, pd.ph[0], dt) + oscSample(pd.wave, pd.ph[1], dt * 1.0012)) * 0.5 * pd.gain * c.padLevel * this.padNorm;
         pd.ph[0] += dt; if (pd.ph[0] >= 1) pd.ph[0] -= 1;
         pd.ph[1] += dt * 1.0012; if (pd.ph[1] >= 1) pd.ph[1] -= 1;
       }
