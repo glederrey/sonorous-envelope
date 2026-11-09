@@ -122,3 +122,4 @@ Listeners (anyone without the account) see only the colour and sound, the status
 - Show a hint on iOS/Android: "Keep this page open in the foreground. Audio may stop if you switch apps or lock the screen." (Until the stream mode in mobile.md exists.)
 - Use the Wake Lock API while playing, where available, wrapped in try/catch.
 - Handle `visibilitychange`: when the page becomes visible again, resume the `AudioContext` and re-apply the current state.
+- Handle the `AudioContext` `statechange` event too: when the state becomes `suspended` or `interrupted` (iOS) while the listener has not muted, call `resume()` without waiting for a tap, and re-apply the current state. Do the same if the keep-alive element fires `pause` and we did not pause it (mute does). This is for system interruptions such as the microphone opening for dictation (mobile.md, "Dictation"). Log each event in the `?debug=1` report.
