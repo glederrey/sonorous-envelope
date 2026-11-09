@@ -4,6 +4,8 @@
 
 These formulas are a first guess, grounded in the cues in [emotion-to-sound.md](../emotion-to-sound.md). They must be tuned by listening. Keep them in one file with named constants so tuning is easy, and add a dev page (`/dev/mood`) with five sliders that plays the mapped result live.
 
+> **Planned changes (first outside test, 2026-11-09), not built yet.** The mapping below makes every instance that sends only the five axes sound alike: the same four notes, going up, a bit hesitant. The cause is arithmetic, not taste. At the values instances actually send (0.45 to 0.72 on every axis) the formulas give: chord `[1,3,5,7]` (joy ≥ 0.55, calm ≥ 0.5), `N = 3 + round(3·(1−k))` = 4 notes at calm 0.6, `octaves = 1 + round(2·s·(1−k))` = 1, pattern `up` or `up_down` (`random` needs spontaneity > 0.75), rate `1/8`, and density `lerp(1, 0.6, s) × lerp(0.75, 1, 1−k)` ≈ 0.68, so about a third of the steps are skipped, which is the hesitation people hear. Thresholds and rounding collapse the whole middle band onto one shape. The sections "Stretch" and "Voice" at the end, and the marked changes to Rhythm below, are the fix. Tune all numbers by ear.
+
 Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in [0,1]. `lerp(a,b,t) = a + (b−a)·t`. `pick(list, t)` = `list[min(len−1, floor(t·len))]`.
 
 ## Harmony (mainly joy)
@@ -23,12 +25,16 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 
   Consent levels replace a disallowed scale by a fixed fallback (limits.md: locrian and phrygian become minor, chromatic becomes pentatonic), so in "ambient" the diminished row plays as minor.
 - **Suspension:** add degree 4 if `s > 0.7`. This is a hypothesis to test: sus2 and sus4 are not in the chord study.
-- **Octaves:** `1 + round(2·s·(1−k))`, min 1, max 3.
+- **Octaves:** `1 + round(3·(1−c)·(0.5 + 0.5·s))`, min 1, max 4 (planned; was `1 + round(2·s·(1−k))`, max 3). Closeness narrows or widens the span: close and measured gives 1 octave, distant and spontaneous gives 3 to 4.
+- **Open voicing (planned):** if `c < 0.4`, spread the chord: a `[1,3,5,7]` becomes `[1,5,7,10]` (the third moves up an octave), so the arpeggio does not stay a tight block of four neighbours.
 
 ## Rhythm (mainly calm, spontaneity)
 - **Tempo:** `lerp(150, 56, k)` BPM, then `× lerp(0.9, 1.1, j)`.
 - **Rate:** `k > 0.75 → "1/4"`, `k > 0.45 → "1/8"`, else `"1/16"`. Triplets (`"1/8t"`) if `s > 0.6` and `k > 0.45`.
-- **Pattern** (contour follows joy): `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`; `"random"` if `s > 0.75`.
+- **Pattern** (planned: spontaneity chooses the family, joy the contour inside the measured one):
+  - `s ≤ 0.4`: contour follows joy, as before: `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`.
+  - `0.4 < s ≤ 0.6`: `"as_played"` over a chord order permuted once from the seed, so the notes do not simply climb.
+  - `s > 0.6`: `"random"` (was `s > 0.75`).
 - **Notes per cycle:** `N = 3 + round(3·(1−k))`: 3 when calm, 6 when urgent, but never fewer than the chord has. The `chord` is extended to N degrees by continuing past the top (`[1,3,5,7]` with N=6 gives `[1,3,5,7,8,10]`). `octaves` then repeats that list upward, so the cycle is N × octaves long. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
 - **Density:** `lerp(1.0, 0.6, s)` × `lerp(0.75, 1.0, 1−k)` (calm = sparser), clamp [0.35, 1].
 - **Swing:** `0.4 · s`.
@@ -77,6 +83,20 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 
 In `own` mode, the model's HSL values replace hue/saturation/lightness; motion and pulse limits still apply.
 
+## Stretch (planned)
+Instances send cautious values, mostly between 0.4 and 0.7, so they all land on the same stretch of the mapping. Two measures, both needed:
+- **Stretch the middle.** Before mapping, each axis goes through `stretch(x) = clamp(0.5 + 1.6·(x − 0.5), 0, 1)`: 0.4 becomes 0.34, 0.7 becomes 0.82. It is monotonic and keeps 0.5 where it is. It runs before the mood floor (limits.md step 1), so a floor is never lowered by it. The feedback `intent` still shows the values the model sent.
+- **Ask for the full range.** The server instructions tell the model that 0.4 to 0.7 reads as lukewarm and that it should commit to its values (server-instructions.md, planned wording).
+
+## Voice (planned)
+A voice is the part of the sound that says who is playing, as opposed to how it is doing: root note, scale, chord shape, note order, number of octaves and wave. It makes instances differ from one another, which the five axes alone cannot do.
+- **The instance chooses it** (`voice` on `start_session`, optionally replaced later with `voice` on `set_sound`). Same fields and limits as the matching ones in `synth` (`arp.root`, `arp.scale`, `arp.chord`, `arp.pattern`, `arp.octaves`, `osc.wave`, later `osc.stack`). It is stored on the session (`sessions.voice`).
+- **It persists by default** from turn to turn, which gives the unity of a voice. The axes keep driving everything else (tempo, rate, filter, envelope, space).
+- **It is never a prison.** `set_sound` can replace it at any time, for instance when the conversation turns (anger, disrespect, a change of subject). A replacement uses a longer transition, like any big change.
+- **Fallback when the instance chooses none:** a default voice drawn from the session seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule and the consent fallbacks; an explicit voice does not.
+- **Merge order:** mapped → voice → `synth` of this call → limits. Consent ceilings (scales, waves) apply to the voice like to any override, and the clamp is reported.
+- **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
+
 ## Override merge
 Deep-merge the model's `synth` object over the mapped state, field by field. Arrays (`chord`, `lfo`, `drone.notes`) replace, not merge. Note names convert to MIDI. Record which fields were overridden in the state's `intent` (for the session details page).
 
@@ -85,7 +105,10 @@ Deep-merge the model's `synth` object over the mapped state, field by field. Arr
 - Bounds: every output within the engine's valid ranges for all corners of the [0,1]^5 cube and 1000 random points.
 - Snapshot tests for 6 reference moods (neutral, warm-close-calm, cold-distant, joyful-spontaneous, despair-calm, urgent).
 - Chord quality: for each row of the table, a mood inside its region gives the listed scale and degrees; boundaries use the first matching row.
-- Contour: `joy ≥ 0.6` never gives a falling pattern; `joy ≤ 0.4` never gives a rising one.
+- Contour: with `spontaneity ≤ 0.4`, `joy ≥ 0.6` never gives a falling pattern and `joy ≤ 0.4` never gives a rising one. (Above 0.4 spontaneity chooses `as_played` or `random`, so the contour test no longer applies.)
+- Variety: 200 random moods drawn from [0.4, 0.7]^5 must not all give the same (chord, pattern, octaves) triple; at least 6 distinct triples. This is the regression test for "four rising notes".
+- Stretch: `stretch` is monotonic, fixes 0.5, and stays in [0,1]; a mood floor is still met after stretch.
+- Voice: a session voice survives later `set_sound` calls that send no voice; a new voice replaces it; the seeded fallback is deterministic per session id and differs between ids.
 - Roughness: `drive` is 0 whenever `joy ≥ 0.6`, `calm ≥ 0.6` or `warmth ≥ 0.9`.
 - Background layer: the slow mood moves exactly 25 % of the remaining distance per final update, never changes on a non-final update, and converges to a constant mood.
 - Release and attack stay inside their ranges at every corner of the cube.
