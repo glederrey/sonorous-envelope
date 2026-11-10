@@ -12,6 +12,7 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
+import { MODE_GUIDANCE, REST_AFTER_BY_MODE, type Mode } from "./modes";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
@@ -26,7 +27,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: Mode;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
@@ -176,7 +177,7 @@ function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, n
   });
 }
 
-export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice }, now = Date.now()) {
+export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: Mode }, now = Date.now()) {
   // keep at most 10 active sessions: end the oldest
   const { data: active, error: aerr } = await db.from("sessions").select("id").eq("owner_id", userId).is("ended_at", null)
     .order("last_active_at", { ascending: false });
@@ -189,12 +190,14 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
-  const settings: ListenerSettings = parseSettings(profile?.default_settings ?? {});
+  const mode: Mode = input.mode === "outer" ? "outer" : "inner";
+  const fixedRest = REST_AFTER_BY_MODE[mode];
+  const settings: ListenerSettings = { ...parseSettings(profile?.default_settings ?? {}), ...(fixedRest === "default" ? {} : { rest_after: fixedRest }) };
   const id = newSessionId();
 
   const { error: serr } = await db.from("sessions").insert({
     id, owner_id: userId, title: input.title?.slice(0, 80) ?? null, settings, last_active_at: new Date(now).toISOString(),
-    voice: input.voice ?? null,
+    voice: input.voice ?? null, mode,
   });
   if (serr) fail("start the session", serr);
   const { error: lerr } = await db.from("listeners").insert({ session_id: id, user_id: userId, role: "owner", label: "you" });
@@ -213,8 +216,12 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   return {
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
+    mode,
+    guidance: MODE_GUIDANCE[mode],
     settings: { rest_after: settings.rest_after },
-    note: "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
+    note: mode === "outer"
+      ? "Give player_url to the user and tell them to open it and tap Start listening. Pass session_id in every call."
+      : "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
   };
 }
 

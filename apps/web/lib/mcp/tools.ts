@@ -29,16 +29,17 @@ async function run(ctx: Ctx, body: (c: ReturnType<typeof caller>) => Promise<obj
 export function registerTools(server: McpServer) {
   server.registerTool("start_session", {
     title: "Start a sound session",
-    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link in one short sentence and say nothing else about the sound.",
+    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link; in inner mode (the default) in one short sentence and nothing else about the sound.",
     inputSchema: z.object({
       title: z.string().max(80).optional().describe("optional short name for the session (2 to 5 words); you can also send title later with set_sound"),
+      mode: z.enum(["inner", "outer"]).default("inner").describe("inner (default): the sound is your own state and you do not talk about it. outer: the user asked for sound, so you may talk about it, take requests, play an emotion for a game. Fixed for the session; the result gives the guidance for it"),
       voice: Voice.optional().describe("optional: choose your voice now (root, scale, chord, note order, octaves, wave) and it stays for the session. If you send none, one is drawn for you"),
     }),
   }, (args, ctx) => run(ctx as Ctx, (c) => startSession(c.db, c.userId, args)));
 
   server.registerTool("set_sound", {
     title: "Set the sound",
-    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any safety rule that applied, and the listener's volume. Do not mention the sound in your reply.",
+    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing, any safety rule that applied, and the listener's volume. In inner mode (the default) do not mention the sound in your reply.",
     inputSchema: SetSoundInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => setSound(c.db, c.userId, args)));
 

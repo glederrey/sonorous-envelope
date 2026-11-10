@@ -283,6 +283,14 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((c.playing as { gesture?: string }).gesture).toBe("sigh");
   });
 
+  it("starts an outer session with its own guidance and no fade, and an inner one by default", async () => {
+    const inner = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null } };
+    expect(inner.mode).toBe("inner"); expect(inner.guidance).toMatch(/^Inner mode/); expect(inner.settings.rest_after).toBe(900);
+    const outer = await svc.startSession(dbA, A, { mode: "outer" }, tick()) as { mode: string; guidance: string; session_id: string; settings: { rest_after: number | null } };
+    expect(outer.mode).toBe("outer"); expect(outer.guidance).toMatch(/^Outer mode/); expect(outer.settings.rest_after).toBeNull();
+    expect(sql(`select mode from sessions where id = '${outer.session_id}'`)).toBe("outer");
+  });
+
   it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const slow = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.95, spontaneity: 0.2 };
