@@ -67,7 +67,7 @@ Gael's first look at the owner controls, and a scripted test by a model on the l
 - [x] Tension: a fifth stack level (semitone, tritone, major seventh) and a per-note clash reading so the top step is heard. Calm reading a little lower under tension is the sound, not a fault (documented).
 - [x] Turn counter: a turn is one message (3 minutes stale limit), so a batch of calls no longer reports "no final update last turn".
 - [x] Landing: live counter (`live_counts`, migration 0007), samples levelled by measured loudness and played louder, Play and Stop share a pill, the faces section and the `/faces` page with reading, the guide explains faces.
-- [ ] Not done: the tension readback after a big drop (a ghost reading of 0.47 during a glide) and the swings by gesture tail were not reproduced; to retest. `reads_as` joy under `keep_voice` stays low by design (the scale sets joy); the instructions now say so.
+- [x] Closed (v0.12.7): the tension readback after a big drop (a ghost reading of 0.47 during a glide) and the swings by gesture tail were not reproduced. Tension is now read from the clash inside one onset, so a tail or a glide cannot leave a ghost reading, and the gestures are gone. `reads_as` joy under `keep_voice` stays low by design (the scale sets joy); the instructions now say so.
 
 ### Fifth outside test (2026-11-10, v0.11.1)
 Gael and a model ran the test list on the live site. Passed: owner panel, reactions round trip, auto rules, owner lock, internal face, turn counter, landing, faces and guide. Found, and what we did (v0.12):
@@ -78,7 +78,7 @@ Gael and a model ran the test list on the live site. Passed: owner panel, reacti
 - [x] Phone chip and status line shortened (lock icon for "locked"); dropdown lists follow the page theme; the live counter has its own box with a slow teal to amber dot; "Step by step" hides below 420 px.
 - [x] **Sticky first voice**: without a voice of its own, the first sound the model sets becomes its voice (scale, root, note order, wave) and stays until it sends a voice, so a mood that barely moves cannot move the key. The cost: joy no longer lifts the scale by itself.
 - [x] The "How is it landing?" block starts closed when the controls open.
-- [ ] Tension adds about 6 dB across a five-step sweep; the 4 dB cap limits a call, not the climb over several calls. Decide if that is fine.
+- [x] Tension adds about 6 dB across a five-step sweep; the 4 dB cap limits a call, not the climb over several calls. Decided: fine. A climb over several calls is the gradual move the Care rules ask for, and the listener's volume stays theirs; a cumulative cap would block a deliberate build.
 - [ ] Instructions still about 900 words; trim after the next test, moving per-tool detail into the tool descriptions.
 
 ### Sixth outside test (2026-11-10, v0.12.3)
@@ -91,9 +91,12 @@ Seventh test (v0.12.4): the new buttons and the long mode transition passed. Don
 - [x] **Roughness follows tempo and density more than timbre** (harsher step read 0.90 to 0.50): documented as note-level dissonance, not timbre.
 - [x] **`playing` did not echo osc.detune or filter.resonance**, so a caller cannot confirm they were applied.
 - [x] Reaction counts: one press shows x1 (checked in the v0.12.5 test); the earlier x2 was two presses.
-- [ ] **Tension reads flat up to 0.5** (sent 0.1, 0.3, 0.5, 0.7, 0.9 read 0.00, 0.00, 0.06, 0.55, 1.00): the stack steps at 0.12, 0.3 and 0.5 add little clash. Retune `RANGES.clash` or the low stack levels.
-- [ ] **Very calm states turn the arpeggio off**, so the spontaneity reading is flat (0.05 at calm 0.9). Keep a minimal arp on, or document that there is no timing to read.
-- [ ] **The middle voice band is narrow.** From phrygian, joy 0.4 stays phrygian and 0.7 goes straight to lydian (hysteresis, by design); dorian shows around 0.5. Listen by ear whether the mode change eases in over a long transition.
+- [x] **Tension reads flat up to 0.5** (fixed in v0.12.7, see above) (sent 0.1, 0.3, 0.5, 0.7, 0.9 read 0.00, 0.00, 0.06, 0.55, 1.00): the stack steps at 0.12, 0.3 and 0.5 add little clash. Retune `RANGES.clash` or the low stack levels.
+- [x] **Very calm states turn the arpeggio off** (fixed in v0.12.5: the arp stays on), so the spontaneity reading is flat (0.05 at calm 0.9). Keep a minimal arp on, or document that there is no timing to read.
+- [x] **The middle voice band is narrow.** (Closed: by ear, a 20 s joy jump from 0.1 to 0.95 does not jump; the narrow dorian band is the hysteresis.) From phrygian, joy 0.4 stays phrygian and 0.7 goes straight to lydian (hysteresis, by design); dorian shows around 0.5. Listen by ear whether the mode change eases in over a long transition.
+
+### Eighth test (2026-11-10, v0.12.7)
+Tension reads 0, 0.22, 0.45, 0.73, 1.0 on every voice and rate and at calm 0.2 and 0.9; the joy bands still switch at the same thresholds, with the tension term lowering joy by 0.05 to 0.07. Noted, by design and not open: tension 0.6 and 0.7 share a stack, so they read the same (the reading follows the stack steps); a sound with tension also reads less calm (it is denser and more resonant); joy reads a little lower in the lydian band than in v0.12.3 (0.67 against 0.74) and 0.7 and 0.95 read the same (the scale caps joy, and tempo and brightness nudge it, so a slow closing sound in dorian reads 0.29).
 
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
@@ -111,7 +114,7 @@ Seventh test (v0.12.4): the new buttons and the long mode transition passed. Don
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
 - [ ] **Step 11. Server-rendered audio stream** on an always-on host. No longer needed for background playback on Android (solved with the keep-alive file), but it would give every listener the identical sound (#34) and may be the only way on iPhone. Cost guard rails if built: render only while someone listens, caps on streams and listeners, stop after a few minutes of silence, auto-stop host. Echo and volume would stop being per listener. MCP Apps player if the mobile app supports it.
-- [ ] **#11 Sitemap and robots.** Not scheduled.
+- [x] **#11 Sitemap and robots.** Added (`apps/web/app/sitemap.ts`, `robots.ts`).
 
 ### First outside test (2026-11-09)
 Session, player and `set_sound` feedback worked: changes were heard live without reopening the page, and the owner's volume and echo reached the instance. Four findings, all now in the checklist above and in the specs: sound cut during dictation, instances too alike, the sound reading as a presence between turns, and the limits of polyphony and the LFO. Two more observations went into [emotion-to-sound.md](emotion-to-sound.md), "Open questions": cautious axis values that do not match what the instance's `note` says, and the `note` field never being sent back.
