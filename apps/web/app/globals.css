@@ -601,6 +601,12 @@ html:has(.pl-field) .se-header {
 }
 .doc-row > :last-child {
 }
+/* "Older (n)" on the sessions page: a row with a toggle, then the older sessions as ordinary rows */
+.doc-older-summary { cursor: pointer; list-style: none; align-items: center; }
+.doc-older-summary::-webkit-details-marker { display: none; }
+.doc-older-summary .se-heading { display: flex; align-items: center; }
+.doc-older-summary .se-heading::before { content: "\25B8"; display: inline-block; width: 1.2em; }
+.doc-older[open] > .doc-older-summary .se-heading::before { content: "\25BE"; }
 .doc-list {
   list-style: disc;
   margin: 0;
