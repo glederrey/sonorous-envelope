@@ -13,7 +13,9 @@ export type GestureType =
 export interface ResolvedColour {
   h: number; s: number; l: number;
   secondary?: { h: number; s: number; l: number };
-  motion: "still" | "drift" | "pulse";
+  motion: "still" | "drift" | "pulse" | "breathe";
+  /** How the colours are laid out (visuals.md): `wash` a linear gradient, `glow` a radial one, `sweep` a conic one. Absent: wash. */
+  shape?: "wash" | "glow" | "sweep";
   texture: "flat" | "grain" | "soft_noise";
   pulseHz: number;
 }

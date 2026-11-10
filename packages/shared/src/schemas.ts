@@ -95,7 +95,8 @@ export const Colour = z.object({
   saturation: unit.optional(),
   lightness: unit.optional(),
   secondary: z.object({ hue: z.number().min(0).max(360), saturation: unit, lightness: unit }).optional(),
-  motion: z.enum(["still", "drift", "pulse"]).optional(),
+  motion: z.enum(["still", "drift", "pulse", "breathe"]).optional().describe("still, drift (a slow highlight), pulse (a brightness swell, never faster than 3 Hz) or breathe (the colour slowly swells and settles)"),
+  shape: z.enum(["wash", "glow", "sweep"]).optional().describe("how the two colours are laid out: wash (linear, the default), glow (a radial light, close and warm), sweep (a slow conic turn)"),
   texture: z.enum(["flat", "grain", "soft_noise"]).optional(),
 });
 export type Colour = z.infer<typeof Colour>;

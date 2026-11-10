@@ -120,10 +120,12 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
   const sat = lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j);
   const l = Math.min(0.6, lerp(0.12, 0.45, 0.6 * j + 0.4 * cutNorm));
   const motion = k > 0.85 ? "still" : k > 0.7 ? "drift" : "pulse";
+  // close and warm is a tight glow; the rest keeps the linear wash it always had
+  const shape = m.closeness > 0.7 && w > 0.5 ? "glow" : "wash";
   return {
     h, s: sat, l,
     secondary: { h: (h + 25) % 360, s: sat, l: Math.max(0, l - 0.08) },
-    motion,
+    motion, shape,
     texture: w < 0.3 ? "grain" : s > 0.6 ? "soft_noise" : "flat",
     pulseHz: motion === "pulse" ? Math.min(lfo1Rate, 1) : 0,
   };
@@ -300,5 +302,6 @@ export function applyColour(mapped: ResolvedColour, input: Colour | undefined): 
   if (input.secondary) out.secondary = { h: input.secondary.hue, s: input.secondary.saturation, l: input.secondary.lightness };
   if (input.motion) { out.motion = input.motion; out.pulseHz = input.motion === "pulse" ? (mapped.pulseHz || 0.3) : 0; }
   if (input.texture) out.texture = input.texture;
+  if (input.shape) out.shape = input.shape;
   return out;
 }

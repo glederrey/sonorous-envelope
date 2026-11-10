@@ -393,7 +393,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   return (
     <div
       className="pl-field" style={fieldStyle}
-      data-motion={reduced ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"}
+      data-motion={reduced ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
       <main className="pl-stage">
         {phase === "joining" && <p className="pl-note" role="status">Opening the player…</p>}
