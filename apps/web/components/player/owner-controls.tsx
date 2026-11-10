@@ -11,6 +11,9 @@ const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null
   { value: "never", label: "Never", seconds: null },
 ];
 
+/** Opposites side by side; the last row is the two ways to ask for gentler. */
+const REACTION_PAIRS: ReactionKind[][] = [["slower", "faster"], ["darker", "brighter"], ["less_of_this", "more_of_this"], ["calmer", "softer"]];
+
 const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
   { value: "auto", label: "Auto", hint: "The model chooses its face, and says so when it switches" },
   { value: "internal", label: "Internal", hint: "Locked: the sound stays the model's own state" },
@@ -96,10 +99,10 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
       </div>
       {external && (
-        <div className="pl-owner se-sm">
-          <p className="pl-owner-title">How is it landing?</p>
+        <details className="pl-set se-sm" open>
+          <summary>How is it landing?</summary>
           <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
-            {REACTION_KINDS.map((k) => (
+            {REACTION_PAIRS.flat().map((k) => (
               <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
             ))}
           </div>
@@ -107,27 +110,29 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
             {waiting ? `Waiting for Claude: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
           </p>
           {error && <p role="alert">{error}</p>}
-        </div>
+        </details>
       )}
       <details className="pl-set se-sm">
         <summary>Settings</summary>
-        <label className="pl-fade">
-          <span>Little sounds from the model</span>
-          <select value={gest} onChange={(e) => void setGestures(e.target.value)}>
+        <div className="pl-setting">
+          <div>
+            <label htmlFor="pl-gestures" className="pl-setting-name">Little sounds from the model</label>
+            <p className="pl-local">Short sounds (a purr, a chirp, a sigh) that the model may add. Everyone listening hears them. By default: on for the external face, off for the internal one. Growl is never played on the internal face.</p>
+          </div>
+          <select id="pl-gestures" value={gest} onChange={(e) => void setGestures(e.target.value)}>
             <option value="default">Default</option><option value="on">On</option><option value="off">Off</option>
           </select>
-        </label>
-        <p className="pl-local">Short sounds (a purr, a chirp, a sigh) that the model may add. Everyone listening hears them. By default: on for the external face, off for the internal one. Growl is never played on the internal face.</p>
+        </div>
         {!external && (
-          <>
-            <label className="pl-fade">
-              <span>Fade to silence after</span>
-              <select value={rest} onChange={(e) => void setFade(e.target.value)}>
-                {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </label>
-            <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
-          </>
+          <div className="pl-setting">
+            <div>
+              <label htmlFor="pl-fade" className="pl-setting-name">Fade to silence after</label>
+              <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
+            </div>
+            <select id="pl-fade" value={rest} onChange={(e) => void setFade(e.target.value)}>
+              {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
         )}
         {error && <p role="alert">{error}</p>}
       </details>
