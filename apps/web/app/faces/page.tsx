@@ -86,7 +86,7 @@ export default function FacesPage() {
             <h2 className="se-heading">Who decides which face</h2>
             <ul className="doc-list">
               <li>A session is on <strong>auto</strong> by default. It starts on the internal face. The model may propose a change in words (&ldquo;want me to play something for this?&rdquo;), and it switches to the external face only after you say yes or clearly asked for sound. It never switches because of its own reading of your mood.</li>
-              <li>Going back to the internal face is always allowed. Going to the external face waits for two of the model&apos;s messages and two minutes after the last change, so it cannot flip back and forth.</li>
+              <li>There is no timer on the model&apos;s switches: the safeguard is the rule above (offer, then yes), your lock, and the log.</li>
               <li>You can lock either face from the player (Auto, Internal, External). A lock is final: the model does not try to change it. Every change, by the model or by you, is logged, and the model can read the log.</li>
               <li>Everyone listening sees which face is playing.</li>
             </ul>

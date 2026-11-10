@@ -221,7 +221,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await svc.setSound(dbA, A, { session_id, mood, final: true, voice: { scale: "lydian", chord: [1, 3, 5] } } as never, tick());
     expect(arp()).toMatchObject({ scale: "lydian", chord: [1, 3, 5] });
     expect(sql(`select effective->'transition'->>'time' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("8");
-    expect(JSON.parse(sql(`select voice::text from sessions where id='${session_id}'`))).toEqual({ scale: "lydian", chord: [1, 3, 5] });
+    // the fields it left out are adopted from what played, so they stay too
+    expect(JSON.parse(sql(`select voice::text from sessions where id='${session_id}'`))).toMatchObject({ scale: "lydian", chord: [1, 3, 5], wave: expect.any(String), root: expect.any(String) });
   });
 
   it("gives two sessions with the same axes different characters", async () => {
@@ -255,9 +256,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const happy = { warmth: 0.9, closeness: 0.8, joy: 0.9, calm: 0.8, spontaneity: 0.2 };
     const sad = { warmth: 0.1, closeness: 0.3, joy: 0.1, calm: 0.2, spontaneity: 0.8 };
-    await svc.setSound(dbA, A, { session_id, mood: happy, final: true } as never, tick());
+    const first = await svc.setSound(dbA, A, { session_id, mood: happy, final: true } as never, tick());
+    expect((first.notes as string[]).join(" ")).toMatch(/first sound is now your voice/);
     const moved = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick());
-    expect((moved.notes as string[]).join(" ")).toMatch(/no full voice: the mood moved the voice/);
+    expect((moved.playing as { scale: string }).scale).toBe((first.playing as { scale: string }).scale); // the mood moved, the voice stayed
     const kept = await svc.setSound(dbA, A, { session_id, mood: sad, final: true, keep_voice: true } as never, tick());
     expect((kept.notes as string[]).join(" ")).toMatch(/voice kept/);
     const scale = (kept.playing as { scale: string }).scale;
@@ -286,13 +288,6 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select mode from sessions where id = '${int.session_id}'`)).toBe("internal");
   });
 
-  it("an owner change does not start the model's cooldown", async () => {
-    const { session_id } = await svc.startSession(dbA, A, {}, tick());
-    expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "auto" })).error).toBeNull();
-    const r = await svc.setSound(dbA, A, { session_id, mood, final: true, mode: "external" } as never, tick());
-    expect(r.mode).toBe("external"); // no wait: the owner's change was not the model's own switch
-  });
-
   it("does not list the start state as a turn, and reads the same sound the same way twice", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const call = () => svc.setSound(dbA, A, { session_id, mood, final: false, synth: { arp: { pattern: "random" } } } as never, tick());
@@ -303,18 +298,14 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(seen.history.join("\n")).not.toMatch(/turn 0/);
   });
 
-  it("switches the face under the rules, logs it, and an owner lock is final", async () => {
+  it("switches the face at once on auto, logs it, and an owner lock is final", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const call = (extra: object, ms = 1000) => svc.setSound(dbA, A, { session_id, mood, final: true, ...extra } as never, tick(ms));
     let r = await call({ mode: "external" });
     expect(r.mode).toBe("external"); expect((r.notes as string[]).join(" ")).toMatch(/switched to the external face/);
     r = await call({ mode: "internal" });
     expect(r.mode).toBe("internal");
-    r = await call({ mode: "external" }); // right after a change: refused, with the wait
-    expect(r.mode).toBe("internal"); expect((r.notes as string[]).join(" ")).toMatch(/not switched to external: wait/);
-    r = await call({ mode: "external" }, 130_000); // time has passed, and the finished messages with it
-    expect(r.mode).toBe("internal"); expect((r.notes as string[]).join(" ")).toMatch(/wait/); // the clock moved, one message more is still needed
-    r = await call({ mode: "external" }, 130_000);
+    r = await call({ mode: "external" }); // no timer: straight back
     expect(r.mode).toBe("external");
     // the owner locks the face: the model cannot move it
     expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
@@ -322,10 +313,21 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(r.mode).toBe("internal, locked by the owner"); expect((r.notes as string[]).join(" ")).toMatch(/locked/);
     expect((await dbB.rpc("set_mode_policy", { p_session: session_id, p_policy: "auto" })).error).not.toBeNull(); // not the owner
     const seen = await svc.inspect(dbA, A, { session_id, what: "history" }) as { face_changes: string[] };
-    // (the owner's change is stamped by the database clock, the model's by the test clock, so the order is not asserted)
     const log = seen.face_changes.join("|");
     expect(log).toMatch(/you switched to external/); expect(log).toMatch(/you switched to internal/); expect(log).toMatch(/owner locked internal/);
     expect(seen.face_changes).toHaveLength(4);
+  });
+
+  it("the first sound becomes the voice: a different mood later keeps the scale, root and wave", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const sad = { warmth: 0.2, closeness: 0.3, joy: 0.1, calm: 0.3, spontaneity: 0.4 };
+    const glad = { warmth: 0.9, closeness: 0.8, joy: 0.95, calm: 0.7, spontaneity: 0.6 };
+    const a = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick(25_000));
+    expect((a.notes as string[]).join(" ")).toMatch(/first sound is now your voice/);
+    const b = await svc.setSound(dbA, A, { session_id, mood: glad, final: true } as never, tick(25_000));
+    const key = (r: Record<string, unknown>) => { const p = r.playing as { scale: string; wave: string }; return `${p.scale}/${p.wave}`; };
+    expect(key(b)).toBe(key(a));
+    expect((b.notes as string[] | undefined ?? []).join(" ")).not.toMatch(/first sound is now/);
   });
 
   it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {

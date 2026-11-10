@@ -72,11 +72,13 @@ Gael's first look at the owner controls, and a scripted test by a model on the l
 ### Fifth outside test (2026-11-10, v0.11.1)
 Gael and a model ran the test list on the live site. Passed: owner panel, reactions round trip, auto rules, owner lock, internal face, turn counter, landing, faces and guide. Found, and what we did (v0.12):
 - [x] **Gestures removed** (inaudible in the test, and against the ask-in-words rule): schema, engine voice, owner setting, result fields, guidance, guide, samples.
-- [x] **Cooldown started from the owner's changes** (a user who set Auto and said yes within 2 minutes got no switch). It now counts only the model's own switches.
+- [x] **Cooldown removed** (Gael, after the test; the model agreed with dropping the timer and keeping consent). It had started from the owner's changes too: **Cooldown started from the owner's changes** (a user who set Auto and said yes within 2 minutes got no switch). It now counts only the model's own switches.
 - [x] **The reading swung with identical settings** (random note order differed per call, since the analysis used the playback seed). It now uses one fixed seed: the same sound always reads the same.
 - [x] The start state no longer shows as "turn 0" in `inspect`.
 - [x] Phone chip and status line shortened (lock icon for "locked"); dropdown lists follow the page theme; the live counter has its own box with a slow teal to amber dot; "Step by step" hides below 420 px.
-- [ ] **Open decisions** (asked of Gael): switching rules for auto; a sticky first voice; tension readback shape.
+- [x] **Sticky first voice**: without a voice of its own, the first sound the model sets becomes its voice (scale, root, note order, wave) and stays until it sends a voice, so a mood that barely moves cannot move the key. The cost: joy no longer lifts the scale by itself.
+- [x] The "How is it landing?" block starts closed when the controls open.
+- [ ] Instructions still about 900 words; trim after the next test, moving per-tool detail into the tool descriptions.
 
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)

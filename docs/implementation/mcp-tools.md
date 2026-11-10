@@ -104,8 +104,7 @@ Keep every field description short in the tool schema: the model reads them.
 ## `start_session`
 > **Built (2026-11-10, #16; renamed and made switchable 2026-11-10):** the two faces of the envelope (Anzieu). `start_session` takes `mode: "auto" | "internal" | "external"` (default auto, which starts internal; `inner` and `outer` still work as old names). A session is always on **auto** until its owner locks a face from the player (`set_mode_policy`, column `sessions.mode_policy`). The column `sessions.mode` is the face playing now. The result carries `mode` (with "locked by the owner" when it is) and `guidance` for the face plus the switching rules (`apps/web/lib/mcp/modes.ts`). The model switches with `mode` on `set_sound`:
 > - A lock is final: the call is ignored with a note.
-> - Going to internal is always allowed.
-> - Going to external waits 2 finished messages (calls with `final=true`) and 2 minutes after the last change of face, and the refusal says how long is left.
+> - On auto the model switches either way at once. There is no timer and no message count (removed 2026-11-10 at Gael's request; it had also counted the owner's own changes). The safeguard is consent, a rule in the guidance (offer in words, switch only after a yes or a clear request, never on its own reading of the mood), plus the owner's lock and the log.
 > - Every change, by the model or the owner, is a row in `mode_changes` and shows in `inspect` as `face_changes`.
 >
 > The external face never fades (`effectiveRestAfter`); reaction buttons exist only on it. `set_sound`, `get_feedback` and `silence` return `mode`. A new turn starts after a final state, or after a non-final one more than 3 minutes old, so one message is one turn.

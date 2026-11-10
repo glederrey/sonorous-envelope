@@ -90,7 +90,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
       </div>
       {external && (
-        <details className="pl-set se-sm" open>
+        <details className="pl-set se-sm">
           <summary>How is it landing?</summary>
           <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
             {REACTION_PAIRS.flat().map((k) => (
