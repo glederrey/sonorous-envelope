@@ -176,7 +176,7 @@ Steps 5 and 6 come before 7, so players start gliding while the analysis runs.
 Rules:
 - Omit empty arrays and fields with nothing to say (`clamped`, `listener`, `notes`).
 - `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
-- **Level step.** One call may raise the loudness (measured on the server, `sound.loudness_db`) by at most 4 dB over the previous state; a bigger jump is held to that step by scaling the master volume for that state only, and `notes` says "level held". Going down is never held. The model can go on in the next call.
+- **Level step.** One call may raise the loudness (measured on the server, `sound.loudness_db`) by at most 4 dB over the previous state; a bigger jump is held to that step by scaling the master volume for that state only, and `clamped` says "level held" (so `inspect` shows it too). Going down is never held. The model can go on in the next call.
 - `playing` echoes `cutoff`, `resonance` and `detune` besides the notes, so a caller can confirm a timbre change arrived.
 - `sound.roughness` is the dissonance of the notes sounding together (from the note events, averaged over them). It does not hear timbre: cutoff, resonance, detune and drive do not move it, and a denser or faster pattern can lower it. "Harsher" shows in `sound.brightness` and in the settings echoed in `playing`, not in roughness.
 - `sound` uses words for brightness (`very low|low|medium|high|very high`), density (`silent|sparse|medium|dense`) and movement (`still|slow|moving|busy`); numbers for loudness (dBFS, integer) and roughness (0–1, 2 decimals).
