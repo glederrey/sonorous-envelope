@@ -61,3 +61,8 @@ Essentia's arousal/valence models or Music2Emo could replace the heuristics for 
 ## Performance
 - Render + analysis < 300 ms on Vercel (8 s × 22 050 Hz ≈ 176 k samples; ~344 FFTs of 1024 points).
 - If a call times out, return feedback without `reads_as` and `sound`, with the note `"analysis unavailable this time"`.
+
+## Timing reading on slow sounds (2026-11-10)
+Round 6: on a slow sound (one note a second) spontaneity read 0.03 whatever was sent, for two reasons. The mapping made timing looseness a fixed 25 ms at most, which is inaudible against a one-second step; it is now up to 18 % of the step (`jitterMs` in mood-mapping.ts, capped at 150 ms). And the measurement had too few onsets to read from, and counted a skipped step (a two-step gap) as irregular timing. The render now lasts long enough for about ten steps (6 to 14 s), and irregularity is the rms distance of the gaps from a whole number of steps, so skipped steps do not count, scaled so a fifth of a step reads as fully irregular. The correlation of `reads_as.spontaneity` with the sent value went from 0.54 to 0.80 (`pnpm calibrate`).
+
+`reads_as` is made by the server, which renders the state offline with a fixed seed: it needs no player and does not depend on one, and says nothing about how a listener hears it. The instructions say so.

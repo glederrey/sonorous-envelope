@@ -167,6 +167,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
   const bassRoot = rootFor(slow) - 12;
 
   const delayTime = Math.min(0.75, (60 / tempo) * 0.75);
+  const stepMs = (60 / tempo) * ({ "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, "1/16": 0.25 } as Record<string, number>)[rate] * 1000;
   const state: EngineState = {
     ...base,
     arp: {
@@ -180,7 +181,9 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
       gate: lerp(0.3, 0.95, 0.6 * k + 0.4 * w),
       swing: 0.4 * s,
       density: clamp(lerp(1, 0.6, s) * lerp(0.75, 1, 1 - k), 0.35, 1),
-      jitterMs: Math.min(30, lerp(0, 25, s) + 5 * (1 - j) * k),
+      // timing looseness is a share of the step, not a fixed 25 ms: on a slow sound (one note a second) 25 ms is inaudible and
+      // spontaneity read 0.03 whatever was sent (round 6); on a fast one the old value is about what this gives
+      jitterMs: Math.min(150, lerp(0, 0.18 * stepMs, s) + 5 * (1 - j) * k),
     },
     // tension (optional, 0 = none = the sound without it): clashing intervals on every note, a wider detune, some grit
     osc: {

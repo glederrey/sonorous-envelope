@@ -23,7 +23,7 @@ How to use it
 - The whole tool is yours: every synth parameter, the echo, the colour. Use all of it.
 
 Reading the feedback
-- playing is what actually plays. sound describes it in words, and reads_as is a rough, independent estimate of the axes from the audio alone: if it differs a lot from what you meant, send one correction, then your final call. inspect lists your last states.
+- playing is what actually plays. sound describes it in words, and reads_as is a rough, independent estimate of the axes, made by the server rendering your state itself (so you get it with no player open, and it says nothing about how a listener hears it): if it differs a lot from what you meant, send one correction, then your final call. inspect lists your last states.
 - clamped means a safety rule changed what you sent (colour never pulses faster than 3 Hz, the master volume is capped).
 - controls shows the listener's volume. It is theirs: you cannot change it.
 - reactions lists what the listener pressed since your last call (calmer, softer, darker, brighter, slower, faster, more of this, less of this). They are information about how it landed, not orders.

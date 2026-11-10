@@ -476,3 +476,18 @@ describe("the shared timeline", () => {
   });
 });
 
+describe("spontaneity on a slow sound (round 6: sent 0.35 to 0.95, read 0.03)", () => {
+  const read = (spontaneity: number) => {
+    const m = stretchMood({ warmth: 0.5, closeness: 0.5, joy: 0.4, calm: 0.8, spontaneity });
+    const s = applyOverride(moodToEngineState(m, m, 7), voiceToSynth({ root: "A2", scale: "minor", chord: [1, 3, 5], pattern: "down", octaves: 1, wave: "sawtooth" })).state;
+    return { s, spont: analyze(s, 1).reads_as.spontaneity };
+  };
+  it("looser timing reads as more spontaneous even at one note a second, and a skipped step is not looseness", () => {
+    const [lo, mid, hi] = [0.1, 0.4, 0.9].map(read);
+    expect(lo.s.arp.rate).toBe("1/4"); // it is a slow sound
+    expect(mid.spont).toBeGreaterThan(lo.spont + 0.15);
+    expect(hi.spont).toBeGreaterThan(mid.spont + 0.1);
+    expect(lo.spont).toBeLessThan(0.35);
+  });
+});
+
