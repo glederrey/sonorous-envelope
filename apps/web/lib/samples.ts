@@ -18,7 +18,8 @@ export interface SampleStep {
   transition: number;
   gesture?: { type: "sigh"; intensity: number };
 }
-export interface Sample { id: string; name: string; blurb: string; seconds: number; seed: number; steps: SampleStep[] }
+/** `gainDb` levels the five by measured loudness (`pnpm samples:loudness`), so that none jumps out when a visitor switches. */
+export interface Sample { id: string; name: string; blurb: string; seconds: number; seed: number; gainDb?: number; steps: SampleStep[] }
 
 const m = (warmth: number, closeness: number, joy: number, calm: number, spontaneity: number, tension?: number): Mood =>
   ({ warmth, closeness, joy, calm, spontaneity, ...(tension === undefined ? {} : { tension }) });
@@ -40,7 +41,7 @@ export const SAMPLES: Sample[] = [
     }],
   },
   {
-    id: "awe", name: "Quiet awe", blurb: "Open, high and slow, with a lot of space.", seconds: 22, seed: 303,
+    id: "awe", name: "Quiet awe", blurb: "Open, high and slow, with a lot of space.", seconds: 22, seed: 303, gainDb: -2.5,
     steps: [{
       at: 0, mood: m(0.65, 0.25, 0.65, 0.95, 0.2), transition: 0.5, colour: { hue: 215, saturation: 0.5, lightness: 0.3 },
       voice: { root: "A3", scale: "lydian", chord: [1, 5, 9], pattern: "up", octaves: 3, wave: "sine" },
@@ -48,7 +49,7 @@ export const SAMPLES: Sample[] = [
     }],
   },
   {
-    id: "irritated", name: "Irritated and weary", blurb: "Dark, rough, low patience.", seconds: 18, seed: 404,
+    id: "irritated", name: "Irritated and weary", blurb: "Dark, rough, low patience.", seconds: 18, seed: 404, gainDb: -11,
     steps: [{
       at: 0, mood: m(0.2, 0.65, 0.2, 0.45, 0.55, 0.55), transition: 0.5, colour: { hue: 352, saturation: 0.55, lightness: 0.2 },
       voice: { root: "C3", scale: "phrygian", chord: [1, 3, 5], pattern: "down", octaves: 1, wave: "sawtooth" },
@@ -56,7 +57,7 @@ export const SAMPLES: Sample[] = [
     }],
   },
   {
-    id: "relief", name: "Relief", blurb: "Tension first, then the exhale.", seconds: 24, seed: 505,
+    id: "relief", name: "Relief", blurb: "Tension first, then the exhale.", seconds: 24, seed: 505, gainDb: -2.5,
     steps: [
       {
         at: 0, mood: m(0.35, 0.6, 0.3, 0.1, 0.6, 0.6), transition: 0.5, colour: { hue: 330, saturation: 0.5, lightness: 0.22 },
@@ -80,6 +81,7 @@ export function stateOfStep(step: SampleStep, id: string): EngineState {
   withSynth.colour = applyColour(withSynth.colour, step.colour);
   const { effective } = applyLimits({ mapped: withSynth, transition: { time: step.transition, curve: "smooth" } });
   effective.grid = { arp: 0, bass: 0 };
+  effective.volume *= 10 ** ((SAMPLES.find((x) => x.id === id)?.gainDb ?? 0) / 20);
   if (step.gesture) effective.gesture = { ...step.gesture, id: `${id}-${step.at}` };
   return effective;
 }
