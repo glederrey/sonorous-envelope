@@ -265,7 +265,7 @@ describe("stack, pad and the fast amp LFO", () => {
   it("a tempo glide lands every device on the same steps at the same moments, whenever it joined", () => {
     const s = neutralState();
     s.arp = { ...s.arp, pattern: "random", density: 0.8, jitterMs: 0, swing: 0, tempo: 60, rate: "1/8", chord: [1, 3, 5, 7], octaves: 2 };
-    s.transition = { time: 6, curve: "smooth" }; s.grid = { arp: 5.5, bass: 0, fromTempo: 140 };
+    s.transition = { time: 6, curve: "smooth" }; s.grid = { arp: 5.5, bass: 0, fromTempo: 140, glide: 6 };
     const run = (joinedAt: number, seconds: number) => {
       const e = new Engine(SR, 77); const ev: NoteEvent[] = []; e.recordEvents(ev);
       e.setState(s, 5, 0, joinedAt);
@@ -280,6 +280,21 @@ describe("stack, pad and the fast amp LFO", () => {
     // and it really slows down: the gaps at the start are shorter than the gaps at the end
     const gaps = early.map((x, i, arr) => (i ? x.time - arr[i - 1].time : 0)).slice(1);
     expect(gaps[0]).toBeLessThan(0.25); expect(gaps[gaps.length - 1]).toBeCloseTo(0.5, 1);
+  });
+  it("re-applying a state without a clock (a sound resting, then coming back) keeps the steps running: no restart of the glide", () => {
+    const s = neutralState();
+    s.arp = { ...s.arp, pattern: "up", density: 1, jitterMs: 0, swing: 0, tempo: 120, rate: "1/8", chord: [1, 3, 5] };
+    s.transition = { time: 4, curve: "smooth" }; s.grid = { arp: 0, bass: 0, fromTempo: 60, glide: 4 };
+    const e = new Engine(SR, 5); const ev: NoteEvent[] = []; e.recordEvents(ev);
+    e.setState(s, 5, 0, 0);
+    const run = (sec: number) => { const l = new Float32Array(Math.round(SR * sec)), r = new Float32Array(l.length); e.process(l, r, l.length); };
+    run(20);                                           // the glide is long over: 0.25 s steps
+    const rested = JSON.parse(JSON.stringify(s)) as EngineState; rested.volume = 0; rested.transition = { time: 30, curve: "smooth" };
+    e.setState(rested, 5); run(0.1);                   // rest: applied with no elapsed time, like the player's restTick
+    const before = ev.filter((x) => x.layer === "arp").length;
+    run(4);
+    const t = ev.filter((x) => x.layer === "arp").slice(before - 1).map((x) => x.time);
+    for (let i = 1; i < t.length; i++) expect(t[i] - t[i - 1]).toBeCloseTo(0.25, 2); // still the final tempo, no new glide from 60 BPM
   });
   it("a layer that is off still counts its steps, and resync only moves a grid that has drifted", () => {
     const s = neutralState(); s.arp.tempo = 120; s.arp.rate = "1/8"; s.arp.chord = [1, 3, 5]; s.arp.root = 60; s.arp.scale = "major"; s.arp.pattern = "up";

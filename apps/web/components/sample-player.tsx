@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Square } from "lucide-react";
+import type { EngineState } from "@sonorous/engine";
 import { AudioOutput } from "./player/audio";
 import { sliderToGain } from "../lib/volume";
 import { SAMPLES, fadeOut, stateOfStep, type Sample } from "../lib/samples";
@@ -15,6 +16,7 @@ export function SamplePlayer() {
   const [error, setError] = useState("");
   const out = useRef<AudioOutput | null>(null);
   const timers = useRef<number[]>([]);
+  const current = useRef<EngineState | null>(null); // the state that plays now, so a stop fades that one
   const swatches = useMemo(() => SAMPLES.map((s) => {
     const c = stateOfStep(s.steps[0], s.id).colour;
     return `hsl(${Math.round(c.h)} ${Math.round(Math.min(1, c.s + 0.25) * 100)}% ${Math.round(Math.max(0.3, c.l + 0.2) * 100)}%)`;
@@ -25,7 +27,7 @@ export function SamplePlayer() {
     clear(); setPlaying(null);
     const o = out.current; out.current = null;
     if (!o) return;
-    if (!immediate) await new Promise((r) => setTimeout(r, 400)); // let a fade-out state land first
+    if (!immediate && current.current) { o.setState(fadeOut(current.current, 0.25), 1); await new Promise((r) => setTimeout(r, 450)); } // a short fade, so the stop does not click
     await o.close();
   };
   useEffect(() => () => { clear(); void out.current?.close(); }, []);
@@ -45,8 +47,8 @@ export function SamplePlayer() {
       s.steps.forEach((step, i) => {
         const state = stateOfStep(step, s.id); last = state;
         // a new sample replaces the one before it with a short transition of its own
-        if (i === 0) o.setState({ ...state, transition: { time: 1, curve: "smooth" } }, s.seed, 0, 0);
-        else timers.current.push(window.setTimeout(() => o.setState(state, s.seed), step.at * 1000));
+        if (i === 0) { current.current = state; o.setState({ ...state, transition: { time: 1, curve: "smooth" } }, s.seed, 0, 0); }
+        else timers.current.push(window.setTimeout(() => { current.current = state; o.setState(state, s.seed); }, step.at * 1000));
       });
       timers.current.push(window.setTimeout(() => o.setState(fadeOut(last, FADE_S), s.seed), (s.seconds - FADE_S) * 1000));
       timers.current.push(window.setTimeout(() => { void stop(true); }, s.seconds * 1000 + 300));

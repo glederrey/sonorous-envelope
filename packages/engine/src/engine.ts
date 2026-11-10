@@ -142,10 +142,9 @@ export class Engine {
       this.glideT = 0;
     }
     this.to = to;
-    const d0 = this.rampsOf(state);
     // the shared timeline: on the first state, and whenever the caller says how long ago the state was written, put the
     // step grids where the server's clock says they are; otherwise the grids just run on
-    if (first || elapsedSec !== undefined || d0.arp.dur > 0) {
+    if (first || elapsedSec !== undefined) {
       const g = state.grid ?? { arp: 0, bass: 0 }, d = this.rampsOf(state);
       this.arp.align(this.t, g.arp, elapsedSec ?? 0, d.arp); this.bass.align(this.t, g.bass, elapsedSec ?? 0, d.bass);
     } else { this.arp.clearGlide(); this.bass.clearGlide(); } // the grids just run on at the new state's step length

@@ -455,8 +455,8 @@ describe("the shared timeline", () => {
   });
   it("counts the steps of a tempo glide in closed form, and a state written mid-glide starts from the tempo that played", () => {
     const a = st(120); a.grid = { arp: 0, bass: 0 };
-    const b = st(60); b.transition = { time: 4, curve: "smooth" }; b.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000);
-    expect(b.grid.fromTempo).toBe(120);
+    const b = st(60); b.transition = { time: 4, curve: "smooth" }; b.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000, b);
+    expect(b.grid.fromTempo).toBe(120); expect(b.grid.glide).toBe(4);
     // 4 steps/s going down to 2 steps/s over 4 s: after 2 s the rate is 3 and 7 steps have passed
     expect(nextGrid({ effective: b, created_at: new Date(0).toISOString() }, 2_000).arp - b.grid.arp).toBeCloseTo(7, 6);
     expect(nextGrid({ effective: b, created_at: new Date(0).toISOString() }, 2_000).fromTempo).toBeCloseTo(90, 6);

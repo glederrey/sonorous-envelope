@@ -43,7 +43,7 @@ export interface EngineState {
   colour: ResolvedColour;
   /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
    *  was written. The server fills it in; with the state's creation time every device knows where each step is. */
-  grid?: { arp: number; bass: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number };
+  grid?: { arp: number; bass: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number; /** seconds the glide lasts (the transition the state was written with); the ramp must not depend on `transition`, which the player rewrites when a sound rests */ glide?: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
   transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }
