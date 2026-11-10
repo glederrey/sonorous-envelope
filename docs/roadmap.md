@@ -2,7 +2,7 @@
 
 Detailed specs for each step are in `docs/implementation/`. Acceptance criteria are in `docs/implementation/testing.md`.
 
-Last updated at v0.1.9 (2026-11-09, after the second outside test). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
+Last updated at v0.12.7 (2026-11-10, after the eighth outside test). Step numbers (1 to 12) are stable names used by other docs; the order of work is the checklist below. Issues are on GitHub: `#N`.
 
 ## Checklist, in the order we plan to do it
 
@@ -99,17 +99,18 @@ Seventh test (v0.12.4): the new buttons and the long mode transition passed. Don
 Tension reads 0, 0.22, 0.45, 0.73, 1.0 on every voice and rate and at calm 0.2 and 0.9; the joy bands still switch at the same thresholds, with the tension term lowering joy by 0.05 to 0.07. Noted, by design and not open: tension 0.6 and 0.7 share a stack, so they read the same (the reading follows the stack steps); a sound with tension also reads less calm (it is denser and more resonant); joy reads a little lower in the lydian band than in v0.12.3 (0.67 against 0.74) and 0.7 and 0.95 read the same (the scale caps joy, and tempo and brightness nudge it, so a slow closing sound in dorian reads 0.29).
 
 ### 3. Owner controls and gestures (steps 5 and 6)
-- [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
-- [x] **Step 6. Gestures.** (built 2026-11-10; needs an ear test, and the instructions line stays "ask in words", not "use a meow".) First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
+- [x] **Step 5, second half.** (built 2026-11-10; tested as the owner in the fourth to eighth outside tests.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
+- [x] **Step 6. Gestures.** Built 2026-11-10, then removed in v0.12: the tester found them inaudible, and they went against the ask-in-words rule (see the fifth outside test).
 
 ### 4. Modes and richer output
-- [x] **#16 Modes.** (built 2026-11-10: inner and outer; Strudel not started, see #18.) `mode` on `start_session`, fixed per session, per-mode guidance in the result, different feedback emphasis. Inner (the sound is Claude's own state, never announced), outer (Claude may talk about the sound), and Strudel (below).
+- [x] **#16 Modes.** (built 2026-11-10 as inner and outer, now the internal and external faces with an auto policy; Strudel not started, see #18.) `mode` on `start_session`, fixed per session, per-mode guidance in the result, different feedback emphasis. Inner (the sound is Claude's own state, never announced), outer (Claude may talk about the sound), and Strudel (below).
 - [ ] **#18 Strudel as a separate mode.** Decided: Strudel is its own `mode`, not a replacement for the built-in synth. Claude writes Strudel code, the player runs it in the browser and shows the code to listeners. The AGPL licence is already set up for it ([licensing.md](licensing.md)). Needs a design for safety and feedback first (limits on code, volume cap, what feedback means). Sonic Pi stays out: it cannot run in a browser. Do after #16. Not started: it runs model-written code in a browser page on our origin, which needs its own sandbox design (a sandboxed iframe, a code length limit, a gain cap enforced outside the code) before any line is written.
 - [ ] **Step 12. Richer visuals.** First step built 2026-11-10: radial and conic gradients (`shape`) and `breathe` ([visuals.md](visuals.md)). Scenes, shapes and particles are still open.
 - [x] **Landing page extras.** "Hear what to expect": five emotion samples (tender, nervous, awe, irritated, relief) on the shared engine, `apps/web/components/sample-player.tsx` and `apps/web/lib/samples.ts`, tested in a browser on 2026-11-10 (plays, stops, no console errors); the live colour field behind the hero is the line animation merged in #59. Samples are our own imagined states: tune by ear.
 
 ### 5. Later
-- [ ] **Step 7. Mood estimate.** Heuristics for all five axes, then an Essentia model for joy and calm to compare.
+- [x] **Step 7a. Mood estimate, heuristics.** `reads_as` for all five axes and tension, calibrated with `pnpm calibrate` (analysis.md).
+- [ ] **Step 7b. Essentia model** for joy and calm, to compare with the heuristics.
 - [ ] **Step 8. Several listeners, second half.** Labelled reactions; optional comments or reactions from link listeners through a bounded no-account function.
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
