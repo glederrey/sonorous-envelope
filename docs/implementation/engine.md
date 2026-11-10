@@ -80,6 +80,8 @@ function renderOffline(state: EngineState, opts: { seconds: number; sampleRate: 
 - **Reverb:** Freeverb-style (8 combs + 4 allpasses per channel), `size` → room size 0.5–0.95, damping 0.4, `mix` wet/dry.
 
 ## Gestures
+> **Built (2026-11-10)** in `packages/engine/src/gesture.ts`: one voice (a new gesture replaces one still sounding), mixed after the filter, then through echo and reverb. Played once, when the engine applies a state with a new `gesture.id`; a device that hears the state more than the gesture's length late, or hears the same id again, plays nothing. The listener's switch (`setGesturesEnabled`) is local. Each gesture has a small trim so that it peaks below -3 dBFS. The server drops a gesture sent less than 20 s after the last one (note `gesture skipped`). Gestures never touch the colour, so the 3 Hz rule is not in play. The analysis renders without the gesture. Tests: `packages/engine/test/gesture.test.ts` (length, peak, determinism, the purr spectrum and its 22 to 28 Hz pulse, once-per-id, late join, the switch). Not yet heard by a person: tune by ear.
+
 Each is a short synthesised sound with its own envelope, played once when a state arrives with a new `gesture.id`. Intensity scales level (and, where noted, length). All under 2.5 s. The shapes follow the motivation-structure rules (emotion-to-sound.md): low and rough for hostility, high and pure for fear, appeasement or approach, rising for a request, falling for a complaint.
 
 | Gesture | Recipe |

@@ -97,6 +97,7 @@ function modeBrightness(midis: number[]) {
 export function measure(state: EngineState, seed = 1): Features {
   const steady: EngineState = JSON.parse(JSON.stringify(state));
   steady.transition = { time: 0.03, curve: "smooth" };
+  steady.gesture = null; // the reading is of the background, not of a one-off sound
   const { left, right, events } = renderOffline(steady, { seconds: RENDER_SECONDS, sampleRate: SR, seed });
   const start = SKIP_SECONDS * SR;
   const n = left.length - start;

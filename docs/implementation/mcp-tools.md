@@ -128,7 +128,7 @@ Input:
   session_id: string,           // optional at schema level; see fallback below
   mood?: Mood,                  // left out: the mood of the last call stays (note "mood kept from your last call")
   synth?: SynthOverride,
-  // gesture?: Gesture  — not exposed until gestures ship (roadmap step 6)
+  gesture?: Gesture  // built (2026-11-10): played once with the state; dropped with a note when the last one was less than 20 s ago
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message

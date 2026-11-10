@@ -272,6 +272,17 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b).not.toHaveProperty("reactions");
   });
 
+  it("plays a gesture once with its state, and drops one that comes less than 20 s after the last", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const a = await svc.setSound(dbA, A, { session_id, final: false, gesture: { type: "chirp", intensity: 0.5 } } as never, tick());
+    expect((a.playing as { gesture?: string }).gesture).toBe("chirp");
+    const b = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(5000));
+    expect(b.playing as object).not.toHaveProperty("gesture");
+    expect((b.notes as string[]).join(" ")).toMatch(/gesture skipped/);
+    const c = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(25_000));
+    expect((c.playing as { gesture?: string }).gesture).toBe("sigh");
+  });
+
   it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const slow = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.95, spontaneity: 0.2 };
