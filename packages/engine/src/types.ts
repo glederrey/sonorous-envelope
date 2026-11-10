@@ -8,7 +8,7 @@ export type LfoShape = "sine" | "triangle" | "square" | "random";
 export type Pattern = "up" | "down" | "up_down" | "random" | "as_played";
 export type Rate = "1/4" | "1/8" | "1/8t" | "1/16";
 export type GestureType =
-  | "purr" | "meow_up" | "meow_down" | "chirp" | "laugh" | "growl" | "sigh" | "hum" | "pluck" | "breath";
+  | "purr" | "chirp" | "laugh" | "growl" | "sigh" | "pluck";
 
 export interface ResolvedColour {
   h: number; s: number; l: number;

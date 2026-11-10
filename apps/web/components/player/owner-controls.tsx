@@ -24,6 +24,7 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
 export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
+  const [gest, setGest] = useState("default");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
   const [error, setError] = useState("");
 
@@ -44,6 +45,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
       setOwner({ id: u.user.id, raw });
       const r = raw.rest_after;
       setRest(r === null ? "never" : typeof r === "number" ? String(r) : "900");
+      setGest(raw.gestures === true ? "on" : raw.gestures === false ? "off" : "default");
       void loadPending();
     })();
     const timer = setInterval(() => void loadPending(), 15_000); // a reaction disappears from the list once the model has read it
@@ -74,6 +76,13 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
 
   const counts = new Map<ReactionKind, number>();
   for (const p of pending) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
+  const setGestures = async (value: string) => {
+    setGest(value);
+    const raw = { ...owner.raw, gestures: value === "on" ? true : value === "off" ? false : null };
+    const { error: e } = await supabase.from("sessions").update({ settings: raw }).eq("id", sessionId);
+    if (e) setError("Could not save that. Try again."); else setOwner({ ...owner, raw });
+  };
+
   const waiting = [...counts].map(([k, n]) => `${REACTION_LABELS[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
   return (
     <>
@@ -100,19 +109,28 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
           {error && <p role="alert">{error}</p>}
         </div>
       )}
-      {!external && (
-        <details className="pl-set se-sm">
-          <summary>Settings</summary>
-          <label className="pl-fade">
-            <span>Fade to silence after</span>
-            <select value={rest} onChange={(e) => void setFade(e.target.value)}>
-              {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </label>
-          <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
-          {error && <p role="alert">{error}</p>}
-        </details>
-      )}
+      <details className="pl-set se-sm">
+        <summary>Settings</summary>
+        <label className="pl-fade">
+          <span>Little sounds from the model</span>
+          <select value={gest} onChange={(e) => void setGestures(e.target.value)}>
+            <option value="default">Default</option><option value="on">On</option><option value="off">Off</option>
+          </select>
+        </label>
+        <p className="pl-local">Short sounds (a purr, a chirp, a sigh) that the model may add. Everyone listening hears them. By default: on for the external face, off for the internal one. Growl is never played on the internal face.</p>
+        {!external && (
+          <>
+            <label className="pl-fade">
+              <span>Fade to silence after</span>
+              <select value={rest} onChange={(e) => void setFade(e.target.value)}>
+                {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </label>
+            <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
+          </>
+        )}
+        {error && <p role="alert">{error}</p>}
+      </details>
     </>
   );
 }

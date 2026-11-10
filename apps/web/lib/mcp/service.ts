@@ -12,7 +12,7 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
-import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, faceLine, normalizeFace, type Face, type Policy } from "./modes";
+import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, checkGesture, faceLine, gesturesOn, normalizeFace, type Face, type Policy } from "./modes";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
@@ -289,14 +289,23 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const { effective, clamps } = applyLimits({
     mapped: overridden, transition,
   });
-  const allClamps = mergeClamps(clamps);
-  // a gesture plays once with this state (its id makes every device play it exactly once); too soon after the last one, it is dropped
-  let gestureNote: string | undefined;
+  // a gesture plays once with this state (its id makes every device play it exactly once). The owner's setting, the face
+  // and the 20 s gap decide whether it plays; the model is told which.
+  let gestureNote: string | undefined, gestureStatus: string | undefined;
+  const gclamps: string[] = [];
   if (input.gesture) {
-    const lastAt = await lastGestureAt(db, session.id);
-    if (lastAt !== null && now - lastAt < GESTURE_GAP_MS) gestureNote = `gesture skipped: the last one was ${Math.round((now - lastAt) / 1000)} s ago, keep them 20 s apart`;
-    else effective.gesture = { type: input.gesture.type, intensity: input.gesture.intensity, id: randomBytes(4).toString("hex") };
+    const chk = checkGesture(input.gesture, sw.face, settings.gestures);
+    const lastAt = chk.play ? await lastGestureAt(db, session.id) : null;
+    if (!chk.play) gestureNote = chk.note;
+    else if (lastAt !== null && now - lastAt < GESTURE_GAP_MS) gestureNote = `gesture skipped: the last one was ${Math.round((now - lastAt) / 1000)} s ago, keep them 20 s apart`;
+    else {
+      effective.gesture = { type: input.gesture.type, intensity: chk.intensity, id: randomBytes(4).toString("hex") };
+      if (chk.clamp) gclamps.push(chk.clamp);
+    }
+    gestureStatus = effective.gesture ? "played" : gestureNote?.replace(/^gesture skipped: /, "skipped: ");
+    gestureNote = undefined; // the status says it
   }
+  const allClamps = mergeClamps(clamps, gclamps);
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
@@ -322,7 +331,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", gestureNote, tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
+  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)), gesture: gestureStatus, gestures: gesturesOn(settings.gestures, sw.face) ? undefined : "off" });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {

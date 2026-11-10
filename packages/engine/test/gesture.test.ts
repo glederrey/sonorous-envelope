@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Engine, GestureVoice, gestureLength, neutralState, mulberry32, type EngineState, type GestureType } from "../src";
 
 const SR = 44100;
-const TYPES: GestureType[] = ["purr", "meow_up", "meow_down", "chirp", "laugh", "growl", "sigh", "hum", "pluck", "breath"];
+const TYPES: GestureType[] = ["purr", "chirp", "laugh", "growl", "sigh", "pluck"];
 
 function voiceOf(type: GestureType, intensity = 0.7, seed = 3, root = 50) {
   const v = new GestureVoice(SR, mulberry32(seed));
