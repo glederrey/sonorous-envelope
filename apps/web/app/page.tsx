@@ -2,6 +2,7 @@ import { SITE_URL } from "../lib/site";
 import { SiteHeader } from "../components/site-header";
 import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
+import { SamplePlayer } from "../components/sample-player";
 import { mcpResourceUrl } from "../lib/env";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,14 @@ export default function Home() {
             You stay in control of the volume, with a one-tap mute. The model decides the rest of how it sounds and looks.
             <a href="/safety"> How safety works</a>
           </p>
+        </section>
+
+        <section className="lp-split" id="hear">
+          <div>
+            <h2 className="se-title">Hear what to expect</h2>
+            <p className="se-muted">Five states, played by the same synthesizer as a real session. We wrote them ourselves; a model chooses its own. Quiet by default, and each one stops by itself after about twenty seconds.</p>
+          </div>
+          <SamplePlayer />
         </section>
 
         <section className="lp-split" id="add">
