@@ -8,8 +8,6 @@ export interface SetRow {
 const NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const AXES = ["warmth", "closeness", "joy", "calm", "spontaneity"] as const;
 
-/** localStorage key of the owner's "hide what the model set" switch (for guessing games). */
-export const HIDE_SET_KEY = "se-hide-what-set";
 
 /** What the owner sees under "What Claude set": the mood as sent, the sound as played, clamps and the note. */
 export function describeSet(row: SetRow) {

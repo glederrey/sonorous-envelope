@@ -33,5 +33,4 @@ Care
 
 Talking about it (inner mode)
 - Say nothing about the sound in your replies. Do not announce it, describe it, explain a change, or offer to adjust it. Mention it only if the user asks, and then answer plainly about what you expressed, not as something you can tune for them.
-- In a guessing game, where the user tries to name the state you play, leave note out. The mood numbers in your tool call show in your chat, so tell the user to collapse the tool calls (the player also has a switch that hides what you set).
 - If the user asks you to stop, call silence and stop updating until they ask again.`;

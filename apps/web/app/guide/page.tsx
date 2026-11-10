@@ -6,8 +6,8 @@ const tools = [
   {
     name: "start_session",
     live: true,
-    text: "Starts a sound session for the conversation. Returns a session_id to pass to every other call and a player link to give you. Each conversation gets its own session. It has a mode: inner (the default), where the sound is the model\u2019s own state and it does not talk about it, or outer, where you asked for sound (music, a scene, an emotion to guess) and the model may talk about it and take requests. Outer sessions do not fade between messages.",
-    example: "Start an outer sound session and play me an emotion to guess.",
+    text: "Starts a sound session for the conversation. Returns a session_id to pass to every other call and a player link to give you. Each conversation gets its own session. It has a mode: inner (the default), where the sound is the model\u2019s own state and it does not talk about it, or outer, where you asked for sound (music, a scene, an emotion to hear) and the model may talk about it and take requests. Outer sessions do not fade between messages.",
+    example: "Start an outer sound session and play me something for a rainy afternoon.",
   },
   {
     name: "set_sound",
@@ -77,7 +77,7 @@ export default function GuidePage() {
               <li>On a phone the sound keeps playing when you switch to the chat. If the phone stops it, open the player and tap resume.</li>
               <li>The model is not there between messages. After 15 minutes without an update the sound fades to silence by itself, unless the model turned that off.</li>
               <li>A session with no sound for 30 minutes shows as inactive. It can wake up: if you come back to the same conversation, the model&apos;s next sound plays in the same player. After a week without a sound it ends. You can also end a session yourself from the sessions page.</li>
-              <li>Signed in as the owner, the player has reaction buttons (calmer, softer, darker, brighter, slower, faster, more or less of this) that the model hears about on its next call, a &ldquo;Fade to silence after&rdquo; setting, and a &ldquo;What the model set&rdquo; panel: the mood it sent, what played, and its note. The panel can be hidden, for a guessing game.</li>
+              <li>Signed in as the owner, the player has reaction buttons (calmer, softer, darker, brighter, slower, faster, more or less of this) that the model hears about on its next call, a &ldquo;Fade to silence after&rdquo; setting, and a &ldquo;What the model set&rdquo; panel: the mood it sent, what played, and its note.</li>
               <li>The model sometimes adds a short gesture (a purr, a chirp, a sigh). You can switch gestures off on your device in the player.</li>
               <li>Anyone with the player link can listen, with no account. You can share it. Several devices playing the same session, on a phone and a laptop for example, play the same notes at the same moments.</li>
               <li>You control the volume. The model decides the rest. See <a href="/safety">Safety and control</a>.</li>
