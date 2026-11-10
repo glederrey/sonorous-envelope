@@ -79,7 +79,7 @@ Gael and a model ran the test list on the live site. Passed: owner panel, reacti
 - [x] **Sticky first voice**: without a voice of its own, the first sound the model sets becomes its voice (scale, root, note order, wave) and stays until it sends a voice, so a mood that barely moves cannot move the key. The cost: joy no longer lifts the scale by itself.
 - [x] The "How is it landing?" block starts closed when the controls open.
 - [x] Tension adds about 6 dB across a five-step sweep; the 4 dB cap limits a call, not the climb over several calls. Decided: fine. A climb over several calls is the gradual move the Care rules ask for, and the listener's volume stays theirs; a cumulative cap would block a deliberate build.
-- [ ] Instructions still about 900 words; trim after the next test, moving per-tool detail into the tool descriptions.
+- [x] Instructions trimmed from about 900 to about 790 words (v0.12.8): the feedback fields moved into the `set_sound` description, the synth and voice persistence into the schema descriptions. Further cuts would touch the Care rules and the face rules, which are design, not detail; a test keeps them under 800.
 
 ### Sixth outside test (2026-11-10, v0.12.3)
 Voice bands, tension, faces and reactions passed; the visuals were all good. Done after it:

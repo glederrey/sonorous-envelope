@@ -26,6 +26,10 @@ describe("MCP tools", () => {
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
   });
 
+  it("keeps the instructions short", () => {
+    expect(SERVER_INSTRUCTIONS.split(/\s+/).length).toBeLessThan(800);
+  });
+
   it("does not advertise features that are not built", () => {
     expect(SERVER_INSTRUCTIONS).not.toMatch(/spectrogram|strudel/i);
     expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture/i); // removed in v0.12
