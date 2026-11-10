@@ -26,6 +26,11 @@ describe("MCP tools", () => {
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
   });
 
+  it("stays under the length a client shows in full", () => {
+    // two testers received the text cut off at about 4,000 characters
+    expect(SERVER_INSTRUCTIONS.length).toBeLessThan(3950);
+  });
+
   it("keeps the instructions short", () => {
     expect(SERVER_INSTRUCTIONS.split(/\s+/).length).toBeLessThan(800);
   });
