@@ -917,7 +917,11 @@ html:has(.pl-field) .se-header {
 .pl-lede { color: var(--on-scrim-muted); }
 .pl-start-btn { min-height: 52px; padding-inline: 32px; font-size: 1.05rem; }
 .pl-note { margin-block: auto; padding: 14px 18px; border-radius: var(--radius); background: var(--scrim); color: var(--on-scrim); border: 1px solid var(--scrim-line); max-width: 440px; }
-.pl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--glow); flex: none; }
+.pl-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--glow); flex: none; animation: lp-live 4s ease-in-out infinite alternate; }
+/* mid-answer: the same two colours and ring as the dot on the landing page; a finished turn is a still teal dot */
+.pl-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: inherit; opacity: 0; animation: lp-ring 2s ease-out infinite; }
+.pl-dot-idle::after { animation: none; display: none; }
+@media (prefers-reduced-motion: reduce) { .pl-dot { animation: none; } .pl-dot::after { animation: none; display: none; } }
 .pl-aside { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; padding: 12px 16px; border-radius: var(--radius); background: var(--scrim); color: var(--on-scrim-muted); border: 1px solid var(--scrim-line); max-width: 520px; text-align: center; }
 .pl-aside a { color: var(--on-scrim); }
 .pl-reveal { margin-top: auto; background: var(--scrim); color: var(--on-scrim); border-color: var(--scrim-line); backdrop-filter: blur(8px); }

@@ -78,6 +78,7 @@ Gael and a model ran the test list on the live site. Passed: owner panel, reacti
 - [x] Phone chip and status line shortened (lock icon for "locked"); dropdown lists follow the page theme; the live counter has its own box with a slow teal to amber dot; "Step by step" hides below 420 px.
 - [x] **Sticky first voice**: without a voice of its own, the first sound the model sets becomes its voice (scale, root, note order, wave) and stays until it sends a voice, so a mood that barely moves cannot move the key. The cost: joy no longer lifts the scale by itself.
 - [x] The "How is it landing?" block starts closed when the controls open.
+- [ ] Tension adds about 6 dB across a five-step sweep; the 4 dB cap limits a call, not the climb over several calls. Decide if that is fine.
 - [ ] Instructions still about 900 words; trim after the next test, moving per-tool detail into the tool descriptions.
 
 ### Sixth outside test (2026-11-10, v0.12.3)
@@ -85,7 +86,7 @@ Voice bands, tension, faces and reactions passed; the visuals were all good. Don
 - [x] The live counter's glow follows the dot (teal, then amber), not teal only.
 - [x] Reactions: **Stormier** (opposite of calmer) and **Harsher** (opposite of softer) added, "More of this" and "Less of this" moved to the end as a like or dislike signal (migration 0009).
 Seventh test (v0.12.4): the new buttons and the long mode transition passed. Done after it: the dot glow is a ring in the dot's own colour, two pulses per colour step; the arpeggio no longer switches off at calm above 0.9 with low joy; the instructions say one-call synth settings revert. Open, from the tests:
-- [ ] **Tension reading depends on the voice** (C dorian sine at 0.4 read 0.81, A minor sawtooth at 0.5 read 0.06): the low stack levels alone will not fix it; the estimate follows rate and density too.
+- [x] **Tension reading depended on rate and density, not on the voice** (v0.12.7: it now counts the clash inside one onset only, and reads 0, 0.22, 0.45, 0.73, 1.0 for 0.1 to 0.9 on every voice and rate; the tester's four-voice table showed the voice moved it by at most 0.12). Earlier: **Tension reading depends on the voice** (C dorian sine at 0.4 read 0.81, A minor sawtooth at 0.5 read 0.06): the low stack levels alone will not fix it; the estimate follows rate and density too.
 - [x] **Loudness can jump on a small request** ("stormier" took the level from -26 to -19 dB in one call): a call now raises the level by at most 4 dB (v0.12.6), with a note.
 - [x] **Roughness follows tempo and density more than timbre** (harsher step read 0.90 to 0.50): documented as note-level dissonance, not timbre.
 - [x] **`playing` did not echo osc.detune or filter.resonance**, so a caller cannot confirm they were applied.
