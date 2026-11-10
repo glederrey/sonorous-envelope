@@ -389,7 +389,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     : "Want your AI to make sound for you too?";
   const shareAction = signedIn
     ? <CopyLink path={`/s/${sessionId}`} label="Copy link" />
-    : <a className="se-btn" href="/#add">Add it to your AI app</a>;
+    : <><a className="se-btn" href="/#add">Add it to your AI app</a><CopyLink path={`/s/${sessionId}`} label="Copy link" /></>;
 
   return (
     <div
