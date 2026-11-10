@@ -12,7 +12,7 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
-import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, checkGesture, faceLine, gesturesOn, normalizeFace, type Face, type Policy } from "./modes";
+import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, faceLine, normalizeFace, type Face, type Policy } from "./modes";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
@@ -21,8 +21,6 @@ export class ToolError extends Error {
 }
 
 const MAX_ACTIVE_SESSIONS = 10;
-/** A gesture needs a gap after the previous one, so they stay rare (limits.md). */
-const GESTURE_GAP_MS = 20_000;
 const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
@@ -39,6 +37,9 @@ function fail(action: string, error: { message: string } | null): never {
   throw new ToolError("server_error", `Could not ${action}. Try again in a moment.`);
 }
 
+/** The reading is made with one fixed seed, so the same sound always reads the same (a random pattern would otherwise
+ *  give a different note order, and a different reading, on every call). Playback keeps its own random seed. */
+const ANALYSIS_SEED = 1;
 const randomSeed = () => randomBytes(4).readUInt32BE(0);
 const newSessionId = () => randomBytes(18).toString("base64url");
 
@@ -100,15 +101,6 @@ async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: numb
   return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
 }
 
-/** When the last gesture started in this session, or null. Looks at the last few states only. */
-async function lastGestureAt(db: Db, sessionId: string): Promise<number | null> {
-  const { data, error } = await db.from("states").select("effective,created_at").eq("session_id", sessionId)
-    .order("created_at", { ascending: false }).limit(6);
-  if (error) return null;
-  for (const r of (data ?? []) as Array<{ effective: EngineState; created_at: string }>) if (r.effective?.gesture) return new Date(r.created_at).getTime();
-  return null;
-}
-
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
 function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number, face: Face = "internal"): { resting: boolean; notes: string[] } {
   const rest = effectiveRestAfter(settings.rest_after, face); // the external face never fades
@@ -123,7 +115,7 @@ const policyOf = (s: { mode_policy?: string }): Policy => (s.mode_policy === "in
 async function switchFace(db: Db, session: SessionRow, requested: Face | undefined, stateTurn: number, now: number): Promise<{ face: Face; note?: string }> {
   const current = faceOf(session), policy = policyOf(session);
   if (requested === undefined) return { face: current };
-  const { data: last } = await db.from("mode_changes").select("created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(1);
+  const { data: last } = await db.from("mode_changes").select("created_at").eq("session_id", session.id).eq("by", "model").order("created_at", { ascending: false }).limit(1);
   const at = last?.[0] ? new Date(last[0].created_at as string).getTime() : null;
   let turnsSince: number | null = null;
   if (at !== null) {
@@ -144,7 +136,10 @@ type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number
 function measureState(effective: EngineState, seed: number): Compact | null {
   try {
     if (effective.volume <= 0) return null;
-    const a = analyze(effective, seed);
+    // read the sound itself: not where its step counters happen to be on the shared timeline, nor a tempo glide still in progress,
+    // which would change which notes a random pattern plays in the measured window
+    const steady: EngineState = { ...effective, grid: { arp: 0, bass: 0 } };
+    const a = analyze(steady, seed);
     return { sound: a.sound, reads_as: a.reads_as, why: a.why };
   } catch (e) {
     console.error("analysis failed:", e);
@@ -289,27 +284,11 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const { effective, clamps } = applyLimits({
     mapped: overridden, transition,
   });
-  // a gesture plays once with this state (its id makes every device play it exactly once). The owner's setting, the face
-  // and the 20 s gap decide whether it plays; the model is told which.
-  let gestureNote: string | undefined, gestureStatus: string | undefined;
-  const gclamps: string[] = [];
-  if (input.gesture) {
-    const chk = checkGesture(input.gesture, sw.face, settings.gestures);
-    const lastAt = chk.play ? await lastGestureAt(db, session.id) : null;
-    if (!chk.play) gestureNote = chk.note;
-    else if (lastAt !== null && now - lastAt < GESTURE_GAP_MS) gestureNote = `gesture skipped: the last one was ${Math.round((now - lastAt) / 1000)} s ago, keep them 20 s apart`;
-    else {
-      effective.gesture = { type: input.gesture.type, intensity: chk.intensity, id: randomBytes(4).toString("hex") };
-      if (chk.clamp) gclamps.push(chk.clamp);
-    }
-    gestureStatus = effective.gesture ? "played" : gestureNote?.replace(/^gesture skipped: /, "skipped: ");
-    gestureNote = undefined; // the status says it
-  }
-  const allClamps = mergeClamps(clamps, gclamps);
+  const allClamps = mergeClamps(clamps);
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
-  const analysis = measureState(effective, seed);
+  const analysis = measureState(effective, ANALYSIS_SEED);
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
     intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
@@ -328,10 +307,10 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", gestureNote, tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)), gesture: gestureStatus, gestures: gesturesOn(settings.gestures, sw.face) ? undefined : "off" });
+  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -353,7 +332,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const final = input.final || Boolean(input.end);
   const turn = planTurn(prev, final, now);
   const effective: EngineState = JSON.parse(JSON.stringify(prev.effective));
-  effective.volume = 0; effective.gesture = null;
+  effective.volume = 0;
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };
@@ -388,12 +367,12 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
 export async function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" }, _now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   const { data, error } = await db.from("states").select("turn,final,created_at,intent,clamps,analysis")
-    .eq("session_id", session.id).order("created_at", { ascending: false }).limit(8);
+    .eq("session_id", session.id).order("created_at", { ascending: false }).limit(9);
   if (error) fail("read the history", error);
   const short: Record<string, string> = { warmth: "warm", closeness: "close", joy: "joy", calm: "calm", spontaneity: "spont" };
   const f = (m: Record<string, number> | undefined, keys: string[]) => (m ? keys.map((k) => `${short[k]} ${Math.round((m[k] ?? 0) * 100) / 100}`).join(" ") : "-");
   const axes = ["warmth", "closeness", "joy", "calm", "spontaneity"];
-  const lines = ((data ?? []) as Array<Pick<StateRow, "turn" | "final" | "created_at" | "intent" | "clamps" | "analysis">>).reverse().map((r) => {
+  const lines = ((data ?? []) as Array<Pick<StateRow, "turn" | "final" | "created_at" | "intent" | "clamps" | "analysis">>).filter((r) => !(r.intent as { initial?: boolean }).initial).slice(0, 8).reverse().map((r) => {
     const time = new Date(r.created_at).toISOString().slice(11, 19);
     const sent = r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, axes)}`;
     const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, axes)}` : "";

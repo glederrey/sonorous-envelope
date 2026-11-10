@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Eye, EyeOff, Play, Volume2, VolumeX } from "lucide-react";
+import { Eye, EyeOff, Lock, Play, Volume2, VolumeX } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
@@ -22,7 +22,7 @@ const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
 
 function stored(id: string) {
-  const fallback = { muted: false, volume: 0.8, gestures: true };
+  const fallback = { muted: false, volume: 0.8 };
   try {
     const raw = localStorage.getItem(`se:player:${id}`);
     return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
@@ -55,7 +55,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [starting, setStarting] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
-  const [gestures, setGestures] = useState(true); // short one-off sounds from the model; this device only
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [audioState, setAudioState] = useState<string>("running");
@@ -81,7 +80,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // restore the listener's own settings once, on the client
   useEffect(() => {
     const s = stored(sessionId);
-    setMuted(Boolean(s.muted)); setVolume(Number(s.volume)); setGestures(s.gestures !== false);
+    setMuted(Boolean(s.muted)); setVolume(Number(s.volume));
   }, [sessionId]);
 
   const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
@@ -281,9 +280,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // listener controls go to the engine and are remembered
   useEffect(() => {
     audio.current?.setGain(muted ? 0 : sliderToGain(volume));
-    remember(sessionId, { muted, volume, gestures });
-    audio.current?.setGestures(gestures);
-  }, [muted, volume, gestures, sessionId, started]);
+    remember(sessionId, { muted, volume });
+  }, [muted, volume, sessionId, started]);
 
   useEffect(() => {
     const q = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -435,10 +433,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{policy !== "auto" ? " · locked" : ""}</span>
+                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
+                <span className="pl-when">
                 {playing
-                  ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
-                  : "Waiting for the first sound"}
+                    ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
+                    : "Waiting for the first sound"}
+                </span>
               </p>
               <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
                 <EyeOff size={18} aria-hidden />

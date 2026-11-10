@@ -63,11 +63,20 @@ Gael's first look at the owner controls, and a scripted test by a model on the l
 - [x] The `/s/` scrollbar came from the drift and breathe lights moving past the box (transforms count as overflow). They now animate inside it.
 - [x] Guessing-game hide switch and wording removed.
 - [x] Inner and outer became **internal and external faces** (Anzieu). Default `auto`: starts internal; the model may offer a switch in words and switch only after a yes or a clear request; the server enforces 2 finished messages and 2 minutes before going external; an owner lock (Auto, Internal, External) is final; every change is logged and shown in `inspect`; everyone sees the face. Migration 0008.
-- [x] Gestures: six (dropped meow_up as an appeal, meow_down, hum, breath), louder at 0.5, a session setting for everyone (default on for external, off for internal), soft and no growl on the internal face, `gesture: played | skipped: reason` and `gestures: off` in the result.
+- [x] ~~Gestures~~ (removed in v0.12 after the next test found them inaudible; see below): six (dropped meow_up as an appeal, meow_down, hum, breath), louder at 0.5, a session setting for everyone (default on for external, off for internal), soft and no growl on the internal face, `gesture: played | skipped: reason` and `gestures: off` in the result.
 - [x] Tension: a fifth stack level (semitone, tritone, major seventh) and a per-note clash reading so the top step is heard. Calm reading a little lower under tension is the sound, not a fault (documented).
 - [x] Turn counter: a turn is one message (3 minutes stale limit), so a batch of calls no longer reports "no final update last turn".
 - [x] Landing: live counter (`live_counts`, migration 0007), samples levelled by measured loudness and played louder, Play and Stop share a pill, the faces section and the `/faces` page with reading, the guide explains faces.
 - [ ] Not done: the tension readback after a big drop (a ghost reading of 0.47 during a glide) and the swings by gesture tail were not reproduced; to retest. `reads_as` joy under `keep_voice` stays low by design (the scale sets joy); the instructions now say so.
+
+### Fifth outside test (2026-11-10, v0.11.1)
+Gael and a model ran the test list on the live site. Passed: owner panel, reactions round trip, auto rules, owner lock, internal face, turn counter, landing, faces and guide. Found, and what we did (v0.12):
+- [x] **Gestures removed** (inaudible in the test, and against the ask-in-words rule): schema, engine voice, owner setting, result fields, guidance, guide, samples.
+- [x] **Cooldown started from the owner's changes** (a user who set Auto and said yes within 2 minutes got no switch). It now counts only the model's own switches.
+- [x] **The reading swung with identical settings** (random note order differed per call, since the analysis used the playback seed). It now uses one fixed seed: the same sound always reads the same.
+- [x] The start state no longer shows as "turn 0" in `inspect`.
+- [x] Phone chip and status line shortened (lock icon for "locked"); dropdown lists follow the page theme; the live counter has its own box with a slow teal to amber dot; "Step by step" hides below 420 px.
+- [ ] **Open decisions** (asked of Gael): switching rules for auto; a sticky first voice; tension readback shape.
 
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)

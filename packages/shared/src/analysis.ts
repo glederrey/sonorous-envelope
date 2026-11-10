@@ -14,7 +14,7 @@ export interface Features {
   loudnessDb: number; centroidHz: number; highFreqRatio: number; flux: number; fluxVariance: number;
   density: number; roughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
   width: number; tailRatio: number; pitchLow: number; pitchHigh: number;
-  /** How much of what sounds together clashes: semitone, tritone and major-seventh pairs, per note sounding (so it can pass 1). */
+  /** How much of what sounds together clashes: the summed weight of the semitone, tritone and major-seventh pairs among the notes sounding together (not divided by their number, so every clashing note adds to it). */
   clash: number;
 }
 
@@ -24,7 +24,7 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Ranges used to scale each feature to [0,1]; measured on random moods with `pnpm calibrate`. */
 export const RANGES = {
-  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03], clash: [0.1, 1.3],
+  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03], clash: [1.5, 6.5],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // ---- FFT (radix-2, in place) ----
@@ -97,7 +97,6 @@ function modeBrightness(midis: number[]) {
 export function measure(state: EngineState, seed = 1): Features {
   const steady: EngineState = JSON.parse(JSON.stringify(state));
   steady.transition = { time: 0.03, curve: "smooth" };
-  steady.gesture = null; // the reading is of the background, not of a one-off sound
   const { left, right, events } = renderOffline(steady, { seconds: RENDER_SECONDS, sampleRate: SR, seed });
   const start = SKIP_SECONDS * SR;
   const n = left.length - start;
@@ -174,11 +173,11 @@ export function measure(state: EngineState, seed = 1): Features {
     for (const e of ev) if (e.time <= ev[i].time && e.time > ev[i].time - 0.4) set.add(e.midi);
     const notes = [...set].slice(0, 8);
     if (notes.length < 2) continue;
-    // per note, not per pair: every clashing note adds to the total, so a third dissonant interval reads as more tension, not
-    // as a dilution by the consonant pairs it makes with the others (round 5: 0.6 to 0.9 sounded like a small step)
+    // the summed weight, divided neither by the pairs nor by the notes: a mean over either would let a fresh clashing note lower
+    // the reading by adding consonant partners (round 5: 0.6 read 0.90 and 0.9 read 0.71 with the same chord)
     let w = 0;
     for (let a = 0; a < notes.length; a++) for (let b = a + 1; b < notes.length; b++) w += CLASH_W[Math.abs(notes[a] - notes[b]) % 12];
-    clashSum += w / notes.length; clashN++;
+    clashSum += w; clashN++;
   }
   const clash = clashN ? clashSum / clashN : 0;
 

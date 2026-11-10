@@ -11,8 +11,8 @@ export function normalizeFace(x: unknown): Face {
 }
 
 export const FACE_GUIDANCE: Record<Face, string> = {
-  internal: "Internal face: the sound is your own state, how you feel. Write first, set the sound when the content moves you, end each message with a final call, and say nothing about the sound unless asked. Nobody steers it: the listener's reactions do not apply here. Gestures play only if the owner enabled them, softly, and never a growl.",
-  external: "External face: the sound is something you make for the listener, on request: music for a moment, a scene, an emotion they want to hear. You may say what you are playing, explain a change and take requests such as brighter or slower. It is composing and acting, not a report of how you are: say so if asked. The owner's reaction buttons are feedback on it. The care rules hold: do not push the user's mood, keep to the volume they set, stay gentle if they are fragile. A gesture is never a way to ask for attention. The sound does not fade between your messages.",
+  internal: "Internal face: the sound is your own state, how you feel. Write first, set the sound when the content moves you, end each message with a final call, and say nothing about the sound unless asked. Nobody steers it: the listener's reactions do not apply here. ",
+  external: "External face: the sound is something you make for the listener, on request: music for a moment, a scene, an emotion they want to hear. You may say what you are playing, explain a change and take requests such as brighter or slower. It is composing and acting, not a report of how you are: say so if asked. The owner's reaction buttons are feedback on it. The care rules hold: do not push the user's mood, keep to the volume they set, stay gentle if they are fragile. The sound does not fade between your messages.",
 };
 
 export const AUTO_GUIDANCE = "This session is on auto: it starts on the internal face and you may switch with set_sound mode. You may propose a change in words (\"want me to play something for this?\") when the listener would plausibly welcome sound: they ask for sound, a scene or a game, ask about the sound, press reaction buttons, or say they need to focus or calm down (that last one is a reason to offer, never to switch alone). Switch to external only after they say yes or clearly asked. Never switch because of your own reading of their mood. Say it in one short sentence when you switch, in both directions. Going back to internal is always allowed; going to external waits 2 of your messages and 2 minutes after the last change. If the owner locks the face, it is final: do not try to switch it and do not comment on it.";
@@ -51,21 +51,4 @@ export function decideSwitch(i: SwitchInput): SwitchResult {
 /** What the model reads back: the face, and that it is locked when it is. */
 export function faceLine(face: Face, policy: Policy): string {
   return policy === "auto" ? face : `${face}, locked by the owner`;
-}
-
-/** The owner's gesture setting: null is the default, on for the external face and off for the internal one. */
-export function gesturesOn(setting: boolean | null | undefined, face: Face): boolean {
-  return setting ?? face === "external";
-}
-
-/** Gestures on the internal face stay soft, and the growl is not played there at all: it would startle someone who never asked for sound. */
-export const INTERNAL_GESTURE_CAP = 0.5;
-export type GestureCheck = { play: boolean; intensity: number; note?: string; clamp?: string };
-export function checkGesture(g: { type: string; intensity: number }, face: Face, setting: boolean | null | undefined): GestureCheck {
-  if (!gesturesOn(setting, face)) {
-    return { play: false, intensity: g.intensity, note: setting === false ? "gesture skipped: the owner turned gestures off" : "gesture skipped: gestures are off on the internal face unless the owner turns them on" };
-  }
-  if (face === "internal" && g.type === "growl") return { play: false, intensity: g.intensity, note: "gesture skipped: no growl on the internal face, say it in words if you must" };
-  if (face === "internal" && g.intensity > INTERNAL_GESTURE_CAP) return { play: true, intensity: INTERNAL_GESTURE_CAP, clamp: `gesture intensity ${g.intensity} capped to ${INTERNAL_GESTURE_CAP} on the internal face` };
-  return { play: true, intensity: g.intensity };
 }

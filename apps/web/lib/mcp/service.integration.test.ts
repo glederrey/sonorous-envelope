@@ -277,36 +277,6 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b).not.toHaveProperty("reactions");
   });
 
-  it("plays a gesture once with its state on the external face, and drops one that comes less than 20 s after the last, saying why", async () => {
-    const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
-    const a = await svc.setSound(dbA, A, { session_id, final: false, gesture: { type: "chirp", intensity: 0.5 } } as never, tick());
-    expect((a.playing as { gesture?: string }).gesture).toBe("chirp");
-    expect(a.gesture).toBe("played");
-    const b = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(5000));
-    expect(b.playing as object).not.toHaveProperty("gesture");
-    expect(b.gesture).toMatch(/^skipped: the last one was/);
-    const c = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(25_000));
-    expect((c.playing as { gesture?: string }).gesture).toBe("sigh");
-  });
-
-  it("gestures: off by default on the internal face, soft and never a growl when the owner turns them on, and the owner can switch them off", async () => {
-    const { session_id } = await svc.startSession(dbA, A, {}, tick());
-    const g = (type: string, intensity: number, ms = 25_000) => svc.setSound(dbA, A, { session_id, final: true, gesture: { type, intensity } } as never, tick(ms));
-    let r = await g("sigh", 0.5);
-    expect(r.gesture).toMatch(/^skipped: gestures are off on the internal face/); expect(r.gestures).toBe("off");
-    sql(`update sessions set settings = settings || '{"gestures": true}'::jsonb where id = '${session_id}'`);
-    r = await g("growl", 0.5);
-    expect(r.gesture).toMatch(/no growl on the internal face/);
-    r = await g("sigh", 0.9);
-    expect(r.gesture).toBe("played"); expect((r.playing as { gesture?: string }).gesture).toBe("sigh");
-    expect((r.clamped as string[]).join(" ")).toMatch(/capped to 0.5/);
-    expect(r).not.toHaveProperty("gestures");
-    // the owner turns them off for good, on the external face too
-    sql(`update sessions set mode = 'external', settings = settings || '{"gestures": false}'::jsonb where id = '${session_id}'`);
-    r = await g("purr", 0.5);
-    expect(r.gesture).toMatch(/the owner turned gestures off/); expect(r.gestures).toBe("off");
-  });
-
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
     const int = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null }; session_id: string };
     expect(int.mode).toBe("internal"); expect(int.guidance).toMatch(/^Internal face/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
@@ -314,6 +284,23 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(ext.mode).toBe("external"); expect(ext.guidance).toMatch(/^External face/); expect(ext.settings.rest_after).toBeNull();
     expect(sql(`select mode || '/' || mode_policy from sessions where id = '${ext.session_id}'`)).toBe("external/auto");
     expect(sql(`select mode from sessions where id = '${int.session_id}'`)).toBe("internal");
+  });
+
+  it("an owner change does not start the model's cooldown", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "auto" })).error).toBeNull();
+    const r = await svc.setSound(dbA, A, { session_id, mood, final: true, mode: "external" } as never, tick());
+    expect(r.mode).toBe("external"); // no wait: the owner's change was not the model's own switch
+  });
+
+  it("does not list the start state as a turn, and reads the same sound the same way twice", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const call = () => svc.setSound(dbA, A, { session_id, mood, final: false, synth: { arp: { pattern: "random" } } } as never, tick());
+    await call(); // the first one still glides in from the start state
+    const b = await call(), c = await call();
+    expect(c.reads_as).toEqual(b.reads_as);
+    const seen = await svc.inspect(dbA, A, { session_id, what: "history" }) as { history: string[] };
+    expect(seen.history.join("\n")).not.toMatch(/turn 0/);
   });
 
   it("switches the face under the rules, logs it, and an owner lock is final", async () => {
@@ -379,8 +366,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     for (let i = 0; i < 3; i++) await svc.setSound(dbA, A, { session_id, mood, final: true, note: `n${i}` } as never, tick(25_000));
     const h = await svc.inspect(dbA, A, { session_id, what: "history" }, clock);
-    expect(h.history).toHaveLength(4);
-    expect(h.history[3]).toMatch(/final .* · sent warm 0\.8 close 0\.7 joy 0\.6 calm 0\.75 spont 0\.3 · read warm [\d.]+ .* · "n2"$/);
+    expect(h.history).toHaveLength(3); // the start state is not a turn
+    expect(h.history[2]).toMatch(/final .* · sent warm 0\.8 close 0\.7 joy 0\.6 calm 0\.75 spont 0\.3 · read warm [\d.]+ .* · "n2"$/);
     await expect(svc.inspect(dbB, B, { session_id, what: "history" })).rejects.toMatchObject({ code: "unknown_session" });
   });
 

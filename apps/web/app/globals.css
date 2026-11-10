@@ -979,8 +979,8 @@ html:has(.pl-field) .se-header {
 .pl-react { min-height: 44px; width: 100%; padding: 0 12px; font-size: 14px; }
 .pl-react:disabled { opacity: 0.6; }
 .pl-fade { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
-.pl-fade select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; color-scheme: dark; }
-.pl-fade select option { background: #1b1f1c; color: #f2f2ee; }
+.pl-fade select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; }
+.pl-fade select option { background: var(--surface); color: var(--ink); }
 .pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); }
 .pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
 
@@ -1001,7 +1001,8 @@ html:has(.pl-field) .se-header {
 .lp-live { margin: 4px 4px 2px; color: var(--on-scrim-muted); }
 
 /* player: the face label and the owner's face control */
-.pl-face { margin-right: 8px; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
+.pl-face { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
+.pl-when { min-width: 0; }
 .pl-seg { display: flex; gap: 6px; }
 .pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
@@ -1009,6 +1010,16 @@ html:has(.pl-field) .se-header {
 /* a setting: its name and explanation on the left, the control on the right, centred on the whole text */
 .pl-setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 12px 0; }
 .pl-setting-name { display: block; margin-bottom: 4px; color: var(--on-scrim); font-weight: 500; }
-.pl-setting select { min-height: 44px; min-width: 96px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; color-scheme: dark; }
-.pl-setting select option { background: #1b1f1c; color: #f2f2ee; }
+.pl-setting select { min-height: 44px; min-width: 96px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; }
+/* the list opens in the page theme, not always dark */
+.pl-setting select option { background: var(--surface); color: var(--ink); }
 .pl-set > .pl-setting:first-of-type { padding-top: 14px; }
+
+/* landing: the live counter in its own box, with a slow teal to amber dot (0.25 Hz, far under 3 Hz; still when motion is reduced) */
+.lp-live-box { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 16px; border-radius: var(--radius); background: var(--scrim); border: 1px solid var(--scrim-line); color: var(--on-scrim); font-size: 16px; font-weight: 500; }
+.lp-live-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--tide); animation: lp-live 4s ease-in-out infinite alternate; }
+@keyframes lp-live { from { background: #2ec4b0; box-shadow: 0 0 0 0 rgba(46, 196, 176, 0.5); } to { background: #f0a23a; box-shadow: 0 0 0 6px rgba(240, 162, 58, 0); } }
+@media (prefers-reduced-motion: reduce) { .lp-live-dot { animation: none; background: #2ec4b0; } }
+/* small phones: the note fits on one line without the "Step by step" link, which the numbered steps below cover */
+@media (max-width: 420px) { .lp-stepby { display: none; } .lp-live-box { font-size: 15px; } }
+.se-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

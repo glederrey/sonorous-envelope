@@ -15,7 +15,6 @@ export function neutralState(): EngineState {
     fx: { delay: { time: 0.4, feedback: 0.3, mix: 0.2 }, reverb: { size: 0.7, mix: 0.25 } },
     pan: { width: 0.7 },
     volume: 0.5,
-    gesture: null,
     colour: { h: 30, s: 0.4, l: 0.3, motion: "drift", texture: "flat", pulseHz: 0 },
     transition: { time: 4, curve: "smooth" },
   };
