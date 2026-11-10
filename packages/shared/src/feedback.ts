@@ -41,7 +41,8 @@ export function buildFeedback(i: FeedbackInput) {
   const e = i.effective;
   const out: Record<string, unknown> = {
     turn: i.turn,
-    intent: { warmth: r2(i.intent.warmth), closeness: r2(i.intent.closeness), joy: r2(i.intent.joy), calm: r2(i.intent.calm), spontaneity: r2(i.intent.spontaneity) },
+    intent: { warmth: r2(i.intent.warmth), closeness: r2(i.intent.closeness), joy: r2(i.intent.joy), calm: r2(i.intent.calm), spontaneity: r2(i.intent.spontaneity),
+      ...(i.intent.tension === undefined ? {} : { tension: r2(i.intent.tension) }) },
     playing: playingOf(e),
   };
   if (i.clamps.length) out.clamped = i.clamps;

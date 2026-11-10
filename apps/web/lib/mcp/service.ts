@@ -104,11 +104,13 @@ function measureState(effective: EngineState, seed: number): Compact | null {
   }
 }
 
-/** The tempo does not glide: it changes when the new state starts. Say so when it changed. */
+/** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
 function tempoNote(prev: StateRow | null | undefined, now: EngineState): string | undefined {
   if (!prev) return undefined;
   const a = Math.round(prev.effective.arp.tempo), b = Math.round(now.arp.tempo);
-  return a === b ? undefined : `tempo ${a} to ${b}: it changes at once when this state starts, it does not glide`;
+  if (a === b) return undefined;
+  const t = now.transition, glides = t.curve !== "sudden" && t.time >= 0.5 && !(t.delay && t.delay > 0);
+  return glides ? `tempo ${a} to ${b}: it glides over ${Math.round(t.time * 10) / 10} s` : `tempo ${a} to ${b}: it changes at once when this state starts (the transition is sudden or very short)`;
 }
 
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */

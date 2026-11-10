@@ -5,10 +5,10 @@ import { Lfo } from "./lfo";
 import { midiToHz } from "./music";
 import { oscSample } from "./oscillator";
 import { mulberry32 } from "./prng";
-import type { EngineState, NoteEvent, Rate, Wave } from "./types";
+import { arpRamp, constantRamp, RATE_BEATS, type Ramp } from "./ramp";
+import type { EngineState, NoteEvent, Wave } from "./types";
 
 const BLOCK = 32;
-const RATE_BEATS: Record<Rate, number> = { "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, "1/16": 0.25 };
 
 /** The continuous parameters that glide between states. */
 interface P {
@@ -98,8 +98,8 @@ export class Engine {
 
   /** The step length of each layer for a state, in seconds. Follows the state's own tempo, with no glide, so that every
    *  device lands on the same grid. */
-  private stepSecondsOf(s: EngineState) {
-    return { arp: (60 / Math.max(20, s.arp.tempo)) * RATE_BEATS[s.arp.rate], bass: Math.max(0.2, s.bass.stepSeconds) };
+  private rampsOf(s: EngineState): { arp: Ramp; bass: Ramp } {
+    return { arp: arpRamp(s), bass: constantRamp(Math.max(0.2, s.bass.stepSeconds)) };
   }
 
   /** Re-align the step grids to the shared timeline: `elapsedSec` is the time since the current state was written, by the
@@ -107,7 +107,7 @@ export class Engine {
   syncGrid(elapsedSec: number) {
     const s = this.state;
     if (!s || this.pending) return; // a delayed state is waiting: the sound that plays now keeps its own grid
-    const g = s.grid ?? { arp: 0, bass: 0 }, d = this.stepSecondsOf(s);
+    const g = s.grid ?? { arp: 0, bass: 0 }, d = this.rampsOf(s);
     this.arp.sync(this.t, g.arp, elapsedSec, d.arp, 0.04); this.bass.sync(this.t, g.bass, elapsedSec, d.bass, 0.04);
   }
 
@@ -129,12 +129,13 @@ export class Engine {
       this.glideT = 0;
     }
     this.to = to;
+    const d0 = this.rampsOf(state);
     // the shared timeline: on the first state, and whenever the caller says how long ago the state was written, put the
     // step grids where the server's clock says they are; otherwise the grids just run on
-    if (first || elapsedSec !== undefined) {
-      const g = state.grid ?? { arp: 0, bass: 0 }, d = this.stepSecondsOf(state);
+    if (first || elapsedSec !== undefined || d0.arp.dur > 0) {
+      const g = state.grid ?? { arp: 0, bass: 0 }, d = this.rampsOf(state);
       this.arp.align(this.t, g.arp, elapsedSec ?? 0, d.arp); this.bass.align(this.t, g.bass, elapsedSec ?? 0, d.bass);
-    }
+    } else { this.arp.clearGlide(); this.bass.clearGlide(); } // the grids just run on at the new state's step length
     // drone: fade changed notes in and out over 3 s
     const want = new Map<number, Wave>();
     if (state.drone.on) for (const n of state.drone.notes) want.set(n, state.drone.wave);

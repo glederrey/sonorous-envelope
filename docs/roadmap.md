@@ -48,8 +48,17 @@ Last updated at v0.1.9 (2026-11-09, after the second outside test). Step numbers
 - [x] **Sound after dictation (first outside test).** (built; phone-tested 2026-11-10, dictation works well.) On a phone the sound nearly disappears while the user dictates. Probably the system ducking other audio when the mic opens. Add `statechange` and keep-alive `pause` handling that resumes without a tap, add the events to the `?debug=1` report, test `navigator.audioSession` on iOS, and document the fallback (player on another device). Spec: [mobile.md](mobile.md), "Dictation", and player-ui.md, "Mobile notes".
 - [x] **Calibration by ear** (below), after the above. (Done 2026-11-10: calibration sounds pretty good. A five-round guessing game with a model followed; its findings are in "Third outside test".)
 
+### Third outside test (2026-11-10)
+A model played five rounds of a chosen emotion and the user guessed (two near hits, two partials, one miss). Findings and what we did:
+- [x] **Valence tangled with brightness and mode.** A minor mood on a square wave with an open filter read joy 0.52 against 0.2. The estimator now reads joy from mode and consonance, with brightness and tempo only nudging it (analysis.md). No new valence axis: joy and calm already are valence and arousal.
+- [x] **Calm hard to push down.** Calm 0.12 sent read 0.48. The estimator now counts tempo and roughness and uses narrower density and loudness ranges: the most urgent mood reads about 0.3.
+- [x] **Fear, awe and anger overlap.** New optional `tension` control and `reads_as.tension` (mood-mapping.md, "Tension").
+- [x] **Tempo jumps.** The tempo now glides over the transition, with the shared timeline kept (engine.md, `ramp.ts`).
+- [x] **The note leaks the answer.** The server cannot hide tool-call arguments, and the mood numbers leak as much as the note. Done: the instructions say to leave `note` out in a guessing game, and the player has a switch that hides the "What the model set" panel. Not done, on purpose: a hidden channel for the note.
+- Honesty caveat: acting out an emotion tests how well the sound communicates, not the model's state. It is the argument for the outer mode (#16).
+
 ### 3. Owner controls and gestures (steps 5 and 6)
-- [ ] **Step 5, second half.** Owner panel to change limits, consent and colour limits; reaction buttons; the reaction log returned to the model.
+- [ ] **Step 5, second half.** Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
 - [ ] **Step 6. Gestures.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
 
 ### 4. Modes and richer output

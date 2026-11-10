@@ -7,7 +7,7 @@
 `analyze(effective: EngineState, seed: number) → Analysis` in `packages/analysis`. Called by `set_sound` after the state is stored.
 
 ## Render
-- `renderOffline(effective, { seconds: 8, sampleRate: 22050, seed })` in steady state (no glide: analyse the target, not the transition).
+- `renderOffline(effective, { seconds: 8, sampleRate: 22050, seed })` in steady state (the analysis ignores the tempo glide: it analyses the target, not the transition).
 - Mix to mono for spectral features; keep stereo for width.
 - The listener's local volume is not included (it isn't part of the state). Report its effect from the reactions instead.
 
