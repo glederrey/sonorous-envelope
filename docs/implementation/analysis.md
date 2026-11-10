@@ -7,7 +7,7 @@
 `analyze(effective: EngineState, seed: number) → Analysis` in `packages/analysis`. Called by `set_sound` after the state is stored.
 
 ## Render
-- `renderOffline(effective, { seconds: 8, sampleRate: 22050, seed })` in steady state (no glide: analyse the target, not the transition).
+- `renderOffline(effective, { seconds: 8, sampleRate: 22050, seed })` in steady state (the analysis ignores the tempo glide: it analyses the target, not the transition).
 - Mix to mono for spectral features; keep stereo for width.
 - The listener's local volume is not included (it isn't part of the state). Report its effect from the reactions instead.
 
@@ -35,9 +35,9 @@ Independent of the mapping: computed only from the audio features and note event
 
 All terms normalised to [0,1] with ranges calibrated on the reference moods, then clipped.
 
-- **joy** (≈ valence): `0.4·modeBrightness + 0.25·norm(centroid) + 0.15·norm(tempo) + 0.2·(1 − roughness)`.
+- **joy** (≈ valence): `0.5·modeBrightness + 0.1·norm(centroid) + 0.1·norm(tempo) + 0.3·(1 − roughness)`. Changed after the third outside test: brightness and tempo are arousal, so they only nudge joy; a minor mood on a square wave with an open filter had read 0.52 against 0.2 sent.
   `modeBrightness` from a pitch-class histogram of note events: correlate with Krumhansl–Kessler major and minor key profiles; `major − minor` correlation mapped to [0,1].
-- **calm** (≈ inverted arousal): `1 − (0.35·norm(density) + 0.25·norm(loudness) + 0.2·norm(flux) + 0.2·norm(centroid))`.
+- **calm** (≈ inverted arousal): `1 − (0.3·norm(density) + 0.2·norm(loudness) + 0.15·norm(flux) + 0.1·norm(centroid) + 0.15·norm(tempo) + 0.1·roughness)`, with the density range 1 to 8 and the loudness range -31 to -24 dB (closeness keeps the wide loudness range). Changed after the third outside test: calm 0.12 sent had read 0.48; it now reads about 0.3 for the most urgent mood. Correlations on 200 moods: warmth 0.72, closeness 0.42, joy 0.57, calm 0.91, spontaneity 0.54.
 - **warmth:** `1 − (0.45·norm(centroid) + 0.3·highFreqRatio + 0.25·roughness)`, with `highFreqRatio` = energy above 3 kHz / total.
 - **closeness:** `0.4·norm(loudness) + 0.35·(1 − reverbRatio) + 0.25·(1 − width)`, with `reverbRatio` estimated as energy in the decay tail after note offsets / energy during notes.
 - **spontaneity:** `0.5·norm(onsetIrregularity) + 0.3·patternEntropy + 0.2·norm(flux variance)`, with `patternEntropy` = normalised entropy of the interval sequence between successive notes.

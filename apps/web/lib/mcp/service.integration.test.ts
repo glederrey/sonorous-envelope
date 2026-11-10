@@ -261,13 +261,13 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((after.playing as { wave: string }).wave).toBe((kept.playing as { wave: string }).wave);
   });
 
-  it("says when the tempo changed (it steps), and keeps the last mood when none is sent", async () => {
+  it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const slow = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.95, spontaneity: 0.2 };
     const fast = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.05, spontaneity: 0.2 };
     const a = await svc.setSound(dbA, A, { session_id, mood: slow, final: true } as never, tick());
     const b = await svc.setSound(dbA, A, { session_id, mood: fast, final: true } as never, tick());
-    expect((b.notes as string[]).join(" ")).toMatch(/tempo \d+ to \d+: it changes at once/);
+    expect((b.notes as string[]).join(" ")).toMatch(/tempo \d+ to \d+: it glides over/);
     const c = await svc.setSound(dbA, A, { session_id, final: true, synth: { filter: { cutoff: 900 } } } as never, tick());
     expect(c.intent).toEqual(b.intent);
     expect((c.playing as { scale: string }).scale).toBe((b.playing as { scale: string }).scale);
@@ -289,7 +289,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
     expect(r.sound).toMatchObject({ brightness: expect.any(String), density: expect.any(String) });
-    expect(Object.keys(r.reads_as as object).sort()).toEqual(["calm", "closeness", "joy", "spontaneity", "warmth"]);
+    expect(Object.keys(r.reads_as as object).sort()).toEqual(["calm", "closeness", "joy", "spontaneity", "tension", "warmth"]);
     expect(sql(`select (analysis is not null) from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("t");
     const g = await svc.getFeedback(dbA, A, { session_id }, tick());
     expect(g.reads_as).toEqual(r.reads_as);

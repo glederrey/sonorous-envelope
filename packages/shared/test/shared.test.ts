@@ -384,6 +384,18 @@ describe("analysis", () => {
     const minor = JSON.parse(JSON.stringify(base)); minor.arp.scale = "minor";
     expect(analyze(base, 3).reads_as.joy).toBeGreaterThan(analyze(minor, 3).reads_as.joy);
   });
+  it("keeps valence and arousal apart (third test): a low joy on a bright square wave still reads low, an urgent mood reads urgent", () => {
+    const sad = state({ joy: 0.2, calm: 0.5 }); sad.osc.wave = "square"; sad.filter.cutoff = 5000;
+    expect(analyze(sad, 3).reads_as.joy).toBeLessThan(0.4);
+    expect(analyze(state({ joy: 0.5, calm: 0.12, spontaneity: 0.7 }), 3).reads_as.calm).toBeLessThan(0.35);
+  });
+  it("tension: absent or 0 leaves the sound as it was, and more of it is heard as more clash", () => {
+    const base = stretchMood(neutral);
+    expect(moodToEngineState({ ...base, tension: 0 }, base, 7)).toEqual(moodToEngineState(base, base, 7));
+    const low = analyze(moodToEngineState(stretchMood({ ...neutral, tension: 0 }), base, 7), 3).reads_as.tension;
+    const high = analyze(moodToEngineState(stretchMood({ ...neutral, tension: 0.9 }), base, 7), 3).reads_as.tension;
+    expect(high).toBeGreaterThan(low + 0.3);
+  });
   it("is deterministic and does not change the state it measures", () => {
     const s = state(); const copy = JSON.stringify(s);
     expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);
@@ -408,9 +420,18 @@ describe("the shared timeline", () => {
     const prev = { effective: a, created_at: new Date(10_000).toISOString() };
     const g = nextGrid(prev, 10_000 + 3_000); // 3 s later: 0.25 s steps and 2 s bass steps
     expect(g.arp).toBeCloseTo(12, 9); expect(g.bass).toBeCloseTo(1.5, 9);
-    const b = st(60, "1/4"); b.grid = g;
+    const b = st(60, "1/4"); b.grid = g; b.transition = { time: 0, curve: "sudden" };
     const g2 = nextGrid({ effective: b, created_at: new Date(13_000).toISOString() }, 13_000 + 2_000);
     expect(g2.arp).toBeCloseTo(14, 9); // 1 s steps now
+  });
+  it("counts the steps of a tempo glide in closed form, and a state written mid-glide starts from the tempo that played", () => {
+    const a = st(120); a.grid = { arp: 0, bass: 0 };
+    const b = st(60); b.transition = { time: 4, curve: "smooth" }; b.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000);
+    expect(b.grid.fromTempo).toBe(120);
+    // 4 steps/s going down to 2 steps/s over 4 s: after 2 s the rate is 3 and 7 steps have passed
+    expect(nextGrid({ effective: b, created_at: new Date(0).toISOString() }, 2_000).arp - b.grid.arp).toBeCloseTo(7, 6);
+    expect(nextGrid({ effective: b, created_at: new Date(0).toISOString() }, 2_000).fromTempo).toBeCloseTo(90, 6);
+    expect(nextGrid({ effective: b, created_at: new Date(0).toISOString() }, 6_000).arp - b.grid.arp).toBeCloseTo(12 + 4, 6); // 12 in the glide, then 2 s at 2/s
   });
   it("never goes backwards, and copes with states that have no grid", () => {
     const a = st(100);

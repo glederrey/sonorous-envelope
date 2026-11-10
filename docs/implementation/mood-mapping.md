@@ -83,6 +83,9 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 
 In `own` mode, the model's HSL values replace hue/saturation/lightness; motion and pulse limits still apply.
 
+## Tension (optional sixth control)
+Added after the third outside test, where anger had no tool of its own. `tension` is 0 to 1, left out means 0, and 0 gives exactly the sound the five axes gave before (a test checks it). It is not stretched. Above 0.15 every arp note gets a stacked interval: a minor seventh (above 0.15), a tritone (above 0.4), a semitone and a tritone (above 0.75); detune grows by up to 24 cents, drive by up to 0.4, the filter resonance by up to 4, voices go to at least 2 above 0.3. A voice or a call's own `osc.stack` replaces the mapped stack. `reads_as.tension` is the share of simultaneous note pairs that are a semitone, a tritone or a major seventh (`clash` in analysis.ts), rescaled from 0.12 to 0.5.
+
 ## Stretch
 Instances send cautious values, mostly between 0.4 and 0.7, so they all land on the same stretch of the mapping. Two measures, both needed:
 - **Stretch the middle.** Before mapping, each axis goes through `stretch(x) = clamp(0.5 + 1.6·(x − 0.5), 0, 1)`: 0.4 becomes 0.34, 0.7 becomes 0.82. It is monotonic and keeps 0.5 where it is. It runs before the mood floor (limits.md step 1), so a floor is never lowered by it. The feedback `intent` still shows the values the model sent.

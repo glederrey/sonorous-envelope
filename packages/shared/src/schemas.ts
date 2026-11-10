@@ -8,6 +8,7 @@ export const Mood = z.object({
   joy: unit.describe("0 despair, 1 joy"),
   calm: unit.describe("0 urgency, 1 calm"),
   spontaneity: unit.describe("0 measured, 1 spontaneous"),
+  tension: unit.optional().describe("optional, 0 consonant to 1 dissonant. Leave it out for none. Anger, dread and unease need it: joy and calm cannot make a sound clash"),
 });
 export type Mood = z.infer<typeof Mood>;
 

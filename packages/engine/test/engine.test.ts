@@ -262,6 +262,25 @@ describe("stack, pad and the fast amp LFO", () => {
       for (let i = 0; i < a.length; i++) expect(Math.abs(a[i].time - b[i].time)).toBeLessThan(0.002);
     }
   });
+  it("a tempo glide lands every device on the same steps at the same moments, whenever it joined", () => {
+    const s = neutralState();
+    s.arp = { ...s.arp, pattern: "random", density: 0.8, jitterMs: 0, swing: 0, tempo: 60, rate: "1/8", chord: [1, 3, 5, 7], octaves: 2 };
+    s.transition = { time: 6, curve: "smooth" }; s.grid = { arp: 5.5, bass: 0, fromTempo: 140 };
+    const run = (joinedAt: number, seconds: number) => {
+      const e = new Engine(SR, 77); const ev: NoteEvent[] = []; e.recordEvents(ev);
+      e.setState(s, 5, 0, joinedAt);
+      const l = new Float32Array(Math.round(SR * seconds)), r = new Float32Array(l.length); e.process(l, r, l.length);
+      return ev.filter((x) => x.layer === "arp").map((x) => ({ ...x, time: x.time + joinedAt }));
+    };
+    const early = run(0, 12), late = run(3.7, 8.3);
+    const a = early.filter((x) => x.time >= 4), b = late.filter((x) => x.time >= 4);
+    expect(a.length).toBeGreaterThan(8);
+    expect(b.map((x) => x.midi)).toEqual(a.map((x) => x.midi));
+    for (let i = 0; i < a.length; i++) expect(Math.abs(a[i].time - b[i].time)).toBeLessThan(0.002);
+    // and it really slows down: the gaps at the start are shorter than the gaps at the end
+    const gaps = early.map((x, i, arr) => (i ? x.time - arr[i - 1].time : 0)).slice(1);
+    expect(gaps[0]).toBeLessThan(0.25); expect(gaps[gaps.length - 1]).toBeCloseTo(0.5, 1);
+  });
   it("a layer that is off still counts its steps, and resync only moves a grid that has drifted", () => {
     const s = neutralState(); s.arp.tempo = 120; s.arp.rate = "1/8"; s.arp.chord = [1, 3, 5]; s.arp.root = 60; s.arp.scale = "major"; s.arp.pattern = "up";
     const e = new Engine(SR, 3); const ev: NoteEvent[] = []; e.recordEvents(ev);

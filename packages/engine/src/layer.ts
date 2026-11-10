@@ -1,6 +1,7 @@
 import { buildCycle, midiToHz } from "./music";
 import { mulberry32 } from "./prng";
 import { oscSample } from "./oscillator";
+import { rampCount, rampTime, type Ramp } from "./ramp";
 import type { NoteEvent, Pattern, ScaleName, Wave } from "./types";
 
 const MAX_VOICES = 16; // 6 notes in flight, each up to 4 voices with a stack
@@ -38,6 +39,8 @@ export class Layer {
   private step = 0; // the shared step counter: step k happens at the same moment on every device (see `align`)
   private nextStep = 0;
   private gridSeed = 1;
+  /** While the tempo glides, the time of every step comes from the ramp (closed form, so a late device agrees with an early one). */
+  private glide: { ramp: Ramp; k0: number; t0: number } | null = null;
   private p!: LayerParams;
 
   constructor(private sr: number, private rand: () => number, private name: "arp" | "bass",
@@ -55,20 +58,31 @@ export class Layer {
   }
 
   /** Put the step grid on the shared timeline. `gridK` is the (fractional) step count at the moment the state was written,
-   *  `elapsed` the seconds since then, `stepSeconds` the state's step length. The next step is the next whole number. */
-  align(t: number, gridK: number, elapsed: number, stepSeconds: number) {
-    const at = gridK + elapsed / stepSeconds;
+   *  `elapsed` the seconds since then, `ramp` the state's step rate over time. The next step is the next whole number. */
+  align(t: number, gridK: number, elapsed: number, ramp: Ramp) {
+    const at = gridK + rampCount(ramp, elapsed);
     const k = Math.ceil(at - 1e-9);
     this.step = k;
-    this.nextStep = t + (k - at) * stepSeconds * this.sr;
+    this.nextStep = t + (rampTime(ramp, k - gridK) - elapsed) * this.sr;
+    this.glide = ramp.dur > 0 ? { ramp, k0: gridK, t0: t - elapsed * this.sr } : null;
   }
   /** Periodic resync against the shared timeline (devices' audio clocks drift apart slowly): pull the grid back only when it
    *  is further off than `toleranceSeconds`, so small network jitter in the clock estimate does not make the beat wobble. */
-  sync(t: number, gridK: number, elapsed: number, stepSeconds: number, toleranceSeconds: number) {
-    const at = gridK + elapsed / stepSeconds;
+  sync(t: number, gridK: number, elapsed: number, ramp: Ramp, toleranceSeconds: number) {
+    const at = gridK + rampCount(ramp, elapsed);
     const k = Math.ceil(at - 1e-9);
-    const desired = t + (k - at) * stepSeconds * this.sr;
-    if (k !== this.step || Math.abs(desired - this.nextStep) > toleranceSeconds * this.sr) { this.step = k; this.nextStep = desired; }
+    const desired = t + (rampTime(ramp, k - gridK) - elapsed) * this.sr;
+    if (k !== this.step || Math.abs(desired - this.nextStep) > toleranceSeconds * this.sr) {
+      this.step = k; this.nextStep = desired;
+      this.glide = ramp.dur > 0 ? { ramp, k0: gridK, t0: t - elapsed * this.sr } : null;
+    }
+  }
+  clearGlide() { this.glide = null; }
+  /** The time of the step after this one: on the ramp while the tempo glides, else one step length on. */
+  private advance(): void {
+    const g = this.glide;
+    if (g) this.nextStep = g.t0 + rampTime(g.ramp, this.step - g.k0) * this.sr; // `step` is already the next step's number
+    else this.nextStep += this.p.stepSeconds * this.sr;
   }
   setEvents(e: NoteEvent[] | null) { this.events = e; }
 
@@ -119,7 +133,7 @@ export class Layer {
   /** A step with the layer off still counts, so the grid stays the shared one when the layer comes back. */
   private skipStep(t: number) {
     this.step++;
-    this.nextStep += this.p.stepSeconds * this.sr;
+    this.advance();
     if (this.nextStep < t) this.nextStep = t + this.p.stepSeconds * this.sr;
   }
 
@@ -127,7 +141,7 @@ export class Layer {
     const p = this.p, sr = this.sr;
     const stepS = p.stepSeconds * sr;
     const i = this.step++;
-    this.nextStep += stepS; // stays on the grid: a late or early call does not shift the following steps
+    this.advance(); // stays on the grid: a late or early call does not shift the following steps
     if (this.nextStep < t) this.nextStep = t + stepS; // after a long pause, do not play the missed steps in a burst
     const r = this.stepRng(i);
     if (r() > p.density) return;

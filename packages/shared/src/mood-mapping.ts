@@ -17,6 +17,7 @@ export const TUNING = {
 export const stretch = (x: number) => clamp(0.5 + 1.6 * (x - 0.5));
 export const stretchMood = (m: Mood): Mood => ({
   warmth: stretch(m.warmth), closeness: stretch(m.closeness), joy: stretch(m.joy), calm: stretch(m.calm), spontaneity: stretch(m.spontaneity),
+  ...(m.tension === undefined ? {} : { tension: m.tension }), // not stretched: it is an explicit control, 0 means none
 });
 
 /** The per-session seed behind the fallback voice and the `as_played` order: fixed for the session id. */
@@ -132,6 +133,7 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
  *  `voiceSeed` (from the session id) gives the instance a character when it chose no voice; without it the mapping is purely the axes. */
 export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): EngineState {
   const { warmth: w, closeness: c, joy: j, calm: k, spontaneity: s } = m;
+  const tn = clamp(m.tension ?? 0);
   const base = neutralState();
 
   // harmony
@@ -178,8 +180,12 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
       density: clamp(lerp(1, 0.6, s) * lerp(0.75, 1, 1 - k), 0.35, 1),
       jitterMs: Math.min(30, lerp(0, 25, s) + 5 * (1 - j) * k),
     },
-    osc: { wave, voices: w > 0.5 ? 2 : 1, detune: lerp(2, 14, w) + 10 * drive, drive, stack: [] },
-    filter: { type: "lowpass", cutoff, resonance: lerp(0.7, 6, (1 - w) * (1 - k)) },
+    // tension (optional, 0 = none = the sound without it): clashing intervals on every note, a wider detune, some grit
+    osc: {
+      wave, voices: tn > 0.3 ? Math.max(2, w > 0.5 ? 2 : 1) : w > 0.5 ? 2 : 1, detune: Math.min(50, lerp(2, 14, w) + 10 * drive + 24 * tn),
+      drive: Math.min(1, drive + 0.4 * tn), stack: tn > 0.75 ? [1, 6] : tn > 0.4 ? [6] : tn > 0.15 ? [10] : [],
+    },
+    filter: { type: "lowpass", cutoff, resonance: Math.min(20, lerp(0.7, 6, (1 - w) * (1 - k)) + 4 * tn) },
     lfo,
     env: {
       attack: lerp(0.005, 0.3, k * (0.6 + 0.4 * w)),

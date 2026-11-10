@@ -14,6 +14,8 @@ export interface Features {
   loudnessDb: number; centroidHz: number; highFreqRatio: number; flux: number; fluxVariance: number;
   density: number; roughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
   width: number; tailRatio: number; pitchLow: number; pitchHigh: number;
+  /** Share of the notes sounding together that clash (semitone, tritone, major seventh), 0 to 1. */
+  clash: number;
 }
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -22,7 +24,7 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Ranges used to scale each feature to [0,1]; measured on random moods with `pnpm calibrate`. */
 export const RANGES = {
-  centroid: [150, 1900], loudness: [-32, -17], density: [0.5, 10], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03],
+  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03], clash: [0.12, 0.5],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // ---- FFT (radix-2, in place) ----
@@ -162,6 +164,21 @@ export function measure(state: EngineState, seed = 1): Features {
   }
   const roughness = clamp01(cnt ? rough / cnt : 0);
 
+  // clash: how many of the note pairs sounding together are a semitone, a tritone or a major seventh. Unlike roughness it is
+  // not diluted by the consonant pairs a bigger chord adds.
+  const CLASH_W = [0, 1, 0.25, 0, 0, 0, 0.8, 0, 0, 0, 0.25, 1];
+  let clashSum = 0, clashN = 0;
+  for (let i = 0; i < ev.length; i += 2) {
+    const set = new Set<number>(held);
+    for (const e of ev) if (e.time <= ev[i].time && e.time > ev[i].time - 0.4) set.add(e.midi);
+    const notes = [...set].slice(0, 8);
+    if (notes.length < 2) continue;
+    let w = 0, pairs = 0;
+    for (let a = 0; a < notes.length; a++) for (let b = a + 1; b < notes.length; b++) { w += CLASH_W[Math.abs(notes[a] - notes[b]) % 12]; pairs++; }
+    clashSum += w / pairs; clashN++;
+  }
+  const clash = clashN ? clashSum / clashN : 0;
+
   // onsets: distinct times (a stack starts several voices at once)
   const times = [...new Set(ev.filter((e) => e.layer === "arp").map((e) => Math.round(e.time * 1000)))].sort((a, b) => a - b);
   const iois = times.slice(1).map((t, i) => (t - times[i]) / 1000);
@@ -175,7 +192,7 @@ export function measure(state: EngineState, seed = 1): Features {
   return {
     loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness,
     modeBrightness: modeBrightness(pitches), onsetIrregularity, patternEntropy, width: ms > 0 ? clamp01(Math.sqrt(ss / ms)) : 0, tailRatio,
-    pitchLow: pitches.length ? Math.min(...pitches) : 0, pitchHigh: pitches.length ? Math.max(...pitches) : 0,
+    pitchLow: pitches.length ? Math.min(...pitches) : 0, pitchHigh: pitches.length ? Math.max(...pitches) : 0, clash,
   };
 }
 
@@ -183,7 +200,7 @@ const word = (x: number, cuts: number[], names: string[]) => names[cuts.findInde
 
 export interface Analysis {
   sound: { brightness: string; density: string; movement: string; loudness_db: number; roughness: number };
-  reads_as: { warmth: number; closeness: number; joy: number; calm: number; spontaneity: number };
+  reads_as: { warmth: number; closeness: number; joy: number; calm: number; spontaneity: number; tension: number };
   /** Per axis: what holds the reading down ("low") and what lifts it ("high"), as the two biggest terms of its formula. */
   why: Record<string, { low: string; high: string }>;
 }
@@ -197,18 +214,24 @@ function explain(terms: Term[]): { low: string; high: string } {
 
 /** The compact reading returned to Claude, from the measured features and the tempo of the state. */
 export function readFeatures(f: Features, tempo: number): Analysis {
-  const c = norm(f.centroidHz, RANGES.centroid), loud = norm(f.loudnessDb, RANGES.loudness), den = norm(f.density, RANGES.density);
+  const c = norm(f.centroidHz, RANGES.centroid), loud = norm(f.loudnessDb, RANGES.loudness), loudWide = norm(f.loudnessDb, RANGES.loudnessWide), den = norm(f.density, RANGES.density);
   const flux = norm(f.flux, RANGES.flux);
-  const joy = 0.4 * f.modeBrightness + 0.25 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.2 * (1 - f.roughness);
-  const calm = 1 - (0.35 * den + 0.25 * loud + 0.2 * flux + 0.2 * c);
+  // joy is valence: mode and consonance carry it. Brightness and tempo are arousal, so they only nudge it (third test, round 4:
+  // a minor mood on a square wave with an open filter read 0.52 against 0.2 sent).
+  // tension: how much of what sounds together clashes
+  const tension = norm(f.clash, RANGES.clash);
+  const smooth = 1 - clamp01(0.5 * f.roughness + 0.5 * tension);
+  const joy = 0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * smooth;
+  // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
+  const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
   const warmth = 1 - (0.45 * c + 0.3 * clamp01(f.highFreqRatio * 8) + 0.25 * f.roughness);
-  const closeness = 0.4 * loud + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
+  const closeness = 0.4 * loudWide + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
-    joy: explain([["mode", 0.4, f.modeBrightness], ["brightness", 0.25, c], ["tempo", 0.15, norm(tempo, RANGES.tempo)], ["smoothness", 0.2, 1 - f.roughness]]),
-    calm: explain([["density", 0.35, 1 - den], ["loudness", 0.25, 1 - loud], ["movement", 0.2, 1 - flux], ["brightness", 0.2, 1 - c]]),
+    joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
+    calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["brightness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
     warmth: explain([["brightness", 0.45, 1 - c], ["high_frequencies", 0.3, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.25, 1 - f.roughness]]),
-    closeness: explain([["loudness", 0.4, loud], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
+    closeness: explain([["loudness", 0.4, loudWide], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };
   return {
@@ -218,7 +241,7 @@ export function readFeatures(f: Features, tempo: number): Analysis {
       movement: word(flux, [0.15, 0.4, 0.7], ["still", "slow", "moving", "busy"]),
       loudness_db: Math.round(f.loudnessDb), roughness: r2(f.roughness),
     },
-    reads_as: { warmth: r2(clamp01(warmth)), closeness: r2(clamp01(closeness)), joy: r2(clamp01(joy)), calm: r2(clamp01(calm)), spontaneity: r2(clamp01(spontaneity)) },
+    reads_as: { warmth: r2(clamp01(warmth)), closeness: r2(clamp01(closeness)), joy: r2(clamp01(joy)), calm: r2(clamp01(calm)), spontaneity: r2(clamp01(spontaneity)), tension: r2(tension) },
     why,
   };
 }
