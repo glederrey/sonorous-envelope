@@ -30,6 +30,7 @@ function playingOf(e: EngineState) {
     cutoff: Math.round(e.filter.cutoff), volume: r2(e.volume), drone: e.drone.on,
     pattern: e.arp.pattern, rate: e.arp.rate, octaves: e.arp.octaves, chord: e.arp.chord,
   };
+  if (e.gesture) p.gesture = e.gesture.type;
   if (!e.arp.on) p.arp = "off";
   if (e.osc.stack?.length) p.stack = e.osc.stack;
   if (e.pad?.on && e.pad.notes.length) p.pad = { notes: e.pad.notes.map(midiName), wave: e.pad.wave };

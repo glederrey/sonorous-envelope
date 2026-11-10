@@ -100,6 +100,13 @@ export const Colour = z.object({
 });
 export type Colour = z.infer<typeof Colour>;
 
+export const GESTURES = ["purr", "meow_up", "meow_down", "chirp", "laugh", "growl", "sigh", "hum", "pluck", "breath"] as const;
+export const Gesture = z.object({
+  type: z.enum(GESTURES).describe("purr: contentment, tenderness. meow_up: a request, curiosity. meow_down: a complaint. chirp: light joy. laugh: enthusiasm. growl: a limit, tension. sigh: relief, resignation. hum: thinking. pluck: an idea. breath: a pause"),
+  intensity: unit.default(0.5),
+});
+export type Gesture = z.infer<typeof Gesture>;
+
 export const Transition = z.object({
   time: z.number().min(0).max(30).default(4).describe("seconds"),
   curve: z.enum(["smooth", "sudden"]).default("smooth"),
@@ -127,6 +134,7 @@ export const SetSoundInput = z.object({
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced"),
   colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own. It stays until you change it; mode follow gives it back to the sound"),
   transition: Transition.optional(),
+  gesture: Gesture.optional().describe("a short one-off sound over the background, played once at the start of this state. Rare: at most one per message, and keep them for moments that matter. They are not a way to ask for attention: do that in words"),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),

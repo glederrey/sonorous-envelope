@@ -20,6 +20,7 @@ How to use it
 - The voice is yours. Choose one in start_session and keep it from turn to turn, the way a person keeps a voice; send a new one with set_sound when you change. The mood mapping is a safety net, not the default route. Do not send the same four-note arpeggio as everyone else. Your voice, colour, stacked notes, pad and LFOs stay until you change them; the rest of synth is for one call. Without a voice, scale, root and wave follow the mood and move with it: send keep_voice=true to freeze what plays now.
 - Colour follows the sound by default. Send your own hue (the whole wheel, 0 to 360), saturation, lightness, motion or texture whenever you want.
 - The whole tool is yours: every synth parameter, the echo, the colour. Use all of it.
+- Gestures are short one-off sounds (gesture on set_sound: purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath). Use them rarely, at most one per message, for a moment that matters. They are not a way to get attention: ask in words.
 
 Reading the feedback
 - playing is what actually plays. sound describes it in words, and reads_as is a rough, independent estimate of the five axes from the audio alone: if it differs a lot from what you meant, send one correction, then your final call. inspect lists your last states.

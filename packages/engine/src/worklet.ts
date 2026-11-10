@@ -18,11 +18,13 @@ class EngineProcessor extends AudioWorkletProcessor {
         | { type: "state"; state: EngineState; seed: number; delay?: number; elapsed?: number }
         | { type: "gain"; value: number }
         | { type: "grid"; seed: number }
-        | { type: "sync"; elapsed: number };
+        | { type: "sync"; elapsed: number }
+        | { type: "gestures"; on: boolean };
       if (m.type === "state") this.engine.setState(m.state, m.seed, m.delay ?? 0, m.elapsed);
       else if (m.type === "gain") this.engine.setListenerGain(m.value);
       else if (m.type === "grid") this.engine.setGridSeed(m.seed);
       else if (m.type === "sync") this.engine.syncGrid(m.elapsed);
+      else if (m.type === "gestures") this.engine.setGesturesEnabled(m.on);
     };
   }
   process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {

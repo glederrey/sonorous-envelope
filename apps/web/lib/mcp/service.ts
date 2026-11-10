@@ -20,6 +20,8 @@ export class ToolError extends Error {
 }
 
 const MAX_ACTIVE_SESSIONS = 10;
+/** A gesture needs a gap after the previous one, so they stay rare (limits.md). */
+const GESTURE_GAP_MS = 20_000;
 const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
@@ -95,6 +97,15 @@ async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: numb
     .order("created_at", { ascending: false }).limit(50);
   if (error) return [];
   return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
+}
+
+/** When the last gesture started in this session, or null. Looks at the last few states only. */
+async function lastGestureAt(db: Db, sessionId: string): Promise<number | null> {
+  const { data, error } = await db.from("states").select("effective,created_at").eq("session_id", sessionId)
+    .order("created_at", { ascending: false }).limit(6);
+  if (error) return null;
+  for (const r of (data ?? []) as Array<{ effective: EngineState; created_at: string }>) if (r.effective?.gesture) return new Date(r.created_at).getTime();
+  return null;
 }
 
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
@@ -246,6 +257,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     mapped: overridden, transition,
   });
   const allClamps = mergeClamps(clamps);
+  // a gesture plays once with this state (its id makes every device play it exactly once); too soon after the last one, it is dropped
+  let gestureNote: string | undefined;
+  if (input.gesture) {
+    const lastAt = await lastGestureAt(db, session.id);
+    if (lastAt !== null && now - lastAt < GESTURE_GAP_MS) gestureNote = `gesture skipped: the last one was ${Math.round((now - lastAt) / 1000)} s ago, keep them 20 s apart`;
+    else effective.gesture = { type: input.gesture.type, intensity: input.gesture.intensity, id: randomBytes(4).toString("hex") };
+  }
   effective.grid = nextGrid(prev, now); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
@@ -268,7 +286,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", gestureNote, tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions });

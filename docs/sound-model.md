@@ -108,7 +108,7 @@ Short sounds played once over the background, like R2-D2's chirps. They follow t
 
 Each gesture has an `intensity` (0–1). The server instructions should keep gestures rare, so they do not turn into a cartoon: they mean more when they are infrequent.
 
-**No disguised appeal.** The purr never contains a hidden high component. A cat that wants food slips a cry near 380 Hz into its purr, and listeners find that purr more urgent and less pleasant. If the model wants attention, it uses a meow, audible as such. The recipes are in [engine.md](implementation/engine.md).
+**No disguised appeal.** The purr never contains a hidden high component. A cat that wants food slips a cry near 380 Hz into its purr, and listeners find that purr more urgent and less pleasant. If the model wants attention, it asks in words: a meow is a request or curiosity inside the music, not a way to call the listener (decided 2026-11-10, in line with safety.md). The recipes are in [engine.md](implementation/engine.md).
 
 ## Transition
 

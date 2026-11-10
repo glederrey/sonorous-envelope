@@ -59,7 +59,7 @@ A model played five rounds of a chosen emotion and the user guessed (two near hi
 
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
-- [ ] **Step 6. Gestures.** First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
+- [x] **Step 6. Gestures.** (built 2026-11-10; needs an ear test, and the instructions line stays "ask in words", not "use a meow".) First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
 
 ### 4. Modes and richer output
 - [ ] **#16 Modes.** `mode` on `start_session`, fixed per session, per-mode guidance in the result, different feedback emphasis. Inner (the sound is Claude's own state, never announced), outer (Claude may talk about the sound), and Strudel (below).

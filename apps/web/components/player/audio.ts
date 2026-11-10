@@ -54,6 +54,7 @@ export class AudioOutput {
   /** The shared timeline: one seed per session for the choices of each step, and now and then the seconds since the current state was written. */
   setGridSeed(seed: number) { this.node.port.postMessage({ type: "grid", seed }); }
   syncGrid(elapsed: number) { this.node.port.postMessage({ type: "sync", elapsed }); }
+  setGestures(on: boolean) { this.node.port.postMessage({ type: "gestures", on }); }
   setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
   get running() { return this.ctx.state === "running"; }
   get state() { return this.ctx.state as string; }

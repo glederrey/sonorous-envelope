@@ -21,7 +21,7 @@ const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
 
 function stored(id: string) {
-  const fallback = { muted: false, volume: 0.8 };
+  const fallback = { muted: false, volume: 0.8, gestures: true };
   try {
     const raw = localStorage.getItem(`se:player:${id}`);
     return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
@@ -54,6 +54,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [starting, setStarting] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
+  const [gestures, setGestures] = useState(true); // short one-off sounds from the model; this device only
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [audioState, setAudioState] = useState<string>("running");
@@ -77,7 +78,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // restore the listener's own settings once, on the client
   useEffect(() => {
     const s = stored(sessionId);
-    setMuted(Boolean(s.muted)); setVolume(Number(s.volume));
+    setMuted(Boolean(s.muted)); setVolume(Number(s.volume)); setGestures(s.gestures !== false);
   }, [sessionId]);
 
   const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
@@ -272,8 +273,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // listener controls go to the engine and are remembered
   useEffect(() => {
     audio.current?.setGain(muted ? 0 : sliderToGain(volume));
-    remember(sessionId, { muted, volume });
-  }, [muted, volume, sessionId, started]);
+    remember(sessionId, { muted, volume, gestures });
+    audio.current?.setGestures(gestures);
+  }, [muted, volume, gestures, sessionId, started]);
 
   useEffect(() => {
     const q = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -452,6 +454,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 <input type="range" min={0} max={1} step={0.01} value={volume} style={{ "--fill": `${volume * 100}%` } as CSSProperties}
                   onChange={(e) => setVolume(Number(e.target.value))} />
                 <output>{Math.round(volume * 100)}</output>
+              </label>
+              <label className="pl-switch se-sm">
+                <input type="checkbox" checked={gestures} onChange={(e) => setGestures(e.target.checked)} />
+                <span>Short sounds from the model (purr, chirp, sigh…)</span>
               </label>
               <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>

@@ -952,3 +952,5 @@ html:has(.pl-field) .se-header {
 .pl-react:disabled { opacity: 0.6; }
 .pl-fade { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 .pl-fade select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; }
+.pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); }
+.pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
