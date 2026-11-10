@@ -295,6 +295,19 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((after.playing as { wave: string }).wave).toBe((kept.playing as { wave: string }).wave);
   });
 
+  it("holds a big jump in level to a few dB per call, and says so", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
+    const first = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+    const db0 = (first.sound as { loudness_db: number }).loudness_db;
+    const loud = await svc.setSound(dbA, A, { session_id, mood: { warmth: 0.3, closeness: 0.6, joy: 0.3, calm: 0.05, spontaneity: 0.9 }, tension: 0.9, final: true } as never, tick(25_000));
+    const db1 = (loud.sound as { loudness_db: number }).loudness_db;
+    expect(db1 - db0).toBeLessThanOrEqual(5); // 4 dB step, the reading is rounded
+    expect((loud.notes as string[]).join(" ")).toMatch(/level held/);
+    const calmer = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+    expect((calmer.notes as string[]).join(" ")).not.toMatch(/level held/); // going down is never held
+  });
+
   it("tells the model what the owner pressed, once, and get_feedback only looks", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'more_of_this', now())`);

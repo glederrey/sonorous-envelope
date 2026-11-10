@@ -1027,3 +1027,9 @@ html:has(.pl-field) .se-header {
 /* small phones: the note fits on one line without the "Step by step" link, which the numbered steps below cover */
 @media (max-width: 420px) { .lp-stepby { display: none; } .lp-live-box { font-size: 15px; margin-top: -14px; padding: 10px 14px; gap: 10px; } }
 .se-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* session list actions: one line on a phone (Open player, Copy link, End session), wrapping only on very narrow screens */
+.ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ss-actions form { display: contents; }
+@media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn { padding: 0 12px; font-size: 14px; } }
+@media (max-width: 400px) { .ss-actions .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }

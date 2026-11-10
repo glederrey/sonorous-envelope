@@ -29,7 +29,7 @@ export interface FeedbackInput {
 function playingOf(e: EngineState) {
   const p: Record<string, unknown> = {
     scale: scaleLabel(e.arp.root, e.arp.scale), tempo: Math.round(e.arp.tempo), wave: e.osc.wave,
-    cutoff: Math.round(e.filter.cutoff), volume: r2(e.volume), drone: e.drone.on,
+    cutoff: Math.round(e.filter.cutoff), resonance: r2(e.filter.resonance), detune: Math.round(e.osc.detune), volume: r2(e.volume), drone: e.drone.on,
     pattern: e.arp.pattern, rate: e.arp.rate, octaves: e.arp.octaves, chord: e.arp.chord,
   };
   if (!e.arp.on) p.arp = "off";
