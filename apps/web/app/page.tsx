@@ -4,6 +4,7 @@ import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
 import { SamplePlayer } from "../components/sample-player";
 import { mcpResourceUrl } from "../lib/env";
+import { getLiveCount, liveSentence } from "../lib/live-count";
 
 export const dynamic = "force-dynamic";
 export const metadata = { alternates: { canonical: "/" } };
@@ -42,7 +43,8 @@ function Letters({ text, className }: { text: string; className: string }) {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const live = await getLiveCount();
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -66,6 +68,7 @@ export default function Home() {
             <p className="se-sm lp-connect-note">
               Settings → Customize → Connectors → Add. <a href="#add">Step by step</a>
             </p>
+            {live && <p className="se-sm lp-live" role="status">{liveSentence(live)}</p>}
           </div>
           </div>
           <Envelope className="lp-envelope" />

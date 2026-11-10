@@ -52,3 +52,6 @@ The service role key is not needed for normal operation. Use it only for mainten
 
 ## Testing the database
 `scripts/test-db.sh` applies all migrations to a throwaway Postgres container (with a small stand-in for Supabase's `auth` schema) and runs `supabase/tests/rls.sql`: a stranger sees nothing, an anonymous listener can join and read but not write states or create sessions, ended sessions cannot be joined. It needs Docker.
+
+## Public live counter (migration 0007)
+`live_counts()` returns `{sessions, listeners}`: the number of non-ended sessions with at least one player that sent a heartbeat in the last 60 s while `playing` or `muted`, and the number of such players (a device is one listener, and the owner's own tab counts). `not_started` tabs do not count. It is `security definer`, executable by `anon`, and returns two integers only (no ids), so the landing page can show "N sessions live with X humans listening". The page caches the result 20 s per server instance (`apps/web/lib/live-count.ts`) and shows nothing if the call fails.

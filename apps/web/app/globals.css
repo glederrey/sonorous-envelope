@@ -990,3 +990,6 @@ html:has(.pl-field) .se-header {
 .lp-sample-state { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 76px; min-height: 36px; padding: 0 12px;
   border: 1px solid var(--line, color-mix(in srgb, currentColor 28%, transparent)); border-radius: 999px; font-weight: 500; }
 .lp-sample[aria-pressed="true"] .lp-sample-state { border-color: var(--tide); }
+
+/* landing: live counter (aggregate numbers, see live_counts) */
+.lp-live { margin: 4px 4px 2px; color: var(--on-scrim-muted); }
