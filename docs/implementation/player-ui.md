@@ -135,3 +135,6 @@ Implementation notes (shipped): the player takes the clock offset from the `now`
 
 ### The face
 Every listener sees a small "Internal" or "External" label in the status bar (with "· locked" when the owner locked it). The owner also sees a three-way control, Auto, Internal, External, which calls `set_mode_policy`: Auto lets the model switch (under the rules in `mcp-tools.md`), the others lock the face. The player reads the face from `get_player_state` and refreshes on the session broadcast.
+
+### Settings block (owner)
+A collapsed "Settings" in the owner panel holds "Little sounds from the model" (Default, On, Off: the session setting `gestures`, heard by everyone, replacing the old per-device checkbox) and, on the internal face only, "Fade to silence after".

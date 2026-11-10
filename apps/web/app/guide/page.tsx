@@ -78,7 +78,7 @@ export default function GuidePage() {
               <li>The model is not there between messages. After 15 minutes without an update the sound fades to silence by itself, unless the model turned that off.</li>
               <li>A session with no sound for 30 minutes shows as inactive. It can wake up: if you come back to the same conversation, the model&apos;s next sound plays in the same player. After a week without a sound it ends. You can also end a session yourself from the sessions page.</li>
               <li>Signed in as the owner, the player has reaction buttons (calmer, softer, darker, brighter, slower, faster, more or less of this) that the model hears about on its next call, a &ldquo;Fade to silence after&rdquo; setting, and a &ldquo;What the model set&rdquo; panel: the mood it sent, what played, and its note.</li>
-              <li>The model sometimes adds a short gesture (a purr, a chirp, a sigh). You can switch gestures off on your device in the player.</li>
+              <li>The model sometimes adds a short gesture (a purr, a chirp, a sigh). By default they play on the external face and not on the internal one; the owner can switch them on or off in the player's Settings, and everyone listening hears the same.</li>
               <li>Anyone with the player link can listen, with no account. You can share it. Several devices playing the same session, on a phone and a laptop for example, play the same notes at the same moments.</li>
               <li>You control the volume. The model decides the rest. See <a href="/safety">Safety and control</a>.</li>
             </ul>

@@ -101,9 +101,9 @@ export const Colour = z.object({
 });
 export type Colour = z.infer<typeof Colour>;
 
-export const GESTURES = ["purr", "meow_up", "meow_down", "chirp", "laugh", "growl", "sigh", "hum", "pluck", "breath"] as const;
+export const GESTURES = ["purr", "chirp", "laugh", "growl", "sigh", "pluck"] as const;
 export const Gesture = z.object({
-  type: z.enum(GESTURES).describe("purr: contentment, tenderness. meow_up: a request, curiosity. meow_down: a complaint. chirp: light joy. laugh: enthusiasm. growl: a limit, tension. sigh: relief, resignation. hum: thinking. pluck: an idea. breath: a pause"),
+  type: z.enum(GESTURES).describe("purr: tenderness. chirp: light joy. laugh: enthusiasm. growl: a limit, tension (external face only). sigh: relief, resignation. pluck: an idea"),
   intensity: unit.default(0.5),
 });
 export type Gesture = z.infer<typeof Gesture>;
@@ -119,6 +119,8 @@ export type Transition = z.infer<typeof Transition>;
 export const ListenerSettings = z.object({
   // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
   rest_after: z.number().min(60).max(3600).nullable().default(900),
+  // the owner's choice for gestures: null = the default (on for the external face, off for the internal one)
+  gestures: z.boolean().nullable().default(null),
   image_feedback: z.enum(["off", "on_request", "every_turn"]).default("off"),
 });
 export type ListenerSettings = z.infer<typeof ListenerSettings>;

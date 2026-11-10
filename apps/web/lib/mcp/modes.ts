@@ -52,3 +52,20 @@ export function decideSwitch(i: SwitchInput): SwitchResult {
 export function faceLine(face: Face, policy: Policy): string {
   return policy === "auto" ? face : `${face}, locked by the owner`;
 }
+
+/** The owner's gesture setting: null is the default, on for the external face and off for the internal one. */
+export function gesturesOn(setting: boolean | null | undefined, face: Face): boolean {
+  return setting ?? face === "external";
+}
+
+/** Gestures on the internal face stay soft, and the growl is not played there at all: it would startle someone who never asked for sound. */
+export const INTERNAL_GESTURE_CAP = 0.5;
+export type GestureCheck = { play: boolean; intensity: number; note?: string; clamp?: string };
+export function checkGesture(g: { type: string; intensity: number }, face: Face, setting: boolean | null | undefined): GestureCheck {
+  if (!gesturesOn(setting, face)) {
+    return { play: false, intensity: g.intensity, note: setting === false ? "gesture skipped: the owner turned gestures off" : "gesture skipped: gestures are off on the internal face unless the owner turns them on" };
+  }
+  if (face === "internal" && g.type === "growl") return { play: false, intensity: g.intensity, note: "gesture skipped: no growl on the internal face, say it in words if you must" };
+  if (face === "internal" && g.intensity > INTERNAL_GESTURE_CAP) return { play: true, intensity: INTERNAL_GESTURE_CAP, clamp: `gesture intensity ${g.intensity} capped to ${INTERNAL_GESTURE_CAP} on the internal face` };
+  return { play: true, intensity: g.intensity };
+}

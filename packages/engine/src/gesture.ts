@@ -15,16 +15,15 @@ const ramp = (t: number, a: number, b: number) => Math.min(1, Math.max(0, (t - a
 export function gestureLength(type: GestureType, intensity: number): number {
   switch (type) {
     case "purr": return lerp(0.8, 1.6, intensity);
-    case "meow_up": return 0.7; case "meow_down": return 0.8;
-    case "chirp": return 0.5; case "laugh": return 1.3;
+    case "chirp": return 0.5; case "laugh": return 1.5;
     case "growl": return lerp(0.8, 1.5, intensity);
-    case "sigh": return 1.6; case "hum": return lerp(1, 1.5, intensity);
-    case "pluck": return 1.1; case "breath": return 1.6;
+    case "sigh": return 1.6;
+    case "pluck": return 1.1;
   }
 }
 
 /** Per-gesture trim so that every gesture peaks below -3 dBFS at full intensity (test). */
-const TRIM: Record<GestureType, number> = { purr: 0.8, meow_up: 0.6, meow_down: 0.6, chirp: 0.75, laugh: 0.9, growl: 0.4, sigh: 0.55, hum: 0.9, pluck: 0.8, breath: 0.4 };
+const TRIM: Record<GestureType, number> = { purr: 0.8, chirp: 0.75, laugh: 0.96, growl: 0.49, sigh: 0.7, pluck: 0.95 };
 
 export class GestureVoice {
   private type: GestureType | null = null;
@@ -46,13 +45,14 @@ export class GestureVoice {
     const len = gestureLength(type, intensity);
     if (elapsed >= len) { this.type = null; return; }
     this.type = type; this.len = len; this.t = Math.max(0, elapsed);
-    this.level = 0.15 + 0.65 * Math.min(1, Math.max(0, intensity));
+    this.level = 0.35 + 0.45 * Math.min(1, Math.max(0, intensity)); // 0.5 is clearly audible; the ceiling is as before
     this.root = rootMidi; this.ph = [this.rand(), this.rand(), this.rand()];
     this.rate = lerp(22, 28, this.rand()); this.wobble = 0; this.noiseLp = 0; this.nextFilter = 0;
     this.blips = type === "chirp" ? 2 + Math.floor(this.rand() * 2) : 0;
-    this.bursts = type === "laugh" ? 4 + Math.floor(this.rand() * 5) : 0;
-    this.lp1.set("lowpass", type === "purr" ? 300 : 700, 0.7, this.sr);
-    this.lp2.set("lowpass", type === "purr" ? 300 : 700, 0.7, this.sr);
+    this.bursts = type === "laugh" ? 5 + Math.floor(this.rand() * 5) : 0;
+    const cut = type === "purr" ? 300 : type === "growl" ? 1000 : 700;
+    this.lp1.set("lowpass", cut, 0.7, this.sr);
+    this.lp2.set("lowpass", cut, 0.7, this.sr);
     if (type === "pluck") {
       const f = midiToHz(rootMidi + 24); this.ksLen = Math.max(2, Math.min(this.ks.length - 1, Math.round(this.sr / f)));
       for (let i = 0; i < this.ksLen; i++) this.ks[i] = this.rand() * 2 - 1;
@@ -80,18 +80,6 @@ export class GestureVoice {
         y = env * (Math.sin(TAU * this.ph[0]) * pulse * 0.9 + n * pulse * 0.5);
         break;
       }
-      case "meow_up":
-      case "meow_down": {
-        const from = type === "meow_up" ? 12 : 19, to = type === "meow_up" ? 19 : 9, g = ramp(t, 0, type === "meow_up" ? 0.5 : 0.6);
-        const f = midiToHz(root + lerp(from, to, g)) * (1 + 0.012 * Math.sin(TAU * 6 * t));
-        this.ph[0] += f * dt; if (this.ph[0] >= 1) this.ph[0] -= 1;
-        if (t >= this.nextFilter) { this.bp.set("bandpass", lerp(900, 1600, g), 2.5, this.sr); this.nextFilter = t + 0.01; }
-        let s = oscSample("sawtooth", this.ph[0], f * dt);
-        s = this.bp.process(s) * 2.2 + this.lp1.process(s) * 0.25;
-        if (type === "meow_down") s = Math.tanh(s * 1.4) / 1.2;
-        y = s * Math.min(ramp(t, 0, 0.06), 1 - ramp(t, len - 0.15, len));
-        break;
-      }
       case "chirp": {
         const n = this.blips, slot = 0.1, k = Math.min(n - 1, Math.floor(t / slot)), local = t - k * slot;
         if (local < 0.06) {
@@ -108,13 +96,13 @@ export class GestureVoice {
         if (local < 0.08) {
           const f = midiToHz(root + 12 + k);
           this.ph[0] += f * dt; if (this.ph[0] >= 1) this.ph[0] -= 1;
-          y = oscSample("triangle", this.ph[0], f * dt) * Math.exp(-local * 35) * Math.pow(0.85, k) * Math.min(1, local / 0.004);
+          y = oscSample("triangle", this.ph[0], f * dt) * Math.exp(-local * 22) * Math.pow(0.85, k) * Math.min(1, local / 0.004);
         }
         break;
       }
       case "growl": {
         this.wobble += (this.rand() - 0.5) * 0.002; this.wobble = Math.max(-0.2, Math.min(0.2, this.wobble));
-        const f = midiToHz(root - 24);
+        const f = midiToHz(root - 12); // an octave higher than before: small speakers can play it
         this.ph[0] += f * dt; if (this.ph[0] >= 1) this.ph[0] -= 1;
         this.ph[1] += 40 * (1 + this.wobble) * dt; if (this.ph[1] >= 1) this.ph[1] -= 1;
         let s = Math.tanh(oscSample("sawtooth", this.ph[0], f * dt) * 2.2);
@@ -127,23 +115,11 @@ export class GestureVoice {
         y = this.bp.process(this.rand() * 2 - 1) * 2 * Math.min(ramp(t, 0, 0.3), 1 - ramp(t, 0.5, len));
         break;
       }
-      case "hum": {
-        const f = midiToHz(root + 7) * (1 + 0.006 * Math.sin(TAU * 5 * t));
-        this.ph[0] += f * dt; if (this.ph[0] >= 1) this.ph[0] -= 1;
-        y = oscSample("triangle", this.ph[0], f * dt) * 0.8 * Math.min(ramp(t, 0, 0.25), 1 - ramp(t, len - 0.4, len));
-        break;
-      }
       case "pluck": {
         const out = this.ks[this.ksPos], next = this.ks[(this.ksPos + 1) % this.ksLen];
         this.ksLp = 0.5 * (out + next) * 0.996;
         this.ks[this.ksPos] = this.ksLp; this.ksPos = (this.ksPos + 1) % this.ksLen;
         y = out * 0.9 * (1 - ramp(t, len - 0.15, len));
-        break;
-      }
-      case "breath": {
-        this.noiseLp += 0.08 * ((this.rand() * 2 - 1) - this.noiseLp);
-        const env = t < 0.6 ? ramp(t, 0, 0.6) : 1 - ramp(t, 0.6, 1.4);
-        y = this.noiseLp * 4 * env * env;
         break;
       }
     }

@@ -87,15 +87,11 @@ Each is a short synthesised sound with its own envelope, played once when a stat
 | Gesture | Recipe |
 |---|---|
 | `purr` | Sine at root − 2 octaves, amplitude-modulated at 22–28 Hz (random in range), plus low-passed noise at 300 Hz; 0.8–1.6 s, slow attack 0.15 s |
-| `meow_up` | Sawtooth through a low-pass at 2 kHz with a formant-like band-pass sweeping 900 → 1600 Hz; pitch glides root+12 → root+19 over 0.5 s, small vibrato at 6 Hz, attack 60 ms, release 150 ms. A request or curiosity. |
-| `meow_down` | Same voice, pitch glides root+19 → root+9 over 0.6 s, a little rougher (drive 0.2). A complaint. |
 | `chirp` | 2–3 short sine blips rising (root+12 → +19 → +24 semitones), 60 ms each, 40 ms apart, slight pitch bend up within each |
-| `laugh` | 4 to 8 bursts of a triangle at root+12, each 80 ms with a fast decay, 120 ms apart, pitch rising about 1 semitone per burst, level decaying 15 % per burst. Enthusiasm. |
-| `growl` | Sawtooth at root − 2 octaves with drive 0.7, amplitude-modulated at 40 Hz with a random 20 % wobble, low-passed at 700 Hz, 0.8 to 1.5 s, attack 0.2 s. Rough, low, a limit. Not allowed in "ambient" or "expressive" (limits.md). |
+| `laugh` | 5 to 9 bursts of a triangle at root+12, each 80 ms with a decay of about 45 ms (it was 30 ms until 2026-11-10, too quiet to hear), 120 ms apart, pitch rising about 1 semitone per burst, level decaying 15 % per burst. Enthusiasm. |
+| `growl` | Sawtooth at root − 1 octave (it was 2, which small speakers could not play) with drive 0.7, amplitude-modulated at 40 Hz with a random 20 % wobble, low-passed at 1 kHz, 0.8 to 1.5 s, attack 0.2 s. Rough, low, a limit. Not allowed in "ambient" or "expressive" (limits.md). |
 | `sigh` | Band-passed noise, centre sweeping 1.8 kHz → 400 Hz over 1.2 s, attack 0.3 s, long release |
-| `hum` | Triangle at root + fifth, gentle vibrato 5 Hz, 1–1.5 s, soft attack and release |
 | `pluck` | Karplus–Strong string at root + 2 octaves, decay 0.8 s |
-| `breath` | Pink noise through low-pass at 1.2 kHz, swell up 0.6 s and down 0.8 s |
 
 ### Purr and the hidden cry
 The purr is a pure contented sound, so it has hard properties that tests check:
@@ -133,3 +129,6 @@ Devices playing the same session now play the same notes at the same moments (wi
 - **Not shared:** LFO and drone phases, voice start phases and the reverb tail are per device (random starting phases are not audible as a difference in the notes).
 - **How to check:** open the same session on two devices next to each other with `?debug=1`; the arpeggio should lock, notes and timing. A slow drift apart over minutes means the resync tolerance is too wide or the clock estimate is poor.
 
+
+### Gesture set and level (2026-11-10)
+The set is six: purr, chirp, laugh, growl, sigh, pluck. `meow_up` is an appeal (the care rules forbid hiding one in a sound), `meow_down` a complaint with no good use, `hum` and `breath` too subtle to hear. The level is `0.35 + 0.45 × intensity`, so 0.5 is clearly audible, and the per-gesture trims keep every gesture under -3 dBFS at full intensity (test). The owner chooses whether gestures play (session setting `gestures`: default on for the external face, off for the internal one); on the internal face intensity is capped at 0.5 and growl is not played; the 20 s gap between gestures stays. The service tells the model `gesture: "played"` or `"skipped: reason"`, and `gestures: "off"` when they are off.

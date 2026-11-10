@@ -277,15 +277,34 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b).not.toHaveProperty("reactions");
   });
 
-  it("plays a gesture once with its state, and drops one that comes less than 20 s after the last", async () => {
-    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+  it("plays a gesture once with its state on the external face, and drops one that comes less than 20 s after the last, saying why", async () => {
+    const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
     const a = await svc.setSound(dbA, A, { session_id, final: false, gesture: { type: "chirp", intensity: 0.5 } } as never, tick());
     expect((a.playing as { gesture?: string }).gesture).toBe("chirp");
+    expect(a.gesture).toBe("played");
     const b = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(5000));
     expect(b.playing as object).not.toHaveProperty("gesture");
-    expect((b.notes as string[]).join(" ")).toMatch(/gesture skipped/);
+    expect(b.gesture).toMatch(/^skipped: the last one was/);
     const c = await svc.setSound(dbA, A, { session_id, final: true, gesture: { type: "sigh", intensity: 0.5 } } as never, tick(25_000));
     expect((c.playing as { gesture?: string }).gesture).toBe("sigh");
+  });
+
+  it("gestures: off by default on the internal face, soft and never a growl when the owner turns them on, and the owner can switch them off", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const g = (type: string, intensity: number, ms = 25_000) => svc.setSound(dbA, A, { session_id, final: true, gesture: { type, intensity } } as never, tick(ms));
+    let r = await g("sigh", 0.5);
+    expect(r.gesture).toMatch(/^skipped: gestures are off on the internal face/); expect(r.gestures).toBe("off");
+    sql(`update sessions set settings = settings || '{"gestures": true}'::jsonb where id = '${session_id}'`);
+    r = await g("growl", 0.5);
+    expect(r.gesture).toMatch(/no growl on the internal face/);
+    r = await g("sigh", 0.9);
+    expect(r.gesture).toBe("played"); expect((r.playing as { gesture?: string }).gesture).toBe("sigh");
+    expect((r.clamped as string[]).join(" ")).toMatch(/capped to 0.5/);
+    expect(r).not.toHaveProperty("gestures");
+    // the owner turns them off for good, on the external face too
+    sql(`update sessions set mode = 'external', settings = settings || '{"gestures": false}'::jsonb where id = '${session_id}'`);
+    r = await g("purr", 0.5);
+    expect(r.gesture).toMatch(/the owner turned gestures off/); expect(r.gestures).toBe("off");
   });
 
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {

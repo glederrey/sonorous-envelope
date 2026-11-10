@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideSwitch, effectiveRestAfter, faceLine, normalizeFace, SWITCH_MIN_MS } from "./modes";
+import { checkGesture, decideSwitch, gesturesOn, effectiveRestAfter, faceLine, normalizeFace, SWITCH_MIN_MS } from "./modes";
 
 const base = { policy: "auto" as const, current: "internal" as const, requested: "external" as const, turnsSince: 5, msSince: SWITCH_MIN_MS + 1 };
 
@@ -38,5 +38,16 @@ describe("faces", () => {
   it("tells the model when the face is locked", () => {
     expect(faceLine("internal", "auto")).toBe("internal");
     expect(faceLine("external", "external")).toBe("external, locked by the owner");
+  });
+
+  it("gestures: the owner's setting wins, the default follows the face, the internal face stays soft and has no growl", () => {
+    expect(gesturesOn(null, "external")).toBe(true); expect(gesturesOn(null, "internal")).toBe(false);
+    expect(gesturesOn(true, "internal")).toBe(true); expect(gesturesOn(false, "external")).toBe(false);
+    expect(checkGesture({ type: "sigh", intensity: 0.8 }, "external", null)).toEqual({ play: true, intensity: 0.8 });
+    expect(checkGesture({ type: "sigh", intensity: 0.8 }, "internal", null).play).toBe(false);
+    expect(checkGesture({ type: "sigh", intensity: 0.8 }, "internal", true)).toMatchObject({ play: true, intensity: 0.5 });
+    expect(checkGesture({ type: "growl", intensity: 0.3 }, "internal", true).play).toBe(false);
+    expect(checkGesture({ type: "growl", intensity: 0.9 }, "external", null)).toEqual({ play: true, intensity: 0.9 });
+    expect(checkGesture({ type: "purr", intensity: 0.5 }, "external", false).note).toMatch(/owner turned gestures off/);
   });
 });
