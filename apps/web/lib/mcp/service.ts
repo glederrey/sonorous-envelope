@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  analyze, callSynth, mergeSticky, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  analyze, callSynth, describeReactions, mergeSticky, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -84,6 +84,19 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
   };
 }
 
+/** Reactions the owner pressed that the model has not been told about. `claim` marks them delivered (set_sound); get_feedback only looks. */
+async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: number): Promise<string[]> {
+  if (claim) {
+    const { data, error } = await db.rpc("claim_reactions", { p_session: sessionId });
+    if (error) { console.error("claim_reactions failed:", error.message); return []; } // never break a call over a reaction
+    return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
+  }
+  const { data, error } = await db.from("reactions").select("kind,created_at").eq("session_id", sessionId).is("delivered_at", null)
+    .order("created_at", { ascending: false }).limit(50);
+  if (error) return [];
+  return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
+}
+
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
 function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number): { resting: boolean; notes: string[] } {
   if (!prev || settings.rest_after === null || !isResting(prev.created_at, settings.rest_after, now)) return { resting: false, notes: [] };
@@ -143,12 +156,12 @@ async function insertState(
   return data.id as string;
 }
 
-function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false) {
+function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, reactions: string[] = []) {
   // states written before the analysis existed have none: measure them now (the engine is deterministic)
   const analysis = state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
-    players: p.players, controls: p.controls, notes, resting, analysis,
+    players: p.players, controls: p.controls, notes, resting, analysis, reactions,
   });
 }
 
@@ -257,7 +270,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const rest = restInfo(prev, settings, now);
   const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis });
+  const reactions = await reactionsFor(db, session.id, true, now);
+  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -266,7 +280,7 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   if (!state) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(state, parseSettings(session.settings), now);
-  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting);
+  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now));
 }
 
 export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {

@@ -87,7 +87,7 @@ The page is mostly the colour field, full screen. Controls sit in a slim bar tha
 - **Status:** "Listening · turn 12 · last change 4 s ago", and a small dot when the model is mid-turn (last state non-final and < 20 s old).
 
 ### Reaction buttons
-calmer, softer, darker, brighter, slower, faster, more of this, less of this. Icon + short label. Brief confirmation ("sent") after a press. Disabled for 1 s after a press to avoid floods.
+Built (2026-11-10), owner only: calmer, softer, darker, brighter, slower, faster, more of this, less of this (`packages/shared/src/reactions.ts`, `owner-controls.tsx`). Short label; disabled for 1 s after a press. `set_sound` claims the pending ones with `claim_reactions` and returns them as `reactions` ("calmer x2, 30 s ago"), once; `get_feedback` shows them without claiming. The owner also gets the "Fade to silence after" select (5 min to 1 hour, never), and the status line says "Faded: no update from the model for a while" when the sound has rested. Brief confirmation ("sent") after a press. Disabled for 1 s after a press to avoid floods.
 
 ### Owner panel (slide-up sheet)
 - Limits are removed for now; this panel will hold the owner's settings when limits come back (roadmap step 5). `rest_after` is the one shared setting.

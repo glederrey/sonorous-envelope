@@ -12,6 +12,7 @@ import { restedState } from "../../lib/rested-state";
 import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
+import { OwnerControls } from "./owner-controls";
 
 type Phase = "joining" | "ready" | "ended" | "error";
 interface Playing { state: EngineState; seed: number; turn: number; final: boolean; at: number }
@@ -56,6 +57,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [audioState, setAudioState] = useState<string>("running");
+  const [rested, setRested] = useState(false); // the sound has faded because the model has not updated for rest_after
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
 
   const audio = useRef<AudioOutput | null>(null);
@@ -85,7 +87,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     hardCaps(state); // second line of defence, the server already applied the safety rules
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
     latest.current = next;
-    restedFrom.current = null; // a new state brings the sound back, with its own transition
+    restedFrom.current = null; setRested(false); // a new state brings the sound back, with its own transition
     if (document.visibilityState === "hidden") dbg.current.applied++;
     // a state with a delay (the closing fade after a closing sound) waits that long from when it was written; the engine
     // keeps the timing, and the colour waits the same time
@@ -115,13 +117,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (!p) return;
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
-      restedFrom.current = p;
+      restedFrom.current = p; setRested(true);
       const state = restedState(p.state);
       setPlaying({ ...p, state });
       audio.current?.setState(state, p.seed);
     } else if (!resting && restedFrom.current && restedFrom.current.at === p.at) {
       // the owner or Claude turned the fade off or made it longer: bring the same state back
-      const orig = restedFrom.current; restedFrom.current = null;
+      const orig = restedFrom.current; restedFrom.current = null; setRested(false);
       const state: EngineState = JSON.parse(JSON.stringify(orig.state));
       state.transition = { time: Math.max(3, orig.state.transition.time), curve: "smooth" };
       setPlaying({ ...orig, state });
@@ -424,7 +426,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
                 {playing
-                  ? `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
+                  ? rested ? `Faded: no update from the model for a while (turn ${playing.turn}, ${age(ageSec)})` : `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
                   : "Waiting for the first sound"}
               </p>
               <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
@@ -453,6 +455,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </label>
               <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>
+
+            {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} />}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 
