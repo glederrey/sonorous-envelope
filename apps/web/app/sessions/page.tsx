@@ -12,7 +12,7 @@ export default async function SessionsPage() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login?next=%2Fsessions");
 
-  const { data: rows } = await supabase.from("sessions").select("id,title,created_at,last_active_at,ended_at")
+  const { data: rows } = await supabase.from("sessions").select("id,title,created_at,last_active_at,ended_at,mode")
     .eq("owner_id", data.user.id).order("last_active_at", { ascending: false }).limit(50);
   const sessions = rows ?? [];
   const now = Date.now();
@@ -24,7 +24,7 @@ export default async function SessionsPage() {
       <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
       <div className="se-stack">
         <p className="se-sm se-muted" style={{ margin: 0 }}>
-          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"} · last sound {ago(s.last_active_at, now)}
+          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{s.mode === "outer" ? " · outer mode" : ""} · last sound {ago(s.last_active_at, now)}
         </p>
         {status(s) !== "ended" && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

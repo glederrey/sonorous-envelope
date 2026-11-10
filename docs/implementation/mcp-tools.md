@@ -102,6 +102,8 @@ Keep every field description short in the tool schema: the model reads them.
 > **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
 ## `start_session`
+> **Built (2026-11-10, #16):** `mode: "inner" | "outer"` (default inner, fixed for the session, column `sessions.mode`). The result carries `mode` and `guidance` (`apps/web/lib/mcp/modes.ts`). Outer sessions start with `rest_after` null (no fade between turns). The feedback is the same in both modes; the difference is in the guidance: outer may talk about the sound, takes requests and reads reactions as the user's feedback on what was made.
+
 
 Input:
 ```ts
