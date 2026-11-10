@@ -49,7 +49,7 @@ export const SAMPLES: Sample[] = [
     }],
   },
   {
-    id: "irritated", name: "Irritated and weary", blurb: "Dark, rough, low patience.", seconds: 18, seed: 404, gainDb: -11,
+    id: "irritated", name: "Irritated and weary", blurb: "Dark, rough, low patience.", seconds: 18, seed: 404, gainDb: -10.5,
     steps: [{
       at: 0, mood: m(0.2, 0.65, 0.2, 0.45, 0.55, 0.55), transition: 0.5, colour: { hue: 352, saturation: 0.55, lightness: 0.2 },
       voice: { root: "C3", scale: "phrygian", chord: [1, 3, 5], pattern: "down", octaves: 1, wave: "sawtooth" },
@@ -57,7 +57,7 @@ export const SAMPLES: Sample[] = [
     }],
   },
   {
-    id: "relief", name: "Relief", blurb: "Tension first, then the exhale.", seconds: 24, seed: 505, gainDb: -2.5,
+    id: "relief", name: "Relief", blurb: "Tension first, then the exhale.", seconds: 24, seed: 505, gainDb: -3,
     steps: [
       {
         at: 0, mood: m(0.35, 0.6, 0.3, 0.1, 0.6, 0.6), transition: 0.5, colour: { hue: 330, saturation: 0.5, lightness: 0.22 },

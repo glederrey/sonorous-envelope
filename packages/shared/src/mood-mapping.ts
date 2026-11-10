@@ -185,7 +185,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
     // tension (optional, 0 = none = the sound without it): clashing intervals on every note, a wider detune, some grit
     osc: {
       wave, voices: tn > 0.3 ? Math.max(2, w > 0.5 ? 2 : 1) : w > 0.5 ? 2 : 1, detune: Math.min(50, lerp(2, 14, w) + 10 * drive + 24 * tn),
-      drive: Math.min(1, drive + 0.4 * tn), stack: tn > 0.75 ? [1, 6] : tn > 0.4 ? [6] : tn > 0.15 ? [10] : [],
+      drive: Math.min(1, drive + 0.4 * tn), stack: tn > 0.7 ? [1, 6, 11] : tn > 0.5 ? [6, 11] : tn > 0.3 ? [6] : tn > 0.12 ? [10] : [],
     },
     filter: { type: "lowpass", cutoff, resonance: Math.min(20, lerp(0.7, 6, (1 - w) * (1 - k)) + 4 * tn) },
     lfo,
