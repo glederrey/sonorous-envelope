@@ -66,10 +66,15 @@ export default async function Home() {
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">
-              Settings → Customize → Connectors → Add. <a href="#add">Step by step</a>
+              Settings → Customize → Connectors → Add.<span className="lp-stepby"> <a href="#add">Step by step</a></span>
             </p>
-            {live && <p className="se-sm lp-live" role="status">{liveSentence(live)}</p>}
           </div>
+          {live && (
+            <div className="lp-live-box" role="status">
+              <span className="lp-live-dot" aria-hidden />
+              <span>{liveSentence(live)}</span>
+            </div>
+          )}
           </div>
           <Envelope className="lp-envelope" />
         </div>

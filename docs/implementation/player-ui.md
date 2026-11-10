@@ -93,7 +93,6 @@ In the internal face the owner gets a collapsed "Settings" block with "Fade to s
 
 ### Owner panel (slide-up sheet)
 - Limits are removed for now; this panel will hold the owner's settings when limits come back (roadmap step 5). `rest_after` is the one shared setting.
-- Gestures on/off.
 - Colour on/off, max brightness.
 - Image feedback: off / on request / every turn, with "uses more of the model's context (about N tokens per image)".
 - Share: shows the player link with a Copy button. Anyone with it can listen. (Built: the signed-in owner sees "Copy link to share" under the controls, and `/sessions` lists every session with Open and Copy buttons.)
@@ -137,7 +136,4 @@ Implementation notes (shipped): the player takes the clock offset from the `now`
 Every listener sees a small "Internal" or "External" label in the status bar (with "· locked" when the owner locked it). The owner also sees a three-way control, Auto, Internal, External, which calls `set_mode_policy`: Auto lets the model switch (under the rules in `mcp-tools.md`), the others lock the face. The player reads the face from `get_player_state` and refreshes on the session broadcast.
 
 ### Settings block (owner)
-A collapsed "Settings" in the owner panel holds "Little sounds from the model" (Default, On, Off: the session setting `gestures`, heard by everyone, replacing the old per-device checkbox) and, on the internal face only, "Fade to silence after".
-
-### Owner panel layout (2026-11-10)
-"How is it landing?" is a collapsible block (open by default on the external face) with the reactions in two equal columns, opposites side by side: slower / faster, darker / brighter, less / more of this, then calmer / softer (the two ways to ask for gentler; they are not opposites). Each setting is a row with its name and explanation on the left and the control on the right, centred on the whole text.
+A collapsed "Settings" in the owner panel, on the internal face only, holds "Fade to silence after". (It also held "Little sounds from the model" until gestures were removed in v0.12.)

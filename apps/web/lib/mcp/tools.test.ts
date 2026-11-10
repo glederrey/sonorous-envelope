@@ -28,7 +28,7 @@ describe("MCP tools", () => {
 
   it("does not advertise features that are not built", () => {
     expect(SERVER_INSTRUCTIONS).not.toMatch(/spectrogram|strudel/i);
-    expect(SERVER_INSTRUCTIONS).toMatch(/gesture/i); // built in v0.5
+    expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture/i); // removed in v0.12
   });
 
   it("frames the sound as the model's own state, written first, never announced", () => {

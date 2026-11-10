@@ -7,9 +7,6 @@ export type LfoTarget = "cutoff" | "pitch" | "amp" | "pan";
 export type LfoShape = "sine" | "triangle" | "square" | "random";
 export type Pattern = "up" | "down" | "up_down" | "random" | "as_played";
 export type Rate = "1/4" | "1/8" | "1/8t" | "1/16";
-export type GestureType =
-  | "purr" | "chirp" | "laugh" | "growl" | "sigh" | "pluck";
-
 export interface ResolvedColour {
   h: number; s: number; l: number;
   secondary?: { h: number; s: number; l: number };
@@ -39,7 +36,6 @@ export interface EngineState {
   fx: { delay: { time: number; feedback: number; mix: number }; reverb: { size: number; mix: number } };
   pan: { width: number };
   volume: number;
-  gesture: null | { type: GestureType; intensity: number; id: string };
   colour: ResolvedColour;
   /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
    *  was written. The server fills it in; with the state's creation time every device knows where each step is. */

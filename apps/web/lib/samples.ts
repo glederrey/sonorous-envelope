@@ -16,7 +16,6 @@ export interface SampleStep {
   synth?: SynthOverride;
   colour?: Colour;
   transition: number;
-  gesture?: { type: "sigh"; intensity: number };
 }
 /** `gainDb` levels the five by measured loudness (`pnpm samples:loudness`), so that none jumps out when a visitor switches. */
 export interface Sample { id: string; name: string; blurb: string; seconds: number; seed: number; gainDb?: number; steps: SampleStep[] }
@@ -67,7 +66,6 @@ export const SAMPLES: Sample[] = [
         at: 8, mood: m(0.8, 0.7, 0.65, 0.95, 0.2, 0), transition: 7, colour: { hue: 170, saturation: 0.45, lightness: 0.32 },
         voice: { root: "G3", scale: "major", chord: [1, 3, 5], pattern: "up_down", octaves: 2, wave: "sine" },
         synth: { pad: { notes: ["G3", "D4", "B4"], wave: "sine", level: 0.3, attack: 3, release: 4 } },
-        gesture: { type: "sigh", intensity: 0.5 },
       },
     ],
   },
@@ -82,13 +80,12 @@ export function stateOfStep(step: SampleStep, id: string): EngineState {
   const { effective } = applyLimits({ mapped: withSynth, transition: { time: step.transition, curve: "smooth" } });
   effective.grid = { arp: 0, bass: 0 };
   effective.volume *= 10 ** ((SAMPLES.find((x) => x.id === id)?.gainDb ?? 0) / 20);
-  if (step.gesture) effective.gesture = { ...step.gesture, id: `${id}-${step.at}` };
   return effective;
 }
 
 /** The state that fades the sample out. */
 export function fadeOut(last: EngineState, seconds: number): EngineState {
   const s: EngineState = JSON.parse(JSON.stringify(last));
-  s.volume = 0; s.gesture = null; s.transition = { time: seconds, curve: "smooth" };
+  s.volume = 0; s.transition = { time: seconds, curve: "smooth" };
   return s;
 }

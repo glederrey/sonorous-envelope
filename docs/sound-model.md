@@ -91,7 +91,9 @@ A second sustained layer, separate from the drone, for harmony: it holds a chord
 - `reverb`: size, mix
 - `volume`: 0–1 (clamped by listener limit)
 
-## 3. Gestures
+## 3. Gestures (removed in v0.12)
+> **Removed (2026-11-10, v0.12):** gestures are gone from the product: the schema field, the engine voice, the owner setting, the result fields and the guidance. The test session found them inaudible in practice, and the product already says to ask in words and never hide an appeal in a sound. What follows is kept as the record of what was built and why; the code is deleted (see git history before v0.12).
+
 
 Short sounds played once over the background, like R2-D2's chirps. They follow the motivation-structure rules found across birds and mammals: low and rough for hostility, high and pure for fear, appeasement or approach. A starting set:
 

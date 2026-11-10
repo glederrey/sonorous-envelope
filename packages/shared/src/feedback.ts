@@ -20,10 +20,6 @@ export interface FeedbackInput {
   reactions?: string[];
   /** the face playing, with "locked by the owner" when it is */
   mode?: string;
-  /** "played", or "skipped: reason", when a gesture was sent */
-  gesture?: string;
-  /** "off" when the owner turned gestures off for this face; left out when they are on */
-  gestures?: string;
   /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
   analysis?: { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> } | null;
 }
@@ -36,7 +32,6 @@ function playingOf(e: EngineState) {
     cutoff: Math.round(e.filter.cutoff), volume: r2(e.volume), drone: e.drone.on,
     pattern: e.arp.pattern, rate: e.arp.rate, octaves: e.arp.octaves, chord: e.arp.chord,
   };
-  if (e.gesture) p.gesture = e.gesture.type;
   if (!e.arp.on) p.arp = "off";
   if (e.osc.stack?.length) p.stack = e.osc.stack;
   if (e.pad?.on && e.pad.notes.length) p.pad = { notes: e.pad.notes.map(midiName), wave: e.pad.wave };
@@ -70,8 +65,6 @@ export function buildFeedback(i: FeedbackInput) {
   }
   if (i.reactions?.length) out.reactions = i.reactions;
   if (i.mode) out.mode = i.mode;
-  if (i.gesture) out.gesture = i.gesture;
-  if (i.gestures) out.gestures = i.gestures;
   out.players = i.players;
   if (i.resting) out.resting = true;
   const notes = [...(i.notes ?? [])];

@@ -39,6 +39,5 @@ export function applyLimits(input: LimitInput): { effective: EngineState; clamps
     clamps.push(`${field} ${typeof from === "number" ? r2(from) : from}→${typeof to === "number" ? r2(to) : to} (${why})`));
   const t = input.transition ?? { time: 4, curve: "smooth" as const };
   s.transition = { time: t.time, curve: t.curve };
-  s.gesture = null; // the caller adds the gesture (service.ts), after the rate check
   return { effective: s, clamps };
 }

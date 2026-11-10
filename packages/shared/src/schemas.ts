@@ -101,12 +101,6 @@ export const Colour = z.object({
 });
 export type Colour = z.infer<typeof Colour>;
 
-export const GESTURES = ["purr", "chirp", "laugh", "growl", "sigh", "pluck"] as const;
-export const Gesture = z.object({
-  type: z.enum(GESTURES).describe("purr: tenderness. chirp: light joy. laugh: enthusiasm. growl: a limit, tension (external face only). sigh: relief, resignation. pluck: an idea"),
-  intensity: unit.default(0.5),
-});
-export type Gesture = z.infer<typeof Gesture>;
 
 export const Transition = z.object({
   time: z.number().min(0).max(30).default(4).describe("seconds"),
@@ -119,8 +113,6 @@ export type Transition = z.infer<typeof Transition>;
 export const ListenerSettings = z.object({
   // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
   rest_after: z.number().min(60).max(3600).nullable().default(900),
-  // the owner's choice for gestures: null = the default (on for the external face, off for the internal one)
-  gestures: z.boolean().nullable().default(null),
   image_feedback: z.enum(["off", "on_request", "every_turn"]).default("off"),
 });
 export type ListenerSettings = z.infer<typeof ListenerSettings>;
@@ -137,7 +129,6 @@ export const SetSoundInput = z.object({
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced"),
   colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own. It stays until you change it; mode follow gives it back to the sound"),
   transition: Transition.optional(),
-  gesture: Gesture.optional().describe("a short one-off sound, played once at the start of this state. Rare, at most one per message, never a way to ask for attention (use words)"),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),

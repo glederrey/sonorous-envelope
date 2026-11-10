@@ -1,6 +1,5 @@
 import { Biquad } from "./filter";
 import { PingPongDelay, Reverb } from "./fx";
-import { GestureVoice } from "./gesture";
 import { Layer, type LayerParams } from "./layer";
 import { Lfo } from "./lfo";
 import { midiToHz } from "./music";
@@ -62,7 +61,6 @@ export class Engine {
   private delay: PingPongDelay; private reverb: Reverb;
   private drones: DroneOsc[] = [];
   private pads: DroneOsc[] = []; private padAtk = 2; private padRel = 3; private padNorm = 0.3;
-  private gesture: GestureVoice; private lastGestureId: string | null = null; private gesturesOn = true;
   private listenerGain = 1; private listenerGainCur = 1;
   private hpZ = 0;
   private tmp: [number, number] = [0, 0];
@@ -72,7 +70,6 @@ export class Engine {
     this.lfos = [new Lfo(mulberry32(seed ^ 0x1f)), new Lfo(mulberry32(seed ^ 0x2f))];
     this.arp = new Layer(sampleRate, mulberry32(seed ^ 0xa1), "arp", null);
     this.bass = new Layer(sampleRate, mulberry32(seed ^ 0xb2), "bass", null);
-    this.gesture = new GestureVoice(sampleRate, mulberry32(seed ^ 0x6e57));
     this.delay = new PingPongDelay(sampleRate);
     this.reverb = new Reverb(sampleRate);
     this.setGridSeed(seed);
@@ -81,8 +78,6 @@ export class Engine {
   /** Start recording note events (for offline analysis). */
   recordEvents(into: NoteEvent[]) { this.events = into; this.arp.setEvents(into); this.bass.setEvents(into); }
 
-  /** The listener's switch for gestures (this device only). */
-  setGesturesEnabled(on: boolean) { this.gesturesOn = on; if (!on) this.gesture.stop(); }
 
   /** Local volume. 1 is the sound as mapped; up to 8 (+18 dB) boosts it, and the soft limiter below keeps it from clipping. */
   setListenerGain(gain: number) { this.listenerGain = Math.min(8, Math.max(0, gain)); }
@@ -126,13 +121,6 @@ export class Engine {
     };
     const to = target(state);
     const first = this.state === null;
-    // a gesture plays once, when its state starts, on every device; one that is heard late (or again) does not replay
-    const gid = state.gesture?.id ?? null;
-    if (gid !== null && gid !== this.lastGestureId) {
-      this.lastGestureId = gid;
-      this.gesture.reseed(mulberry32(seed ^ 0x6e57));
-      if (this.gesturesOn) this.gesture.trigger(state.gesture!.type, state.gesture!.intensity, state.arp.root, elapsedSec ?? 0);
-    } else if (gid === null) this.lastGestureId = null;
     this.state = state;
     this.arp.reseed(mulberry32(seed ^ 0xa1)); this.bass.reseed(mulberry32(seed ^ 0xb2));
     if (first) { this.cur = { ...to }; this.from = { ...to }; this.glideT = 1; }
@@ -251,7 +239,6 @@ export class Engine {
       // roughness: soft saturation before the filter
       if (c.drive > 0.001) { const g = 1 + 4 * c.drive; x = Math.tanh(x * g) / Math.tanh(g) ; }
       x = this.filter.process(x) * amp;
-      if (this.gesture.active) x += this.gesture.process(); // after the filter, so it stays audible when the filter is dark
 
       // echo and reverb
       // the echo is Claude's: mix as sent. Feedback stays below 1 so the echo cannot run away (a stability limit).

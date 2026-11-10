@@ -212,7 +212,6 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
     },
     pan: { width: lerp(1, 0.3, c) },
     volume: MASTER_VOLUME,
-    gesture: null,
     transition: { time: 4, curve: "smooth" },
   };
   state.colour = moodToColour(m, cutoff, lfo[0].rate);
