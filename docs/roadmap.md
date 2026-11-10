@@ -80,6 +80,15 @@ Gael and a model ran the test list on the live site. Passed: owner panel, reacti
 - [x] The "How is it landing?" block starts closed when the controls open.
 - [ ] Instructions still about 900 words; trim after the next test, moving per-tool detail into the tool descriptions.
 
+### Sixth outside test (2026-11-10, v0.12.3)
+Voice bands, tension, faces and reactions passed; the visuals were all good. Done after it:
+- [x] The live counter's glow follows the dot (teal, then amber), not teal only.
+- [x] Reactions: **Stormier** (opposite of calmer) and **Harsher** (opposite of softer) added, "More of this" and "Less of this" moved to the end as a like or dislike signal (migration 0009).
+Open, from the test:
+- [ ] **Tension reads flat up to 0.5** (sent 0.1, 0.3, 0.5, 0.7, 0.9 read 0.00, 0.00, 0.06, 0.55, 1.00): the stack steps at 0.12, 0.3 and 0.5 add little clash. Retune `RANGES.clash` or the low stack levels.
+- [ ] **Very calm states turn the arpeggio off**, so the spontaneity reading is flat (0.05 at calm 0.9). Keep a minimal arp on, or document that there is no timing to read.
+- [ ] **The middle voice band is narrow.** From phrygian, joy 0.4 stays phrygian and 0.7 goes straight to lydian (hysteresis, by design); dorian shows around 0.5. Listen by ear whether the mode change eases in over a long transition.
+
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
 - [x] **Step 6. Gestures.** (built 2026-11-10; needs an ear test, and the instructions line stays "ask in words", not "use a meow".) First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.

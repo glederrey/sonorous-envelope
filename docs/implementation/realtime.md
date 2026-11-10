@@ -33,7 +33,7 @@ How reactions read in feedback (`listener` array):
 
 | kind | text |
 |---|---|
-| calmer, softer, brighter, darker, slower, faster | `"<label>: pressed calmer"` |
+| calmer, stormier, softer, harsher, brighter, darker, slower, faster | `"<label>: pressed calmer"` |
 | more_of_this / less_of_this | `"<label>: wants more of this"` / `"…less of this"` |
 | volume | `"<label>: volume 0.8→0.5"` |
 | delay | `"<label>: echo 0.5→0.1"` |
