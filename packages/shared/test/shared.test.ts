@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  describeReactions, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -352,6 +352,15 @@ describe("what stays on the session", () => {
     expect(f.playing).toHaveProperty("pattern"); expect(f.playing).toHaveProperty("echo"); expect(f.playing).toHaveProperty("chord");
     const plain = buildFeedback({ turn: 1, intent: neutral, effective: moodToEngineState(neutral), clamps: [], players: 1 }).playing as Record<string, unknown>;
     expect(plain).not.toHaveProperty("stack"); expect(plain).not.toHaveProperty("pad");
+  });
+});
+
+describe("reactions", () => {
+  it("folds repeats and says how long ago", () => {
+    const now = Date.parse("2026-11-10T10:00:00Z");
+    const rows = [{ kind: "calmer", created_at: "2026-11-10T09:57:00Z" }, { kind: "calmer", created_at: "2026-11-10T09:59:30Z" }, { kind: "more_of_this", created_at: "2026-11-10T09:59:55Z" }];
+    expect(describeReactions(rows, now)).toEqual(["more of this, 5 s ago", "calmer x2, 30 s ago"]);
+    expect(describeReactions([], now)).toEqual([]);
   });
 });
 

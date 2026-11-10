@@ -16,6 +16,8 @@ export interface FeedbackInput {
   notes?: string[];
   /** Set only when the owner's rest_after is on and this call arrived after it. */
   resting?: boolean;
+  /** What the owner pressed since the last call (reactions.ts), one short line per kind. */
+  reactions?: string[];
   /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
   analysis?: { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> } | null;
 }
@@ -59,6 +61,7 @@ export function buildFeedback(i: FeedbackInput) {
     }
     if (Object.keys(why).length) out.reads_why = why;
   }
+  if (i.reactions?.length) out.reactions = i.reactions;
   out.players = i.players;
   if (i.resting) out.resting = true;
   const notes = [...(i.notes ?? [])];

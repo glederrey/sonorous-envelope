@@ -261,6 +261,17 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((after.playing as { wave: string }).wave).toBe((kept.playing as { wave: string }).wave);
   });
 
+  it("tells the model what the owner pressed, once, and get_feedback only looks", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'more_of_this', now())`);
+    const peek = await svc.getFeedback(dbA, A, { session_id }, tick());
+    expect((peek.reactions as string[]).join(" ")).toMatch(/calmer x2/);
+    const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick());
+    expect((a.reactions as string[]).join(" ")).toMatch(/calmer x2.*more of this|more of this.*calmer x2/);
+    const b = await svc.setSound(dbA, A, { session_id, final: true } as never, tick());
+    expect(b).not.toHaveProperty("reactions");
+  });
+
   it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const slow = { warmth: 0.6, closeness: 0.6, joy: 0.6, calm: 0.95, spontaneity: 0.2 };

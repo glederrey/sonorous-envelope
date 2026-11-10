@@ -35,6 +35,24 @@ do $$ begin
 end $$;
 reset role;
 
+-- reactions: the owner sends and reads them, claims them once; a stranger can neither send nor read
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+insert into public.reactions (session_id, user_id, kind) values ('sess1', '00000000-0000-0000-0000-00000000000a', 'calmer');
+do $$ begin
+  assert (select count(*) from public.claim_reactions('sess1')) = 1, 'owner claims the reaction';
+  assert (select count(*) from public.claim_reactions('sess1')) = 0, 'a reaction is delivered once';
+end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+do $$ begin
+  assert (select count(*) from public.reactions) = 0, 'stranger must not read reactions';
+  begin insert into public.reactions (session_id, user_id, kind) values ('sess1', '00000000-0000-0000-0000-00000000000b', 'faster'); raise exception 'stranger sent a reaction';
+  exception when insufficient_privilege or check_violation then null; end;
+end $$;
+reset role;
+
 -- anyone (anon role, no account) reads and listens only through the functions
 select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claims', '{}', false);
 set role anon;
