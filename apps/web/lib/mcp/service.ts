@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  analyze, callSynth, describeReactions, mergeSticky, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, nextBand, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -151,7 +151,7 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState): string 
 
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
 function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean, adopted = false): string | undefined {
-  if (adopted) return "your first sound is now your voice: scale, root, note order and wave stay until you send a voice";
+  if (adopted) return "your first sound is now your voice: root, wave, note order and octaves stay. Its scale mode follows your joy (phrygian low, dorian middle, lydian high) until you send a voice with a scale";
   if (held) return "voice kept: scale, root, note order and wave now stay until you send a voice";
   if (!prev || (voice && voice.scale && voice.wave && voice.root)) return undefined;
   const a = prev.effective, name = (s: EngineState) => `${midiToNoteName(s.arp.root)} ${s.arp.scale}, ${s.osc.wave}`;
@@ -163,7 +163,7 @@ function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: V
  *  call's own synth override. */
 function mapSound(sessionId: string, mood: Mood, slow: Mood, voice: Voice | null | undefined, sticky: Sticky | null | undefined, synth: SetSoundInput["synth"]) {
   const mapped = moodToEngineState(mood, slow, voiceSeedOf(sessionId));
-  const a = applyOverride(mapped, voiceToSynth(voice));
+  const a = applyOverride(alignToVoice(mapped, voice), voiceToSynth(voice));
   const k = applyOverride(a.state, stickyToSynth(sticky));
   const b = applyOverride(k.state, callSynth(synth));
   return { state: b.state, overridden: [...new Set([...a.overridden.map((f) => `voice:${f}`), ...k.overridden.map((f) => `kept:${f}`), ...b.overridden])] };
@@ -269,17 +269,36 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     voice = { root: midiToNoteName(e.root), scale: e.scale, chord: e.chord.slice(0, 8), pattern: e.pattern, octaves: e.octaves, wave: prev.effective.osc.wave, ...(session.voice ?? {}) };
     held = true;
   }
-  const transition = input.voice !== undefined && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
 
   // colour, stack, pad and LFOs stay until Claude changes them (like the voice); fold this call into what the session keeps
   const sticky = mergeSticky(session.sticky, input);
-  const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
-  // A voice of your own is kept the way a person keeps a voice. Without one, the first sound becomes it (this call plays as
-  // mapped; later calls keep its scale, root, note order and wave), so a mood that barely moves cannot move the key.
+  // A voice the model sends (or freezes) is fixed for good, scale included. Without one, the first sound becomes the voice:
+  // root, wave, chord, note order and octaves stay, and the scale mode follows joy in three bands (voice-band.ts), so a
+  // mood that barely moves cannot move the key, and a big joy change can still lift or lower the colour of the sound.
+  const explicit = input.voice !== undefined || held;
+  if (explicit) delete sticky.voiceBand;
+  const complete = (v: typeof voice) => Boolean(v && v.root && v.scale && v.wave);
+  let scaleMoved = false, bandNote: string | undefined;
+  if (!explicit && sticky.voiceBand && complete(voice)) {
+    const band = nextBand(sticky.voiceBand, mood.joy);
+    if (band !== sticky.voiceBand) {
+      bandNote = `your joy moved the mode of your voice from ${voice!.scale} to ${BAND_SCALE[band]} (root, wave and note order unchanged)`;
+      voice = { ...voice!, scale: BAND_SCALE[band] }; sticky.voiceBand = band; scaleMoved = true;
+    }
+  }
+  // a new voice, or a new mode, is a big change: without a transition of its own it gets a long one
+  const transition = (input.voice !== undefined || scaleMoved) && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
+  let { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
   let adopted = false;
-  if (!(voice && voice.root && voice.scale && voice.wave)) {
+  if (!complete(voice)) {
     const a = overridden.arp;
-    voice = { root: midiToNoteName(a.root), scale: a.scale, chord: a.chord.slice(0, 8), pattern: a.pattern, octaves: a.octaves, wave: overridden.osc.wave, ...(voice ?? {}) };
+    const drawn = { root: midiToNoteName(a.root), scale: a.scale, chord: a.chord.slice(0, 8), pattern: a.pattern, octaves: a.octaves, wave: overridden.osc.wave };
+    if (explicit) voice = { ...drawn, ...(voice ?? {}) }; // a partial voice the model sent: the rest is drawn once and kept
+    else {
+      sticky.voiceBand = nextBand(undefined, mood.joy);
+      voice = { ...drawn, ...(voice ?? {}), scale: BAND_SCALE[sticky.voiceBand] };
+      ({ state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth)); // this call already plays the banded mode
+    }
     adopted = true;
   }
   overridden.colour = applyColour(overridden.colour, sticky.colour);
@@ -303,13 +322,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
-    ...(input.voice !== undefined || held || adopted ? { voice } : {}),
+    ...(input.voice !== undefined || held || adopted || scaleMoved ? { voice } : {}),
     sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });

@@ -252,6 +252,32 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((c.colour as { h: number }).h).not.toBe(0);
   });
 
+  it("an auto-drawn voice keeps its key and its mode follows joy, with hysteresis; a voice the model sends stays fixed", async () => {
+    const m = (joy: number) => ({ warmth: 0.5, closeness: 0.5, joy, calm: 0.6, spontaneity: 0.3 });
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const call = (joy: number, extra: object = {}) => svc.setSound(dbA, A, { session_id, mood: m(joy), final: true, ...extra } as never, tick(25_000));
+    const scale = (r: Record<string, unknown>) => (r.playing as { scale: string }).scale;
+    const root = () => scale({ playing: JSON.parse(sql(`select effective->'arp' from states where session_id='${session_id}' order by created_at desc limit 1`)) });
+    const first = await call(0.5);
+    expect(scale(first)).toMatch(/dorian$/); expect((first.notes as string[]).join(" ")).toMatch(/follows your joy/);
+    const rootName = (r: Record<string, unknown>) => (r.playing as { scale: string }).scale.split(" ")[0];
+    const up = await call(0.95);
+    expect(scale(up)).toMatch(/lydian$/); expect(rootName(up)).toBe(rootName(first));
+    expect((up.notes as string[]).join(" ")).toMatch(/moved the mode of your voice from dorian to lydian/);
+    expect(sql(`select effective->'transition'->>'time' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("8");
+    for (const joy of [0.62, 0.7, 0.62, 0.7]) expect(scale(await call(joy))).toMatch(/lydian$/); // hovering high: no flip
+    expect(scale(await call(0.1))).toMatch(/phrygian$/);
+    void root;
+    // a voice with a scale of its own is never touched
+    const minor = { root: "A2", scale: "minor", chord: [1, 3, 5], pattern: "up", octaves: 1, wave: "triangle" };
+    const fixed = await svc.startSession(dbA, A, { voice: minor } as never, tick());
+    const f1 = await svc.setSound(dbA, A, { session_id: fixed.session_id, mood: m(0.95), final: true } as never, tick(25_000));
+    expect(scale(f1)).toMatch(/minor$/);
+    const f2 = await svc.setSound(dbA, A, { session_id: fixed.session_id, mood: m(0.95), final: true, voice: { scale: "major" } } as never, tick(25_000));
+    expect(scale(f2)).toMatch(/major$/);
+    expect(scale(await svc.setSound(dbA, A, { session_id: fixed.session_id, mood: m(0.1), final: true } as never, tick(25_000)))).toMatch(/major$/); // sent voice: stays fixed
+  });
+
   it("keep_voice freezes what plays now as the voice, and says so when the mood redraws it", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const happy = { warmth: 0.9, closeness: 0.8, joy: 0.9, calm: 0.8, spontaneity: 0.2 };
@@ -259,7 +285,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const first = await svc.setSound(dbA, A, { session_id, mood: happy, final: true } as never, tick());
     expect((first.notes as string[]).join(" ")).toMatch(/first sound is now your voice/);
     const moved = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick());
-    expect((moved.playing as { scale: string }).scale).toBe((first.playing as { scale: string }).scale); // the mood moved, the voice stayed
+    const rootOf = (r: Record<string, unknown>) => (r.playing as { scale: string }).scale.split(" ")[0];
+    expect(rootOf(moved)).toBe(rootOf(first)); // the mood moved the mode (joy), not the key
     const kept = await svc.setSound(dbA, A, { session_id, mood: sad, final: true, keep_voice: true } as never, tick());
     expect((kept.notes as string[]).join(" ")).toMatch(/voice kept/);
     const scale = (kept.playing as { scale: string }).scale;
@@ -318,14 +345,14 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(seen.face_changes).toHaveLength(4);
   });
 
-  it("the first sound becomes the voice: a different mood later keeps the scale, root and wave", async () => {
+  it("the first sound becomes the voice: a different mood later keeps the root and the wave", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const sad = { warmth: 0.2, closeness: 0.3, joy: 0.1, calm: 0.3, spontaneity: 0.4 };
     const glad = { warmth: 0.9, closeness: 0.8, joy: 0.95, calm: 0.7, spontaneity: 0.6 };
     const a = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick(25_000));
     expect((a.notes as string[]).join(" ")).toMatch(/first sound is now your voice/);
     const b = await svc.setSound(dbA, A, { session_id, mood: glad, final: true } as never, tick(25_000));
-    const key = (r: Record<string, unknown>) => { const p = r.playing as { scale: string; wave: string }; return `${p.scale}/${p.wave}`; };
+    const key = (r: Record<string, unknown>) => { const p = r.playing as { scale: string; wave: string }; return `${p.scale.split(" ")[0]}/${p.wave}`; }; // root and wave
     expect(key(b)).toBe(key(a));
     expect((b.notes as string[] | undefined ?? []).join(" ")).not.toMatch(/first sound is now/);
   });

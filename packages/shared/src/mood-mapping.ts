@@ -68,6 +68,19 @@ export function voiceToSynth(v: Voice | null | undefined): SynthOverride | undef
   return Object.keys(out).length ? out : undefined;
 }
 
+/** The bass and the drone sit in the voice's own key and scale, so the harmony under the arpeggio agrees with it (a minor voice over a major bass would read neither). */
+export function alignToVoice(state: EngineState, v: Voice | null | undefined): EngineState {
+  if (!v || (!v.root && !v.scale)) return state;
+  const s: EngineState = JSON.parse(JSON.stringify(state));
+  const root = v.root ? noteToMidi(v.root) : undefined;
+  if (v.scale) { s.bass.scale = v.scale; s.bass.chord = [1, 3, 5]; }
+  if (root !== undefined) {
+    s.bass.root = root - 12;
+    s.drone.notes = s.drone.notes.length === 2 && s.drone.notes[1] - s.drone.notes[0] === 3 ? [root - 12, root - 9] : [root - 12, root - 5];
+  }
+  return s;
+}
+
 /** The master volume is a constant: loudness belongs to the listener's slider, never to Claude or the mood. */
 export const MASTER_VOLUME = 0.5;
 
