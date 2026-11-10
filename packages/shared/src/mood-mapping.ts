@@ -184,7 +184,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
   const state: EngineState = {
     ...base,
     arp: {
-      on: !(k > 0.9 && j < 0.3),
+      on: true,
       root, scale: harmony.scale,
       // as_played keeps the order we give it: shuffle once from the voice seed so it does not simply climb
       chord: ((c) => (pattern === "as_played" && voiceSeed !== undefined ? permute(c, voiceSeed) : c))(expandDegrees(degrees, Math.max(notes, degrees.length))),

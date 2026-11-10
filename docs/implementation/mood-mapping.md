@@ -40,7 +40,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Swing:** `0.4 · s`.
 - **Jitter:** `min(30, lerp(0, 25, s) + 5·(1−j)·k)` ms. Sadness (low joy, calm) adds a small tremor; tenderness stays regular.
 - **Gate:** `lerp(0.3, 0.95, 0.6·k + 0.4·w)` (calm and warm = legato; urgent and cold = staccato).
-- **Arp on:** always, except when `k > 0.9 and j < 0.3` (very calm and low: drone only).
+- **Arp on:** always. (It used to switch off when `k > 0.9 and j < 0.3`, which left nothing for the spontaneity reading to measure; the model can still turn it off with `synth.arp.on = false`.)
 
 ## Timbre (mainly warmth)
 - **Wave:** `w > 0.66 → "sine"`, `w > 0.4 → "triangle"`, `w > 0.2 → "sawtooth"`, else `"square"`.
