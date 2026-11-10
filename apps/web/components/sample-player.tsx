@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import type { EngineState } from "@sonorous/engine";
 import { AudioOutput } from "./player/audio";
 import { sliderToGain } from "../lib/volume";
@@ -68,7 +68,7 @@ export function SamplePlayer() {
                 <span className="se-heading">{s.name}</span>
                 <span className="se-muted se-sm">{s.blurb}</span>
               </span>
-              <span className="lp-sample-state se-sm">{playing === s.id ? <><Square size={14} aria-hidden /> Stop</> : "Play"}</span>
+              <span className="lp-sample-state se-sm">{playing === s.id ? <><Square size={14} aria-hidden /> Stop</> : <><Play size={14} aria-hidden /> Play</>}</span>
             </button>
           </li>
         ))}

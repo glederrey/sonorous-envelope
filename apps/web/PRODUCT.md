@@ -14,7 +14,7 @@ Secondary: friends who open a shared player link (`/s/<id>`) with no account, to
 
 ## Product Purpose
 
-A remote MCP server that gives an LLM a non-verbal channel: a small synthesizer and a colour field. The model sets a mood during its turn, a player renders it, and the server returns what actually played plus the listener's reactions. The listener always stays in control (volume, mute, limits, reaction buttons).
+A remote MCP server that gives an LLM a non-verbal channel: a small synthesizer and a colour field. The model sets a mood during its turn, a player renders it, and the server returns what actually played plus the listener's reactions. The listener always stays in control (volume and mute).
 
 ## Positioning
 
@@ -26,7 +26,7 @@ Sessions start from a chat. The player stays open in a tab or on a second screen
 
 ## Capabilities and Constraints
 
-Next.js on Vercel, Supabase (auth, Postgres, Realtime). Safety limits are enforced on the server. No flashing faster than 3 Hz. Live: `start_session`, `set_sound`, `get_feedback`, `silence` and the player at `/s/<id>`. Not yet: gestures, reaction buttons, the owner settings panel, `inspect`, audio analysis (`reads_as`). The landing page must not claim features that are not shipped.
+Next.js on Vercel, Supabase (auth, Postgres, Realtime). Safety limits are enforced on the server. No flashing faster than 3 Hz. Live: `start_session`, `set_sound`, `get_feedback`, `silence`, `inspect`, the player at `/s/<id>`, gestures, reactions (owner, external face only), `reads_as`. Not yet: the spectrogram image, Strudel, listener limits. The landing page must not claim features that are not shipped.
 
 ## Brand Commitments
 

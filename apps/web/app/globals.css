@@ -928,7 +928,7 @@ html:has(.pl-field) .se-header {
 .pl-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pl-status { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--on-scrim-muted); min-width: 0; }
 .pl-dot-idle { background: var(--tide); animation: none; }
-.pl-panel .pl-icon-btn { width: 40px; padding: 0; flex: none; }
+.pl-panel .pl-icon-btn { width: 44px; min-height: 44px; padding: 0; flex: none; }
 .pl-panel .pl-mute { min-height: 56px; width: 100%; font-size: 16px; font-weight: 500; gap: 10px; border-radius: 12px; }
 .pl-panel .pl-mute[aria-pressed="true"] { background: var(--glow); border-color: var(--glow); color: var(--on-glow); }
 .pl-sliders { display: grid; gap: 6px; }
@@ -986,4 +986,7 @@ html:has(.pl-field) .se-header {
 @media (hover: hover) { .lp-sample:hover { border-color: var(--tide); } }
 .lp-swatch { flex: none; width: 36px; height: 36px; border-radius: 50%; }
 .lp-sample-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
-.lp-sample-state { flex: none; display: inline-flex; align-items: center; gap: 6px; min-width: 52px; justify-content: flex-end; }
+/* Play and Stop wear the same pill, so the idle row reads as a button as much as the playing one */
+.lp-sample-state { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 76px; min-height: 36px; padding: 0 12px;
+  border: 1px solid var(--line, color-mix(in srgb, currentColor 28%, transparent)); border-radius: 999px; font-weight: 500; }
+.lp-sample[aria-pressed="true"] .lp-sample-state { border-color: var(--tide); }
