@@ -322,6 +322,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     effective.volume = Math.max(0.05, effective.volume * 10 ** (-excess / 20));
     analysis = measureState(effective, ANALYSIS_SEED);
     levelNote = `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to +${LEVEL_STEP_DB} dB; send again to go further`;
+    allClamps.push(levelNote); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
   }
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
@@ -341,7 +342,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, levelNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
@@ -403,14 +404,14 @@ export async function inspect(db: Db, userId: string, input: { session_id?: stri
   const { data, error } = await db.from("states").select("turn,final,created_at,intent,clamps,analysis")
     .eq("session_id", session.id).order("created_at", { ascending: false }).limit(9);
   if (error) fail("read the history", error);
-  const short: Record<string, string> = { warmth: "warm", closeness: "close", joy: "joy", calm: "calm", spontaneity: "spont" };
+  const short: Record<string, string> = { warmth: "warm", closeness: "close", joy: "joy", calm: "calm", spontaneity: "spont", tension: "tens" };
   const f = (m: Record<string, number> | undefined, keys: string[]) => (m ? keys.map((k) => `${short[k]} ${Math.round((m[k] ?? 0) * 100) / 100}`).join(" ") : "-");
   const axes = ["warmth", "closeness", "joy", "calm", "spontaneity"];
   const lines = ((data ?? []) as Array<Pick<StateRow, "turn" | "final" | "created_at" | "intent" | "clamps" | "analysis">>).filter((r) => !(r.intent as { initial?: boolean }).initial).slice(0, 8).reverse().map((r) => {
     const time = new Date(r.created_at).toISOString().slice(11, 19);
-    const sent = r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, axes)}`;
-    const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, axes)}` : "";
-    const clamps = r.clamps?.length ? ` · ${r.clamps.length} clamp${r.clamps.length > 1 ? "s" : ""}` : "";
+    const sent = r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}`;
+    const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}` : "";
+    const clamps = r.clamps?.length ? ` · clamped: ${r.clamps.join("; ")}` : "";
     const n = r.intent.note ? ` · "${r.intent.note}"` : "";
     return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}`;
   });

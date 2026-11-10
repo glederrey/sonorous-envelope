@@ -30,6 +30,15 @@ describe("MCP tools", () => {
     expect(SERVER_INSTRUCTIONS.split(/\s+/).length).toBeLessThan(800);
   });
 
+  it("puts the rules that matter before the part a client may cut off", () => {
+    // a client showed the model a truncated copy (the tail of the old last section was missing): keep the face and talking rules
+    // early and the feedback reading, which the tool descriptions repeat, last
+    const at = (s: string) => SERVER_INSTRUCTIONS.indexOf(s);
+    expect(at("Talking about it")).toBeLessThan(2800);
+    expect(at("Care")).toBeLessThan(3500);
+    expect(at("Reading the feedback")).toBeGreaterThan(at("Care"));
+  });
+
   it("does not advertise features that are not built", () => {
     expect(SERVER_INSTRUCTIONS).not.toMatch(/spectrogram|strudel/i);
     expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture/i); // removed in v0.12

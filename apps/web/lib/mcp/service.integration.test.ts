@@ -303,9 +303,9 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const loud = await svc.setSound(dbA, A, { session_id, mood: { warmth: 0.3, closeness: 0.6, joy: 0.3, calm: 0.05, spontaneity: 0.9, tension: 0.9 }, final: true } as never, tick(25_000));
     const db1 = (loud.sound as { loudness_db: number }).loudness_db;
     expect(db1 - db0).toBeLessThanOrEqual(5); // 4 dB step, the reading is rounded
-    expect((loud.notes as string[]).join(" ")).toMatch(/level held/);
+    expect((loud.clamped as string[]).join(" ")).toMatch(/level held/);
     const calmer = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
-    expect((calmer.notes as string[]).join(" ")).not.toMatch(/level held/); // going down is never held
+    expect(((calmer.clamped ?? []) as string[]).join(" ")).not.toMatch(/level held/); // going down is never held
   });
 
   it("tells the model what the owner pressed, once, and get_feedback only looks", async () => {
