@@ -45,8 +45,8 @@ Last updated at v0.1.9 (2026-11-09, after the second outside test). Step numbers
   - [x] **`reads_as` hint.** Joy sent at 0.6 read about 0.28, and brightness stayed "very low" at a 3200 Hz cutoff. Add a one-line "pulled by" hint per axis (mode, density, wave, cutoff) so the model can see which parameters move it. Check the joy estimate in the calibration by ear.
   - [x] **Mood-free synth test.** `mood` is optional on `set_sound`; left out, the last mood stays and a note says so. With `keep_voice` this covers synth-only tests.
   - Not changing: the fade itself (correct), a wait tool (not our channel).
-- [ ] **Sound after dictation (first outside test).** (built, needs a phone test, not ticked until then.) On a phone the sound nearly disappears while the user dictates. Probably the system ducking other audio when the mic opens. Add `statechange` and keep-alive `pause` handling that resumes without a tap, add the events to the `?debug=1` report, test `navigator.audioSession` on iOS, and document the fallback (player on another device). Spec: [mobile.md](mobile.md), "Dictation", and player-ui.md, "Mobile notes".
-- [ ] **Calibration by ear** (below), after the above.
+- [x] **Sound after dictation (first outside test).** (built; phone-tested 2026-11-10, dictation works well.) On a phone the sound nearly disappears while the user dictates. Probably the system ducking other audio when the mic opens. Add `statechange` and keep-alive `pause` handling that resumes without a tap, add the events to the `?debug=1` report, test `navigator.audioSession` on iOS, and document the fallback (player on another device). Spec: [mobile.md](mobile.md), "Dictation", and player-ui.md, "Mobile notes".
+- [x] **Calibration by ear** (below), after the above. (Done 2026-11-10: calibration sounds pretty good. A five-round guessing game with a model followed; its findings are in "Third outside test".)
 
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [ ] **Step 5, second half.** Owner panel to change limits, consent and colour limits; reaction buttons; the reaction log returned to the model.

@@ -22,7 +22,7 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Ranges used to scale each feature to [0,1]; measured on random moods with `pnpm calibrate`. */
 export const RANGES = {
-  centroid: [150, 1900], loudness: [-32, -17], density: [0.5, 10], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03],
+  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // ---- FFT (radix-2, in place) ----
@@ -197,18 +197,21 @@ function explain(terms: Term[]): { low: string; high: string } {
 
 /** The compact reading returned to Claude, from the measured features and the tempo of the state. */
 export function readFeatures(f: Features, tempo: number): Analysis {
-  const c = norm(f.centroidHz, RANGES.centroid), loud = norm(f.loudnessDb, RANGES.loudness), den = norm(f.density, RANGES.density);
+  const c = norm(f.centroidHz, RANGES.centroid), loud = norm(f.loudnessDb, RANGES.loudness), loudWide = norm(f.loudnessDb, RANGES.loudnessWide), den = norm(f.density, RANGES.density);
   const flux = norm(f.flux, RANGES.flux);
-  const joy = 0.4 * f.modeBrightness + 0.25 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.2 * (1 - f.roughness);
-  const calm = 1 - (0.35 * den + 0.25 * loud + 0.2 * flux + 0.2 * c);
+  // joy is valence: mode and consonance carry it. Brightness and tempo are arousal, so they only nudge it (third test, round 4:
+  // a minor mood on a square wave with an open filter read 0.52 against 0.2 sent).
+  const joy = 0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * (1 - f.roughness);
+  // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
+  const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
   const warmth = 1 - (0.45 * c + 0.3 * clamp01(f.highFreqRatio * 8) + 0.25 * f.roughness);
-  const closeness = 0.4 * loud + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
+  const closeness = 0.4 * loudWide + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
-    joy: explain([["mode", 0.4, f.modeBrightness], ["brightness", 0.25, c], ["tempo", 0.15, norm(tempo, RANGES.tempo)], ["smoothness", 0.2, 1 - f.roughness]]),
-    calm: explain([["density", 0.35, 1 - den], ["loudness", 0.25, 1 - loud], ["movement", 0.2, 1 - flux], ["brightness", 0.2, 1 - c]]),
+    joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, 1 - f.roughness]]),
+    calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["brightness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
     warmth: explain([["brightness", 0.45, 1 - c], ["high_frequencies", 0.3, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.25, 1 - f.roughness]]),
-    closeness: explain([["loudness", 0.4, loud], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
+    closeness: explain([["loudness", 0.4, loudWide], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };
   return {

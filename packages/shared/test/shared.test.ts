@@ -384,6 +384,11 @@ describe("analysis", () => {
     const minor = JSON.parse(JSON.stringify(base)); minor.arp.scale = "minor";
     expect(analyze(base, 3).reads_as.joy).toBeGreaterThan(analyze(minor, 3).reads_as.joy);
   });
+  it("keeps valence and arousal apart (third test): a low joy on a bright square wave still reads low, an urgent mood reads urgent", () => {
+    const sad = state({ joy: 0.2, calm: 0.5 }); sad.osc.wave = "square"; sad.filter.cutoff = 5000;
+    expect(analyze(sad, 3).reads_as.joy).toBeLessThan(0.4);
+    expect(analyze(state({ joy: 0.5, calm: 0.12, spontaneity: 0.7 }), 3).reads_as.calm).toBeLessThan(0.35);
+  });
   it("is deterministic and does not change the state it measures", () => {
     const s = state(); const copy = JSON.stringify(s);
     expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);
