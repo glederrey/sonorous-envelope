@@ -67,9 +67,10 @@ export default async function SessionsPage() {
             <>
               {recent.map(row)}
               {older.length > 0 && (
-                <details className="doc-row">
-                  <summary className="se-heading" style={{ cursor: "pointer" }}>Older ({older.length})</summary>
-                  <div className="doc-rows">{older.map(row)}</div>
+                // the older rows are siblings of the summary, so they use the same two columns as the recent ones
+                <details className="doc-older">
+                  <summary className="doc-row doc-older-summary"><h2 className="se-heading" style={{ margin: 0 }}>Older ({older.length})</h2></summary>
+                  {older.map(row)}
                 </details>
               )}
             </>
