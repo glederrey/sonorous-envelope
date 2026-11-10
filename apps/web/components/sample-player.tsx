@@ -8,7 +8,7 @@ import { sliderToGain } from "../lib/volume";
 import { SAMPLES, fadeOut, stateOfStep, type Sample } from "../lib/samples";
 
 const FADE_S = 3;
-const SAMPLE_VOLUME = 0.6; // slider position: a little below the player's default, and the visitor has not chosen yet
+const SAMPLE_VOLUME = 0.75; // slider position (-3 dB from unity): the five are levelled by gainDb, and this sets how loud they are all together. It was 0.6 (-12 dB), which was too low
 
 /** "Hear what to expect": five emotions played by the same engine as a real session. Starts on a tap, stops on a tap or when it ends. */
 export function SamplePlayer() {
