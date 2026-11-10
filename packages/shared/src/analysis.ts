@@ -6,7 +6,9 @@ import { buildCycle, renderOffline, type EngineState, type NoteEvent } from "@so
 // reference moods (`pnpm calibrate`), and treat it as a rough reading.
 
 const SR = 22050;
-const RENDER_SECONDS = 6;
+const RENDER_SECONDS = 6; // at least; a slow sound is rendered longer so that it has enough note onsets to read its timing from
+const ONSETS_WANTED = 10;
+const IRREGULARITY_GAIN = 5; // an rms deviation of a fifth of a step reads as fully irregular
 const SKIP_SECONDS = 1; // steady state: leave out the start
 const FRAME = 1024, HOP = 512, BANDS = 32;
 
@@ -97,7 +99,9 @@ function modeBrightness(midis: number[]) {
 export function measure(state: EngineState, seed = 1): Features {
   const steady: EngineState = JSON.parse(JSON.stringify(state));
   steady.transition = { time: 0.03, curve: "smooth" };
-  const { left, right, events } = renderOffline(steady, { seconds: RENDER_SECONDS, sampleRate: SR, seed });
+  const stepSeconds = (60 / steady.arp.tempo) * ({ "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, "1/16": 0.25 } as Record<string, number>)[steady.arp.rate];
+  const seconds = Math.min(14, Math.max(RENDER_SECONDS, SKIP_SECONDS + ONSETS_WANTED * stepSeconds));
+  const { left, right, events } = renderOffline(steady, { seconds, sampleRate: SR, seed });
   const start = SKIP_SECONDS * SR;
   const n = left.length - start;
   const mono = new Float64Array(n);
@@ -145,7 +149,7 @@ export function measure(state: EngineState, seed = 1): Features {
 
   // note events after the skipped start
   const ev: NoteEvent[] = events.filter((e) => e.time >= SKIP_SECONDS);
-  const density = ev.length / (RENDER_SECONDS - SKIP_SECONDS);
+  const density = ev.length / (seconds - SKIP_SECONDS);
   const held = [...(state.drone.on ? state.drone.notes : []), ...(state.pad?.on ? state.pad.notes : [])];
   // pitch content for the mode estimate: the notes the layers cycle through (a few seconds of events is too little for a
   // key profile), plus what is held
@@ -184,8 +188,10 @@ export function measure(state: EngineState, seed = 1): Features {
   // onsets: distinct times (a stack starts several voices at once)
   const times = [...new Set(ev.filter((e) => e.layer === "arp").map((e) => Math.round(e.time * 1000)))].sort((a, b) => a - b);
   const iois = times.slice(1).map((t, i) => (t - times[i]) / 1000);
-  const meanI = iois.reduce((s, v) => s + v, 0) / (iois.length || 1);
-  const onsetIrregularity = iois.length > 2 && meanI > 0 ? clamp01(Math.sqrt(iois.reduce((s, v) => s + (v - meanI) ** 2, 0) / iois.length) / meanI) : 0;
+  // timing looseness: how far the gaps between onsets are from a whole number of steps. A skipped step (density below 1)
+  // makes a gap of two steps, which is not looseness; swing and jitter are.
+  const devs = stepSeconds > 0 ? iois.map((v) => (v - Math.max(1, Math.round(v / stepSeconds)) * stepSeconds) / stepSeconds) : [];
+  const onsetIrregularity = devs.length > 1 ? clamp01(Math.sqrt(devs.reduce((a, v) => a + v * v, 0) / devs.length) * IRREGULARITY_GAIN) : 0;
   const bins = new Map<number, number>();
   for (const v of iois) bins.set(Math.round(v * 100), (bins.get(Math.round(v * 100)) ?? 0) + 1);
   let ent = 0; for (const c of bins.values()) { const p = c / iois.length; ent -= p * Math.log(p); }
