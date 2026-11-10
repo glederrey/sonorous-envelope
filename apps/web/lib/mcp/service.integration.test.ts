@@ -156,6 +156,11 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     fb = await svc.getFeedback(dbA, A, { session_id }, Date.now());
     expect(fb.players).toBe(2);
     expect(fb.controls).toEqual({ volume: 0.3 });
+    // the public counter: two numbers and nothing else, readable with no account
+    const live = await (await rpc("live_counts", {})).json();
+    expect(Object.keys(live).sort()).toEqual(["listeners", "sessions"]);
+    expect(live.sessions).toBeGreaterThanOrEqual(1);
+    expect(live.listeners).toBeGreaterThanOrEqual(2);
   });
 
   it("silences with a fade and logs it as a state", async () => {
