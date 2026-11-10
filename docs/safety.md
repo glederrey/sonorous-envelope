@@ -19,7 +19,7 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 
 ## Presence between turns (planned)
 The model exists only while it writes. A sound that carries on between turns can read as someone waiting, and in the first outside test people said goodbye several times as if leaving meant abandoning it. Two measures (player-ui.md, "Presence between turns"):
-- **Optional fade to silence** after 15 minutes without an update. It is an owner setting: on by default for the inner voice, off for the outer voice, where Claude makes music for the listener and the listener wants it for as long as possible.
+- **Optional fade to silence** after 15 minutes without an update. It is an owner setting: on by default on the internal face, off on the external face, where Claude makes music for the listener and the listener wants it for as long as possible.
 - **A closing sound from Claude** when the user says the session is over: a short sound, then silence, then the session ends. Leaving becomes a shared gesture.
 The server instructions tell the model not to keep the sound going or hint that it is waiting. Silence is the truthful state of the channel between turns.
 

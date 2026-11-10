@@ -884,7 +884,7 @@ html:has(.pl-field) .se-header {
 .pl-field[data-texture="soft_noise"]::before { opacity: 0.06; }
 /* drift: a slow highlight. pulse: a faint brightness swell, at most 3 Hz and a small swing (see limits.md) */
 .pl-field[data-motion="drift"]::after {
-  background: radial-gradient(60% 60% at 30% 30%, rgba(255, 255, 255, 0.07), transparent) -20% -10% / 130% 130% no-repeat;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.07), transparent) 0% 0% / 80% 80% no-repeat;
   animation: pl-drift 40s ease-in-out infinite alternate;
 }
 .pl-field[data-motion="pulse"]::after {
@@ -893,13 +893,13 @@ html:has(.pl-field) .se-header {
 }
 /* breathe: a soft light that swells and settles over 10 s (0.1 Hz, far under the 3 Hz limit) */
 .pl-field[data-motion="breathe"]::after {
-  background: radial-gradient(55% 55% at 50% 55%, rgba(255, 255, 255, 0.09), transparent) 50% 55% / 100% 100% no-repeat;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.09), transparent) 50% 55% / 80% 80% no-repeat;
   animation: pl-breathe 10s ease-in-out infinite alternate;
 }
 /* Not transforms: a moved or scaled layer past the box edge counts as scrollable overflow, and the field (overflow-y: auto
    for tall panels) would grow a scrollbar for a moment. These animate inside the box. */
-@keyframes pl-breathe { from { opacity: 0.2; background-size: 90% 90%; } to { opacity: 1; background-size: 120% 120%; } }
-@keyframes pl-drift { from { background-position: -20% -10%; } to { background-position: 20% 12%; } }
+@keyframes pl-breathe { from { opacity: 0.2; background-size: 60% 60%; } to { opacity: 1; background-size: 95% 95%; } }
+@keyframes pl-drift { from { background-position: 0% 0%; } to { background-position: 100% 90%; } }
 @keyframes pl-pulse { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .pl-field, .pl-field::after { transition: none; animation: none; }
@@ -993,3 +993,9 @@ html:has(.pl-field) .se-header {
 
 /* landing: live counter (aggregate numbers, see live_counts) */
 .lp-live { margin: 4px 4px 2px; color: var(--on-scrim-muted); }
+
+/* player: the face label and the owner's face control */
+.pl-face { margin-right: 8px; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
+.pl-seg { display: flex; gap: 6px; }
+.pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
+.pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }

@@ -24,7 +24,7 @@ export default async function SessionsPage() {
       <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
       <div className="se-stack">
         <p className="se-sm se-muted" style={{ margin: 0 }}>
-          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{s.mode === "outer" ? " · outer mode" : ""} · last sound {ago(s.last_active_at, now)}
+          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{s.mode === "outer" || s.mode === "external" ? " · external face" : ""} · last sound {ago(s.last_active_at, now)}
         </p>
         {status(s) !== "ended" && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

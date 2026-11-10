@@ -12,7 +12,7 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
-import { MODE_GUIDANCE, REST_AFTER_BY_MODE, type Mode } from "./modes";
+import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, faceLine, normalizeFace, type Face, type Policy } from "./modes";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
@@ -27,7 +27,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: Mode;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
@@ -110,9 +110,32 @@ async function lastGestureAt(db: Db, sessionId: string): Promise<number | null> 
 }
 
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
-function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number): { resting: boolean; notes: string[] } {
-  if (!prev || settings.rest_after === null || !isResting(prev.created_at, settings.rest_after, now)) return { resting: false, notes: [] };
-  return { resting: true, notes: [restingNote(settings.rest_after)] };
+function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number, face: Face = "internal"): { resting: boolean; notes: string[] } {
+  const rest = effectiveRestAfter(settings.rest_after, face); // the external face never fades
+  if (!prev || rest === null || !isResting(prev.created_at, rest, now)) return { resting: false, notes: [] };
+  return { resting: true, notes: [restingNote(rest)] };
+}
+
+const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
+const policyOf = (s: { mode_policy?: string }): Policy => (s.mode_policy === "internal" || s.mode_policy === "external" ? s.mode_policy : "auto");
+
+/** Apply a `mode` sent with set_sound: finished messages and time since the last change decide whether going external is allowed. */
+async function switchFace(db: Db, session: SessionRow, requested: Face | undefined, stateTurn: number, now: number): Promise<{ face: Face; note?: string }> {
+  const current = faceOf(session), policy = policyOf(session);
+  if (requested === undefined) return { face: current };
+  const { data: last } = await db.from("mode_changes").select("created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(1);
+  const at = last?.[0] ? new Date(last[0].created_at as string).getTime() : null;
+  let turnsSince: number | null = null;
+  if (at !== null) {
+    const { count } = await db.from("states").select("id", { count: "exact", head: true }).eq("session_id", session.id).eq("final", true).gt("created_at", new Date(at).toISOString());
+    turnsSince = count ?? 0;
+  }
+  const d = decideSwitch({ policy, current, requested, turnsSince, msSince: at === null ? null : now - at });
+  if (d.change === null) return { face: current, note: d.note };
+  const { error: e1 } = await db.from("sessions").update({ mode: d.change }).eq("id", session.id);
+  if (e1) fail("switch the face", e1);
+  await db.from("mode_changes").insert({ session_id: session.id, turn: stateTurn, to_mode: d.change, by: "model", created_at: new Date(now).toISOString() });
+  return { face: d.change, note: `switched to the ${d.change} face: say so in one short sentence` };
 }
 
 type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> };
@@ -168,16 +191,16 @@ async function insertState(
   return data.id as string;
 }
 
-function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, reactions: string[] = []) {
+function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, reactions: string[] = [], mode?: string) {
   // states written before the analysis existed have none: measure them now (the engine is deterministic)
   const analysis = state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
-    players: p.players, controls: p.controls, notes, resting, analysis, reactions,
+    players: p.players, controls: p.controls, notes, resting, analysis, reactions, mode,
   });
 }
 
-export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: Mode }, now = Date.now()) {
+export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: "auto" | "internal" | "external" | "inner" | "outer" }, now = Date.now()) {
   // keep at most 10 active sessions: end the oldest
   const { data: active, error: aerr } = await db.from("sessions").select("id").eq("owner_id", userId).is("ended_at", null)
     .order("last_active_at", { ascending: false });
@@ -190,9 +213,9 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
-  const mode: Mode = input.mode === "outer" ? "outer" : "inner";
-  const fixedRest = REST_AFTER_BY_MODE[mode];
-  const settings: ListenerSettings = { ...parseSettings(profile?.default_settings ?? {}), ...(fixedRest === "default" ? {} : { rest_after: fixedRest }) };
+  // a session starts on the internal face unless the listener asked for sound; it is on auto until the owner locks a face
+  const mode: Face = input.mode === "auto" || input.mode === undefined ? "internal" : normalizeFace(input.mode);
+  const settings: ListenerSettings = parseSettings(profile?.default_settings ?? {});
   const id = newSessionId();
 
   const { error: serr } = await db.from("sessions").insert({
@@ -216,10 +239,10 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   return {
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
-    mode,
-    guidance: MODE_GUIDANCE[mode],
-    settings: { rest_after: settings.rest_after },
-    note: mode === "outer"
+    mode: faceLine(mode, "auto"),
+    guidance: GUIDANCE_OF(mode),
+    settings: { rest_after: effectiveRestAfter(settings.rest_after, mode) },
+    note: mode === "external"
       ? "Give player_url to the user and tell them to open it and tap Start listening. Pass session_id in every call."
       : "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
   };
@@ -240,6 +263,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
 
   const turn = planTurn(prev, input.final, now);
+  const faceNow = faceOf(session);
+  // before this call's own state is saved, so that the message in progress does not count as a finished one
+  const sw = await switchFace(db, session, input.mode, turn.stateTurn, now);
   // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
   const sentMood = input.mood ?? prev?.intent.mood ?? NEUTRAL_MOOD; // no mood: the last one stays
   const mood = stretchMood(sentMood);
@@ -292,11 +318,11 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
-  const rest = restInfo(prev, settings, now);
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", gestureNote, tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const rest = restInfo(prev, settings, now, faceNow);
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", gestureNote, tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions });
+  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -304,8 +330,8 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   const state = await currentState(db, session);
   if (!state) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   const p = await presence(db, session.id, session.owner_id, now);
-  const rest = restInfo(state, parseSettings(session.settings), now);
-  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now));
+  const rest = restInfo(state, parseSettings(session.settings), now, faceOf(session));
+  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
 }
 
 export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {
@@ -343,10 +369,10 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   if (error) fail("save the session", error);
 
   const p = await presence(db, session.id, session.owner_id, now);
-  const rest = restInfo(prev, parseSettings(session.settings), now);
+  const rest = restInfo(prev, parseSettings(session.settings), now, faceOf(session));
   const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, ...rest.notes]
     .filter((x): x is string => Boolean(x));
-  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting });
+  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), policyOf(session)) });
 }
 
 /** The last states, one line each: what was sent, what it read as, clamps and the note. Text only. */
@@ -366,5 +392,8 @@ export async function inspect(db: Db, userId: string, input: { session_id?: stri
     const n = r.intent.note ? ` · "${r.intent.note}"` : "";
     return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}`;
   });
-  return { history: lines, ...(note ? { notes: [note] } : {}) };
+  const { data: changes } = await db.from("mode_changes").select("turn,to_mode,by,created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(5);
+  const faces = ((changes ?? []) as Array<{ turn: number; to_mode: string; by: string; created_at: string }>).reverse()
+    .map((c) => `turn ${c.turn} ${new Date(c.created_at).toISOString().slice(11, 19)} · ${c.by === "owner" ? (c.to_mode === "auto" ? "owner set auto" : `owner locked ${c.to_mode}`) : `you switched to ${c.to_mode}`}`);
+  return { history: lines, ...(faces.length ? { face_changes: faces } : {}), ...(note ? { notes: [note] } : {}) };
 }

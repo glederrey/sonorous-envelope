@@ -117,7 +117,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   it("notes a missed final when a new turn starts after a stale non-final update", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     await svc.setSound(dbA, A, { session_id, mood, final: false } as never, tick());
-    const r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(60_000));
+    const r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(200_000));
     expect(r.notes).toEqual(expect.arrayContaining(["no final update last turn"]));
     expect(r.turn).toBe(2);
   });
@@ -288,12 +288,38 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((c.playing as { gesture?: string }).gesture).toBe("sigh");
   });
 
-  it("starts an outer session with its own guidance and no fade, and an inner one by default", async () => {
-    const inner = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null } };
-    expect(inner.mode).toBe("inner"); expect(inner.guidance).toMatch(/^Inner mode/); expect(inner.settings.rest_after).toBe(900);
-    const outer = await svc.startSession(dbA, A, { mode: "outer" }, tick()) as { mode: string; guidance: string; session_id: string; settings: { rest_after: number | null } };
-    expect(outer.mode).toBe("outer"); expect(outer.guidance).toMatch(/^Outer mode/); expect(outer.settings.rest_after).toBeNull();
-    expect(sql(`select mode from sessions where id = '${outer.session_id}'`)).toBe("outer");
+  it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
+    const int = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null }; session_id: string };
+    expect(int.mode).toBe("internal"); expect(int.guidance).toMatch(/^Internal face/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
+    const ext = await svc.startSession(dbA, A, { mode: "outer" }, tick()) as { mode: string; guidance: string; session_id: string; settings: { rest_after: number | null } };
+    expect(ext.mode).toBe("external"); expect(ext.guidance).toMatch(/^External face/); expect(ext.settings.rest_after).toBeNull();
+    expect(sql(`select mode || '/' || mode_policy from sessions where id = '${ext.session_id}'`)).toBe("external/auto");
+    expect(sql(`select mode from sessions where id = '${int.session_id}'`)).toBe("internal");
+  });
+
+  it("switches the face under the rules, logs it, and an owner lock is final", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const call = (extra: object, ms = 1000) => svc.setSound(dbA, A, { session_id, mood, final: true, ...extra } as never, tick(ms));
+    let r = await call({ mode: "external" });
+    expect(r.mode).toBe("external"); expect((r.notes as string[]).join(" ")).toMatch(/switched to the external face/);
+    r = await call({ mode: "internal" });
+    expect(r.mode).toBe("internal");
+    r = await call({ mode: "external" }); // right after a change: refused, with the wait
+    expect(r.mode).toBe("internal"); expect((r.notes as string[]).join(" ")).toMatch(/not switched to external: wait/);
+    r = await call({ mode: "external" }, 130_000); // time has passed, and the finished messages with it
+    expect(r.mode).toBe("internal"); expect((r.notes as string[]).join(" ")).toMatch(/wait/); // the clock moved, one message more is still needed
+    r = await call({ mode: "external" }, 130_000);
+    expect(r.mode).toBe("external");
+    // the owner locks the face: the model cannot move it
+    expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
+    r = await call({ mode: "external" });
+    expect(r.mode).toBe("internal, locked by the owner"); expect((r.notes as string[]).join(" ")).toMatch(/locked/);
+    expect((await dbB.rpc("set_mode_policy", { p_session: session_id, p_policy: "auto" })).error).not.toBeNull(); // not the owner
+    const seen = await svc.inspect(dbA, A, { session_id, what: "history" }) as { face_changes: string[] };
+    // (the owner's change is stamped by the database clock, the model's by the test clock, so the order is not asserted)
+    const log = seen.face_changes.join("|");
+    expect(log).toMatch(/you switched to external/); expect(log).toMatch(/you switched to internal/); expect(log).toMatch(/owner locked internal/);
+    expect(seen.face_changes).toHaveLength(4);
   });
 
   it("says when the tempo changed (it glides), and keeps the last mood when none is sent", async () => {
