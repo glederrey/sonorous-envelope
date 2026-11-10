@@ -492,6 +492,21 @@ describe("spontaneity on a slow sound (round 6: sent 0.35 to 0.95, read 0.03)", 
   });
 });
 
+describe("tension reading", () => {
+  it("rises with the tension sent and does not follow the rate or the voice", () => {
+    const read = (t: number, rate: "1/8" | "1/16", scale: "minor" | "lydian") => {
+      const mood = { ...stretchMood({ warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.5, spontaneity: 0.5 }), tension: t } as never;
+      const v = { root: "A2", scale, chord: [1, 3, 5], pattern: "up", octaves: 2, wave: "sawtooth" } as never;
+      const s = applyOverride(applyOverride(alignToVoice(moodToEngineState(mood, mood, 1), v), voiceToSynth(v)).state, { arp: { rate } }).state;
+      return analyze(s).reads_as.tension;
+    };
+    const base = [0.1, 0.3, 0.5, 0.7, 0.9].map((t) => read(t, "1/8", "minor"));
+    for (let i = 1; i < base.length; i++) expect(base[i]).toBeGreaterThan(base[i - 1]);
+    expect(base[0]).toBeLessThan(0.05); expect(base[4]).toBeGreaterThan(0.95);
+    for (const t of [0.3, 0.5, 0.7]) expect(Math.abs(read(t, "1/16", "lydian") - read(t, "1/8", "minor"))).toBeLessThan(0.03);
+  });
+});
+
 describe("voice bands: the scale mode of an auto-drawn voice follows joy, with hysteresis", () => {
   it("one mode per band", () => {
     expect(BAND_SCALE).toEqual({ low: "phrygian", mid: "dorian", high: "lydian" });

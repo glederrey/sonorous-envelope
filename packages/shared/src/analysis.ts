@@ -16,7 +16,7 @@ export interface Features {
   loudnessDb: number; centroidHz: number; highFreqRatio: number; flux: number; fluxVariance: number;
   density: number; roughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
   width: number; tailRatio: number; pitchLow: number; pitchHigh: number;
-  /** How much of what sounds together clashes: the summed weight of the semitone, tritone and major-seventh pairs among the notes sounding together (not divided by their number, so every clashing note adds to it). */
+  /** How much a note clashes with the stack started on it: the mean over arpeggio onsets of the summed weight of the semitone, tritone and major-seventh pairs inside one onset. */
   clash: number;
 }
 
@@ -26,7 +26,7 @@ const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Ranges used to scale each feature to [0,1]; measured on random moods with `pnpm calibrate`. */
 export const RANGES = {
-  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03], clash: [1.5, 6.5],
+  centroid: [150, 1900], loudness: [-31, -24], loudnessWide: [-32, -17], density: [1, 8], flux: [0.06, 0.25], tempo: [56, 150], fluxVar: [0, 0.03], clash: [0, 3.05],
 } as const satisfies Record<string, readonly [number, number]>;
 
 // ---- FFT (radix-2, in place) ----
@@ -168,22 +168,20 @@ export function measure(state: EngineState, seed = 1): Features {
   }
   const roughness = clamp01(cnt ? rough / cnt : 0);
 
-  // clash: how many of the note pairs sounding together are a semitone, a tritone or a major seventh. Unlike roughness it is
-  // not diluted by the consonant pairs a bigger chord adds.
+  // clash: the semitones, tritones and major sevenths inside one onset, that is a note and the stack stacked on it (the
+  // arpeggio plays one note per step). Only what starts together counts: counting what overlaps in a 0.4 s window made the
+  // reading follow the rate, density and tails (the same [6] stack read 0.04 at 1/8 and 0.81 at 1/16), and held notes would
+  // add a baseline that depends on the scale. The mean is over all onsets, so a stack on every note reads the same however
+  // many notes there are.
   const CLASH_W = [0, 1, 0.25, 0, 0, 0, 0.8, 0, 0, 0, 0.25, 1];
-  let clashSum = 0, clashN = 0;
-  for (let i = 0; i < ev.length; i += 2) {
-    const set = new Set<number>(held);
-    for (const e of ev) if (e.time <= ev[i].time && e.time > ev[i].time - 0.4) set.add(e.midi);
-    const notes = [...set].slice(0, 8);
-    if (notes.length < 2) continue;
-    // the summed weight, divided neither by the pairs nor by the notes: a mean over either would let a fresh clashing note lower
-    // the reading by adding consonant partners (round 5: 0.6 read 0.90 and 0.9 read 0.71 with the same chord)
-    let w = 0;
-    for (let a = 0; a < notes.length; a++) for (let b = a + 1; b < notes.length; b++) w += CLASH_W[Math.abs(notes[a] - notes[b]) % 12];
-    clashSum += w; clashN++;
+  const onsets = new Map<number, number[]>();
+  for (const e of ev) if (e.layer === "arp") { const k = Math.round(e.time * 100); onsets.set(k, [...(onsets.get(k) ?? []), e.midi]); }
+  let clashSum = 0;
+  for (const notes of onsets.values()) {
+    const u = [...new Set(notes)];
+    for (let a = 0; a < u.length; a++) for (let b = a + 1; b < u.length; b++) clashSum += CLASH_W[Math.abs(u[a] - u[b]) % 12];
   }
-  const clash = clashN ? clashSum / clashN : 0;
+  const clash = onsets.size ? clashSum / onsets.size : 0;
 
   // onsets: distinct times (a stack starts several voices at once)
   const times = [...new Set(ev.filter((e) => e.layer === "arp").map((e) => Math.round(e.time * 1000)))].sort((a, b) => a - b);
@@ -227,7 +225,9 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   // joy is valence: mode and consonance carry it. Brightness and tempo are arousal, so they only nudge it (third test, round 4:
   // a minor mood on a square wave with an open filter read 0.52 against 0.2 sent).
   // tension: how much of what sounds together clashes
-  const tension = norm(f.clash, RANGES.clash);
+  // the clash of the stack steps 0, 0.25, 0.8, 1.8, 3.05 (stack levels 0.12, 0.3, 0.5, 0.7, 0.9); the power 0.6 spreads them
+  // so that sent and read agree (read 0, 0.22, 0.45, 0.73, 1.0)
+  const tension = norm(f.clash, RANGES.clash) ** 0.6;
   const smooth = 1 - clamp01(0.5 * f.roughness + 0.5 * tension);
   const joy = 0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * smooth;
   // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
