@@ -271,7 +271,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     if (lastAt !== null && now - lastAt < GESTURE_GAP_MS) gestureNote = `gesture skipped: the last one was ${Math.round((now - lastAt) / 1000)} s ago, keep them 20 s apart`;
     else effective.gesture = { type: input.gesture.type, intensity: input.gesture.intensity, id: randomBytes(4).toString("hex") };
   }
-  effective.grid = nextGrid(prev, now); // where the step grids are on the shared timeline when this state starts
+  effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
   const analysis = measureState(effective, seed);
@@ -322,7 +322,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };
-  effective.grid = nextGrid(prev, now);
+  effective.grid = nextGrid(prev, now, effective);
   // ending: let the closing sound sent just before play out first; the fade starts when its transition is over
   let delay = 0;
   if (input.end) {

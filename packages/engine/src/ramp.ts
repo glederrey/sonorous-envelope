@@ -37,17 +37,20 @@ const MIN_GLIDE_S = 0.5;
 
 /** The arpeggio's step ramp for a state: from the tempo that played when it was written (`grid.fromTempo`) to its own tempo
  *  over its transition. No ramp for a sudden or very short transition, a delayed state, or when there is no earlier tempo. */
-export function arpRamp(s: Pick<EngineState, "arp" | "transition" | "grid">): Ramp {
+export function arpRamp(s: Pick<EngineState, "arp" | "grid">): Ramp {
   const to = Math.max(20, s.arp.tempo), beats = RATE_BEATS[s.arp.rate];
-  const from = s.grid?.fromTempo;
-  const ok = from !== undefined && Math.abs(from - to) >= MIN_GLIDE_BPM && s.transition.curve !== "sudden"
-    && s.transition.time >= MIN_GLIDE_S && !(s.transition.delay && s.transition.delay > 0);
-  if (!ok) return { rho0: to / 60 / beats, rho1: to / 60 / beats, dur: 0 };
-  return { rho0: Math.max(20, from) / 60 / beats, rho1: to / 60 / beats, dur: s.transition.time };
+  const from = s.grid?.fromTempo, dur = s.grid?.glide ?? 0;
+  if (from === undefined || dur < MIN_GLIDE_S || Math.abs(from - to) < MIN_GLIDE_BPM) return { rho0: to / 60 / beats, rho1: to / 60 / beats, dur: 0 };
+  return { rho0: Math.max(20, from) / 60 / beats, rho1: to / 60 / beats, dur };
+}
+
+/** How long a state's tempo glide lasts, from the transition it is written with: none for a sudden or very short one, or a delayed state. */
+export function glideSeconds(t: EngineState["transition"]): number {
+  return t.curve === "sudden" || t.time < MIN_GLIDE_S || (t.delay !== undefined && t.delay > 0) ? 0 : t.time;
 }
 
 /** The tempo (BPM) of a state `tau` seconds after it was written. */
-export function tempoAt(s: Pick<EngineState, "arp" | "transition" | "grid">, tau: number): number {
+export function tempoAt(s: Pick<EngineState, "arp" | "grid">, tau: number): number {
   const r = arpRamp(s), beats = RATE_BEATS[s.arp.rate];
   if (r.dur <= 0) return s.arp.tempo;
   const x = Math.min(1, Math.max(0, tau / r.dur));

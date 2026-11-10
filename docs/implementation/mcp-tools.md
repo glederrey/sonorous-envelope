@@ -99,7 +99,7 @@ Keep every field description short in the tool schema: the model reads them.
 
 > **Built (2026-11-09):** `osc.stack` (intervals in semitones, max 3), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`; sending notes turns it on), `lfo.rate` up to 80 for the `amp` target only (12 for the others, validated per target). The fast amp LFO has no consent row or harshness term any more (limits are removed) and never drives the colour pulse. (`voice` on `start_session` and `set_sound` and `resting` in the feedback are built.) Keep field descriptions short: the model reads every one.
 
-> **Status (PR 2):** `start_session`, `set_sound`, `get_feedback` and `silence` are live. `inspect`, gestures, `reads_as`/`sound` analysis and the `listener` reactions are not built yet, so the tool schemas and the server instructions leave them out. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
+> **Status (2026-11-10):** all five tools are live, with `reads_as`/`sound`, gestures, reactions, `tension`, modes and the tempo glide; the spectrogram image is not built. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
 ## `start_session`
 > **Built (2026-11-10, #16):** `mode: "inner" | "outer"` (default inner, fixed for the session, column `sessions.mode`). The result carries `mode` and `guidance` (`apps/web/lib/mcp/modes.ts`). Outer sessions start with `rest_after` null (no fade between turns). The feedback is the same in both modes; the difference is in the guidance: outer may talk about the sound, takes requests and reads reactions as the user's feedback on what was made.
