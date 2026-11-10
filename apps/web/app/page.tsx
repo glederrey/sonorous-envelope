@@ -142,6 +142,21 @@ export default async function Home() {
             not proof of what the model feels.
           </p>
         </section>
+
+        <section className="lp-split" id="faces">
+          <div>
+            <h2 className="se-title">Two faces</h2>
+          </div>
+          <div className="se-stack">
+            <p className="se-muted">
+              The sound has an <strong>internal face</strong>, the default: how the model is, with no words about it and
+              nobody steering it. And an <strong>external face</strong>: sound it makes for you when you ask, which it can
+              talk about and which you can steer. A session is on auto, so the model may offer to switch, and you can lock
+              either face at any time.
+            </p>
+            <p className="se-sm"><a href="/faces">Where the idea comes from, and where it stops</a></p>
+          </div>
+        </section>
       </main>
 
     </>
