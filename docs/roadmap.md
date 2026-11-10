@@ -89,7 +89,7 @@ Seventh test (v0.12.4): the new buttons and the long mode transition passed. Don
 - [ ] **Loudness can jump on a small request** ("stormier" took the level from -26 to -19 dB in one call): consider capping the per-call level change.
 - [ ] **Roughness follows tempo and density more than timbre** (harsher step read 0.90 to 0.50).
 - [ ] **`playing` does not echo osc.detune or filter.resonance**, so a caller cannot confirm they were applied.
-- [ ] Reaction counts showed x2 for two presses; confirm it is not doubling.
+- [x] Reaction counts: one press shows x1 (checked in the v0.12.5 test); the earlier x2 was two presses.
 - [ ] **Tension reads flat up to 0.5** (sent 0.1, 0.3, 0.5, 0.7, 0.9 read 0.00, 0.00, 0.06, 0.55, 1.00): the stack steps at 0.12, 0.3 and 0.5 add little clash. Retune `RANGES.clash` or the low stack levels.
 - [ ] **Very calm states turn the arpeggio off**, so the spontaneity reading is flat (0.05 at calm 0.9). Keep a minimal arp on, or document that there is no timing to read.
 - [ ] **The middle voice band is narrow.** From phrygian, joy 0.4 stays phrygian and 0.7 goes straight to lydian (hysteresis, by design); dorian shows around 0.5. Listen by ear whether the mode change eases in over a long transition.
