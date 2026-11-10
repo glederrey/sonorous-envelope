@@ -4,6 +4,7 @@ export * from "./limits";
 export * from "./feedback";
 export * from "./rest";
 export * from "./sticky";
+export * from "./voice-band";
 export * from "./analysis";
 export * from "./grid";
 export * from "./reactions";

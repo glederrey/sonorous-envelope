@@ -10,6 +10,8 @@ export interface Sticky {
   stack?: number[];
   pad?: NonNullable<SynthOverride["pad"]>;
   lfo?: NonNullable<SynthOverride["lfo"]>;
+  /** Set while the voice is the one drawn from the first sound: its scale mode then follows joy (voice-band.ts). Gone once the model sends a voice. */
+  voiceBand?: "low" | "mid" | "high";
 }
 
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mulberry32 } from "@sonorous/engine";
 import {
+  BAND_SCALE, nextBand, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
   describeReactions, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
@@ -488,6 +489,34 @@ describe("spontaneity on a slow sound (round 6: sent 0.35 to 0.95, read 0.03)", 
     expect(mid.spont).toBeGreaterThan(lo.spont + 0.15);
     expect(hi.spont).toBeGreaterThan(mid.spont + 0.1);
     expect(lo.spont).toBeLessThan(0.35);
+  });
+});
+
+describe("voice bands: the scale mode of an auto-drawn voice follows joy, with hysteresis", () => {
+  it("one mode per band", () => {
+    expect(BAND_SCALE).toEqual({ low: "phrygian", mid: "dorian", high: "lydian" });
+    expect(nextBand(undefined, 0.1)).toBe("low"); expect(nextBand(undefined, 0.5)).toBe("mid"); expect(nextBand(undefined, 0.9)).toBe("high");
+  });
+  it("does not flip back and forth at the edges", () => {
+    // hovering around the upper edge: once up, it stays up until joy falls clearly below
+    let b = nextBand("mid", 0.72); expect(b).toBe("high");
+    for (const j of [0.68, 0.72, 0.66, 0.7, 0.6]) { b = nextBand(b, j); expect(b).toBe("high"); }
+    expect(nextBand(b, 0.54)).toBe("mid");
+    // and the lower edge
+    let l = nextBand("mid", 0.28); expect(l).toBe("low");
+    for (const j of [0.32, 0.28, 0.36, 0.4, 0.44]) { l = nextBand(l, j); expect(l).toBe("low"); }
+    expect(nextBand(l, 0.46)).toBe("mid");
+  });
+  it("the joy reading follows the bands, because the bass sits in the voice's own key and scale", () => {
+    const reads = [0.1, 0.4, 0.7].map((joy) => {
+      const m = stretchMood({ warmth: 0.5, closeness: 0.5, joy, calm: 0.5, spontaneity: 0.5 });
+      const v = { root: "D3", scale: BAND_SCALE[nextBand(undefined, m.joy)], chord: [1, 3, 5], pattern: "up", octaves: 2 } as never;
+      return analyze(applyOverride(alignToVoice(moodToEngineState(m, m, 1), v), voiceToSynth(v)).state).reads_as.joy;
+    });
+    expect(reads[1]).toBeGreaterThan(reads[0]); expect(reads[2]).toBeGreaterThan(reads[1] + 0.15);
+  });
+  it("can cross a whole band at once", () => {
+    expect(nextBand("high", 0.1)).toBe("low"); expect(nextBand("low", 0.95)).toBe("high");
   });
 });
 

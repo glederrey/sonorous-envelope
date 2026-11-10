@@ -101,6 +101,9 @@ A voice is the part of the sound that says who is playing, as opposed to how it 
 - **Merge order:** mapped → voice → `synth` of this call → limits. Only the safety rules in limits.md apply afterwards (no consent ceilings any more).
 - **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
 
+### Voice bands (auto-drawn voices only)
+A voice the server drew itself (the first sound adopted as the voice) takes its scale from joy, in three bands: low `phrygian`, mid `dorian`, high `lydian` (`BAND_SCALE`). `nextBand` has hysteresis (enter high at 0.7, leave below 0.55; enter low at 0.3, leave above 0.45, on the stretched joy), so a joy hovering at an edge does not flip the mode. Changing band is noted in `notes` and uses an 8 s transition. A voice the model sent (`voice` or `keep_voice`) is never touched. `alignToVoice` puts the bass and drone in the voice's root and scale (bass chord `[1,3,5]`), so the harmony under the arpeggio agrees with it and `reads_as.joy` follows the band (measured at neutral axes: sent 0.1, 0.4, 0.7 read about 0.31, 0.36, 0.72). `mixolydian` was tried for the mid band and read 0.70, too bright for a sent 0.4.
+
 ## Override merge
 Deep-merge the model's `synth` object over the mapped state, field by field. Arrays (`chord`, `lfo`, `drone.notes`) replace, not merge. Note names convert to MIDI. Record which fields were overridden in the state's `intent` (for the session details page).
 
