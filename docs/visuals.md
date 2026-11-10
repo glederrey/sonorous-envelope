@@ -1,6 +1,8 @@
 # Visual options: notes
 
-Status: ideas, not built. Today the colour field is one background gradient (colour to secondary), a motion (still, drift, pulse) and a texture (flat, grain, soft noise). Gael wants more room for the model to express itself visually: shapes, gradients, moving things. These are notes to decide from, not a spec.
+Status: first step built (2026-11-10): `colour.shape` (`wash`, the linear default, `glow`, a radial light, `sweep`, a conic turn) and `motion: breathe` (a soft light that swells and settles over 10 s). In follow mode a close, warm mood (closeness above 0.7, warmth above 0.5) is a glow; the model can ask for any shape. Pure CSS, `prefers-reduced-motion` turns the motion off, nothing near the 3 Hz rule (`hardCaps` keeps `pulseHz` at 0 unless the motion is `pulse`). Scenes, shapes and particles below are still ideas; the owner's visual-intensity setting waits for the limits piece. Original notes:
+
+Status of the rest: ideas, not built. Today the colour field is one background gradient (colour to secondary), a motion (still, drift, pulse) and a texture (flat, grain, soft noise). Gael wants more room for the model to express itself visually: shapes, gradients, moving things. These are notes to decide from, not a spec.
 
 ## What exists now
 `ResolvedColour = { h, s, l, secondary?, motion, texture, pulseHz }`. The model can set mode `own` with hue, saturation, lightness, a secondary colour, motion and texture. In `follow` mode it is derived from the mood (mood-mapping.md). The player draws it with CSS (`pl-field`).

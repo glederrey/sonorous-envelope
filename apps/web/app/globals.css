@@ -862,6 +862,20 @@ html:has(.pl-field) .se-header {
   overflow-x: hidden;
   overflow-y: auto;
 }
+/* shape: wash is the linear default above; glow is a radial light, sweep a slow conic turn */
+.pl-field[data-shape="glow"] {
+  background:
+    radial-gradient(70% 60% at 50% 62%,
+      hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)),
+      hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)));
+}
+.pl-field[data-shape="sweep"] {
+  background:
+    conic-gradient(from 200deg at 50% 60%,
+      hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)),
+      hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)),
+      hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)));
+}
 .pl-field::before, .pl-field::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .pl-field[data-texture="grain"]::before, .pl-field[data-texture="soft_noise"]::before {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
@@ -877,6 +891,12 @@ html:has(.pl-field) .se-header {
   background: rgba(255, 255, 255, 0.07);
   animation: pl-pulse var(--pl-pulse, 2s) ease-in-out infinite alternate;
 }
+/* breathe: a soft light that swells and settles over 10 s (0.1 Hz, far under the 3 Hz limit) */
+.pl-field[data-motion="breathe"]::after {
+  background: radial-gradient(55% 55% at 50% 55%, rgba(255, 255, 255, 0.09), transparent);
+  animation: pl-breathe 10s ease-in-out infinite alternate;
+}
+@keyframes pl-breathe { from { opacity: 0.2; transform: scale(0.92); } to { opacity: 1; transform: scale(1.08); } }
 @keyframes pl-drift { from { transform: translate3d(-8%, -4%, 0); } to { transform: translate3d(10%, 6%, 0); } }
 @keyframes pl-pulse { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {

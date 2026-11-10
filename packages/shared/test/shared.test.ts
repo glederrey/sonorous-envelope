@@ -355,6 +355,26 @@ describe("what stays on the session", () => {
   });
 });
 
+describe("colour shapes and breathe", () => {
+  const base = () => moodToEngineState(stretchMood(neutral), stretchMood(neutral), 1).colour;
+  it("follow mode: a close, warm mood is a glow, anything else the linear wash it always was", () => {
+    expect(moodToEngineState(stretchMood(m({ closeness: 0.9, warmth: 0.9 })), neutral, 1).colour.shape).toBe("glow");
+    expect(moodToEngineState(stretchMood(m({ closeness: 0.2, warmth: 0.9 })), neutral, 1).colour.shape).toBe("wash");
+  });
+  it("the model can ask for a shape and for breathe, and breathe never pulses", () => {
+    const c = applyColour(base(), { shape: "sweep", motion: "breathe" });
+    expect(c.shape).toBe("sweep"); expect(c.motion).toBe("breathe"); expect(c.pulseHz).toBe(0);
+    expect(Colour.safeParse({ shape: "orbit" }).success).toBe(false);
+    const s = moodToEngineState(neutral, neutral, 1); s.colour = { ...c, pulseHz: 9 };
+    hardCaps(s); expect(s.colour.pulseHz).toBe(0);
+  });
+  it("shows a shape other than the wash in the feedback, and nothing for the wash", () => {
+    const s = moodToEngineState(neutral, neutral, 1);
+    const f = (shape?: "wash" | "glow") => buildFeedback({ turn: 1, intent: neutral, effective: { ...s, colour: { ...s.colour, shape } }, clamps: [], players: 1 }).colour as Record<string, unknown>;
+    expect(f("glow").shape).toBe("glow"); expect(f("wash")).not.toHaveProperty("shape");
+  });
+});
+
 describe("reactions", () => {
   it("folds repeats and says how long ago", () => {
     const now = Date.parse("2026-11-10T10:00:00Z");
