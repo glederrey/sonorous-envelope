@@ -425,6 +425,13 @@ describe("analysis", () => {
     const high = analyze(moodToEngineState(stretchMood({ ...neutral, tension: 0.9 }), base, 7), 3).reads_as.tension;
     expect(high).toBeGreaterThan(low + 0.3);
   });
+  it("tension: every stack level up is heard, including the top one (round 5: 0.6 to 0.9 was a small step)", () => {
+    const base = stretchMood(neutral);
+    const read = (tn: number) => analyze(moodToEngineState(stretchMood({ ...neutral, tension: tn }), base, 7), 3).reads_as.tension;
+    const levels = [0.2, 0.4, 0.6, 0.8].map(read);
+    for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeGreaterThan(levels[i - 1] + 0.05);
+    expect(moodToEngineState(stretchMood({ ...neutral, tension: 0.9 }), base, 7).osc.stack).toEqual([1, 6, 11]);
+  });
   it("is deterministic and does not change the state it measures", () => {
     const s = state(); const copy = JSON.stringify(s);
     expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);
