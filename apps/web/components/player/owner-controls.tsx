@@ -11,8 +11,8 @@ const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null
   { value: "never", label: "Never", seconds: null },
 ];
 
-/** Opposites side by side; the last row is the two ways to ask for gentler. */
-const REACTION_PAIRS: ReactionKind[][] = [["slower", "faster"], ["darker", "brighter"], ["less_of_this", "more_of_this"], ["calmer", "softer"]];
+/** Opposites side by side; the last row is the like or dislike, not a direction. */
+const REACTION_PAIRS: ReactionKind[][] = [["slower", "faster"], ["darker", "brighter"], ["calmer", "stormier"], ["softer", "harsher"], ["less_of_this", "more_of_this"]];
 
 const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
   { value: "auto", label: "Auto", hint: "The model chooses its face, and says so when it switches" },

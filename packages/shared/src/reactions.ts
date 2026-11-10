@@ -1,12 +1,12 @@
 // The owner's reaction buttons (player-ui.md) and how they are told to the model. They are information about how the sound
 // landed, not commands: the model decides what to do with them.
 
-export const REACTION_KINDS = ["calmer", "softer", "darker", "brighter", "slower", "faster", "more_of_this", "less_of_this"] as const;
+export const REACTION_KINDS = ["calmer", "softer", "darker", "brighter", "slower", "faster", "stormier", "harsher", "more_of_this", "less_of_this"] as const;
 export type ReactionKind = (typeof REACTION_KINDS)[number];
 
 export const REACTION_LABELS: Record<ReactionKind, string> = {
   calmer: "Calmer", softer: "Softer", darker: "Darker", brighter: "Brighter",
-  slower: "Slower", faster: "Faster", more_of_this: "More of this", less_of_this: "Less of this",
+  slower: "Slower", faster: "Faster", stormier: "Stormier", harsher: "Harsher", more_of_this: "More of this", less_of_this: "Less of this",
 };
 
 const short = (s: number) => (s < 90 ? `${Math.max(1, Math.round(s))} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`);

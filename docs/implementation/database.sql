@@ -98,7 +98,7 @@ create table public.reactions (
   user_id      uuid not null references auth.users(id) on delete cascade,
   created_at   timestamptz not null default now(),
   kind         text not null check (kind in (
-                 'calmer','softer','brighter','darker','slower','faster',
+                 'calmer','softer','brighter','darker','slower','faster','stormier','harsher',
                  'more_of_this','less_of_this',
                  'volume','mute','unmute','limit_changed','consent_changed',
                  'gestures_off','gestures_on','image_feedback_changed')),
