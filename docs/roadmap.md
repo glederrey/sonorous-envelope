@@ -57,6 +57,18 @@ A model played five rounds of a chosen emotion and the user guessed (two near hi
 - [x] **The note leaks the answer.** The server cannot hide tool-call arguments, and the mood numbers leak as much as the note. Done: the instructions say to leave `note` out in a guessing game, and the player has a switch that hides the "What the model set" panel. Not done, on purpose: a hidden channel for the note.
 - Honesty caveat: acting out an emotion tests how well the sound communicates, not the model's state. It is the argument for the outer mode (#16).
 
+### Fourth outside test (2026-11-10, v0.7.1 to v0.11)
+Gael's first look at the owner controls, and a scripted test by a model on the live session. What we did:
+- [x] Invitee panel is volume, mute, hide, share row only. Owner panel: reaction buttons only on the external face, with a "waiting for Claude" line (the server cannot push to the model); every press counts; Settings block; fade select readable.
+- [x] The `/s/` scrollbar came from the drift and breathe lights moving past the box (transforms count as overflow). They now animate inside it.
+- [x] Guessing-game hide switch and wording removed.
+- [x] Inner and outer became **internal and external faces** (Anzieu). Default `auto`: starts internal; the model may offer a switch in words and switch only after a yes or a clear request; the server enforces 2 finished messages and 2 minutes before going external; an owner lock (Auto, Internal, External) is final; every change is logged and shown in `inspect`; everyone sees the face. Migration 0008.
+- [x] Gestures: six (dropped meow_up as an appeal, meow_down, hum, breath), louder at 0.5, a session setting for everyone (default on for external, off for internal), soft and no growl on the internal face, `gesture: played | skipped: reason` and `gestures: off` in the result.
+- [x] Tension: a fifth stack level (semitone, tritone, major seventh) and a per-note clash reading so the top step is heard. Calm reading a little lower under tension is the sound, not a fault (documented).
+- [x] Turn counter: a turn is one message (3 minutes stale limit), so a batch of calls no longer reports "no final update last turn".
+- [x] Landing: live counter (`live_counts`, migration 0007), samples levelled by measured loudness and played louder, Play and Stop share a pill, the faces section and the `/faces` page with reading, the guide explains faces.
+- [ ] Not done: the tension readback after a big drop (a ghost reading of 0.47 during a glide) and the swings by gesture tail were not reproduced; to retest. `reads_as` joy under `keep_voice` stays low by design (the scale sets joy); the instructions now say so.
+
 ### 3. Owner controls and gestures (steps 5 and 6)
 - [x] **Step 5, second half.** (built 2026-11-10; needs a browser test as the owner.) Reaction buttons for the owner and the reaction log returned to the model; the owner-side `rest_after` setting with its notice. (The limits, consent and colour-limits panel is dropped: those limits were removed on 2026-11-09 and come back as a designed piece.)
 - [x] **Step 6. Gestures.** (built 2026-11-10; needs an ear test, and the instructions line stays "ask in words", not "use a meow".) First set (purr, meow_up, meow_down, chirp, laugh, growl, sigh, hum, pluck, breath), with a switch to mute them, and the purr spectral test (no tonal component above 250 Hz). Wording is ready in server-instructions.md, to restore when they ship.
