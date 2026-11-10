@@ -27,9 +27,9 @@ export default async function SessionsPage() {
           {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{s.mode === "outer" || s.mode === "external" ? " · external face" : ""} · last sound {ago(s.last_active_at, now)}
         </p>
         {status(s) !== "ended" && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="ss-actions">
             {status(s) === "active" && <a className="se-btn se-btn-primary" href={`/s/${s.id}`}>Open player</a>}
-            {status(s) === "active" && <CopyLink path={`/s/${s.id}`} label="Copy link to share" />}
+            {status(s) === "active" && <CopyLink path={`/s/${s.id}`} />}
             {status(s) === "inactive" && <a className="se-btn" href={`/s/${s.id}`}>Open player</a>}
             <form action={endSession}>
               <input type="hidden" name="session_id" value={s.id} />

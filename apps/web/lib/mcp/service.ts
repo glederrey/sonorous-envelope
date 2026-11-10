@@ -125,6 +125,9 @@ async function switchFace(db: Db, session: SessionRow, requested: Face | undefin
 
 type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> };
 
+/** The most one call may raise the loudness of the sound (dB). Going down is never limited. */
+const LEVEL_STEP_DB = 4;
+
 /** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
 function measureState(effective: EngineState, seed: number): Compact | null {
   try {
@@ -309,7 +312,17 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
-  const analysis = measureState(effective, ANALYSIS_SEED);
+  let analysis = measureState(effective, ANALYSIS_SEED);
+  // Sound reaches the listener before anything can be softened: one call may raise the level by at most LEVEL_STEP_DB. A bigger
+  // jump is held down to that step (the master volume is scaled for this state only); it rises further on the next call.
+  let levelNote: string | undefined;
+  const wasDb = prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
+  if (typeof wasDb === "number" && typeof nowDb === "number" && nowDb - wasDb > LEVEL_STEP_DB) {
+    const excess = nowDb - wasDb - LEVEL_STEP_DB;
+    effective.volume = Math.max(0.05, effective.volume * 10 ** (-excess / 20));
+    analysis = measureState(effective, ANALYSIS_SEED);
+    levelNote = `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to +${LEVEL_STEP_DB} dB; send again to go further`;
+  }
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
     intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
@@ -328,7 +341,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, levelNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
