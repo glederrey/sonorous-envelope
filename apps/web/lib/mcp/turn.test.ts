@@ -17,7 +17,7 @@ describe("planTurn", () => {
     expect(p).toMatchObject({ isNewTurn: false, stateTurn: 3, missedFinal: false });
   });
   it("treats a stale non-final state as a missed final and starts the next turn", () => {
-    const p = planTurn({ turn: 3, final: false, created_at: at(0) }, false, 30_000);
+    const p = planTurn({ turn: 3, final: false, created_at: at(0) }, false, 200_000);
     expect(p).toMatchObject({ isNewTurn: true, stateTurn: 4, missedFinal: true });
   });
   it("advances the session turn only on a final update", () => {

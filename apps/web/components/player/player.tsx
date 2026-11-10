@@ -13,6 +13,7 @@ import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 import { OwnerControls } from "./owner-controls";
+import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
 
 type Phase = "joining" | "ready" | "ended" | "error";
 interface Playing { state: EngineState; seed: number; turn: number; final: boolean; at: number }
@@ -60,6 +61,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [audioState, setAudioState] = useState<string>("running");
   const [rested, setRested] = useState(false); // the sound has faded because the model has not updated for rest_after
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
+  const [face, setFace] = useState<Face>("internal"); // the face playing now (the model switches it, or the owner locks it)
+  const [policy, setPolicy] = useState<Policy>("auto");
 
   const audio = useRef<AudioOutput | null>(null);
   const lastHue = useRef({ h: 220, h2: 245 });
@@ -159,7 +162,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       handle(data, error);
     };
     // shared by the page's own check and by the worker's check
-    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
+    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
@@ -167,7 +170,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         return;
       }
       known.current = true;
-      settings.current = parseSettings(data.settings);
+      const f = normalizeFace(data.mode);
+      const pol: Policy = data.mode_policy === "internal" || data.mode_policy === "external" ? data.mode_policy : "auto";
+      setFace(f); setPolicy(pol);
+      const parsed = parseSettings(data.settings);
+      settings.current = { ...parsed, rest_after: effectiveRestAfter(parsed.rest_after, f) }; // the external face never fades
       if (data.now && clockSamples.current.length === 0) clockOffset.current = Date.parse(data.now) - Date.now(); // a first guess, from the worker
       if (data.ended) {
         ended = true;
@@ -428,6 +435,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
+                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{policy !== "auto" ? " · locked" : ""}</span>
                 {playing
                   ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
                   : "Waiting for the first sound"}
@@ -458,7 +466,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </label>
             </div>
 
-            {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} />}
+            {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} />}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 

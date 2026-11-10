@@ -102,7 +102,13 @@ Keep every field description short in the tool schema: the model reads them.
 > **Status (2026-11-10):** all five tools are live, with `reads_as`/`sound`, gestures, reactions, `tension`, modes and the tempo glide; the spectrogram image is not built. The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
 ## `start_session`
-> **Built (2026-11-10, #16):** `mode: "inner" | "outer"` (default inner, fixed for the session, column `sessions.mode`). The result carries `mode` and `guidance` (`apps/web/lib/mcp/modes.ts`). Outer sessions start with `rest_after` null (no fade between turns). The feedback is the same in both modes; the difference is in the guidance: outer may talk about the sound, takes requests and reads reactions as the user's feedback on what was made.
+> **Built (2026-11-10, #16; renamed and made switchable 2026-11-10):** the two faces of the envelope (Anzieu). `start_session` takes `mode: "auto" | "internal" | "external"` (default auto, which starts internal; `inner` and `outer` still work as old names). A session is always on **auto** until its owner locks a face from the player (`set_mode_policy`, column `sessions.mode_policy`). The column `sessions.mode` is the face playing now. The result carries `mode` (with "locked by the owner" when it is) and `guidance` for the face plus the switching rules (`apps/web/lib/mcp/modes.ts`). The model switches with `mode` on `set_sound`:
+> - A lock is final: the call is ignored with a note.
+> - Going to internal is always allowed.
+> - Going to external waits 2 finished messages (calls with `final=true`) and 2 minutes after the last change of face, and the refusal says how long is left.
+> - Every change, by the model or the owner, is a row in `mode_changes` and shows in `inspect` as `face_changes`.
+>
+> The external face never fades (`effectiveRestAfter`); reaction buttons exist only on it. `set_sound`, `get_feedback` and `silence` return `mode`. A new turn starts after a final state, or after a non-final one more than 3 minutes old, so one message is one turn.
 
 
 Input:

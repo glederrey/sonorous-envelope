@@ -7,7 +7,7 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | Table | What it holds |
 |---|---|
 | `profiles` | One row per user, created by a trigger on signup. Holds default listener settings. |
-| `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag, `voice` (jsonb, the instance's chosen voice, null if none; migration 0004), `sticky` (jsonb, colour, stack, pad and LFOs kept until Claude changes them; migration 0005), `mode` (`inner` or `outer`, fixed at `start_session`; migration 0006). |
+| `sessions` | One per conversation. Owner, settings (limits, consent, image feedback), current state, turn counter, `pending_final` flag, `voice` (jsonb, the instance's chosen voice, null if none; migration 0004), `sticky` (jsonb, colour, stack, pad and LFOs kept until Claude changes them; migration 0005), `mode` (the face playing now: `internal` or `external`; migrations 0006 and 0008), `mode_policy` (`auto`, or the face the owner locked; migration 0008). |
 | `states` | Every `set_sound` call: intent (what the model sent), effective state (what plays), clamps, analysis, PRNG seed. |
 | `listeners` | The owner gets a row with role `owner` and label `you` when the session is created. Link-only listeners have no row: they are not accounts. |
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
@@ -55,3 +55,6 @@ The service role key is not needed for normal operation. Use it only for mainten
 
 ## Public live counter (migration 0007)
 `live_counts()` returns `{sessions, listeners}`: the number of non-ended sessions with at least one player that sent a heartbeat in the last 60 s while `playing` or `muted`, and the number of such players (a device is one listener, and the owner's own tab counts). `not_started` tabs do not count. It is `security definer`, executable by `anon`, and returns two integers only (no ids), so the landing page can show "N sessions live with X humans listening". The page caches the result 20 s per server instance (`apps/web/lib/live-count.ts`) and shows nothing if the call fails.
+
+## Faces (migration 0008)
+`sessions.mode` is the face playing now (`internal` default, or `external`); old rows said `inner` and `outer` and were converted. `sessions.mode_policy` is `auto` (the model may switch) or a locked face. `mode_changes` logs every change (`turn`, `to_mode` = `internal`, `external` or `auto`, `by` = `model` or `owner`); members read it, the owner inserts. `set_mode_policy(session, policy)` is the owner's call from the player: it sets the policy, sets the face when locking, and logs it. `get_player_state` returns `mode` and `mode_policy`, and the session broadcast also fires when either changes.

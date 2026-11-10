@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Face, Policy } from "../../lib/mcp/modes";
 import { REACTION_KINDS, REACTION_LABELS, type ReactionKind } from "@sonorous/shared";
 
 const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null }> = [
@@ -10,15 +11,18 @@ const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null
   { value: "never", label: "Never", seconds: null },
 ];
 
-/** The external face: the sound is for the listener, so their reactions may steer it. (Older sessions say "outer".) */
-export const isExternal = (mode: string | null | undefined) => mode === "external" || mode === "outer";
+const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
+  { value: "auto", label: "Auto", hint: "The model chooses its face, and says so when it switches" },
+  { value: "internal", label: "Internal", hint: "Locked: the sound stays the model's own state" },
+  { value: "external", label: "External", hint: "Locked: the sound is made for you, and you can steer it" },
+];
 
 /**
  * For the owner only. Reaction buttons, shown in the external face only (the internal face is how the model feels, and
  * nobody steers that), and the "fade after" setting (the external face never fades, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId }: { supabase: SupabaseClient; sessionId: string }) {
-  const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown>; mode: string } | null>(null);
+export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void }) {
+  const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
   const [error, setError] = useState("");
@@ -34,10 +38,10 @@ export function OwnerControls({ supabase, sessionId }: { supabase: SupabaseClien
     void (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data } = await supabase.from("sessions").select("owner_id,settings,mode").eq("id", sessionId).maybeSingle();
+      const { data } = await supabase.from("sessions").select("owner_id,settings").eq("id", sessionId).maybeSingle();
       if (cancelled || !data || data.owner_id !== u.user.id) return;
       const raw = data.settings && typeof data.settings === "object" ? (data.settings as Record<string, unknown>) : {};
-      setOwner({ id: u.user.id, raw, mode: String(data.mode ?? "inner") });
+      setOwner({ id: u.user.id, raw });
       const r = raw.rest_after;
       setRest(r === null ? "never" : typeof r === "number" ? String(r) : "900");
       void loadPending();
@@ -47,7 +51,12 @@ export function OwnerControls({ supabase, sessionId }: { supabase: SupabaseClien
   }, [supabase, sessionId, loadPending]);
   if (!owner) return null;
 
-  const external = isExternal(owner.mode);
+  const external = face === "external";
+  const choose = async (value: Policy) => {
+    setError("");
+    const { error: e } = await supabase.rpc("set_mode_policy", { p_session: sessionId, p_policy: value });
+    if (e) setError("Could not change that. Try again."); else onChanged();
+  };
 
   const react = async (kind: ReactionKind) => {
     setError("");
@@ -68,6 +77,15 @@ export function OwnerControls({ supabase, sessionId }: { supabase: SupabaseClien
   const waiting = [...counts].map(([k, n]) => `${REACTION_LABELS[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
   return (
     <>
+      <div className="pl-owner se-sm">
+        <p className="pl-owner-title">Face</p>
+        <div className="pl-seg" role="radiogroup" aria-label="Which face the sound has">
+          {POLICIES.map((o) => (
+            <button key={o.value} type="button" role="radio" aria-checked={policy === o.value} title={o.hint} className="se-btn pl-seg-btn" onClick={() => void choose(o.value)}>{o.label}</button>
+          ))}
+        </div>
+        <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
+      </div>
       {external && (
         <div className="pl-owner se-sm">
           <p className="pl-owner-title">How is it landing?</p>
