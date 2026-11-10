@@ -111,18 +111,11 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
 const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
 const policyOf = (s: { mode_policy?: string }): Policy => (s.mode_policy === "internal" || s.mode_policy === "external" ? s.mode_policy : "auto");
 
-/** Apply a `mode` sent with set_sound: finished messages and time since the last change decide whether going external is allowed. */
+/** Apply a `mode` sent with set_sound: an owner lock stops it; otherwise the face changes and the change is logged. */
 async function switchFace(db: Db, session: SessionRow, requested: Face | undefined, stateTurn: number, now: number): Promise<{ face: Face; note?: string }> {
   const current = faceOf(session), policy = policyOf(session);
   if (requested === undefined) return { face: current };
-  const { data: last } = await db.from("mode_changes").select("created_at").eq("session_id", session.id).eq("by", "model").order("created_at", { ascending: false }).limit(1);
-  const at = last?.[0] ? new Date(last[0].created_at as string).getTime() : null;
-  let turnsSince: number | null = null;
-  if (at !== null) {
-    const { count } = await db.from("states").select("id", { count: "exact", head: true }).eq("session_id", session.id).eq("final", true).gt("created_at", new Date(at).toISOString());
-    turnsSince = count ?? 0;
-  }
-  const d = decideSwitch({ policy, current, requested, turnsSince, msSince: at === null ? null : now - at });
+  const d = decideSwitch({ policy, current, requested });
   if (d.change === null) return { face: current, note: d.note };
   const { error: e1 } = await db.from("sessions").update({ mode: d.change }).eq("id", session.id);
   if (e1) fail("switch the face", e1);
@@ -157,7 +150,8 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState): string 
 }
 
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
-function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean): string | undefined {
+function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean, adopted = false): string | undefined {
+  if (adopted) return "your first sound is now your voice: scale, root, note order and wave stay until you send a voice";
   if (held) return "voice kept: scale, root, note order and wave now stay until you send a voice";
   if (!prev || (voice && voice.scale && voice.wave && voice.root)) return undefined;
   const a = prev.effective, name = (s: EngineState) => `${midiToNoteName(s.arp.root)} ${s.arp.scale}, ${s.osc.wave}`;
@@ -280,6 +274,14 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   // colour, stack, pad and LFOs stay until Claude changes them (like the voice); fold this call into what the session keeps
   const sticky = mergeSticky(session.sticky, input);
   const { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
+  // A voice of your own is kept the way a person keeps a voice. Without one, the first sound becomes it (this call plays as
+  // mapped; later calls keep its scale, root, note order and wave), so a mood that barely moves cannot move the key.
+  let adopted = false;
+  if (!(voice && voice.root && voice.scale && voice.wave)) {
+    const a = overridden.arp;
+    voice = { root: midiToNoteName(a.root), scale: a.scale, chord: a.chord.slice(0, 8), pattern: a.pattern, octaves: a.octaves, wave: overridden.osc.wave, ...(voice ?? {}) };
+    adopted = true;
+  }
   overridden.colour = applyColour(overridden.colour, sticky.colour);
   const { effective, clamps } = applyLimits({
     mapped: overridden, transition,
@@ -301,13 +303,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
-    ...(input.voice !== undefined || held ? { voice } : {}),
+    ...(input.voice !== undefined || held || adopted ? { voice } : {}),
     sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });

@@ -80,8 +80,8 @@ export default function GuidePage() {
               </p>
               <p style={{ margin: 0 }}>
                 A session is on <strong>auto</strong>. It starts internal. The model can offer to switch in words, and it switches to external
-                only after you say yes or clearly asked for sound, never on its own reading of your mood. Going back to internal is always
-                allowed; going to external waits two of its messages and two minutes after the last change. You can lock a face at any time from
+                only after you say yes or clearly asked for sound, never on its own reading of your mood. There is no timer on its switches: the
+                safeguards are that rule, your lock and a log of every change. You can lock a face at any time from
                 the player, and a lock is final.
               </p>
               <p className="se-sm" style={{ margin: 0 }}><a href="/faces">Where the idea comes from, with reading</a></p>
