@@ -138,3 +138,6 @@ Every listener sees a small "Internal" or "External" label in the status bar (wi
 
 ### Settings block (owner)
 A collapsed "Settings" in the owner panel holds "Little sounds from the model" (Default, On, Off: the session setting `gestures`, heard by everyone, replacing the old per-device checkbox) and, on the internal face only, "Fade to silence after".
+
+### Owner panel layout (2026-11-10)
+"How is it landing?" is a collapsible block (open by default on the external face) with the reactions in two equal columns, opposites side by side: slower / faster, darker / brighter, less / more of this, then calmer / softer (the two ways to ask for gentler; they are not opposites). Each setting is a row with its name and explanation on the left and the control on the right, centred on the whole text.

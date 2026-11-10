@@ -969,8 +969,8 @@ html:has(.pl-field) .se-header {
 .pl-owner { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-owner p { margin: 0; }
 .pl-owner-title { color: var(--on-scrim); }
-.pl-reactions { display: flex; flex-wrap: wrap; gap: 8px; }
-.pl-react { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.pl-reactions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 10px; }
+.pl-react { min-height: 44px; width: 100%; padding: 0 12px; font-size: 14px; }
 .pl-react:disabled { opacity: 0.6; }
 .pl-fade { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 .pl-fade select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; color-scheme: dark; }
@@ -999,3 +999,10 @@ html:has(.pl-field) .se-header {
 .pl-seg { display: flex; gap: 6px; }
 .pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
+
+/* a setting: its name and explanation on the left, the control on the right, centred on the whole text */
+.pl-setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 12px 0; }
+.pl-setting-name { display: block; margin-bottom: 4px; color: var(--on-scrim); font-weight: 500; }
+.pl-setting select { min-height: 44px; min-width: 96px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; color-scheme: dark; }
+.pl-setting select option { background: #1b1f1c; color: #f2f2ee; }
+.pl-set > .pl-setting:first-of-type { padding-top: 14px; }
