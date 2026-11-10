@@ -2,15 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HIDE_SET_KEY, describeSet, type SetRow } from "../../lib/what-claude-set";
+import { describeSet, type SetRow } from "../../lib/what-claude-set";
 
 /** For signed-in members only: RLS lets a member read the session's states, a listener with just the link gets nothing. */
 export function WhatClaudeSet({ supabase, sessionId, stateAt }: { supabase: SupabaseClient; sessionId: string; stateAt: number }) {
   const [row, setRow] = useState<SetRow | null>(null);
-  // a guessing game: the owner can hide what the model set, so that the panel does not give the answer away
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => { try { setHidden(localStorage.getItem(HIDE_SET_KEY) === "1"); } catch { /* storage may be blocked */ } }, []);
-  const toggle = () => { const next = !hidden; setHidden(next); try { localStorage.setItem(HIDE_SET_KEY, next ? "1" : "0"); } catch { /* ignore */ } };
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -21,7 +17,6 @@ export function WhatClaudeSet({ supabase, sessionId, stateAt }: { supabase: Supa
     return () => { cancelled = true; };
   }, [supabase, sessionId, stateAt]);
   if (!row) return null;
-  if (hidden) return <button type="button" className="pl-set se-sm" onClick={toggle}>Show what the model set</button>;
   const d = describeSet(row);
   return (
     <details className="pl-set se-sm">
@@ -37,7 +32,6 @@ export function WhatClaudeSet({ supabase, sessionId, stateAt }: { supabase: Supa
         {d.clamps.length > 0 && (<><dt>Changed by a safety rule</dt><dd>{d.clamps.join(", ")}</dd></>)}
         {d.note && (<><dt>Its note</dt><dd>{d.note}</dd></>)}
       </dl>
-      <button type="button" className="se-sm" onClick={toggle}>Hide this (for a guessing game)</button>
     </details>
   );
 }

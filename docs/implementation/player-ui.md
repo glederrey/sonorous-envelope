@@ -87,7 +87,9 @@ The page is mostly the colour field, full screen. Controls sit in a slim bar tha
 - **Status:** "Listening · turn 12 · last change 4 s ago", and a small dot when the model is mid-turn (last state non-final and < 20 s old).
 
 ### Reaction buttons
-Built (2026-11-10), owner only: calmer, softer, darker, brighter, slower, faster, more of this, less of this (`packages/shared/src/reactions.ts`, `owner-controls.tsx`). Short label; disabled for 1 s after a press. `set_sound` claims the pending ones with `claim_reactions` and returns them as `reactions` ("calmer x2, 30 s ago"), once; `get_feedback` shows them without claiming. The owner also gets the "Fade to silence after" select (5 min to 1 hour, never), and the status line says "Faded: no update from the model for a while" when the sound has rested. Brief confirmation ("sent") after a press. Disabled for 1 s after a press to avoid floods.
+Built (2026-11-10), owner only, and only in the external face (the internal face is how the model feels, so nobody steers it): calmer, softer, darker, brighter, slower, faster, more of this, less of this (`packages/shared/src/reactions.ts`, `owner-controls.tsx`). Every press counts (no lock); the pending ones show as "Waiting for Claude: calmer ×2. It reads them on its next message" until the model has read them (the server cannot push to the model: it reads them on its next `set_sound`). `set_sound` claims the pending ones with `claim_reactions` and returns them as `reactions` ("calmer x2, 30 s ago"), once; `get_feedback` shows them without claiming.
+
+In the internal face the owner gets a collapsed "Settings" block with "Fade to silence after" (5 min to 1 hour, never); the external face never fades, so the select is hidden there. The status line says "Fading" for the 30 s of the fade, then "Faded · no update for 6 min".
 
 ### Owner panel (slide-up sheet)
 - Limits are removed for now; this panel will hold the owner's settings when limits come back (roadmap step 5). `rest_after` is the one shared setting.
@@ -97,7 +99,7 @@ Built (2026-11-10), owner only: calmer, softer, darker, brighter, slower, faster
 - Share: shows the player link with a Copy button. Anyone with it can listen. (Built: the signed-in owner sees "Copy link to share" under the controls, and `/sessions` lists every session with Open and Copy buttons.)
 - End session.
 
-Listeners (anyone without the account) see only the colour and sound, the status line, and their own volume, echo and mute, which change nothing for anyone else. They do **not** get the owner panel, limits, or reaction buttons. Instead of the share link they see "Want Claude to make sound for you too? Add it to your Claude", linking to the landing page's install steps (`/#add`).
+Listeners (anyone without the account) see only the colour and sound, the status line, hide controls, mute and volume (which change nothing for anyone else), the share row and "Add it to your AI app". They do **not** get the owner panel, limits, or reaction buttons. Instead of the share link they see "Want Claude to make sound for you too? Add it to your Claude", linking to the landing page's install steps (`/#add`).
 
 ### Presence between turns
 The model does not exist between two turns, but a sound that keeps playing reads as a heartbeat. In the first outside test people said goodbye several times instead of closing the window, as if leaving meant abandoning someone. The sound must not say there is someone there when there is not. Two measures:

@@ -113,12 +113,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     clockOffset.current = list.reduce((best, s) => (s.rtt < best.rtt ? s : best)).offset;
   };
   const restedFrom = useRef<Playing | null>(null);
+  const restedAtMs = useRef(0); // the fade to silence takes 30 s: "Fading" until then, "Faded" after
   const restTick = useCallback(() => {
     const p = latest.current, r = settings.current.rest_after;
     if (!p) return;
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
-      restedFrom.current = p; setRested(true);
+      restedFrom.current = p; restedAtMs.current = Date.now(); setRested(true);
       const state = restedState(p.state);
       setPlaying({ ...p, state });
       audio.current?.setState(state, p.seed);
@@ -428,7 +429,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
                 {playing
-                  ? rested ? `Faded: no update from the model for a while (turn ${playing.turn}, ${age(ageSec)})` : `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
+                  ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "the model is mid-answer" : `changed ${age(ageSec)}`}`
                   : "Waiting for the first sound"}
               </p>
               <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
@@ -455,11 +456,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                   onChange={(e) => setVolume(Number(e.target.value))} />
                 <output>{Math.round(volume * 100)}</output>
               </label>
-              <label className="pl-switch se-sm">
-                <input type="checkbox" checked={gestures} onChange={(e) => setGestures(e.target.checked)} />
-                <span>Short sounds from the model (purr, chirp, sigh…)</span>
-              </label>
-              <p className="pl-local se-sm">Only changes what you hear on this device.</p>
             </div>
 
             {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} />}
