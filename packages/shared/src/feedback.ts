@@ -21,12 +21,20 @@ export interface FeedbackInput {
   /** the face playing, with "locked by the owner" when it is */
   mode?: string;
   /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
+  /** What the player reported about the Strudel code that plays (pattern_reports); only for a Strudel state. */
+  pattern?: Record<string, unknown>;
   analysis?: { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> } | null;
 }
 
 /** What actually plays, in the vocabulary of what Claude can set, so it can check that its choices arrived.
  *  Stored states from before the stack and the pad existed lack those keys, hence the optional chaining. */
 function playingOf(e: EngineState) {
+  if (e.engine === "strudel" && e.pattern) {
+    // the synth fields are the paused synth; what plays is the pattern
+    const c = e.colour, p: Record<string, unknown> = { engine: "strudel", bpm: Math.round(e.pattern.bpm), code: `${e.pattern.code.length} characters` };
+    if ((c.scene && c.scene !== "none") || c.sync) p.picture = [c.scene && c.scene !== "none" ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
+    return p;
+  }
   const p: Record<string, unknown> = {
     scale: scaleLabel(e.arp.root, e.arp.scale), tempo: Math.round(e.arp.tempo), wave: e.osc.wave,
     cutoff: Math.round(e.filter.cutoff), resonance: r2(e.filter.resonance), detune: Math.round(e.osc.detune), volume: r2(e.volume), drone: e.drone.on,
@@ -66,6 +74,7 @@ export function buildFeedback(i: FeedbackInput) {
     }
     if (Object.keys(why).length) out.reads_why = why;
   }
+  if (i.pattern) out.pattern = i.pattern;
   if (i.reactions?.length) out.reactions = i.reactions;
   if (i.mode) out.mode = i.mode;
   out.players = i.players;

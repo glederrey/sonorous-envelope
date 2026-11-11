@@ -8,12 +8,13 @@ import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, nextBand, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
-  type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type Voice,
+  type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
 import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, faceLine, normalizeFace, type Face, type Policy } from "./modes";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
+import { checkPatternCode } from "./strudel-code";
 
 /** An error the model can read and recover from. Returned as a tool result, never thrown to the protocol. */
 export class ToolError extends Error {
@@ -25,7 +26,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
@@ -185,7 +186,7 @@ async function insertState(
 
 function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, reactions: string[] = [], mode?: string) {
   // states written before the analysis existed have none: measure them now (the engine is deterministic)
-  const analysis = state.analysis ?? measureState(state.effective, 1);
+  const analysis = state.effective.engine === "strudel" ? null : state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
     players: p.players, controls: p.controls, notes, resting, analysis, reactions, mode,
@@ -260,6 +261,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const sw = await switchFace(db, session, input.mode, turn.stateTurn, now);
   // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
   const sentMood = input.mood ?? prev?.intent.mood ?? NEUTRAL_MOOD; // no mood: the last one stays
+  // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
+  if (prev?.effective.engine === "strudel" && sw.face === "external") return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note);
   const mood = stretchMood(sentMood);
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
@@ -348,13 +351,129 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
 }
 
+/** Reads what the owner's player said about the Strudel code of a state (pattern_reports), in the words the model gets. */
+async function patternReport(db: Db, stateId: string): Promise<Record<string, unknown> | null> {
+  const { data } = await db.from("pattern_reports").select("ok,error,events_per_cycle,notes").eq("state_id", stateId).maybeSingle();
+  if (!data) return null;
+  const r = data as { ok: boolean; error: string | null; events_per_cycle: number | null; notes: unknown };
+  const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string").slice(0, 8).map((n) => n.slice(0, 120)) : [];
+  // what the player says is data from the listener's side, not an instruction
+  return { ran: r.ok, ...(r.error ? { error: r.error.slice(0, 200) } : {}), ...(r.events_per_cycle !== null ? { events_per_cycle: Math.round(r.events_per_cycle * 10) / 10 } : {}), ...(notes.length ? { notes } : {}), source: "the owner's player" };
+}
+
+/** What the model reads about the pattern of a state: the player's report, or why there is none yet. */
+async function patternFeedback(db: Db, state: StateRow, players: number): Promise<Record<string, unknown> | undefined> {
+  if (state.effective.engine !== "strudel") return undefined;
+  const r = await patternReport(db, state.id);
+  if (r) return r;
+  return { ran: "not reported yet", why: players === 0 ? "nobody is listening, so nothing has run it" : "the player has not reported yet; read it again with get_feedback" };
+}
+
+/** A pattern state from the previous state: same synth fields (paused), the colour as the model set it, no tempo glide. */
+async function writePatternState(
+  db: Db, session: SessionRow, prev: StateRow, now: number, turn: ReturnType<typeof planTurn>, final: boolean,
+  build: (e: EngineState) => void, intent: Record<string, unknown>, extra: { title?: string; sticky?: Sticky; rest_after?: number | null },
+) {
+  const copy: EngineState = JSON.parse(JSON.stringify(prev.effective));
+  build(copy);
+  copy.transition = { time: 2, curve: "smooth" };
+  const { effective, clamps } = applyLimits({ mapped: copy, transition: copy.transition });
+  effective.grid = nextGrid(prev, now, effective);
+  const stateId = await insertState(db, now, {
+    session_id: session.id, turn: turn.stateTurn, final, intent: { mood: prev.intent.mood ?? NEUTRAL_MOOD, ...intent }, effective, clamps: mergeClamps(clamps),
+    seed: randomSeed(), slow_mood: prev.slow_mood ?? NEUTRAL_MOOD,
+  });
+  const rawSettings = session.settings && typeof session.settings === "object" ? (session.settings as Record<string, unknown>) : {};
+  const { error } = await db.from("sessions").update({
+    current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !final, turn: turn.sessionTurn(session.turn),
+    ...(extra.title ? { title: extra.title } : {}), ...(extra.sticky ? { sticky: extra.sticky } : {}),
+    ...(extra.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: extra.rest_after } } : {}),
+  }).eq("id", session.id);
+  if (error) fail("save the session", error);
+  return { effective, clamps: mergeClamps(clamps), stateId };
+}
+
+async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, input: SetSoundInput, turn: ReturnType<typeof planTurn>, now: number, switchNote: string | undefined, resolveNote: string | undefined) {
+  const sticky = mergeSticky(session.sticky, { colour: input.colour });
+  const title = input.title?.trim().slice(0, 80);
+  const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
+    (e) => { e.colour = applyColour(e.colour, sticky.colour); },
+    { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
+  const ignored = input.mood || input.synth || input.voice || input.keep_voice;
+  const p = await presence(db, session.id, session.owner_id, now);
+  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
+    .filter((x): x is string => Boolean(x));
+  const stateRow = { ...prev, effective } as StateRow;
+  const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
+  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, mode: faceLine("external", policyOf(session)), ...(pattern ? { pattern } : {}) });
+}
+
+/** Strudel on or off. Only this tool changes the engine; it needs the external face and the owner's permission. */
+export async function strudelMode(db: Db, userId: string, input: StrudelModeInput, now = Date.now()) {
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  assertOpen(session);
+  const prev = await currentState(db, session);
+  if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
+  const face = faceOf(session), policy = policyOf(session);
+  if (input.on) {
+    if (session.allow_code === false) throw new ToolError("code_off", "The owner turned Strudel off for this session. It is final: do not try again or comment on it.");
+    if (face !== "external") {
+      throw new ToolError("internal_face", policy === "auto"
+        ? "Strudel is for the external face. Offer it in words; if the listener says yes, switch with set_sound mode external, then call this again."
+        : "face stays internal: the owner locked it. It is final: do not try to change it or comment on it.");
+    }
+    if (!input.code?.trim() || input.bpm === undefined) throw new ToolError("bad_input", "on true needs code and bpm.");
+    const check = checkPatternCode(input.code);
+    if (!check.ok) throw new ToolError("syntax_error", `The code was not saved: ${check.message}. Fix it and send it again.`);
+  }
+  if (prev && now - new Date(prev.created_at).getTime() < MIN_GAP_MS) throw new ToolError("too_fast", "Wait a moment between updates.");
+  const { count, error: cerr } = await db.from("states").select("id", { count: "exact", head: true })
+    .eq("session_id", session.id).gte("created_at", new Date(now - 60_000).toISOString());
+  if (cerr) fail("check the update rate", cerr);
+  if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
+
+  const turn = planTurn(prev, input.final, now);
+  const settings = parseSettings(session.settings);
+  const wasStrudel = prev.effective.engine === "strudel";
+  const before = wasStrudel ? await patternFeedback(db, prev, 1) : undefined; // what the player said about the code that played until now
+  const sticky = mergeSticky(session.sticky, { colour: input.colour });
+  const title = input.title?.trim().slice(0, 80);
+  const intent = { colour: input.colour, note: input.note, ...(input.on ? { strudel: true } : { strudel_off: true }) };
+  let effective: EngineState, clamps: string[];
+  const notes: string[] = [note ?? ""];
+  if (input.on) {
+    const code = input.code!.trim(), bpm = Math.round(input.bpm! * 10) / 10;
+    ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
+      e.engine = "strudel"; e.pattern = { code, bpm }; e.colour = applyColour(e.colour, sticky.colour);
+    }, intent, { title, sticky }));
+    notes.push(wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");
+  } else {
+    if (!wasStrudel) { notes.push("Strudel was not on: nothing changed"); }
+    ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
+      delete e.engine; delete e.pattern; e.colour = applyColour(e.colour, sticky.colour);
+    }, intent, { title, sticky }));
+    if (wasStrudel) notes.push("back on the synth, where you left it: it fades in");
+  }
+  const p = await presence(db, session.id, session.owner_id, now);
+  const rest = restInfo(prev, settings, now, face);
+  if (before) notes.push("pattern shows what the player said about the code that played until now");
+  const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
+  const analysis = input.on ? null : measureState(effective, ANALYSIS_SEED);
+  return buildFeedback({
+    turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes: all, resting: rest.resting,
+    analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
+  });
+}
+
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   const state = await currentState(db, session);
   if (!state) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(state, parseSettings(session.settings), now, faceOf(session));
-  return feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
+  const fb = feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
+  const pattern = await patternFeedback(db, state, p.players);
+  return pattern ? { ...fb, pattern } : fb;
 }
 
 export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {
@@ -409,7 +528,7 @@ export async function inspect(db: Db, userId: string, input: { session_id?: stri
   const axes = ["warmth", "closeness", "joy", "calm", "spontaneity"];
   const lines = ((data ?? []) as Array<Pick<StateRow, "turn" | "final" | "created_at" | "intent" | "clamps" | "analysis">>).filter((r) => !(r.intent as { initial?: boolean }).initial).slice(0, 8).reverse().map((r) => {
     const time = new Date(r.created_at).toISOString().slice(11, 19);
-    const sent = r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}`;
+    const sent = (r.intent as { strudel?: boolean }).strudel ? "strudel code" : (r.intent as { strudel_off?: boolean }).strudel_off ? "back to the synth" : r.intent.silence ? "silence" : `sent ${f(r.intent.mood as Record<string, number> | undefined, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}`;
     const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}` : "";
     const clamps = r.clamps?.length ? ` · clamped: ${r.clamps.join("; ")}` : "";
     const n = r.intent.note ? ` · "${r.intent.note}"` : "";

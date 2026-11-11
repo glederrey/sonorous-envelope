@@ -142,3 +142,18 @@ export const SetSoundInput = z.object({
   rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns: this is how the channel says so. Leave it out to keep the value"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
+
+/** The longest Strudel code the tool takes. It travels in every player poll, so it stays small. */
+export const MAX_PATTERN_CHARS = 4000;
+
+export const StrudelModeInput = z.object({
+  session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
+  on: z.boolean().describe("true: play Strudel code (send code and bpm). false: go back to the built-in synth, where you left it"),
+  code: z.string().max(MAX_PATTERN_CHARS).optional().describe("Strudel code, as on strudel.cc, up to 4000 characters. Send it again with new code to change the music; it lands on the next bar. Samples work (bd, sd, hh, piano...). Tempo comes from bpm, not from setcps"),
+  bpm: z.number().min(30).max(200).optional().describe("tempo in beats per minute; one cycle is one bar of 4 beats"),
+  colour: Colour.optional().describe("the picture, as in set_sound; it follows bpm"),
+  final: z.boolean().default(false).describe("true on the last call of each message"),
+  title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words)"),
+  note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
+});
+export type StrudelModeInput = z.infer<typeof StrudelModeInput>;

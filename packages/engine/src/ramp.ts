@@ -46,7 +46,9 @@ export function arpRamp(s: Pick<EngineState, "arp" | "grid">): Ramp {
 
 /** Beats (quarter notes at the arpeggio's tempo) counted from the start of the session, `tau` seconds after a state was written.
  *  Continuous across states, also when the rate changes. A state stored before `grid.beat` existed falls back to its step count. */
-export function beatsAt(s: Pick<EngineState, "arp" | "grid">, tau: number): number {
+export function beatsAt(s: Pick<EngineState, "arp" | "grid" | "engine" | "pattern">, tau: number): number {
+  // a Strudel state has no tempo glide: its tempo is `pattern.bpm` from the first moment (Strudel's own tempo change is instant)
+  if (s.engine === "strudel" && s.pattern) return (s.grid?.beat ?? 0) + (Math.max(0, tau) * s.pattern.bpm) / 60;
   const beats = RATE_BEATS[s.arp.rate];
   return (s.grid?.beat ?? (s.grid?.arp ?? 0) * beats) + rampCount(arpRamp(s), tau) * beats;
 }
@@ -57,7 +59,8 @@ export function glideSeconds(t: EngineState["transition"]): number {
 }
 
 /** The tempo (BPM) of a state `tau` seconds after it was written. */
-export function tempoAt(s: Pick<EngineState, "arp" | "grid">, tau: number): number {
+export function tempoAt(s: Pick<EngineState, "arp" | "grid" | "engine" | "pattern">, tau: number): number {
+  if (s.engine === "strudel" && s.pattern) return s.pattern.bpm;
   const r = arpRamp(s), beats = RATE_BEATS[s.arp.rate];
   if (r.dur <= 0) return s.arp.tempo;
   const x = Math.min(1, Math.max(0, tau / r.dur));
