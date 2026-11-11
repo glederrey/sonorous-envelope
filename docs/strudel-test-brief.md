@@ -16,7 +16,6 @@ A remote MCP server that gives an AI model a sound channel: a small synthesizer 
 - The buttons under the player are always on one row.
 - When the owner turns Strudel off, the sound and the picture fade out (the synth state is not played). When the owner locks Internal, the synth stays and comes in gently.
 - The same code sent twice says so in the notes. strudel_mode on false onto a silent synth says that nothing fades in.
-- The footer line is meant to reach the right edge on the Safety page and the sessions list (it could not be checked by the developer).
 - Android: the worker looks further ahead and the slider saves its value less often, to help with the glitches when the phone's controls are used.
 
 ## Setup
@@ -40,7 +39,7 @@ For each test record pass or fail and the exact tool output for any failure.
 
 7. Bottom buttons, desktop. Whatever buttons are shown (last time: three for the owner, two for a guest) sit on ONE row at the full width, each the same width. Check with the window at 1400 px and at about 800 px wide. The QR code, when opened, appears below, full width.
 8. Bottom buttons, phone. Copy link alone fills the width (owner); Add it to your AI app and Copy link on one row (guest).
-9. Footer line. On the Safety page and on the sessions list (desktop, classic scrollbar, a page that does not scroll if you can find one, otherwise the Safety page): does the line above the footer reach the right edge of the window? Take a screenshot. Also check the guide page (which scrolls) and the player page for a double or odd line.
+9. (Footer line: checked by the user and fixed, no longer a test. The numbers below stay as they are.)
 
 ### C. Android
 
