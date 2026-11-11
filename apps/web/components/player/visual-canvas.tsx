@@ -62,9 +62,14 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
       }
       for (const i of f.items) {
         ctx.fillStyle = ctx.strokeStyle = `hsla(${tint},${i.a})`;
-        if (i.kind === "dot") { ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.fill(); }
-        else if (i.kind === "ring") { ctx.lineWidth = Math.max(1, i.w * m); ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.stroke(); }
-        else { ctx.lineWidth = Math.max(1, i.w * m); ctx.beginPath(); ctx.moveTo(i.x * w, i.y * h); ctx.lineTo(i.x * w, i.y * h + i.r * m); ctx.stroke(); }
+        if (i.kind === "dot" && i.soft && i.soft > 0.05) {
+          const r = Math.max(1, i.r * m * 1.6), g = ctx.createRadialGradient(i.x * w, i.y * h, 0, i.x * w, i.y * h, r);
+          g.addColorStop(0, `hsla(${tint},${i.a})`); g.addColorStop(Math.min(0.95, 1 - i.soft), `hsla(${tint},${i.a})`); g.addColorStop(1, `hsla(${tint},0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(i.x * w, i.y * h, r, 0, Math.PI * 2); ctx.fill();
+        }
+        else if (i.kind === "dot") { ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.fill(); }
+        else if (i.kind === "ring") { ctx.lineWidth = Math.max(1.5, i.w * m); ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.stroke(); }
+        else { ctx.lineWidth = Math.max(1.5, i.w * m); ctx.beginPath(); ctx.moveTo(i.x * w, i.y * h); ctx.lineTo(i.x * w, i.y * h + i.r * m); ctx.stroke(); }
       }
     };
 

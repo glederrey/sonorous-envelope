@@ -21,7 +21,16 @@ describe("visual frame", () => {
     const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
     const at = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0 }).wash;
     expect(at(8)).toBeGreaterThan(at(8.5));
-    expect(at(8)).toBeCloseTo(at(9), 9);
+    expect(at(8)).toBeCloseTo(at(12), 9); // the bar repeats every 4 beats
+    expect(at(8)).toBeGreaterThan(at(9));  // and its first beat hits hardest
+    expect(at(9)).toBeCloseTo(at(10), 9);
+  });
+  it("shows the beat in the shape too, so red (no brightness pulse) still moves: streaks stretch and brighten on the beat", () => {
+    const c = base({ h: 0, s: 1, l: 0.45, motion: "pulse", scene: "rain", density: 1, sync: "beat", feel: { ...moodToFeel(mood), depth: 1 } });
+    const f = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0 });
+    expect(f(8).wash).toBe(0);
+    const len = (beats: number) => f(beats).items.reduce((s, i) => s + i.r, 0);
+    expect(len(8.02)).toBeGreaterThan(len(8.6));
   });
   it("follows the phrase slowly in phrase sync: one swell over 16 beats", () => {
     const c = base({ sync: "phrase" });
@@ -32,7 +41,7 @@ describe("visual frame", () => {
   it("runs at half-time above 180 BPM", () => {
     const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
     const fast = (beats: number) => drawFrame({ colour: c, bpm: HALF_TIME_BPM + 20, beats, t: 0 }).wash;
-    expect(fast(8)).toBeCloseTo(fast(10), 9); // a cycle takes two beats
+    expect(fast(8)).toBeCloseTo(fast(16), 9); // a cycle takes two beats, a bar four of them
     expect(fast(8)).toBeGreaterThan(fast(9));
   });
   it("carries the mood in the form, not only the hue: joy expands, low joy contracts, calm couples less", () => {
