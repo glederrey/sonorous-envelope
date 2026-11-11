@@ -330,7 +330,7 @@ h3 {
   color: var(--ink);
 }
 html {
-  scrollbar-color: var(--line-strong) var(--bg);
+  scrollbar-color: var(--line-strong) transparent; /* a clear track, so the page background (and the footer line drawn on it) shows in the scrollbar strip */
 }
 html {
   scroll-behavior: smooth;
@@ -904,8 +904,9 @@ html:has(.pl-field) .se-header {
 /* the field scrolls when the panel is tall: the picture is pinned to the visible part, in the same grid cell as the stage, so it never scrolls away */
 .pl-field > .pl-stage { grid-area: 1 / 1; }
 /* after silence the whole field goes dark with the sound (the canvas fades its own part) */
-.pl-dim { grid-area: 1 / 1; background: #000; opacity: var(--pl-dim, 0); transition: opacity var(--pl-t) ease-in-out; pointer-events: none; z-index: 0; }
-@media (prefers-reduced-motion: reduce) { .pl-dim { transition-duration: 1s; } }
+.pl-dim { grid-area: 1 / 1; background: #000; opacity: var(--pl-dim, 0); pointer-events: none; z-index: 0; }
+.pl-dim[data-animated="true"] { transition: opacity var(--pl-t) ease-in-out; }
+@media (prefers-reduced-motion: reduce) { .pl-dim[data-animated="true"] { transition-duration: 1s; } }
 /* drift: a slow highlight. pulse: a faint brightness swell, at most 3 Hz and a small swing (see limits.md) */
 .pl-field[data-motion="drift"]::after {
   background: radial-gradient(closest-side, rgba(255, 255, 255, 0.07), transparent) 0% 0% / 80% 80% no-repeat;
@@ -989,9 +990,9 @@ html:has(.pl-field) .se-header {
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */
-.pl-share .pl-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.pl-share .pl-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
 .pl-share .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; }
-.pl-share .pl-actions .pl-qr { grid-column: 1 / -1; }
+.pl-share .pl-actions .pl-qr { grid-row: 2; grid-column: 1 / -1; }
 @media (max-width: 560px) { .pl-hide-phone { display: none; } }
 .pl-qr { flex-basis: 100%; padding-top: 4px; display: grid; justify-items: center; gap: 8px; }
 .pl-qr img { border-radius: 8px; max-width: 100%; height: auto; }
