@@ -547,11 +547,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 <output>{Math.round(volume * 100)}</output>
               </label>
               {canvasOk && !reduced && (
-                <label className="pl-slider" title="Delay the picture to match the sound, for example on Bluetooth">
-                  <span>Sync</span>
+                <label className="pl-slider" title="Delay the picture so it matches the sound, for example on Bluetooth headphones. Leave it at 0 if they already match.">
+                  <span>Picture delay</span>
                   <input type="range" min={0} max={400} step={10} value={nudgeMs} style={{ "--fill": `${(nudgeMs / 400) * 100}%` } as CSSProperties}
                     onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(stillPicture, n); }} />
-                  <output>{nudgeMs}</output>
+                  <output>{nudgeMs} ms</output>
                 </label>
               )}
             </div>
@@ -562,11 +562,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </button>
             )}
 
-            {playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && (
-              <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={() => setPatternStopped((v) => !v)} />
-            )}
-
-            {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} />}
+            {(() => {
+              const code = playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode
+                ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={() => setPatternStopped((v) => !v)} />
+                : null;
+              // the code sits right under the Face block for the owner, and on its own for a listener
+              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} /> : code;
+            })()}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 

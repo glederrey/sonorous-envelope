@@ -32,7 +32,6 @@ export function StrudelPanel({ code, bpm, stopped, onToggle }: { code: string; b
         <a className="se-btn" href={strudelUrl(full)} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden /> Open in Strudel</a>
         <button type="button" className="se-btn" aria-pressed={stopped} onClick={onToggle}>{stopped ? <><Play size={16} aria-hidden /> Play pattern</> : <><Square size={16} aria-hidden /> Stop pattern</>}</button>
       </div>
-      <p className="pl-local">The model wrote this code; it is not covered by this site&apos;s licence. You cannot change it here: copy it to <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">strudel.cc</a> to play with it.</p>
     </details>
   );
 }
