@@ -330,23 +330,13 @@ h3 {
   color: var(--ink);
 }
 html {
-  scrollbar-color: var(--line-strong) transparent; /* a clear track, so the page background (and the footer line drawn on it) shows in the scrollbar strip */
+  scrollbar-color: var(--line-strong) var(--surface);
 }
 html {
   scroll-behavior: smooth;
-  /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
-  scrollbar-gutter: stable;
-}
-/* The footer's top line stops where the scrollbar strip starts (the strip is reserved above, and nothing can paint into it but the page
-   background). The root background repeats the line sideways, at the footer's height, so it runs to the window's edge. Only where the
-   footer is one line and the scrollbar takes space. */
-@media (min-width: 700px) and (hover: hover) {
-  html {
-    background-image: linear-gradient(var(--line), var(--line));
-    background-size: 100% 1px;
-    background-repeat: repeat-x;
-    background-position: left bottom calc(var(--se-footer-h) - 1px);
-  }
+  /* A scrollbar that is always there (a visible track when the page is short), so the header never shifts and the footer line ends at
+     a visible edge instead of at an invisible reserved strip. */
+  overflow-y: scroll;
 }
 /* The player page never scrolls (the colour field fills the window, and scrolls inside itself only if a panel is too tall).
    It reserves no scrollbar strip, so the colour reaches the window edge; the header and footer get the strip's width as
