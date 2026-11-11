@@ -337,6 +337,17 @@ html {
   /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
   scrollbar-gutter: stable;
 }
+/* The footer's top line stops where the scrollbar strip starts (the strip is reserved above, and nothing can paint into it but the page
+   background). The root background repeats the line sideways, at the footer's height, so it runs to the window's edge. Only where the
+   footer is one line and the scrollbar takes space. */
+@media (min-width: 700px) and (hover: hover) {
+  html {
+    background-image: linear-gradient(var(--line), var(--line));
+    background-size: 100% 1px;
+    background-repeat: repeat-x;
+    background-position: left bottom calc(var(--se-footer-h) - 1px);
+  }
+}
 /* The player page never scrolls (the colour field fills the window, and scrolls inside itself only if a panel is too tall).
    It reserves no scrollbar strip, so the colour reaches the window edge; the header and footer get the strip's width as
    padding instead, so they stay exactly where they are on the pages that do reserve it. --se-sbw is measured by a small
@@ -892,6 +903,9 @@ html:has(.pl-field) .se-header {
 .pl-motion { position: sticky; top: 0; grid-area: 1 / 1; align-self: start; width: 100%; height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); pointer-events: none; z-index: 0; }
 /* the field scrolls when the panel is tall: the picture is pinned to the visible part, in the same grid cell as the stage, so it never scrolls away */
 .pl-field > .pl-stage { grid-area: 1 / 1; }
+/* after silence the whole field goes dark with the sound (the canvas fades its own part) */
+.pl-dim { grid-area: 1 / 1; background: #000; opacity: var(--pl-dim, 0); transition: opacity var(--pl-t) ease-in-out; pointer-events: none; z-index: 0; }
+@media (prefers-reduced-motion: reduce) { .pl-dim { transition-duration: 1s; } }
 /* drift: a slow highlight. pulse: a faint brightness swell, at most 3 Hz and a small swing (see limits.md) */
 .pl-field[data-motion="drift"]::after {
   background: radial-gradient(closest-side, rgba(255, 255, 255, 0.07), transparent) 0% 0% / 80% 80% no-repeat;
@@ -974,6 +988,10 @@ html:has(.pl-field) .se-header {
 .pl-share p { margin: 0; }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
+/* the buttons under the player share the full width, for the owner and for a guest */
+.pl-share .pl-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.pl-share .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; }
+.pl-share .pl-actions .pl-qr { grid-column: 1 / -1; }
 @media (max-width: 560px) { .pl-hide-phone { display: none; } }
 .pl-qr { flex-basis: 100%; padding-top: 4px; display: grid; justify-items: center; gap: 8px; }
 .pl-qr img { border-radius: 8px; max-width: 100%; height: auto; }
@@ -989,7 +1007,7 @@ html:has(.pl-field) .se-header {
 .pl-fade { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
 .pl-fade select { min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--scrim-line); background: transparent; color: var(--on-scrim); font: inherit; }
 .pl-fade select option { background: var(--surface); color: var(--ink); }
-.pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); }
+.pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); font-size: 13px; }
 .pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
 
 /* landing: samples */
@@ -1044,11 +1062,5 @@ html:has(.pl-field) .se-header {
 
 /* the model's Strudel code in the player: read only, selectable, scrolls inside its box */
 .pl-code-pre { margin: 10px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 8%, transparent); color: var(--on-scrim); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-.pl-code summary { list-style: none; }
-.pl-code summary::-webkit-details-marker { display: none; }
-.pl-code summary svg { vertical-align: -2px; margin-right: 4px; }
-.pl-code summary .pl-chev { margin-right: 0; transition: transform 160ms ease; }
-.pl-code[open] summary .pl-chev { transform: rotate(90deg); }
-@media (prefers-reduced-motion: reduce) { .pl-code summary .pl-chev { transition: none; } }
-.pl-code .pl-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-top: 4px; }
+.pl-code .pl-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .pl-code .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; padding: 8px 6px; font-size: 13px; line-height: 1.2; gap: 6px; }

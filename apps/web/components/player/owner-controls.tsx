@@ -96,7 +96,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           ))}
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
-        <label className="pl-local" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }} title="Strudel is live-coded music the model writes. It runs in a sandbox in your browser, on the external face only.">
+        <label className="pl-switch pl-local" style={{ marginTop: 8 }} title="Strudel is live-coded music the model writes. It runs in a sandbox in your browser, on the external face only.">
           <input type="checkbox" checked={allowCode} onChange={(e) => void chooseCode(e.target.checked)} />
           Let the model play Strudel code
         </label>

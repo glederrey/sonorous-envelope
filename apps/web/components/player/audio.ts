@@ -13,6 +13,9 @@ function keepAliveAudio(): HTMLAudioElement {
 }
 
 /** Thin wrapper around the AudioContext and the engine worklet. Created only after a user tap. */
+/** About +8 dB. Measured in a headless run: the synth at the default slider peaked at 0.07 of full scale, a drums+bass+melody Strudel pattern at 0.5. */
+export const SYNTH_MAKEUP = 2.5;
+
 export class AudioOutput {
   /** Timestamped statechange / pause / play events, newest last, for the ?debug=1 report. */
   readonly events: string[] = [];
@@ -60,7 +63,8 @@ export class AudioOutput {
   /** The shared timeline: one seed per session for the choices of each step, and now and then the seconds since the current state was written. */
   setGridSeed(seed: number) { this.node.port.postMessage({ type: "grid", seed }); }
   syncGrid(elapsed: number) { this.node.port.postMessage({ type: "sync", elapsed }); }
-  setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); this.strudelBus.gain.setTargetAtTime(value, this.ctx.currentTime, 0.02); }
+  /** The synth is the quiet one: its listener gain gets a fixed makeup (the engine's soft limiter is after it; the state's own volume cap of 0.9 is untouched). */
+  setGain(value: number) { this.node.port.postMessage({ type: "gain", value: value * SYNTH_MAKEUP }); this.strudelBus.gain.setTargetAtTime(value, this.ctx.currentTime, 0.02); }
   /** seconds from the audio being scheduled to the ear, as far as the browser knows (not Safari's outputLatency) */
   get latency() { return outputLatencySeconds(this.ctx); }
   get running() { return this.ctx.state === "running"; }

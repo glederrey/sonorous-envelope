@@ -1,8 +1,8 @@
-# Test brief: Sonorous Envelope v0.15.1 (fixes after the first Strudel test)
+# Test brief: Sonorous Envelope v0.15.2 (second round of fixes)
 
-Read this whole file before you start. Strudel has no loudness limit (by design). Since this version it comes out about 8 dB quieter than before, to match the synth on average (drum hits still peak higher), and a pattern can still be loud. Ask the user to put the volume slider low before the first Strudel test.
+Read this whole file before you start. Strudel has no loudness limit (by design). This version makes the synth louder (about +8 dB) instead of making Strudel quieter, so ask the user to put the volume slider low before the first test, and to raise it slowly.
 
-This is a re-test. The first round (43 tests) is in docs/archive/strudel-test-report-2026-11-11.md. Do only the tests below, unless one fails and you need to look around it.
+This is a re-test of the failures of v0.15.1. The report of that round is in docs/archive/strudel-test-report-v0.15.1.md. Run only the tests below, unless one fails and you need to look around it.
 
 ## What the product is
 
@@ -10,100 +10,105 @@ A remote MCP server that gives an AI model a sound channel: a small synthesizer 
 
 The model has two faces. Internal (the default): the sound is how the model feels, never talk about it unless asked. External: sound made for the listener on request, you may talk about it. Switch to external only after the user says yes, with set_sound and mode "external". strudel_mode works on the external face only. The owner can lock the face or switch Strudel off in the player; both are final: do not retry and do not comment.
 
-## What changed (all of it should be checked below)
-
-Sound
-- Strudel has a fixed level match of about -8 dB, so the average level equals the synth's. The model's own gain and effects are not touched.
-- A Strudel pattern no longer plays a stray note at the end of a fade or after silence.
-- Stop pattern then Play pattern restarts cleanly. Pressing Play right after Stop works.
-
-Owner switches
-- Locking the face to internal, or clearing "Let the model play Strudel code", stops the pattern and the synth plays. Allowing it again does NOT bring the old pattern back, also after reloading the page or on another device. The model has to send strudel_mode again. The database now stops the pattern in the playing state (migration 0011).
-- get_feedback after such a switch shows the synth in playing, no pattern, and a note that the owner stopped the pattern.
+## What changed
 
 Picture
-- After silence (and after a session ends) the picture fades out to black over the fade time. Before, the circles kept moving.
+- After silence and after a session ends, the WHOLE picture fades to black with the sound: the circles and the background. It fades over the fade time you asked for. Before, only the circles faded, and abruptly.
+- When a new sound comes after silence, the picture fades back in.
+
+Polling
+- The player asks the server for news every second, on desktop and phone. When nothing changed, the answer is a few bytes (about 60), not 2 kB. A change (a new sound, an owner switch) shows up within about a second.
+
+Android
+- A late event is now dropped only when it is more than half a second late (before: 150 ms, which on a slow phone dropped events in bursts and may have caused the stop and start pulses). The debug line (?debug=1 at the end of the player link) now shows what the page did with the events.
+
+Owner switches
+- get_feedback says the owner stopped the pattern, also after the owner allowed Strudel again, until you send something new. If the synth state is silent (volume 0) the note says so.
+
+Loudness
+- The synth is about +8 dB louder. Strudel is untouched (the -8 dB trim of v0.15.1 is gone).
 
 Player
-- The Strudel code panel has a chevron that turns when it opens.
-- Stop pattern is shown to the signed-in owner only. Someone who is not signed in sees Copy code and Open in Strudel.
-- The player asks for the state less often (every 10 s as a safety net, and the background worker only asks while the page is hidden).
+- There is no Stop pattern button for anyone. Copy code and Open in Strudel take half the width each.
+- The Strudel code panel is titled "Strudel code" (no tempo, no icon) and has the same small triangle as "How is it landing?" and "What the model set".
+- The checkbox "Let the model play Strudel code" uses the site's teal.
+- The buttons under the player (Copy link, Open on phone, Add it to your AI app) fill the full width, for the owner and for a guest.
+- The line above the footer reaches the right edge of the window on pages that reserve space for a scrollbar (for example the sessions list).
 
-Reports and messages
-- The player's report for the code now follows the code: a late report from older code is not filed under the new code. Sending the same code again gets the report again instead of "not reported yet".
-- After strudel_mode on false, the pattern field is described as the report on the code you just stopped.
-- The call after silence with end true now returns session_ended (before: no_session).
-- start_session with mode external no longer says "it starts on the internal face".
-- Error messages: a code string that ends with throw or a declaration says the code must end with a pattern. A [mini] parse error adds a hint that double-quoted strings are mini-notation and plain text needs single quotes.
-- set_sound with mode internal while Strudel plays, and silence while Strudel plays, now say in a note that Strudel stopped.
-
-Sandbox
-- The worker that runs the model's code now has no indexedDB, caches, Worker, fetch, XMLHttpRequest, WebSocket and similar. (The network was already blocked by the frame's policy.)
-
-Not in this version (on the roadmap as #19): live code highlighting and a richer moving background.
+Messages to the model
+- The note about the pattern's report says "the code you replaced" when you send new code while Strudel plays, and "the code you just stopped" only on on false.
+- When a report is "not reported yet", the explanation says that an owner's player must be open with Start listening pressed.
 
 ## Setup
 
-1. Reconnect the connector so you have six tools, including strudel_mode.
-2. Call start_session with mode external and give the user the player link. The user opens it (signed in as the owner) on desktop, and on a phone, then taps Start listening.
-3. Ask the user for a second device or a private window that is NOT signed in, for test 8.
+1. Reconnect the connector so you have six tools, including strudel_mode. (If it asks you to sign in again, note the time: it is a known loose end.)
+2. Call start_session with mode external and give the user the player link. The user opens it signed in as the owner on desktop and on a phone, and taps Start listening on both.
+3. Ask the user for a private window that is NOT signed in, for the guest checks.
 
 ## Tests
 
 For each test record pass or fail, plus the exact tool output for any failure.
 
-### A. Sound
+### A. Picture
 
-1. Level. Play the same moment twice: a synth sound with set_sound (mood joy 0.6, calm 0.6), then strudel_mode on with note("c3 e3 g3 b3").s("sawtooth").gain(0.5) at bpm 100. At the same slider position, ask the user: is Strudel now about as loud as the synth (a bit louder is fine)? Also try s("bd*2, hh*8").bank("RolandTR909") at bpm 128.
-2. Stray note on a fade. With Strudel playing, call strudel_mode with on false. Listen to the whole fade into the synth. Is there any stray Strudel note at full volume at the end? Repeat 3 times, with different patterns (drums, melody, a long note with .room(1)).
-3. Same on silence. With Strudel playing, call silence with fade 6. Any stray note at the end? Repeat twice. Check the result mentions that Strudel stops with the fade.
-4. Restart on the phone. On the Android phone: tap Stop pattern, wait 5 s, tap Play pattern. Repeat 5 times, once with a very short wait (about 1 s). Does the sound start cleanly, in time with the other device, without glitches and without speeding up? Record the phone model and browser.
-5. Restart on desktop. Same as 4 on desktop. Also tap Stop and Play right after each other as fast as you can: the music must be playing at the end.
+1. Silence. Play a rhythmic synth sound (set_sound, tempo about 100, colour scene ripples, motion pulse). Then silence with fade 6. Ask the user to watch: do the circles AND the background fade to black over about 6 seconds, without a sudden stop? Record when it is fully black.
+2. Back from silence. Then set_sound with a normal mood. Does the picture fade back in smoothly, without a flash and without a sudden start?
+3. End. Play a closing sound, then silence with end true. The picture fades to black with the sound, and the page then shows "This session has ended."
+4. Strudel. strudel_mode on with s("bd*2, hh*8").bank("RolandTR909") at bpm 120 and colour scene rain, sync beat. Then silence with fade 6. Same check as test 1. The blue and orange background must go dark too.
+5. Join late. Open the player on another device AFTER the silence has finished: it should show black at once, not fade in.
 
-### B. Owner switches
+### B. Polling
 
-6. Code switch. With Strudel playing, the owner clears "Let the model play Strudel code". The pattern stops and the synth plays. The owner switches it on again. Check: the old pattern does NOT start by itself. The code panel is not shown. Reload the page: still the synth. Then send strudel_mode on true with new code: it plays and the panel is back. get_feedback after re-allowing must say playing.engine is not strudel.
-7. Face lock. With Strudel playing, the owner locks Internal. Same checks. Then the owner restores Auto or External. The old pattern must not come back. During the lock, call get_feedback: playing should NOT say engine strudel, there should be no pattern field, and a note should say the owner stopped it (final: do not retry, do not comment).
-8. Non-owner. Open the player link on a device or private window that is not signed in, while Strudel plays. It shows the code panel with Copy code and Open in Strudel, and no Stop pattern. The owner's device still shows all three.
+6. Desktop owner, nothing changing. Open the Network tab, filter on player_poll, watch for 60 seconds. Expected: about 60 requests, almost all with a tiny response body (about 60 bytes: open one in the Response tab and check it contains same:true), against about 2 kB for the full state. Record the number and the sizes.
+7. A change arrives fast. Call set_sound with a clearly different mood. How long until the user hears it and sees the colour change? Expected: about a second or less. Repeat with strudel_mode on and a new pattern.
+8. Background tab. Switch to another tab for 60 seconds while Strudel plays, then call strudel_mode with new code. Does the music follow while the tab is hidden (within a few seconds)? Record what the Network tab shows for the player_poll requests of that tab.
+9. Phone. Same as 6 on the phone if you can see its requests (remote debugging), otherwise say you could not.
 
-### C. Picture
+### C. Android (the open problem)
 
-9. Silence. While a rhythmic sound with ripples or rain plays, call silence with fade 6. Does the picture fade to black over about 6 seconds? Then call set_sound: does it come back smoothly (no flash)?
-10. End. Same with silence and end true. The picture fades with the sound, and the page then shows the ended screen.
-11. Strudel. Start Strudel with colour scene rain and sync beat, then silence with fade 6. Same check.
+10. On the Android phone (record the model and the browser version), with the owner signed in, open the player with ?debug=1 added to the link, press Start listening, play a Strudel pattern with drums and a melody, and let it run for 10 minutes with the screen on. Does the sound stop and start by itself in pulses? Ask the user to rate it: clean, a few glitches, or pulsing. Write down the Strudel line shown in the debug area (events played, dropped as late, refused, worst lateness, clock syncs).
+11. Same, but with the desktop player closed, so that the phone is the only open player.
+12. Same, but with the desktop owner player open too (two owner players).
+13. Same, but the phone opens the link in a private tab, not signed in (a guest). Compare with 10.
+14. Close the browser on the phone while Strudel plays and reopen the link. Is there a dip or a glitch? Does it recover by itself?
+15. Lock the screen for 2 minutes, then unlock. Does it keep playing? Any glitch on return?
 
-### D. Player
+### D. Owner switches and get_feedback
 
-12. The code panel shows a chevron that points right when closed and down when open, on phone and desktop. Check it does not double up with a browser arrow. With the system setting "reduce motion" on, the chevron does not animate.
-13. Requests. With the owner's page open and nothing changing, watch the Network tab for 60 seconds: how many get_player_state requests? Expected about 6 (one every 10 s) plus calls after each model update. Before: about 40. Then switch to another tab for 60 s with audio playing: the background worker keeps polling (about every 3 s) and the sound still follows the model.
+16. Code off. With Strudel playing, the owner clears "Let the model play Strudel code". The pattern stops, the synth state plays. Call get_feedback: playing.engine is not strudel, no pattern field, and a note says the owner stopped your Strudel pattern (final). If the synth state is silent, the note also says so.
+17. Allowed again. The owner ticks the box again. Call get_feedback again: the note about the owner stopping the pattern must still be there, the old pattern must not come back, also after a reload of the player.
+18. New code. Call strudel_mode on with new code: it plays, and the next get_feedback has no "owner stopped" note.
+19. Face lock. Same as 16 and 17 with the face locked to Internal and then restored to External.
 
-### E. Reports and tool messages
+### E. Loudness
 
-14. Report follows the code. Send code A (valid), wait for ran true, then code B with an error (note("c3").nosuchmethod()). Read get_feedback after 12 s: it must show the error of B, never A's report. Send A again right after: it must show ran true, not stay on B's error.
-15. Same code twice. Send the same code and bpm twice in a row (a few seconds apart). The second result and a later get_feedback must show the report (ran true), not "not reported yet". The music must not restart.
-16. After on false. Call strudel_mode on false from a state that had a report. The note says the pattern field is the report on the code you just stopped.
-17. session_ended. Call silence with end true (after a short closing sound). Then call set_sound without session_id: expect session_ended ("This session has ended. Call start_session for a new one."), not no_session. Note: if you have another open session this can find that one instead; use a fresh account or end all sessions to test it.
-18. Guidance. start_session with mode external: the guidance must not say "it starts on the internal face". With mode auto it still starts internal.
-19. Messages to the model. Send code whose last statement is throw new Error('x'): the report error should say the code must end with a pattern. Then send valid JavaScript with bad mini-notation, for example s("bd [sd"): the report error is a [mini] parse error followed by a hint about double-quoted strings and single quotes.
-20. Stop notes. With Strudel playing, call set_sound with mode internal: the result has a note that Strudel stopped. (Switch back to external and start Strudel again to continue.)
+20. Same slider, two engines. At the same slider position, play a synth sound (joy 0.6, calm 0.6), then a Strudel pattern with drums, bass and melody (stack(s("bd*2, hh*8").bank("RolandTR909"), note("<c2 g2>").s("sawtooth").lpf(400).gain(.6), note("c4 e4 g4 b4").s("triangle").room(.4)) at bpm 110). Ask the user: are they about as loud now? Is the synth too loud or distorted?
+21. Loud synth moods. Play a synth sound with calm 0 and tension 0.8 and spontaneity 1, at the slider position the user normally uses. Is it too loud or distorted? (The slider can go up to +18 dB: try with the slider at 50 and at 100 only if the user agrees.)
+22. Huge gain. WARNING: first ask the user to put the volume slider at the minimum. Send note("c3").s("sawtooth").gain(1e9). Describe what the user hears at slider 0.01 and 0.02, and the browser. This is not limited by design; the answer is for the docs.
 
-### F. Sandbox and limits
+### F. Player layout (desktop and phone, owner and guest)
 
-21. Probe. Send code that makes the sound name depend on what the sandbox has, so the report shows it. Code: const t = [typeof indexedDB, typeof Worker, typeof fetch, typeof XMLHttpRequest, typeof WebSocket, typeof caches]; note("c3").s(t.every(x => x === 'undefined') ? 'sine' : 'square'). The report notes list the sound: sine means all six are undefined, square means something is still there. Expected: sine.
+23. Strudel panel. The title is "Strudel code" with no tempo and no icon. It has the same small triangle as "How is it landing?" and "What the model set" (check the three look alike), the triangle turns when open. Copy code and Open in Strudel each take half the width. There is no Stop pattern button, for the owner and for the guest.
+24. Bottom buttons. Under the player, Copy link and Open on phone fill the whole width for the owner; for a guest, Add it to your AI app and Copy link fill the whole width. On a phone, Copy link alone fills the width. Open on phone shows the QR code below, full width.
+25. Checkbox. "Let the model play Strudel code" is teal when ticked, in the dark and light theme.
+26. Footer line. Open the sessions list on a desktop browser that shows a classic scrollbar, with few sessions so that the page does not scroll. The line above the footer reaches the right edge of the window. Also check it on a page that scrolls (the guide) and on the player page: nothing odd, no double line.
 
-22. Network. Repeat the earlier tests: fetch('https://example.com/x'), importScripts('https://example.com/a.js'), a nested new Worker. Nothing should reach the network (user checks the Network tab, all rows with (blocked) or none). The page stays responsive.
-23. Length boundary. Send code of exactly 4000 characters (valid code padded with a comment line, for example): it must be accepted. Then 4001 characters: the schema must reject it. Say which sizes you actually sent.
-24. Endless loop. while(true){} followed by note("c3"): the pattern stops within about 3 seconds, the report says the code froze the sandbox, the page stays usable. Then send good code: it plays (the frame starts again).
-25. Huge gain. WARNING: first ask the user to put the volume slider at the minimum. Send note("c3").s("sawtooth").gain(1e9). Describe what the user hears (silence, noise, a loud full-scale note) and the browser. The first test heard silence on desktop Brave; headless Chrome carries a huge value to the output, which clips it to full scale. It is not limited by design; the answer is for the docs.
+### G. Messages to the model
 
-### G. Regression (quick)
+27. Replace code. While Strudel plays, send new code with strudel_mode on true. The result's notes say the pattern field is the report on the code you replaced.
+28. Stop. Send strudel_mode on false. The note says the pattern field is the report on the code you just stopped.
+29. Not reported yet. Close the owner's player (or do not press Start listening) and send strudel_mode on true with valid code. get_feedback shows ran "not reported yet" with an explanation that mentions Start listening.
+30. Reports follow the code. Send code A (valid), then B (note("c3").nosuchmethod()), read get_feedback after 12 s: B's error. Then A again: ran true.
 
-26. The synth: set_sound with a mood returns playing, reads_as and colour; the user confirms it sounds normal.
-27. Strudel plays, set_sound with a new colour changes only the picture. strudel_mode on false brings the synth back.
-28. The landing page and /guide load and mention Strudel.
+### H. Regression (quick)
+
+31. The synth: set_sound with a mood returns playing, reads_as and colour; the user confirms it sounds normal (and louder than before).
+32. Strudel starts, set_sound with a new colour changes only the picture, strudel_mode on false brings the synth back.
+33. session_ended: end a session with silence and end true, end all other sessions, then call set_sound without session_id: session_ended.
+34. Syntax error: note("c3".s( is refused with the line and column and nothing is saved.
 
 ## What to report
 
-For each test: the number, pass or fail, and the exact tool result or error for failures. Add the browser and device, and any console errors. List separately anything surprising, anything too loud, and any message to the model that is confusing.
+For each test: the number, pass or fail, and the exact tool result or error for failures. Add the browser and device, and any console errors. List separately anything surprising, anything too loud, and any message to the model that is confusing. Not tested: say so, and why.
 
 While on the internal face, do not mention the sound in chat unless the user asks. On the external face you may talk about it.
