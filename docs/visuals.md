@@ -57,6 +57,7 @@ Keep the current rule that colour follows the sound by default, and add an optio
 ## Rendering
 - CSS is enough for gradients, blur and a few moving layers. Canvas 2D for particles and shapes. WebGL only if a scene needs it (flow fields, big blur).
 - Target: 60 fps on a mid-range phone with the audio worklet running, and no jank when the tab is in the background. Cap the number of elements, pause drawing when hidden.
+- The beat shows in the shape as well as the brightness, because the flash budget holds the brightness swing down (and saturated red gets none): the glow swells, motes grow, streaks stretch and brighten, rings thicken. In beat sync the first beat of each 4-beat bar hits hardest (4/4 assumed). Phrase sync has no per-beat bump. Motes come in three kinds (large soft, medium, small sharp; more sharp ones with tension) and rain has depth (near drops are longer, brighter and faster).
 - Everything is a pure function of the state plus time, so two listeners see the same thing. Randomness is seeded like the engine's.
 
 ## Safety and comfort (these stay rules)

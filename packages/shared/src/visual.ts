@@ -28,6 +28,8 @@ export interface Item {
   /** stroke width for a ring or a streak, same unit */
   w: number;
   a: number;
+  /** dots only: 0 a hard disc, 1 a disc that fades out from the centre */
+  soft?: number;
 }
 export interface Frame {
   /** opacity of a white layer over the whole field */
@@ -136,21 +138,25 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Fr
     ? 0.5 - 0.5 * Math.cos(2 * Math.PI * frac(beats / PHRASE_BEATS))
     : lerp(0.5 + 0.5 * Math.cos(2 * Math.PI * beatPh), (1 - beatPh) ** 2, sharp);
   const kick = (1 - beatPh) ** 2;                            // a short bump right after each beat
+  // The beat also shows in the shape, not only in the brightness (which the flash budget holds down): the bar's first beat hits hardest.
+  // Phrase sync stays calm: no per-beat bump there.
+  const weight = sync === "beat" ? (beatIdx % 4 === 0 ? 1 : 0.7) : 1;
+  const hit = sync === "beat" ? kick * weight * amp : 0;
   const accent = sync === "beat" && feel.jitter > 0.4 ? Math.max(0, 1 - Math.abs(beatPh - 0.5) * 8) * 0.03 * feel.jitter : 0; // an off-beat accent for tension
 
   let wash = 0;
-  if (motion === "pulse") wash = (0.04 * amp * env + accent) * red;
+  if (motion === "pulse") wash = (0.04 * amp * env * weight + accent) * red;
 
   let glow: Frame["glow"] = null;
   if (motion === "pulse") {
     // a pulse also opens a glow on the beat, so joy, closeness and warmth show in it as well as in the other motions
     const size = lerp(0.45, 0.9, feel.near);
     const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: size * (1 + 0.25 * lift2 * amp * env), a: 0.05 * amp * env * red, hold: 0.5 * (1 - feel.soft) };
+    glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: size * (1 + 0.25 * lift2 * amp * env + 0.14 * hit), a: 0.05 * amp * env * weight * red, hold: 0.5 * (1 - feel.soft) };
   } else if (motion === "drift" || motion === "breathe") {
     const size = lerp(0.55, 1, feel.near);
     const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    const grow = 1 + 0.08 * lift2 * amp * kick;
+    const grow = 1 + 0.08 * lift2 * amp * kick + 0.1 * hit;
     if (motion === "drift") {
       const x = 0.5 + 0.35 * Math.sin((2 * Math.PI * beats) / 64) + jx, y = 0.5 + 0.3 * Math.sin((2 * Math.PI * beats) / 83 + 1) - 0.08 * lift2 + jy;
       glow = { x, y, r: 0.55 * size * grow, a: (0.07 + 0.02 * amp * env) * red, hold: 0.5 * (1 - feel.soft) };
@@ -160,39 +166,46 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Fr
     }
   }
 
-  return { wash, glow, items: scene === "none" ? [] : sceneItems(colour, scene, feel, { b, beatPh, beatIdx, beats, kick, amp, lift2, sync, half, seed }) };
+  return { wash, glow, items: scene === "none" ? [] : sceneItems(colour, scene, feel, { b, beatPh, beatIdx, beats, kick, hit, weight, amp, lift2, sync, half, seed }) };
 }
 
-interface Clock { b: number; beatPh: number; beatIdx: number; beats: number; kick: number; amp: number; lift2: number; sync: "beat" | "phrase" | "free"; half: number; seed: number }
+interface Clock { b: number; beatPh: number; beatIdx: number; beats: number; kick: number; hit: number; weight: number; amp: number; lift2: number; sync: "beat" | "phrase" | "free"; half: number; seed: number }
 
 function sceneItems(colour: ResolvedColour, scene: "motes" | "ripples" | "rain", feel: NonNullable<ResolvedColour["feel"]>, c: Clock): Item[] {
   const density = clamp(colour.density ?? 0.4), speed = clamp(colour.speed ?? 0.4);
   const items: Item[] = [];
   if (scene === "motes") {
     const n = Math.round(lerp(4, 36, density)), travel = c.b * lerp(0.004, 0.02, speed), dir = c.lift2 >= 0 ? -1 : 1;
-    const rs = lerp(0.008, 0.026, feel.near);
+    const rs = lerp(0.008, 0.026, feel.near), sharpShare = 0.25 + 0.3 * feel.jitter;
     for (let i = 0; i < n; i++) {
-      const x0 = hash01(i, c.seed), y0 = hash01(i, c.seed + 1), sz = 0.7 + 0.6 * hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3);
-      const y = frac(y0 + dir * travel), x = x0 + 0.03 * Math.sin(2 * Math.PI * (c.b / 32 + ph));
+      const x0 = hash01(i, c.seed), y0 = hash01(i, c.seed + 1), ph = hash01(i, c.seed + 3), cls = hash01(i, c.seed + 4);
+      // three kinds, so the field is not a sheet of identical discs: a few large soft lights, small sharp points (more with tension), the rest in between
+      const big = cls > 0.85, tiny = cls < sharpShare * 0.6;
+      const sz = big ? 2.2 + 0.8 * hash01(i, c.seed + 2) : tiny ? 0.45 : 0.7 + 0.6 * hash01(i, c.seed + 2);
+      const soft = big ? 1 : tiny ? 0 : clamp(feel.soft * (0.4 + 0.8 * hash01(i, c.seed + 6)));
+      const y = frac(y0 + dir * travel * (big ? 0.6 : 1)), x = x0 + 0.03 * Math.sin(2 * Math.PI * (c.b / 32 + ph));
       const twinkle = c.sync === "free" ? 0 : (1 - frac(c.b + ph * feel.irreg)) ** 2;
-      items.push({ kind: "dot", x, y, r: rs * sz, w: 0, a: 0.3 * Math.sin(Math.PI * y) * (1 + 0.6 * c.amp * twinkle) });
+      items.push({ kind: "dot", x, y: y - 0.01 * dir * c.hit, r: rs * sz * (1 + 0.4 * c.hit), w: 0, soft,
+        a: (big ? 0.2 : tiny ? 0.5 : 0.4) * Math.sin(Math.PI * y) * (1 + 0.6 * c.amp * twinkle) });
     }
   } else if (scene === "ripples") {
-    const period = c.sync === "beat" ? 1 : 4, life = lerp(1.5, 3.2, density), idx = c.b / period, last = Math.floor(idx);
+    const period = c.sync === "beat" ? 1 : 4, life = lerp(2.5, 4.5, density), idx = c.b / period, last = Math.floor(idx);
     for (let k = last; k > last - Math.ceil(life) - 1; k--) {
       const age = (idx - k) * (1 + speed); // in beats of life
       if (age < 0 || age > life) continue;
-      const u = age / life, off = (feel.jitter + feel.irreg) * 0.12;
+      const u = age / life, off = 0.04 + (feel.jitter + feel.irreg) * 0.25; // a calm, measured mood keeps the rings near the middle; a spontaneous or tense one scatters them
       items.push({
         kind: "ring", x: 0.5 + (hash01(k, c.seed) - 0.5) * off, y: 0.55 + (hash01(k, c.seed + 5) - 0.5) * off,
-        r: 0.04 + 0.5 * u, w: lerp(0.002, 0.006, feel.near), a: 0.24 * (1 - u) * (0.4 + 0.6 * c.amp),
+        r: 0.04 + 0.5 * u, w: lerp(0.003, 0.008, feel.near) * (c.sync === "beat" && k % 4 === 0 ? 1.5 : 1), a: 0.45 * (1 - u) ** 0.7 * (0.4 + 0.6 * c.amp) * (c.sync === "beat" ? (k % 4 === 0 ? 1.25 : 0.8) : 1),
       });
     }
   } else {
-    const n = Math.round(lerp(4, 30, density)), travel = c.b * lerp(0.02, 0.1, speed), len = lerp(0.03, 0.08, speed + 0.2 * feel.near);
+    const n = Math.round(lerp(4, 30, density)), travel = c.b * lerp(0.02, 0.1, speed), len = lerp(0.05, 0.12, speed + 0.2 * feel.near);
     for (let i = 0; i < n; i++) {
-      const y = frac(hash01(i, c.seed + 1) + travel * (0.7 + 0.6 * hash01(i, c.seed + 2)));
-      items.push({ kind: "streak", x: hash01(i, c.seed), y, r: len, w: 0.002, a: 0.22 * Math.sin(Math.PI * y) });
+      const z = hash01(i, c.seed + 2); // how near the drop is: near ones are longer, brighter and faster
+      const y = frac(hash01(i, c.seed + 1) + travel * (0.7 + 0.6 * z));
+      items.push({ kind: "streak", x: hash01(i, c.seed), y, r: len * (0.6 + 0.8 * z) * (1 + 0.5 * c.hit), w: 0.003 + 0.003 * z,
+        a: 0.42 * (0.6 + 0.5 * z) * Math.sin(Math.PI * y) * (0.8 + 0.6 * c.hit) });
     }
   }
   return items;
