@@ -58,3 +58,6 @@ The service role key is not needed for normal operation. Use it only for mainten
 
 ## Faces (migration 0008)
 `sessions.mode` is the face playing now (`internal` default, or `external`); old rows said `inner` and `outer` and were converted. `sessions.mode_policy` is `auto` (the model may switch) or a locked face. `mode_changes` logs every change (`turn`, `to_mode` = `internal`, `external` or `auto`, `by` = `model` or `owner`); members read it, the owner inserts. `set_mode_policy(session, policy)` is the owner's call from the player: it sets the policy, sets the face when locking, and logs it. `get_player_state` returns `mode` and `mode_policy`, and the session broadcast also fires when either changes.
+
+## Strudel (migration 0010)
+`sessions.allow_code` (owner's switch, default true; RPC `set_allow_code`), table `pattern_reports` (one row per Strudel state: `ok`, `error`, `events_per_cycle`, `notes`) written only by RPC `report_pattern`, which checks that the caller owns the session and keeps the first report. `get_player_state` also returns `allow_code` and the state `id`. The states themselves need no migration: the pattern is `effective.engine` and `effective.pattern` inside the existing jsonb.

@@ -24,10 +24,10 @@ You are building a remote MCP server that lets an LLM express itself through a s
 6. `docs/roadmap.md`: build order. Work milestone by milestone.
 
 ## Non-negotiable rules
-- Listener limits and consent levels are removed for now (Gael's decision, 2026-11-09): Claude decides how it sounds and looks, the listener only sets the volume. They come back later as a designed piece of work. What stays, enforced on the server and again in the player: the picture never flashes (the flash rule below), the master volume never goes above 0.9, and Claude cannot set the volume (`docs/implementation/limits.md`).
+- Listener limits and consent levels are removed for now (Gael's decision, 2026-11-09): Claude decides how it sounds and looks, the listener only sets the volume. They come back later as a designed piece of work. What stays, enforced on the server and again in the player: the picture never flashes (the flash rule below), the synth's master volume never goes above 0.9 (Strudel has no sound limits, Gael's decision 2026-11-11: only the listener's volume applies), and Claude cannot set the volume (`docs/implementation/limits.md`).
 - No flashing in the colour field, ever. The rule (redefined 2026-11-11, WCAG 2.3.1 style and tighter; `packages/shared/src/visual.ts`): large elements together swing the relative luminance by at most 0.09 (a flash starts at 0.1), so the beat can drive the picture at any tempo; saturated red gets no pulse; small elements (motes, rings, streaks) cover at most 10% of the view in total; state glides last at least 1 s. Enforced in `capFrame` (the player, every frame) and `hardCaps` (server and player). The old 3 Hz cap stays only on `pulseHz`, the legacy CSS pulse.
 - Every database access from the MCP endpoint uses the caller's token so Row Level Security applies. Use the service role key only where the docs say so.
-- The same DSP engine code renders in the browser and on the server. Do not reimplement the synth twice.
+- The same synth code renders in the browser and on the server. Do not reimplement the synth twice. Strudel (`strudel_mode`, `docs/implementation/strudel.md`) is a second, browser-only engine: the server never runs the model's code, it only parses it, and the code runs in a sandboxed frame that cannot touch the page, the account or the network.
 - Randomness in the engine is seeded, so a state renders identically everywhere.
 - Keep tool results compact (target ~250 tokens of JSON for `set_sound`; `playing` mirrors what Claude can set, so it can check its choices arrived).
 

@@ -18,7 +18,8 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
   - State changes glide over at least 1 s, and updates come at most every 300 ms.
   - `prefers-reduced-motion` turns the moving picture off, and the listener has a "Still picture" button in the player.
   - This follows accessibility guidance and is not a medical guarantee.
-- The master volume never goes above 0.9 in the engine, whatever is sent.
+- The synth's master volume never goes above 0.9 in the engine, whatever is sent.
+- **Strudel is outside the sound limits** (Gael, 2026-11-11): the music the model writes in Strudel has no loudness limit, no parameter clamps and no level hold, so that it sounds as it does on strudel.cc. Only the listener's own volume slider and mute apply, and a pattern can be much louder than the synth. What stays is isolation, which has nothing to do with the sound: the model's code runs in a sandboxed frame with no access to the page, the login session, storage or the network, and it only makes sound through the player. The flash rule is untouched (the code cannot draw). The owner can switch Strudel off, and a face lock stops it. See [implementation/strudel.md](implementation/strudel.md).
 - The echo stays inside its buffer and below self-oscillation (a stability limit, not a listener limit).
 - Mute is always one tap away and stays muted until the listener turns it back on.
 - No disguised appeal: the model gets no gesture or setting that hides a call for attention inside another sound (the purr has no high component; see emotion-to-sound.md).
