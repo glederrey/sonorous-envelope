@@ -21,13 +21,13 @@ export class BeatClock {
   private lastMs = 0;
   private lastRate = 0;
   /** `maxCorrection`: most beats per second the clock may speed up or slow down to close a gap. `gain`: how hard it pulls (per second). */
-  constructor(private readonly maxCorrection = 0.5, private readonly gain = 3, private readonly snapBeats = 16) {}
+  constructor(private readonly maxCorrection = 0.5, private readonly gain = 3) {}
 
   /** The beats to draw at `nowMs`, given the beats the model says there are (`target`). */
   update(target: number, nowMs: number): number {
     const dt = (nowMs - this.lastMs) / 1000;
-    if (this.phase === null || dt <= 0 || dt > 2 || Math.abs(target - this.phase) > this.snapBeats) {
-      // first frame, a paused tab, a clock that went backwards, or a gap too big to glide over: start from the target
+    if (this.phase === null || dt <= 0 || dt > 2) {
+      // first frame, a paused tab, or a clock that went backwards: start from the target
       this.phase = target; this.lastTarget = target; this.lastMs = nowMs; this.lastRate = 0;
       return target;
     }
@@ -36,9 +36,13 @@ export class BeatClock {
     const raw = (target - this.lastTarget) / dt;
     const rate = raw >= 0 && raw <= MAX_BEATS_PER_SECOND ? raw : this.lastRate;
     this.lastRate = rate;
-    const err = target - this.phase;
-    const correction = Math.max(-this.maxCorrection, Math.min(this.maxCorrection, err * this.gain));
-    this.phase += (rate + correction) * dt;
+    // The pulse only sees the fraction of a beat, so the error is split in two: whole beats are invisible to it and are taken at once
+    // (a slow phrase breath moves by a few beats at most); the remainder, in [-0.5, 0.5], is the phase error and is closed at a bounded
+    // speed, so the pulse never runs through anti-phase to catch up.
+    const err = target - (this.phase + rate * dt);
+    const whole = Math.round(err), rest = err - whole;
+    const correction = Math.max(-this.maxCorrection, Math.min(this.maxCorrection, rest * this.gain));
+    this.phase += rate * dt + whole + correction * dt;
     this.lastTarget = target; this.lastMs = nowMs;
     return this.phase;
   }

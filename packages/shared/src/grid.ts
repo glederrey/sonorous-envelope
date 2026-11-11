@@ -13,12 +13,18 @@ export function stepSecondsOf(s: Pick<EngineState, "arp" | "bass">) {
 
 /** The counters for a state written at `atMs`, given the previous state (its counters, step lengths and creation time). `next` is
  *  the state being written: its transition says how long the tempo glides from the tempo that plays now. */
-export function nextGrid(prev: { effective: EngineState; created_at: string } | null, atMs: number, next?: Pick<EngineState, "transition">): NonNullable<EngineState["grid"]> {
+export function nextGrid(prev: { effective: EngineState; created_at: string } | null, atMs: number, next?: Pick<EngineState, "transition"> & { arp?: Pick<EngineState["arp"], "rate"> }): NonNullable<EngineState["grid"]> {
   if (!prev) return { arp: 0, bass: 0, beat: 0 };
   const g = prev.effective.grid ?? { arp: 0, bass: 0 };
   // a state with a delay (the closing fade) starts later, but its steps are those of the layers it copies, so use its creation time
   const dt = Math.max(0, (atMs - new Date(prev.created_at).getTime()) / 1000);
   const d = stepSecondsOf(prev.effective);
   // the arpeggio's tempo may still be gliding (arpRamp); `fromTempo` is what plays at this moment, for the next glide to start from
-  return { arp: g.arp + rampCount(arpRamp(prev.effective), dt), beat: beatsAt(prev.effective, dt), bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: glideSeconds(next.transition) } : {}) };
+  const arp = g.arp + rampCount(arpRamp(prev.effective), dt);
+  // The state starts at a fractional step, and its notes fire when the step counter crosses an integer. For those notes to land on the
+  // beat the counter and the beat must agree: `beat - arp * R` is a whole number of steps (R = beats per step of the NEW state's rate).
+  // Without this a rate change leaves the picture's beat a fixed fraction of a step away from the notes for the rest of the session.
+  const R = RATE_BEATS[next?.arp?.rate ?? prev.effective.arp.rate];
+  const beat = arp * R + R * Math.round((beatsAt(prev.effective, dt) - arp * R) / R);
+  return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: glideSeconds(next.transition) } : {}) };
 }

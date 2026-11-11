@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beatsAt, mulberry32 } from "@sonorous/engine";
+import { beatsAt, mulberry32, renderOffline } from "@sonorous/engine";
 import {
   BAND_SCALE, nextBand, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
@@ -483,6 +483,29 @@ describe("the shared timeline", () => {
     // a row stored before `beat`: falls back to its step count
     const old = st(120); old.grid = { arp: 8, bass: 0 };
     expect(beatsAt(old, 1)).toBeCloseTo(4 + 2, 9);
+  });
+  it("keeps the beat on the notes when a state is written at a fractional step, changes the rate, or glides", () => {
+    // The invariant that makes this hold: beat - arp * R is a whole number of steps of the new state's rate R.
+    const onsetsVsBeat = (s: ReturnType<typeof st>) => {
+      const ev = renderOffline(s, { seconds: 6, sampleRate: 22050, seed: 7 }).events.filter((e) => e.layer === "arp");
+      expect(ev.length).toBeGreaterThan(8);
+      const R = { "1/4": 1, "1/8": 0.5 }[s.arp.rate as "1/4" | "1/8"];
+      return ev.map((e) => { const b = beatsAt(s, e.time), off = b - Math.round(b / R) * R; return Math.abs(off) * (60 / Math.max(20, s.arp.tempo)); });
+    };
+    const every = (s: ReturnType<typeof st>) => { s.arp.density = 1; s.arp.jitterMs = 0; return s; }; // every step sounds, on the grid
+    const a = every(st(120)); a.grid = { arp: 0, bass: 0, beat: 0 };
+    // written 3.1 s later (arp counter 12.4, a fractional step), now at quarter-note steps and a slower tempo with a glide
+    const b = every(st(80, "1/4")); b.transition = { time: 4, curve: "smooth" };
+    b.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 3_100, b);
+    expect(b.grid.arp % 1).toBeGreaterThan(0.2); // really fractional
+    for (const err of onsetsVsBeat(b)) expect(err).toBeLessThan(0.04);
+    // and again from a state that was itself written mid-glide, back to eighth-note steps
+    const c = every(st(100)); c.transition = { time: 2, curve: "smooth" };
+    c.grid = nextGrid({ effective: b, created_at: new Date(3_100).toISOString() }, 3_100 + 1_730, c);
+    for (const err of onsetsVsBeat(c)) expect(err).toBeLessThan(0.04);
+    // without the snap the beat would sit off the notes
+    const raw = { ...b, grid: { ...b.grid, beat: beatsAt(a, 3.1) } };
+    expect(Math.max(...onsetsVsBeat(raw))).toBeGreaterThan(0.04);
   });
   it("never goes backwards, and copes with states that have no grid", () => {
     const a = st(100);
