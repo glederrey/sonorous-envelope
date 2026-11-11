@@ -132,7 +132,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         // only the owner's device may report, and each state once: the model reads it as data from the player
         if (!id || reported.current.has(id)) return;
         reported.current.add(id);
-        void supabase.rpc("report_pattern", { p_state: id, p_ok: r.ok, p_error: r.error ?? null, p_events: r.eventsPerCycle ?? null, p_notes: r.notes });
+        // supabase-js sends a query only when it is awaited or given .then, so `void` alone would send nothing
+        supabase.rpc("report_pattern", { p_state: id, p_ok: r.ok, p_error: r.error ?? null, p_events: r.eventsPerCycle ?? null, p_notes: r.notes }).then(() => {}, () => {});
       },
     });
     return strudel.current;
