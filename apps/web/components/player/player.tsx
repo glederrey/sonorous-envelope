@@ -146,7 +146,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       a.setState({ ...p.state, volume: 0 }, p.seed, delay, elapsed); // the synth is paused: it fades out over the transition
       void ensureStrudel().then((o) => o?.play({ id: p.id ?? null, code: p.state.pattern!.code, bpm: p.state.pattern!.bpm, seed: p.seed & 0xffff }));
     } else {
-      strudel.current?.stop();
+      // the pattern fades out over the new state's transition (after its delay, for a closing fade)
+      strudel.current?.stop(Math.max(0.3, p.state.transition.time), delay);
       a.setState(p.state, p.seed, delay, elapsed);
     }
   }, [ensureStrudel]);

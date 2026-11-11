@@ -487,6 +487,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const turn = planTurn(prev, final, now);
   const effective: EngineState = JSON.parse(JSON.stringify(prev.effective));
   effective.volume = 0;
+  delete effective.engine; delete effective.pattern; // silence stops Strudel too: the player fades the pattern out over the same time
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
   effective.transition = { time: input.fade, curve: "smooth" };

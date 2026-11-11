@@ -31,8 +31,14 @@ export class StrudelOutput {
   private banks = new Set<string>();
   private listener = (e: MessageEvent) => this.onMessage(e);
   private dead = false;
+  /** superdough's output goes through this node, so a pattern can fade out; then into the player's volume node */
+  private fade: GainNode;
+  private stopTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {}
+  constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {
+    this.fade = new GainNode(ctx);
+    this.fade.connect(out);
+  }
 
   get playing() { return this.current !== null; }
   get code() { return this.current?.code ?? null; }
@@ -45,7 +51,7 @@ export class StrudelOutput {
       const ctrl = sd.getSuperdoughAudioController();
       // superdough connects to ctx.destination; take its last node and send it through the listener's gain instead
       ctrl.output.destinationGain.disconnect();
-      ctrl.output.destinationGain.connect(this.out);
+      ctrl.output.destinationGain.connect(this.fade);
       await sd.initAudio({ maxPolyphony: 128 });
       sd.registerSynthSounds();
       sd.registerZZFXSounds?.();
@@ -140,6 +146,7 @@ export class StrudelOutput {
       return;
     }
     if (this.dead) return;
+    this.cancelStop();
     this.current = src;
     void this.ctx.resume();
     this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, ...this.clockMsg() });
@@ -147,11 +154,32 @@ export class StrudelOutput {
     this.resync = setInterval(() => this.send({ kind: "clock", ...this.clockMsg() }), 4000);
   }
 
-  stop() {
-    if (this.frame) this.send({ kind: "stop" });
-    if (this.resync) clearInterval(this.resync);
-    this.resync = null; this.current = null;
+  private cancelStop() {
+    if (this.stopTimer) clearTimeout(this.stopTimer);
+    this.stopTimer = null;
+    this.fade.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
   }
 
-  close() { this.dead = true; this.teardown(); }
+  /** Stop the pattern: after `after` seconds, fading out over `fadeSeconds`. A new `play` before that cancels it. */
+  stop(fadeSeconds = 0.3, after = 0) {
+    if (!this.current) return;
+    const now = this.ctx.currentTime;
+    this.cancelStop();
+    if (fadeSeconds > 0 || after > 0) {
+      this.fade.gain.setValueAtTime(1, now + after);
+      this.fade.gain.linearRampToValueAtTime(0, now + after + Math.max(0.05, fadeSeconds));
+    }
+    this.stopTimer = setTimeout(() => this.hardStop(), (after + Math.max(0.05, fadeSeconds) + 0.1) * 1000);
+  }
+
+  private hardStop() {
+    if (this.frame) this.send({ kind: "stop" });
+    if (this.resync) clearInterval(this.resync);
+    this.resync = null; this.current = null; this.stopTimer = null;
+    this.fade.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
+  }
+
+  close() { this.dead = true; if (this.stopTimer) clearTimeout(this.stopTimer); this.teardown(); }
 }
