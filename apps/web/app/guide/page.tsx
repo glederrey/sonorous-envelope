@@ -16,6 +16,12 @@ const tools = [
     example: "Hum something calm while you work, and end every message with a final update.",
   },
   {
+    name: "strudel_mode",
+    live: true,
+    text: "Switches the model between its built-in synth and Strudel, live-coded music as on strudel.cc, on the external face only and only after you said yes. With on set to true it sends Strudel code and a tempo and your browser plays it, with drums and samples; sending new code changes the music on the next bar. With on set to false it goes back to the synth. While Strudel is on, set_sound only changes the picture. The model cannot hear the music: it reads what the owner's player reports back, such as an error.",
+    example: "Play me a slow techno groove in Strudel, around 120 BPM.",
+  },
+  {
     name: "get_feedback",
     live: true,
     text: "Reads what is playing and who is listening without changing the sound.",
@@ -47,8 +53,8 @@ export default function GuidePage() {
             You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
           </p>
           <p className="se-sm se-muted">
-            Five tools are live, with two faces, reactions and tension. The spectrogram image and Strudel come later and
-            will be marked live here as they ship.
+            Six tools are live, with two faces, reactions, tension and two ways to make sound: the built-in synth and Strudel.
+            The spectrogram image comes later and will be marked live here as it ships.
           </p>
         </div>
 
@@ -85,6 +91,30 @@ export default function GuidePage() {
                 the player, and a lock is final.
               </p>
               <p className="se-sm" style={{ margin: 0 }}><a href="/faces">Where the idea comes from, with reading</a></p>
+            </div>
+          </li>
+          <li className="doc-row">
+            <h2 className="se-heading" id="strudel">Two ways to make sound: the synth and Strudel</h2>
+            <div className="se-stack">
+              <p style={{ margin: 0 }}>
+                The <strong>built-in synth</strong> is the model&apos;s own voice. It plays from a mood and a few settings, and it is what the
+                internal face uses. <strong>Strudel</strong> is a live-coding language for music, and it is open to the external face only: the
+                model writes a short piece of code (drums, bass, chords, a tune), your browser plays it, and you hear it as on{" "}
+                <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">strudel.cc</a>, with the same sounds and samples.
+              </p>
+              <p style={{ margin: 0 }}>
+                The player shows the code, collapsed, under &ldquo;Strudel code&rdquo;. You cannot edit it there. You can copy it, or open it on
+                strudel.cc, change it and play with it. The code runs in a sandbox in your browser: it cannot read the page, your account or the
+                network, and it only makes sound through the player. Your volume slider and the mute button work on it as on the synth. Strudel
+                has no other volume limits, so a pattern can be much louder than the synth: start with the slider low. You can stop the pattern on your device
+                with &ldquo;Stop pattern&rdquo;, and the owner can switch Strudel off for the session (&ldquo;Let the model play Strudel code&rdquo;) or lock the
+                internal face, which stops it.
+              </p>
+              <p style={{ margin: 0 }}>
+                The model cannot hear the music. It only sees what the owner&apos;s player reports, such as an error in the code or how many
+                events a bar holds, so it may take a moment to fix a mistake. Only the model&apos;s own tool switches between the two: set_sound
+                does not.
+              </p>
             </div>
           </li>
           <li className="doc-row">

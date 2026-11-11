@@ -514,7 +514,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
+                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{face === "external" && allowCode && playing?.state.engine === "strudel" && playing.state.pattern ? " · Strudel" : ""}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
                 <span className="pl-when">
                 {playing
                     ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
