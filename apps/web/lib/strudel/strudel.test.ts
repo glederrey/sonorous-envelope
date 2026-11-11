@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { beatsAt, neutralState, tempoAt } from "@sonorous/engine";
+import { MAX_PATTERN_CHARS, StrudelModeInput } from "@sonorous/shared";
 import { validateHap, validateReport } from "./protocol";
 import { pinBase, resolveBankRequest, safeSampleMap } from "./banks";
 import { copyableCode, strudelUrl } from "../../components/player/strudel-panel";
@@ -78,5 +79,13 @@ describe("the beat of a Strudel state", () => {
     expect(tempoAt(s, 0)).toBe(120); expect(tempoAt(s, 10)).toBe(120);
     const synth = { ...s, engine: "synth" as const };
     expect(tempoAt(synth, 0)).toBe(60); // the synth still glides from its own fromTempo
+  });
+});
+
+describe("code length", () => {
+  it("accepts exactly the limit and refuses one more", () => {
+    expect(MAX_PATTERN_CHARS).toBe(4000);
+    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(4000), bpm: 100 }).success).toBe(true);
+    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(4001), bpm: 100 }).success).toBe(false);
   });
 });

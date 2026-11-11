@@ -1044,6 +1044,11 @@ html:has(.pl-field) .se-header {
 
 /* the model's Strudel code in the player: read only, selectable, scrolls inside its box */
 .pl-code-pre { margin: 10px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 8%, transparent); color: var(--on-scrim); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pl-code summary { list-style: none; }
+.pl-code summary::-webkit-details-marker { display: none; }
 .pl-code summary svg { vertical-align: -2px; margin-right: 4px; }
+.pl-code summary .pl-chev { margin-right: 0; transition: transform 160ms ease; }
+.pl-code[open] summary .pl-chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .pl-code summary .pl-chev { transition: none; } }
 .pl-code .pl-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-top: 4px; }
 .pl-code .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; padding: 8px 6px; font-size: 13px; line-height: 1.2; gap: 6px; }

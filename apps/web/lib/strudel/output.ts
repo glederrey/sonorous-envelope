@@ -17,6 +17,9 @@ export interface StrudelHooks {
 
 type Sd = typeof import("superdough");
 const WATCHDOG_MS = 2500;
+/** Strudel's patterns come out about 10 dB louder than the synth at the same slider (test report 2026-11-11). This is a fixed level match,
+ *  not a limit: the code's own gain, compressor and the like are not touched, and the listener's volume still decides the rest. */
+export const STRUDEL_TRIM = 0.3;
 
 export class StrudelOutput {
   private sd: Sd | null = null;
@@ -33,10 +36,13 @@ export class StrudelOutput {
   private dead = false;
   /** superdough's output goes through this node, so a pattern can fade out; then into the player's volume node */
   private fade: GainNode;
+  private hub: AudioNode | null = null; // superdough's last node, which feeds `fade`
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private seq = 0; // one per play: a report that comes from an older run is not the new code's
+  private lastReport: Report | null = null;
 
   constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {
-    this.fade = new GainNode(ctx);
+    this.fade = new GainNode(ctx, { gain: STRUDEL_TRIM });
     this.fade.connect(out);
   }
 
@@ -50,8 +56,9 @@ export class StrudelOutput {
       sd.setAudioContext(this.ctx);
       const ctrl = sd.getSuperdoughAudioController();
       // superdough connects to ctx.destination; take its last node and send it through the listener's gain instead
-      ctrl.output.destinationGain.disconnect();
-      ctrl.output.destinationGain.connect(this.fade);
+      const hub = (this.hub = ctrl.output.destinationGain);
+      hub.disconnect();
+      hub.connect(this.fade);
       await sd.initAudio({ maxPolyphony: 128 });
       sd.registerSynthSounds();
       sd.registerZZFXSounds?.();
@@ -104,15 +111,18 @@ export class StrudelOutput {
 
   private onMessage(e: MessageEvent) {
     if (!this.frame || e.source !== this.frame.contentWindow) return;
-    const m = e.data as { token?: string; kind?: string; hap?: unknown; report?: unknown; names?: unknown };
+    const m = e.data as { token?: string; kind?: string; hap?: unknown; report?: unknown; names?: unknown; seq?: unknown };
     if (!m || typeof m !== "object" || m.token !== this.token) return;
     if (m.kind === "alive") { this.lastAlive = performance.now(); return; }
     if (m.kind === "hap") {
       const h = validateHap(m.hap);
-      if (h && this.sd && this.current) void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {});
+      // a hap already well past (the worker or the page was throttled, then caught up) is dropped: playing a burst of old events is the "speeds up" glitch
+      const late = h ? this.ctx.currentTime - h.t - this.hooks.latency() : 0;
+      if (h && this.sd && this.current && late < 0.15) void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {});
     } else if (m.kind === "report") {
+      if (typeof (m as { seq?: unknown }).seq === "number" && (m as { seq: number }).seq !== this.seq) return; // from an older code
       const r = validateReport(m.report);
-      if (r && this.current) this.hooks.onReport(this.current.id, r);
+      if (r && this.current) { this.lastReport = r; this.hooks.onReport(this.current.id, r); }
     } else if (m.kind === "banks" && Array.isArray(m.names)) {
       for (const n of m.names.slice(0, 8)) if (typeof n === "string") void this.loadBank(n);
     }
@@ -138,7 +148,11 @@ export class StrudelOutput {
   /** Play this code from the next bar. The same code and tempo again changes nothing. */
   async play(src: PatternSource) {
     if (this.dead) return;
-    if (this.current && this.current.code === src.code && this.current.bpm === src.bpm) { this.current = { ...this.current, id: src.id ?? this.current.id }; return; }
+    if (this.current && !this.stopTimer && this.current.code === src.code && this.current.bpm === src.bpm) {
+      this.current = { ...this.current, id: src.id ?? this.current.id };
+      if (src.id && this.lastReport) this.hooks.onReport(src.id, this.lastReport); // the same code again is a new state: it gets the report too
+      return;
+    }
     try {
       await Promise.all([this.init(), this.startFrame()]);
     } catch {
@@ -148,8 +162,10 @@ export class StrudelOutput {
     if (this.dead) return;
     this.cancelStop();
     this.current = src;
+    this.lastAlive = performance.now(); // the worker has been quiet since it was stopped: the watchdog must not read that as a freeze
     void this.ctx.resume();
-    this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, ...this.clockMsg() });
+    this.lastReport = null;
+    this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, seq: ++this.seq, ...this.clockMsg() });
     if (this.resync) clearInterval(this.resync);
     this.resync = setInterval(() => this.send({ kind: "clock", ...this.clockMsg() }), 4000);
   }
@@ -158,7 +174,16 @@ export class StrudelOutput {
     if (this.stopTimer) clearTimeout(this.stopTimer);
     this.stopTimer = null;
     this.fade.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
+    this.fade.gain.setValueAtTime(STRUDEL_TRIM, this.ctx.currentTime);
+  }
+
+  /** A fresh fade node: every note already scheduled (and its tail) went into the old one, which is cut, so nothing sounds after a stop. */
+  private renewFade() {
+    const old = this.fade;
+    this.fade = new GainNode(this.ctx, { gain: STRUDEL_TRIM });
+    this.fade.connect(this.out);
+    if (this.hub) { this.hub.disconnect(); this.hub.connect(this.fade); }
+    old.disconnect();
   }
 
   /** Stop the pattern: after `after` seconds, fading out over `fadeSeconds`. A new `play` before that cancels it. */
@@ -167,7 +192,7 @@ export class StrudelOutput {
     const now = this.ctx.currentTime;
     this.cancelStop();
     if (fadeSeconds > 0 || after > 0) {
-      this.fade.gain.setValueAtTime(1, now + after);
+      this.fade.gain.setValueAtTime(STRUDEL_TRIM, now + after);
       this.fade.gain.linearRampToValueAtTime(0, now + after + Math.max(0.05, fadeSeconds));
     }
     this.stopTimer = setTimeout(() => this.hardStop(), (after + Math.max(0.05, fadeSeconds) + 0.1) * 1000);
@@ -177,8 +202,7 @@ export class StrudelOutput {
     if (this.frame) this.send({ kind: "stop" });
     if (this.resync) clearInterval(this.resync);
     this.resync = null; this.current = null; this.stopTimer = null;
-    this.fade.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
+    this.renewFade(); // not "gain back to 1": a note scheduled ahead of the stop would sound at full volume
   }
 
   close() { this.dead = true; if (this.stopTimer) clearTimeout(this.stopTimer); this.teardown(); }
