@@ -4,6 +4,7 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 import { beatsAt, tempoAt, type EngineState } from "@sonorous/engine";
 import { drawFrame, EMPTY_FRAME, type Frame } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
+import { isSounding } from "../../lib/sounding";
 
 // The moving part of the colour field (docs/visuals.md): a canvas over the CSS gradient. It reads the beat from the shared timeline,
 // asks the pure frame model (`drawFrame`, which also applies the flash budget) what to draw, and paints it. Nothing here decides how
@@ -87,7 +88,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
         const c = s.state.colour;
         // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
         // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
-        const tr = s.state.transition, target01 = s.state.volume > 0.001 ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;
+        const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;
         if (lvlAt !== s.at) { lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; }
         const p = Math.min(1, Math.max(0, (tau - delay) / span));
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));

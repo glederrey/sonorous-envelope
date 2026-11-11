@@ -445,23 +445,25 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   const title = input.title?.trim().slice(0, 80);
   const intent = { colour: input.colour, note: input.note, ...(input.on ? { strudel: true } : { strudel_off: true }) };
   let effective: EngineState, clamps: string[];
+  let sameCode = false;
   const notes: string[] = [note ?? ""];
   if (input.on) {
     const code = input.code!.trim(), bpm = Math.round(input.bpm! * 10) / 10;
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
       e.engine = "strudel"; e.pattern = { code, bpm }; e.colour = applyColour(e.colour, sticky.colour);
     }, intent, { title, sticky }));
-    notes.push(wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");
+    sameCode = wasStrudel && prev.effective.pattern?.code === code && prev.effective.pattern?.bpm === bpm;
+    notes.push(sameCode ? "same code and tempo as before: the music does not change" : wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");
   } else {
     if (!wasStrudel) { notes.push("Strudel was not on: nothing changed"); }
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
       delete e.engine; delete e.pattern; e.colour = applyColour(e.colour, sticky.colour);
     }, intent, { title, sticky }));
-    if (wasStrudel) notes.push("back on the synth, where you left it: it fades in");
+    if (wasStrudel) notes.push(effective.volume <= 0.001 ? "back on the synth, but its state is silent (volume 0): nothing fades in until you send set_sound" : "back on the synth, where you left it: it fades in");
   }
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, settings, now, face);
-  if (before) notes.push(input.on ? "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback" : "pattern is the player's report on the code you just stopped, not on the synth");
+  if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on ? null : measureState(effective, ANALYSIS_SEED);
   return buildFeedback({

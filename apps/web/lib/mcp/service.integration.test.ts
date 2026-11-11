@@ -519,6 +519,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       const fb = await svc.getFeedback(dbA, A, { session_id }, clock);
       expect((fb.playing as { engine?: string }).engine).not.toBe("strudel");
       expect(fb.pattern).toBeUndefined();
+      expect(state(session_id).volume).toBe(0); // the owner turned it off: sound and picture end, no leftover synth state
       // allowing it again does not bring the old pattern back: the playing state is the synth until the model sends Strudel again
       expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: true })).error).toBeNull();
       expect(state(session_id).engine).toBeUndefined(); expect(state(session_id).pattern).toBeUndefined();
@@ -545,6 +546,19 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: false })).error).toBeNull();
       const after = (await dbA.rpc("player_poll", { p_session: session_id, p_known: next.v })).data as { same?: boolean };
       expect(after.same).toBeUndefined(); // the owner's switch and the stopped pattern are part of the version
+    });
+
+    it("says so when the same code is sent again, and when on false leaves a silent synth", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      const again = await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      expect(JSON.stringify(again.notes)).toMatch(/same code and tempo as before/);
+      expect(JSON.stringify(again.notes)).not.toMatch(/code you replaced/);
+      await svc.silence(dbA, A, { session_id, fade: 3, final: true }, tick(5000));
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000)); // Strudel after a silence: the synth under it stays at volume 0
+      expect(state(session_id).volume).toBe(0);
+      const off = await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(5000));
+      expect(JSON.stringify(off.notes)).toMatch(/its state is silent/);
     });
 
     it("a call after the session ended says session_ended", async () => {

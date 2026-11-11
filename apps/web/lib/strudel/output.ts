@@ -195,6 +195,10 @@ export class StrudelOutput {
   stop(fadeSeconds = 0.3, after = 0) {
     if (!this.current) return;
     const now = this.ctx.currentTime;
+    // The new state has no pattern, so the shared clock now runs at the synth's tempo: a resync from it would move the worker's clock in the
+    // middle of the fade (a gap, heard as a drop). The worker keeps its own time until it is stopped.
+    if (this.resync) clearInterval(this.resync);
+    this.resync = null;
     this.cancelStop();
     if (fadeSeconds > 0 || after > 0) {
       this.fade.gain.setValueAtTime(1, now + after);
