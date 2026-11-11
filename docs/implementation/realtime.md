@@ -10,7 +10,7 @@ One public Broadcast channel per session: `player:<session_id>`. Listeners have 
 - On receive, the player calls `get_player_state(id)`, which returns `{ended, settings, state: {effective, seed, turn, final, created_at}}`.
 - Then: run `hardCaps` locally with the settings (defence in depth), then `engine.setState(effective, seed)` via the worklet port, and start the colour glide.
 - Ignore a state that is not newer than the one already playing (compare `created_at`).
-- Safety net: the player also calls `get_player_state` every 5 s while the tab is visible, in case the live connection drops.
+- Safety net: the player also calls `player_poll(id, known_version)` every second (every second from the background worker while the page is hidden): `{same: true, now, v}` when nothing changed, the full `get_player_state` answer plus `v` otherwise (migration 0013).
 
 ### 2. Broadcast: `session`
 - Sent by a trigger on `sessions` when `ended_at` or `settings` change. The player refetches; `ended` stops playback and shows "session ended".
