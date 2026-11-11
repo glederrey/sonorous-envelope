@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Face, Policy } from "../../lib/mcp/modes";
 import { REACTION_KINDS, REACTION_LABELS, type ReactionKind } from "@sonorous/shared";
@@ -24,7 +24,7 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the external face only (the internal face is how the model feels, and
  * nobody steers that), and the "fade after" setting (the external face never fades, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void }) {
+export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
@@ -54,7 +54,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
     const timer = setInterval(() => void loadPending(), 15_000); // a reaction disappears from the list once the model has read it
     return () => { cancelled = true; clearInterval(timer); };
   }, [supabase, sessionId, loadPending]);
-  if (!owner) return null;
+  if (!owner) return <>{afterFace}</>; // not the owner: no controls, but the code is still for everyone
 
   const external = face === "external";
   const choose = async (value: Policy) => {
@@ -101,6 +101,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
           Let the model play Strudel code
         </label>
       </div>
+      {afterFace}
       {external && (
         <details className="pl-set se-sm">
           <summary>How is it landing?</summary>

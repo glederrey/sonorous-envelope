@@ -12,7 +12,7 @@ export interface Hap { v: HapValue; /** audio-context time the event starts */ t
 /** page -> frame */
 export type ToFrame =
   | { kind: "init"; token: string; worker: string }
-  | { kind: "play"; code: string; bpm: number; seed: number; /** audio time and epoch ms at the moment of sending, and the cycle then */ ctxTime: number; epochMs: number; cycle: number }
+  | { kind: "play"; code: string; bpm: number; seed: number; /** counts the plays: reports carry it back */ seq?: number; /** audio time and epoch ms at the moment of sending, and the cycle then */ ctxTime: number; epochMs: number; cycle: number }
   | { kind: "clock"; ctxTime: number; epochMs: number; cycle: number }
   | { kind: "stop" };
 

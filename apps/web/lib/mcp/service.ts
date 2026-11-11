@@ -60,7 +60,12 @@ async function resolveSession(db: Db, userId: string, sessionId?: string) {
     .order("last_active_at", { ascending: false }).limit(1);
   if (error) fail("load the session", error);
   const s = (data ?? [])[0] as SessionRow | undefined;
-  if (!s) throw new ToolError("no_session", "Call start_session first.");
+  if (!s) {
+    // the last one ended: say so, as the tool descriptions promise
+    const { data: gone } = await db.from("sessions").select("id").eq("owner_id", userId).not("ended_at", "is", null).order("ended_at", { ascending: false }).limit(1);
+    if ((gone ?? []).length) throw new ToolError("session_ended", "This session has ended. Call start_session for a new one.");
+    throw new ToolError("no_session", "Call start_session first.");
+  }
   return { session: s, note: `session_id missing: used ${s.id}` };
 }
 
@@ -345,7 +350,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (the internal face has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
@@ -456,7 +461,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   }
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, settings, now, face);
-  if (before) notes.push("pattern shows what the player said about the code that played until now");
+  if (before) notes.push("pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on ? null : measureState(effective, ANALYSIS_SEED);
   return buildFeedback({
@@ -471,8 +476,12 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   if (!state) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(state, parseSettings(session.settings), now, faceOf(session));
-  const fb = feedbackFor(state, p, [note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
-  const pattern = await patternFeedback(db, state, p.players);
+  // the owner locked the face or switched code off after the pattern started: the player has stopped it, so it is not what plays now
+  const stopped = state.effective.engine === "strudel" && (faceOf(session) !== "external" || session.allow_code === false);
+  const shown: StateRow = stopped ? { ...state, effective: (({ engine: _e, pattern: _p, ...rest2 }) => rest2)(state.effective) as EngineState } : state;
+  const stopNote = stopped ? "the owner stopped the Strudel pattern (face locked or code off): it is final, do not try again or comment on it. The synth state plays when they allow it, from your next message" : undefined;
+  const fb = feedbackFor(shown, p, [note, stopNote, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
+  const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
   return pattern ? { ...fb, pattern } : fb;
 }
 
@@ -513,7 +522,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
 
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, parseSettings(session.settings), now, faceOf(session));
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, ...rest.notes]
+  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, prev.effective.engine === "strudel" ? "Strudel stops with the fade; set_sound brings the synth back" : undefined, ...rest.notes]
     .filter((x): x is string => Boolean(x));
   return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), policyOf(session)) });
 }

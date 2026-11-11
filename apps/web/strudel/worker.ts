@@ -10,8 +10,14 @@ import { transpiler } from "@strudel/transpiler";
 const post = (m: unknown) => (self as any).postMessage(m);
 const g = globalThis as any;
 
+// Defence in depth: the frame's CSP already blocks the network, and the frame has an opaque origin. The code gets none of these APIs anyway.
+for (const name of ["indexedDB", "caches", "Worker", "SharedWorker", "XMLHttpRequest", "WebSocket", "EventSource", "fetch", "importScripts", "BroadcastChannel", "WebTransport"]) {
+  try { Object.defineProperty(g, name, { value: undefined, writable: false, configurable: false }); } catch { /* not there, or not changeable: the CSP still holds */ }
+}
+
 // the clock: audio-context time of "now", from the page's last sync
 let clock = { ctxTime: 0, epochMs: Date.now(), cycle: 0 };
+let seq = 0;
 let cps = 0.5, loop: ReturnType<typeof setInterval> | null = null, run = 0;
 
 function mulberry32(a: number) {
@@ -54,11 +60,20 @@ function sanitize(v: any): Record<string, unknown> {
   return out;
 }
 
+/** Plain words for the errors a model is likely to hit and not understand. */
+function friendly(msg: string): string {
+  if (/unexpected ast format/i.test(msg)) return "the code must end with a pattern (an expression), not a statement such as throw, if or a declaration";
+  if (/\[mini\]/i.test(msg)) return `${msg.slice(0, 90)}... Note: double-quoted strings are mini-notation in Strudel; use single quotes for plain text.`;
+  return msg;
+}
+
 function stopLoop() { if (loop) clearInterval(loop); loop = null; run++; }
 
-async function play(m: { code: string; bpm: number; seed: number; ctxTime: number; epochMs: number; cycle: number }) {
+async function play(m: { seq?: number; code: string; bpm: number; seed: number; ctxTime: number; epochMs: number; cycle: number }) {
   stopLoop();
   const mine = run;
+  seq = typeof m.seq === "number" ? m.seq : 0;
+  const mySeq = seq;
   notes.length = 0;
   cps = m.bpm / 240; // one cycle is one bar of four beats; the tempo is the tool's bpm, not setcps
   clock = { ctxTime: m.ctxTime, epochMs: m.epochMs, cycle: m.cycle };
@@ -75,7 +90,7 @@ async function play(m: { code: string; bpm: number; seed: number; ctxTime: numbe
     pattern = await r.evaluate(m.code, false);
     const err = (r.state as any).evalError;
     if (err || !pattern) {
-      post({ kind: "report", report: { ok: false, error: String(err?.message ?? err ?? "the code did not make a pattern").slice(0, 200), notes: [...notes] } });
+      post({ kind: "report", seq: mySeq, report: { ok: false, error: friendly(String(err?.message ?? err ?? "the code did not make a pattern")).slice(0, 200), notes: [...notes] } });
       return;
     }
     if (mine !== run) return;
@@ -83,7 +98,7 @@ async function play(m: { code: string; bpm: number; seed: number; ctxTime: numbe
     const start = Math.ceil(clock.cycle + 0.05);
     const sample = pattern.queryArc(start, start + 4, { _cps: cps }).filter((h: any) => h.hasOnset());
     const sounds = [...new Set(sample.map((h: any) => (h.value && typeof h.value === "object" ? (h.value.s ?? "(default)") : "(default)")))].slice(0, 8);
-    post({ kind: "report", report: { ok: true, eventsPerCycle: sample.length / 4, notes: [...notes, ...(sounds.length ? [`sounds: ${sounds.join(", ")}`] : [])].slice(0, 8) } });
+    post({ kind: "report", seq: mySeq, report: { ok: true, eventsPerCycle: sample.length / 4, notes: [...notes, ...(sounds.length ? [`sounds: ${sounds.join(", ")}`] : [])].slice(0, 8) } });
 
     let from = start; // the first cycle boundary we may play (the next bar)
     loop = setInterval(() => {
@@ -101,14 +116,14 @@ async function play(m: { code: string; bpm: number; seed: number; ctxTime: numbe
           post({ kind: "hap", hap: { v: sanitize(h.value), t: clock.ctxTime + (begin - clock.cycle) / cps, d: h.duration / cps, cps, cycle: begin } });
         }
       } catch (e: any) {
-        post({ kind: "report", report: { ok: false, error: `while playing: ${String(e?.message ?? e).slice(0, 160)}`, notes: [...notes] } });
+        post({ kind: "report", seq: mySeq, report: { ok: false, error: `while playing: ${String(e?.message ?? e).slice(0, 160)}`, notes: [...notes] } });
         stopLoop();
         return;
       }
       from = to;
     }, 40);
   } catch (e: any) {
-    post({ kind: "report", report: { ok: false, error: String(e?.message ?? e).slice(0, 200), notes: [...notes] } });
+    post({ kind: "report", seq: mySeq, report: { ok: false, error: friendly(String(e?.message ?? e)).slice(0, 200), notes: [...notes] } });
   }
 }
 

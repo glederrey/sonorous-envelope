@@ -78,6 +78,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const engineCtl = useRef({ face: "internal" as Face, allowCode: true, stopped: false });
   engineCtl.current = { face, allowCode, stopped: patternStopped };
   const reported = useRef(new Set<string>());
+  // The owner locked the face or switched code off while this state played. When they allow it again the synth keeps playing until the
+  // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
+  const ownerBlocked = useRef<number | null>(null);
+  const [blockedAt, setBlockedAt] = useState<number | null>(null);
+  const block = (at: number) => { ownerBlocked.current = at; setBlockedAt(at); };
 
   const audio = useRef<AudioOutput | null>(null);
   const lastHue = useRef({ h: 220, h2: 245 });
@@ -114,7 +119,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code and the listener has not stopped it. */
   const patternOn = (p: Playing) => {
     const c = engineCtl.current;
-    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && !c.stopped;
+    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && !c.stopped && ownerBlocked.current !== p.at;
   };
   const cycleNow = useCallback(() => {
     const p = latest.current;
@@ -155,6 +160,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     const p = latest.current;
     if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
+    if (face !== "external" || !allowCode) block(p.at);
     runEngine(p, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
   }, [face, allowCode, patternStopped, runEngine]);
 
@@ -264,6 +270,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         return;
       }
       if (data.state) apply(data.state);
+      // joined while the owner has Strudel off or the face locked: the old pattern must not start when they allow it again
+      if ((f !== "external" || data.allow_code === false) && latest.current?.state.engine === "strudel") block(latest.current.at);
       // now and then, pull this device's step grid back onto the shared one (audio clocks drift apart slowly)
       if (data.state && latest.current && !restedFrom.current) {
         const age = (Date.now() + clockOffset.current - latest.current.at) / 1000;
@@ -281,18 +289,19 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       .subscribe();
     // a slow poll as a safety net if the live connection drops
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
-    const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 5000);
+    const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 10000);
     // The page's own timers and requests are throttled in the background. A dedicated worker has its own timer and its
     // own network access, so it asks for the state itself and hands the answer to the page, which applies it.
     let ticker: Worker | null = null;
     let tickerUrl = "";
+    let visFn: (() => void) | null = null;
     try {
       const code = `
         let cfg = null, busy = false;
-        onmessage = (e) => { cfg = e.data; };
+        onmessage = (e) => { cfg = Object.assign(cfg || {}, e.data); };
         setInterval(async () => {
           postMessage({ tick: 1 });
-          if (!cfg || busy) return;
+          if (!cfg || busy || !cfg.away) return; // the page does its own checks while it is visible
           busy = true;
           try {
             const r = await fetch(cfg.url + "/rest/v1/rpc/get_player_state", {
@@ -306,6 +315,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       tickerUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
       ticker = new Worker(tickerUrl);
       ticker.postMessage({ url: process.env.NEXT_PUBLIC_SUPABASE_URL, key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, id: sessionId });
+      visFn = () => ticker?.postMessage({ away: document.visibilityState === "hidden" });
+      document.addEventListener("visibilitychange", visFn);
+      visFn();
       ticker.onmessage = (e: MessageEvent) => {
         const hidden = document.visibilityState === "hidden";
         const m = e.data as { tick?: number; status?: number; data?: Parameters<typeof handle>[0]; error?: string };
@@ -326,6 +338,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       };
     } catch { /* no workers: the page timer above is the fallback */ }
     return () => {
+      if (visFn) document.removeEventListener("visibilitychange", visFn);
       ticker?.terminate(); if (tickerUrl) URL.revokeObjectURL(tickerUrl);
       cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
   }, [supabase, sessionId, apply, restTick]);
@@ -515,7 +528,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{face === "external" && allowCode && playing?.state.engine === "strudel" && playing.state.pattern ? " · Strudel" : ""}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
+                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{face === "external" && allowCode && blockedAt !== playing?.at && playing?.state.engine === "strudel" && playing.state.pattern ? " · Strudel" : ""}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
                 <span className="pl-when">
                 {playing
                     ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
@@ -547,11 +560,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 <output>{Math.round(volume * 100)}</output>
               </label>
               {canvasOk && !reduced && (
-                <label className="pl-slider" title="Delay the picture to match the sound, for example on Bluetooth">
-                  <span>Sync</span>
+                <label className="pl-slider" title="Delay the picture so it matches the sound, for example on Bluetooth headphones. Leave it at 0 if they already match.">
+                  <span>Picture delay</span>
                   <input type="range" min={0} max={400} step={10} value={nudgeMs} style={{ "--fill": `${(nudgeMs / 400) * 100}%` } as CSSProperties}
                     onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(stillPicture, n); }} />
-                  <output>{nudgeMs}</output>
+                  <output>{nudgeMs} ms</output>
                 </label>
               )}
             </div>
@@ -562,11 +575,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               </button>
             )}
 
-            {playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && (
-              <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={() => setPatternStopped((v) => !v)} />
-            )}
-
-            {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} />}
+            {(() => {
+              const code = playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at
+                ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={signedIn ? () => setPatternStopped((v) => !v) : undefined} />
+                : null;
+              // the code sits right under the Face block for the owner, and on its own for a listener
+              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} /> : code;
+            })()}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
 
