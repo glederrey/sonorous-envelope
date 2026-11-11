@@ -193,7 +193,7 @@ function sceneItems(colour: ResolvedColour, scene: "motes" | "ripples" | "rain",
     for (let k = last; k > last - Math.ceil(life) - 1; k--) {
       const age = (idx - k) * (1 + speed); // in beats of life
       if (age < 0 || age > life) continue;
-      const u = age / life, off = (feel.jitter + feel.irreg) * 0.12;
+      const u = age / life, off = 0.04 + (feel.jitter + feel.irreg) * 0.25; // a calm, measured mood keeps the rings near the middle; a spontaneous or tense one scatters them
       items.push({
         kind: "ring", x: 0.5 + (hash01(k, c.seed) - 0.5) * off, y: 0.55 + (hash01(k, c.seed + 5) - 0.5) * off,
         r: 0.04 + 0.5 * u, w: lerp(0.003, 0.008, feel.near) * (c.sync === "beat" && k % 4 === 0 ? 1.5 : 1), a: 0.45 * (1 - u) ** 0.7 * (0.4 + 0.6 * c.amp) * (c.sync === "beat" ? (k % 4 === 0 ? 1.25 : 0.8) : 1),
