@@ -416,7 +416,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   it("writes the shared timeline into every state: the step counters keep counting from one state to the next", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const grid = () => JSON.parse(sql(`select effective->'grid' from states where session_id='${session_id}' order by created_at desc limit 1`));
-    expect(grid()).toEqual({ arp: 0, bass: 0 });
+    expect(grid()).toEqual({ arp: 0, bass: 0, beat: 0 });
     await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(10_000));
     const g1 = grid();
     expect(g1.arp).toBeGreaterThan(5); expect(g1.bass).toBeGreaterThan(1); // 10 s of the neutral state's steps
@@ -441,5 +441,83 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   it("keeps at most 10 active sessions", async () => {
     for (let i = 0; i < 11; i++) await svc.startSession(dbA, A, {}, tick());
     expect(Number(sql(`select count(*) from sessions where owner_id='${A}' and ended_at is null`))).toBeLessThanOrEqual(10);
+  });
+
+  describe("strudel_mode", () => {
+    const code = 'note("c3 e3 g3 b3").s("sawtooth").gain(0.5)';
+    const state = (sid: string) => JSON.parse(sql(`select effective from states where session_id='${sid}' order by created_at desc limit 1`));
+
+    it("is for the external face, and the owner's lock and code switch are final", async () => {
+      const internal = await svc.startSession(dbA, A, {}, tick());
+      await expect(svc.strudelMode(dbA, A, { session_id: internal.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "internal_face" });
+      const ext = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      expect((await dbA.rpc("set_mode_policy", { p_session: ext.session_id, p_policy: "internal" })).error).toBeNull();
+      await expect(svc.strudelMode(dbA, A, { session_id: ext.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "internal_face", message: expect.stringMatching(/locked it\. It is final/) });
+      expect((await dbA.rpc("set_mode_policy", { p_session: ext.session_id, p_policy: "external" })).error).toBeNull();
+      expect((await dbB.rpc("set_allow_code", { p_session: ext.session_id, p_allow: false })).error).not.toBeNull(); // not the owner
+      expect((await dbA.rpc("set_allow_code", { p_session: ext.session_id, p_allow: false })).error).toBeNull();
+      await expect(svc.strudelMode(dbA, A, { session_id: ext.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "code_off" });
+    });
+
+    it("parses the code and says where a syntax error is; needs code and bpm", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await expect(svc.strudelMode(dbA, A, { session_id, on: true, code: 'note("c3".s(', bpm: 100, final: true }, tick(5000))).rejects.toMatchObject({ code: "syntax_error", message: expect.stringMatching(/line 1/) });
+      await expect(svc.strudelMode(dbA, A, { session_id, on: true, bpm: 100, final: true }, tick(5000))).rejects.toMatchObject({ code: "bad_input" });
+      expect(Number(sql(`select count(*) from states where session_id='${session_id}'`))).toBe(1); // nothing was saved
+    });
+
+    it("switches the engine on and off, keeps the beat running, and only strudel_mode changes the engine", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000));
+      const synth = state(session_id);
+      const on = await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 140, final: true, colour: { scene: "rain", sync: "beat" } }, tick(10_000));
+      expect(on.playing).toMatchObject({ engine: "strudel", bpm: 140 });
+      expect(on).not.toHaveProperty("reads_as"); // no reading for Strudel
+      const e = state(session_id);
+      expect(e.engine).toBe("strudel"); expect(e.pattern).toEqual({ code, bpm: 140 });
+      expect(e.arp.root).toBe(synth.arp.root); // the paused synth is kept, to come back to
+      expect(e.colour.scene).toBe("rain");
+      expect(e.grid.beat).toBeGreaterThan(synth.grid.beat + 10); // the beat kept counting through the switch
+      // set_sound cannot change the engine: only the picture applies
+      const s2 = await svc.setSound(dbA, A, { session_id, mood: { ...mood, joy: 0.1 }, colour: { hue: 20 }, final: true } as never, tick(5000));
+      expect(state(session_id).engine).toBe("strudel");
+      expect((s2.notes as string[]).join(" ")).toMatch(/Strudel is on/);
+      expect(s2.playing).toMatchObject({ engine: "strudel" });
+      expect(state(session_id).colour.h).toBe(20);
+      // new code replaces it, the same tempo continues the beat
+      await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*4")', bpm: 140, final: true }, tick(5000));
+      expect(state(session_id).pattern.code).toBe('s("bd*4")');
+      // back to the synth
+      const off = await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(5000));
+      expect(state(session_id).engine).toBeUndefined();
+      expect(off.playing).toHaveProperty("scale"); expect(off).toHaveProperty("reads_as");
+      expect(state(session_id).arp.root).toBe(synth.arp.root);
+      const log = (await svc.inspect(dbA, A, { session_id, what: "history" })).history.join("\n");
+      expect(log).toMatch(/strudel code/); expect(log).toMatch(/back to the synth/);
+    });
+
+    it("switching to the internal face writes the synth back", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      await svc.setSound(dbA, A, { session_id, mood, mode: "internal", final: true } as never, tick(5000));
+      expect(state(session_id).engine).toBeUndefined();
+    });
+
+    it("the owner's player reports what the code did: owner only, first report wins, the model reads it as data", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      const stateId = sql(`select id from states where session_id='${session_id}' order by created_at desc limit 1`);
+      const before = await svc.getFeedback(dbA, A, { session_id }, clock);
+      expect(before.pattern).toMatchObject({ ran: "not reported yet" });
+      expect((await dbB.rpc("report_pattern", { p_state: stateId, p_ok: true, p_error: null, p_events: 4, p_notes: [] })).error).not.toBeNull();
+      expect((await dbA.rpc("report_pattern", { p_state: stateId, p_ok: false, p_error: "x".repeat(500), p_events: 2.5, p_notes: ["sounds: sawtooth"] })).error).toBeNull();
+      expect((await dbA.rpc("report_pattern", { p_state: stateId, p_ok: true, p_error: null, p_events: 9, p_notes: [] })).error).toBeNull(); // ignored: the first wins
+      const after = await svc.getFeedback(dbA, A, { session_id }, clock);
+      expect(after.pattern).toMatchObject({ ran: false, events_per_cycle: 2.5, notes: ["sounds: sawtooth"], source: "the owner's player" });
+      expect(String((after.pattern as { error: string }).error).length).toBe(200);
+      // the next call shows what the player said about the code that played until then
+      const next = await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*2")', bpm: 100, final: true }, tick(5000));
+      expect(next.pattern).toMatchObject({ ran: false });
+    });
   });
 });
