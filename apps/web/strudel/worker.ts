@@ -106,7 +106,7 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
       post({ kind: "alive" });
       const now = clock.ctxTime + (Date.now() - clock.epochMs) / 1000;
       const nowCycle = clock.cycle + (now - clock.ctxTime) * cps;
-      const to = nowCycle + 0.3 * cps; // look 300 ms ahead
+      const to = nowCycle + 0.8 * cps; // look 800 ms ahead: a stalled main thread (a phone while its controls are used) must not run dry
       if (to <= from) return;
       try {
         for (const h of pattern.queryArc(from, to, { _cps: cps })) {

@@ -9,6 +9,7 @@ import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
 import { restedState } from "../../lib/rested-state";
+import { isSounding } from "../../lib/sounding";
 import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
@@ -81,6 +82,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
   const ownerBlocked = useRef<number | null>(null);
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
+  const [dimAnimated, setDimAnimated] = useState(false); // the dark layer snaps at the first paint (a late joiner after silence sees black), then glides
   const block = (at: number) => { ownerBlocked.current = at; setBlockedAt(at); };
 
   const audio = useRef<AudioOutput | null>(null);
@@ -161,7 +163,17 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   useEffect(() => {
     const p = latest.current;
     if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
-    if (face !== "external" || !allowCode) block(p.at);
+    if (face !== "external" || !allowCode) {
+      block(p.at);
+      // The owner turned Strudel off: the sound and the picture fade to nothing, not to the leftover synth state (which can be a busy one).
+      // The owner locked the internal face: the synth stays, and comes in gently.
+      const state: EngineState = !allowCode
+        ? { ...p.state, volume: 0, transition: { time: 3, curve: "smooth" } }
+        : { ...p.state, transition: { time: Math.max(6, p.state.transition.time), curve: "smooth" } };
+      if (!allowCode) setPlaying({ ...p, state });
+      runEngine({ ...p, state }, 0, allowCode ? 0 : Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
+      return;
+    }
     runEngine(p, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
   }, [face, allowCode, runEngine]);
 
@@ -377,11 +389,21 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     return () => clearTimeout(t);
   }, [muted, volume, started, phase, beat]);
 
+  useEffect(() => {
+    if (phase !== "ready") return;
+    const t = setTimeout(() => setDimAnimated(true), 700);
+    return () => clearTimeout(t);
+  }, [phase]);
+
   // listener controls go to the engine and are remembered
   useEffect(() => {
     audio.current?.setGain(muted ? 0 : sliderToGain(volume));
-    remember(sessionId, { muted, volume });
-  }, [muted, volume, sessionId, started]);
+  }, [muted, volume, started]);
+  // the slider moves the volume many times a second: write it down once it rests, not on every step (a phone's main thread also plays the music)
+  useEffect(() => {
+    const t = setTimeout(() => remember(sessionId, { muted, volume }), 300);
+    return () => clearTimeout(t);
+  }, [muted, volume, sessionId]);
 
   useEffect(() => {
     const q = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -483,7 +505,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-h2": hue2, "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
     "--pl-l2": colour?.secondary?.l ?? Math.max(0, (colour?.l ?? 0.12) - 0.08),
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
-    "--pl-dim": playing && playing.state.volume <= 0.001 ? 1 : 0,
+    "--pl-dim": playing && !isSounding(playing.state) ? 1 : 0,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
 
@@ -503,7 +525,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       className="pl-field" style={fieldStyle}
       data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
-      <div className="pl-dim" aria-hidden />
+      <div className="pl-dim" data-animated={dimAnimated} aria-hidden />
       {canvasOk && !reduced && (
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: playing.seed } : null}
