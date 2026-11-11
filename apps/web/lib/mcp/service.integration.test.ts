@@ -511,6 +511,25 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(state(session_id).engine).toBeUndefined();
     });
 
+    it("get_feedback does not call a pattern the owner stopped 'playing'", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      expect((await svc.getFeedback(dbA, A, { session_id }, clock)).playing).toMatchObject({ engine: "strudel" });
+      expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: false })).error).toBeNull();
+      const fb = await svc.getFeedback(dbA, A, { session_id }, clock);
+      expect((fb.playing as { engine?: string }).engine).not.toBe("strudel");
+      expect(fb.pattern).toBeUndefined();
+      expect(JSON.stringify(fb.notes)).toMatch(/owner stopped the Strudel pattern/);
+    });
+
+    it("a call after the session ended says session_ended", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000));
+      await svc.silence(dbA, A, { session_id, fade: 3, final: true, end: true }, tick(5000));
+      await expect(svc.getFeedback(dbA, A, { session_id }, clock)).resolves.toBeDefined(); // reading an ended session is allowed
+      await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000))).rejects.toMatchObject({ code: "session_ended" });
+    });
+
     it("the owner's player reports what the code did: owner only, first report wins, the model reads it as data", async () => {
       const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
       await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
