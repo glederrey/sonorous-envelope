@@ -49,8 +49,9 @@ export class StrudelOutput {
       await sd.initAudio({ maxPolyphony: 128 });
       sd.registerSynthSounds();
       sd.registerZZFXSounds?.();
-      await Promise.all(DEFAULT_BANKS.map((b) => this.loadBank(b))); // what strudel.cc has on start
-    })();
+      // what strudel.cc has on start; a slow or blocked host must not keep the synth sounds (sawtooth, sine...) from playing
+      await Promise.race([Promise.all(DEFAULT_BANKS.map((b) => this.loadBank(b))), new Promise((r) => setTimeout(r, 8000))]);
+    })().catch((e) => { this.ready = null; throw e; }); // a failed start can be tried again
     return this.ready;
   }
 
