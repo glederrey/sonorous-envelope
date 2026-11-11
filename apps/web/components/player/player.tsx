@@ -12,6 +12,7 @@ import { restedState } from "../../lib/rested-state";
 import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
+import { VisualCanvas } from "./visual-canvas";
 import { OwnerControls } from "./owner-controls";
 import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
 
@@ -62,6 +63,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
   const [face, setFace] = useState<Face>("internal"); // the face playing now (the model switches it, or the owner locks it)
   const [policy, setPolicy] = useState<Policy>("auto");
+  // the moving picture (canvas): the listener can turn it off, nudge its timing for devices that cannot report their delay, and
+  // ?field=css brings back the old CSS motion
+  const [stillPicture, setStillPicture] = useState(false);
+  const [nudgeMs, setNudgeMs] = useState(0);
+  const [canvasOk, setCanvasOk] = useState(true);
+  const nudge = useRef(0);
 
   const audio = useRef<AudioOutput | null>(null);
   const lastHue = useRef({ h: 220, h2: 245 });
@@ -82,6 +89,18 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const s = stored(sessionId);
     setMuted(Boolean(s.muted)); setVolume(Number(s.volume));
   }, [sessionId]);
+
+  // the picture's own settings, per device: ?field=css keeps the old CSS motion
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; nudge?: number };
+      setStillPicture(Boolean(v.still)); const n = Number.isFinite(v.nudge) ? Math.min(400, Math.max(0, Number(v.nudge))) : 0; setNudgeMs(n); nudge.current = n;
+    } catch { /* private window */ }
+    if (new URLSearchParams(window.location.search).get("field") === "css") setCanvasOk(false);
+  }, []);
+  const rememberPicture = (still: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ still, nudge: n })); } catch { /* private window */ } };
+  const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
+  const failCanvas = useCallback(() => setCanvasOk(false), []);
 
   const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
     const at = new Date(row.created_at).getTime();
@@ -399,8 +418,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   return (
     <div
       className="pl-field" style={fieldStyle}
-      data-motion={reduced ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
+      data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
+      {canvasOk && !reduced && (
+        <VisualCanvas
+          source={playing ? { state: playing.state, at: playing.at, seed: playing.seed } : null}
+          clockOffset={clockOffset} latency={pictureLatency} active={started && !stillPicture} onFail={failCanvas}
+        />
+      )}
       <main className="pl-stage">
         {phase === "joining" && <p className="pl-note" role="status">Opening the player…</p>}
         {phase === "error" && <p className="pl-note" role="alert">{message}</p>}
@@ -464,7 +489,21 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                   onChange={(e) => setVolume(Number(e.target.value))} />
                 <output>{Math.round(volume * 100)}</output>
               </label>
+              {canvasOk && !reduced && (
+                <label className="pl-slider" title="Delay the picture to match the sound, for example on Bluetooth">
+                  <span>Sync</span>
+                  <input type="range" min={0} max={400} step={10} value={nudgeMs} style={{ "--fill": `${(nudgeMs / 400) * 100}%` } as CSSProperties}
+                    onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(stillPicture, n); }} />
+                  <output>{nudgeMs}</output>
+                </label>
+              )}
             </div>
+
+            {canvasOk && !reduced && (
+              <button type="button" className="se-btn pl-mute" aria-pressed={stillPicture} onClick={() => { setStillPicture(!stillPicture); rememberPicture(!stillPicture, nudgeMs); }}>
+                {stillPicture ? "Still picture. Tap for motion" : "Still picture"}
+              </button>
+            )}
 
             {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} />}
 

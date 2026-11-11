@@ -95,9 +95,13 @@ export const Colour = z.object({
   saturation: unit.optional(),
   lightness: unit.optional(),
   secondary: z.object({ hue: z.number().min(0).max(360), saturation: unit, lightness: unit }).optional(),
-  motion: z.enum(["still", "drift", "pulse", "breathe"]).optional().describe("still, drift (a slow highlight), pulse (a brightness swell, never faster than 3 Hz) or breathe (the colour slowly swells and settles)"),
-  shape: z.enum(["wash", "glow", "sweep"]).optional().describe("how the two colours are laid out: wash (linear, the default), glow (a radial light, close and warm), sweep (a slow conic turn)"),
+  motion: z.enum(["still", "drift", "pulse", "breathe"]).optional().describe("still, drift (a slow highlight), pulse (a soft swell on the beat) or breathe (swells and settles)"),
+  shape: z.enum(["wash", "glow", "sweep"]).optional().describe("how the two colours are laid out: wash (linear, default), glow (radial light), sweep (slow conic turn)"),
   texture: z.enum(["flat", "grain", "soft_noise"]).optional(),
+  scene: z.enum(["none", "motes", "ripples", "rain"]).optional().describe("moving things: motes (floating lights), ripples (rings on the beat), rain (streaks). Default none"),
+  density: unit.optional().describe("how many, for a scene"),
+  speed: unit.optional().describe("how fast, for a scene"),
+  sync: z.enum(["beat", "phrase", "free"]).optional().describe("what the motion follows: beat (your tempo), phrase (a swell over 4 bars), free. Left out: the mood decides"),
 });
 export type Colour = z.infer<typeof Colour>;
 
@@ -127,7 +131,7 @@ export const SetSoundInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
   mood: Mood.optional().describe("leave it out to keep the mood of your last call: a synth, voice or colour change then does not move the voice the mood draws"),
   synth: SynthOverride.optional().describe("optional exact synth settings; replaces what the mood produced, for this call only (your voice, colour, stack, pad and LFOs stay until you change them). Tempo glides over the transition"),
-  colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion or texture to set your own. It stays until you change it; mode follow gives it back to the sound"),
+  colour: Colour.optional().describe("colour follows the sound by default; send any hue, saturation, lightness, motion, texture, scene or sync to set your own. It stays until you change it; mode follow gives it back to the sound"),
   transition: Transition.optional(),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words); send it when you know the topic, change it if the conversation moves on"),

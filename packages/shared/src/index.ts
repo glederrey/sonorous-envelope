@@ -7,4 +7,5 @@ export * from "./sticky";
 export * from "./voice-band";
 export * from "./analysis";
 export * from "./grid";
+export * from "./visual";
 export * from "./reactions";

@@ -73,12 +73,13 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 - If the bass layer and the drone sound muddy together, drop the mapped drone (it stays available through the override). Check by ear.
 
 ## Colour (follow mode)
-`ResolvedColour = { h, s, l, secondary?, motion, texture, pulseHz }`
+`ResolvedColour = { h, s, l, secondary?, motion, shape?, texture, pulseHz, scene?, density?, speed?, sync?, feel? }`
 - **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue.
 - **Saturation:** `lerp(0.15, 0.6, 0.5·j + 0.5·(1−k))`.
 - **Lightness:** `lerp(0.12, 0.45, 0.6·j + 0.4·(cutoff normalised))`. The page stays dark overall; never above 0.6.
 - **Secondary:** hue + 25°, lightness − 0.08, for a slow gradient.
-- **Motion:** `k > 0.7 → "still"` or `"drift"`, else `"pulse"` synced to LFO 1, with `pulseHz = min(LFO1.rate, 1.0)`. Never above 3 Hz (limits.md enforces it). The pulse only ever follows the cutoff LFO. An `amp` LFO at audio-like rates (20 to 80 Hz, planned) is sound only and never drives the colour: a pulse at that rate would break the 3 Hz rule.
+- **Motion:** `k > 0.7 → "breathe"`, `k > 0.45 → "drift"`, else `"pulse"` (changed 2026-11-11: the motion is safe at any tempo, so no mood is still; `"still"` only when the model sends it). The motion follows the beat clock, not the LFO (visuals.md); `pulseHz = min(LFO1.rate, 1.0)` is kept for the legacy CSS pulse, still capped at 3 Hz by `hardCaps`. An `amp` LFO at audio-like rates (20 to 80 Hz, planned) is sound only and never drives the colour.
+- **Feel (`moodToFeel`, how the mood shapes the motion):** `depth = 1 − 0.75·k`, `lift = j`, `jitter = tension`, `soft = w`, `near = c`, `irreg = s`. What each does is in visuals.md. Starting values, tune by eye on `/dev/visuals`.
 - **Texture:** `"grain"` if `w < 0.3`, else `"soft_noise"` if `s > 0.6`, else `"flat"`.
 
 In `own` mode, the model's HSL values replace hue/saturation/lightness; motion and pulse limits still apply.

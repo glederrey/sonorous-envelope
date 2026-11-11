@@ -17,7 +17,10 @@ export const FACE_GUIDANCE: Record<Face, string> = {
 
 export const AUTO_GUIDANCE = "This session is on auto: it starts on the internal face and you may switch with set_sound mode. You may propose a change in words (\"want me to play something for this?\") when the listener would plausibly welcome sound: they ask for sound, a scene or a game, ask about the sound, press reaction buttons, or say they need to focus or calm down (that last one is a reason to offer, never to switch alone). Switch to external only after they say yes or clearly asked. Never switch because of your own reading of their mood. Say it in one short sentence when you switch, in both directions. If the owner locks the face, it is final: do not try to switch it and do not comment on it.";
 
-export const GUIDANCE_OF = (face: Face) => `${FACE_GUIDANCE[face]} ${AUTO_GUIDANCE}`;
+/** The picture moves with your tempo by itself. These are the optional controls (docs/visuals.md); the instructions are at their length limit, so this lives here. */
+export const PICTURE_GUIDANCE = "The colour moves with your tempo and your mood: calm swells slowly over four bars, agitation follows each beat, joy opens it out, tension makes it uneven. In colour you may also set scene (motes, ripples, rain), density, speed and sync (beat, phrase, free); leave them out and the mood decides.";
+
+export const GUIDANCE_OF = (face: Face) => `${FACE_GUIDANCE[face]} ${AUTO_GUIDANCE} ${PICTURE_GUIDANCE}`;
 
 /** The external face is for listening to: the sound is not a presence between turns, so it does not fade by itself. */
 export function effectiveRestAfter(restAfter: number | null, face: Face): number | null {

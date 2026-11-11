@@ -44,6 +44,13 @@ export function arpRamp(s: Pick<EngineState, "arp" | "grid">): Ramp {
   return { rho0: Math.max(20, from) / 60 / beats, rho1: to / 60 / beats, dur };
 }
 
+/** Beats (quarter notes at the arpeggio's tempo) counted from the start of the session, `tau` seconds after a state was written.
+ *  Continuous across states, also when the rate changes. A state stored before `grid.beat` existed falls back to its step count. */
+export function beatsAt(s: Pick<EngineState, "arp" | "grid">, tau: number): number {
+  const beats = RATE_BEATS[s.arp.rate];
+  return (s.grid?.beat ?? (s.grid?.arp ?? 0) * beats) + rampCount(arpRamp(s), tau) * beats;
+}
+
 /** How long a state's tempo glide lasts, from the transition it is written with: none for a sudden or very short one, or a delayed state. */
 export function glideSeconds(t: EngineState["transition"]): number {
   return t.curve === "sudden" || t.time < MIN_GLIDE_S || (t.delay !== undefined && t.delay > 0) ? 0 : t.time;

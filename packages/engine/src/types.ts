@@ -15,6 +15,15 @@ export interface ResolvedColour {
   shape?: "wash" | "glow" | "sweep";
   texture: "flat" | "grain" | "soft_noise";
   pulseHz: number;
+  /** What moves on top of the colours (visuals.md). Settable by the model: `scene` a small set of moving things, `density` and `speed` 0 to 1,
+   *  `sync` what the motion follows: the beat, the phrase (4 bars), or nothing (free). */
+  scene?: "none" | "motes" | "ripples" | "rain";
+  density?: number;
+  speed?: number;
+  sync?: "beat" | "phrase" | "free";
+  /** How the mood shapes the motion, all 0 to 1, derived from the axes (never sent): depth = how hard the picture follows the beat, lift =
+   *  joy (0.5 neutral: above expands and rises, below contracts and sinks), jitter = tension, soft = warmth, near = closeness, irreg = spontaneity. */
+  feel?: { depth: number; lift: number; jitter: number; soft: number; near: number; irreg: number };
 }
 
 /** The complete, fully resolved state the engine plays. Every field is present. */
@@ -39,7 +48,7 @@ export interface EngineState {
   colour: ResolvedColour;
   /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
    *  was written. The server fills it in; with the state's creation time every device knows where each step is. */
-  grid?: { arp: number; bass: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number; /** seconds the glide lasts (the transition the state was written with); the ramp must not depend on `transition`, which the player rewrites when a sound rests */ glide?: number };
+  grid?: { arp: number; bass: number; /** beats (quarter notes at the arpeggio's tempo) counted from the start of the session; unlike `arp` it stays continuous when the rate changes between states. Drives the visuals. */ beat?: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number; /** seconds the glide lasts (the transition the state was written with); the ramp must not depend on `transition`, which the player rewrites when a sound rests */ glide?: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
   transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }

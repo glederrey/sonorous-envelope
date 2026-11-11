@@ -7,7 +7,7 @@
 ## What still applies
 | Rule | Kind | Value |
 |---|---|---|
-| Colour pulse | safety | `pulseHz` at most 3, and 0 unless `motion` is `pulse`. The player also glides the colour over at least 1 s, so state updates (at most one per 300 ms) cannot flash faster than the rule. |
+| Flash rule | safety | The picture never flashes (`docs/safety.md`). The beat motion is drawn by the player from `visualFrame`, and `capFrame` (`packages/shared/src/visual.ts`) holds it to the budget on every frame: large elements together swing the relative luminance by at most 0.09, saturated red gets no pulse, small elements cover at most 10% of the view and at most 48 items. `hardCaps` keeps `density`, `speed` and `feel` in 0..1, `pulseHz` (the legacy CSS pulse, still used by the landing page and `?field=css`) at most 3 and 0 unless `motion` is `pulse`. The player also glides the colour over at least 1 s, so state updates (at most one per 300 ms) cannot flash faster than the rule. |
 | Master volume | safety | at most 0.9. The mapping uses a constant (`MASTER_VOLUME`, 0.5); `synth.volume` no longer exists. The listener's slider (up to +18 dB, `lib/volume.ts`) is the volume control. |
 | Echo | stability | time at most 1.5 s (the buffer), feedback at most 0.85 (below 1, so it cannot run away). Mix is free. |
 | Stereo width | stability | clamped to 0..1 |

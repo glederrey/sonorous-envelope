@@ -5,7 +5,7 @@ import type { Transition } from "./schemas";
 // Claude decides how it sounds and looks: tempo, scale, wave, roughness, echo, colour, transitions are all free.
 // What is left here is not a listener limit. It is two safety rules and two stability limits, and the player
 // applies the same function again before playing (docs/implementation/limits.md).
-//   - safety: the colour never pulses faster than 3 Hz, and the master volume never goes above 0.9
+//   - safety: the picture never flashes (large areas swing the luminance by under 10%, see visual.ts and docs/safety.md), and the master volume never goes above 0.9
 //   - stability: the echo feedback stays below 1 and the echo time inside the delay buffer (1.5 s)
 // Real listener limits (consent, harshness, colour caps) are a later piece of work; the old code is in the git history.
 
@@ -21,10 +21,14 @@ export function hardCaps(s: EngineState, note: (field: string, from: number | st
   if (s.fx.delay.time > 1.5) { note("echo time", s.fx.delay.time, 1.5, "stability"); s.fx.delay.time = 1.5; }
   if (s.fx.delay.feedback > 0.85) { note("echo feedback", s.fx.delay.feedback, 0.85, "stability"); s.fx.delay.feedback = 0.85; }
 
-  // hard rule, not configurable: never faster than 3 Hz
+  // Hard rule, not configurable. The beat motion is kept under the flash threshold by `capFrame` (visual.ts), in the player as well.
+  // `pulseHz` is the old CSS pulse, still used by the fallback field and the landing page: never faster than 3 Hz.
   const c = s.colour;
   if (c.pulseHz > 3) { note("pulse", c.pulseHz, 3, "safety"); c.pulseHz = 3; }
   if (c.motion !== "pulse") c.pulseHz = 0;
+  if (c.density !== undefined) c.density = Math.min(1, Math.max(0, c.density));
+  if (c.speed !== undefined) c.speed = Math.min(1, Math.max(0, c.speed));
+  if (c.feel) for (const k of Object.keys(c.feel) as Array<keyof typeof c.feel>) c.feel[k] = Math.min(1, Math.max(0, c.feel[k]));
 
   // the absolute volume cap; the listener's own slider is the volume control
   if (s.volume > 0.9) { note("volume", s.volume, 0.9, "safety"); s.volume = 0.9; }
