@@ -7,7 +7,7 @@ export function restedState(state: EngineState): EngineState {
   s.volume = 0;
   s.transition = { time: 30, curve: "smooth" };
   s.colour = {
-    ...s.colour, l: 0.04, motion: "still", pulseHz: 0,
+    ...s.colour, l: 0.04, motion: "still", pulseHz: 0, scene: "none",
     ...(s.colour.secondary ? { secondary: { ...s.colour.secondary, l: 0.02 } } : {}),
   };
   return s;

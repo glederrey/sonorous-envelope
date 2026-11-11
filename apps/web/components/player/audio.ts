@@ -1,4 +1,5 @@
 import type { EngineState } from "@sonorous/engine";
+import { outputLatencySeconds } from "../../lib/beat-clock";
 
 /** A real media file (60 s of very quiet noise, not digital silence), looped. Android Chrome only shows a media
  *  notification, keeps the tab counted as playing media and treats the page as foreground for media that is a real file
@@ -55,6 +56,8 @@ export class AudioOutput {
   setGridSeed(seed: number) { this.node.port.postMessage({ type: "grid", seed }); }
   syncGrid(elapsed: number) { this.node.port.postMessage({ type: "sync", elapsed }); }
   setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
+  /** seconds from the audio being scheduled to the ear, as far as the browser knows (not Safari's outputLatency) */
+  get latency() { return outputLatencySeconds(this.ctx); }
   get running() { return this.ctx.state === "running"; }
   get state() { return this.ctx.state as string; }
   get audioSessionType(): string {
