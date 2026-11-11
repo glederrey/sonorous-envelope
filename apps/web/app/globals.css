@@ -330,24 +330,16 @@ h3 {
   color: var(--ink);
 }
 html {
-  scrollbar-color: var(--line-strong) transparent; /* a clear track, so the page background (and the footer line drawn on it) shows in the scrollbar strip */
+  scrollbar-color: var(--line-strong) var(--bg);
 }
 html {
   scroll-behavior: smooth;
-  /* Keep the page width the same with or without a scrollbar, so the header never shifts. */
-  scrollbar-gutter: stable;
+  /* No reserved scrollbar strip: it cannot be painted, so the footer line stopped short of the window's edge. A page that does not scroll
+     gets the strip's width as padding instead (data-noscroll, set by a small script in <head>, see layout.tsx), so the header and the
+     content sit where they do on the pages that scroll, and the footer line runs the whole width. */
 }
-/* The footer's top line stops where the scrollbar strip starts (the strip is reserved above, and nothing can paint into it but the page
-   background). The root background repeats the line sideways, at the footer's height, so it runs to the window's edge. Only where the
-   footer is one line and the scrollbar takes space. */
-@media (min-width: 700px) and (hover: hover) {
-  html {
-    background-image: linear-gradient(var(--line), var(--line));
-    background-size: 100% 1px;
-    background-repeat: repeat-x;
-    background-position: left bottom calc(var(--se-footer-h) - 1px);
-  }
-}
+html[data-noscroll]:not(:has(.pl-field)) .se-shell { padding-right: var(--se-sbw, 0px); }
+html[data-noscroll]:not(:has(.pl-field)) .se-footer { padding-right: calc(16px + var(--se-sbw, 0px)); }
 /* The player page never scrolls (the colour field fills the window, and scrolls inside itself only if a panel is too tall).
    It reserves no scrollbar strip, so the colour reaches the window edge; the header and footer get the strip's width as
    padding instead, so they stay exactly where they are on the pages that do reserve it. --se-sbw is measured by a small
