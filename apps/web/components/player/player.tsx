@@ -73,10 +73,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const nudge = useRef(0);
   // Strudel (roadmap #18): the model's code plays in a sandbox on the external face, if the owner allows it. The listener may stop it here.
   const [allowCode, setAllowCode] = useState(true);
-  const [patternStopped, setPatternStopped] = useState(false);
   const strudel = useRef<StrudelOutput | null>(null);
-  const engineCtl = useRef({ face: "internal" as Face, allowCode: true, stopped: false });
-  engineCtl.current = { face, allowCode, stopped: patternStopped };
+  const engineCtl = useRef({ face: "internal" as Face, allowCode: true });
+  engineCtl.current = { face, allowCode };
   const reported = useRef(new Set<string>());
   // The owner locked the face or switched code off while this state played. When they allow it again the synth keeps playing until the
   // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
@@ -90,6 +89,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const latest = useRef<Playing | null>(null);
   const known = useRef(false);
   const reload = useRef<() => void>(() => {});
+  const knownV = useRef<string | null>(null); // version of the state we hold: the poll then answers `same` when nothing changed
+  const lastGridSync = useRef(0);
   // ?debug=1 shows what the page did while it was in the background, to find where a phone cuts it off
   const [debug, setDebug] = useState(false);
   const dbg = useRef({ hiddenAt: 0, ticks: 0, ok: 0, err: 0, applied: 0, wok: 0, werr: 0, stopped: 0, lastErr: "" });
@@ -116,10 +117,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
-  /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code and the listener has not stopped it. */
+  /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code. */
   const patternOn = (p: Playing) => {
     const c = engineCtl.current;
-    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && !c.stopped && ownerBlocked.current !== p.at;
+    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && ownerBlocked.current !== p.at;
   };
   const cycleNow = useCallback(() => {
     const p = latest.current;
@@ -156,13 +157,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       a.setState(p.state, p.seed, delay, elapsed);
     }
   }, [ensureStrudel]);
-  // the owner locked the face, switched code off, or the listener stopped the pattern: the same state goes to the other engine
+  // the owner locked the face or switched code off: the same state goes to the other engine
   useEffect(() => {
     const p = latest.current;
     if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
     if (face !== "external" || !allowCode) block(p.at);
     runEngine(p, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
-  }, [face, allowCode, patternStopped, runEngine]);
+  }, [face, allowCode, runEngine]);
 
   const apply = useCallback((row: { id?: string; effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
     const at = new Date(row.created_at).getTime();
@@ -230,7 +231,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       let result: Awaited<ReturnType<typeof supabase.rpc>>;
       const t0 = Date.now();
       try {
-        result = await supabase.rpc("get_player_state", { p_session: sessionId });
+        result = await supabase.rpc("player_poll", { p_session: sessionId, p_known: knownV.current });
       } catch (e) {
         result = { data: null, error: { message: String(e) } } as unknown as typeof result;
       }
@@ -242,14 +243,25 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       handle(data, error);
     };
     // shared by the page's own check and by the worker's check
-    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; allow_code?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
+    const handle = (data: { same?: boolean; v?: string; settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; allow_code?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
+      if (data?.same) {
+        // nothing changed since the version we have: a few bytes came back. Still pull the step grid onto the shared one now and then.
+        if (latest.current && !restedFrom.current && Date.now() - lastGridSync.current > 5000) {
+          lastGridSync.current = Date.now();
+          audio.current?.syncGrid(Math.max(0, (Date.now() + clockOffset.current - latest.current.at) / 1000));
+        }
+        restTick();
+        return;
+      }
+      if (data?.v) { knownV.current = data.v; ticker?.postMessage({ known: data.v }); }
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
         if (!known.current) { setPhase("error"); setMessage(error ? "Could not open this player. Try again in a moment." : "This session was not found."); }
         return;
       }
       known.current = true;
+      lastGridSync.current = Date.now();
       const f = normalizeFace(data.mode);
       const pol: Policy = data.mode_policy === "internal" || data.mode_policy === "external" ? data.mode_policy : "auto";
       setFace(f); setPolicy(pol); setAllowCode(data.allow_code !== false);
@@ -287,9 +299,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       .on("broadcast", { event: "state" }, () => void load())
       .on("broadcast", { event: "session" }, () => void load())
       .subscribe();
-    // a slow poll as a safety net if the live connection drops
+    // a poll every second: when nothing changed the answer is a few bytes (player_poll), so it is cheap
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
-    const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 10000);
+    const poll = setInterval(() => { if (document.visibilityState === "visible" || controls.current.started) void load(); }, 1000);
     // The page's own timers and requests are throttled in the background. A dedicated worker has its own timer and its
     // own network access, so it asks for the state itself and hands the answer to the page, which applies it.
     let ticker: Worker | null = null;
@@ -304,9 +316,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
           if (!cfg || busy || !cfg.away) return; // the page does its own checks while it is visible
           busy = true;
           try {
-            const r = await fetch(cfg.url + "/rest/v1/rpc/get_player_state", {
+            const r = await fetch(cfg.url + "/rest/v1/rpc/player_poll", {
               method: "POST", headers: { apikey: cfg.key, "content-type": "application/json" },
-              body: JSON.stringify({ p_session: cfg.id }),
+              body: JSON.stringify({ p_session: cfg.id, p_known: cfg.known || null }),
             });
             postMessage({ status: r.status, data: r.ok ? await r.json() : null });
           } catch (err) { postMessage({ error: String(err) }); }
@@ -471,6 +483,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-h2": hue2, "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
     "--pl-l2": colour?.secondary?.l ?? Math.max(0, (colour?.l ?? 0.12) - 0.08),
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
+    "--pl-dim": playing && playing.state.volume <= 0.001 ? 1 : 0,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
 
@@ -490,6 +503,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       className="pl-field" style={fieldStyle}
       data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
+      <div className="pl-dim" aria-hidden />
       {canvasOk && !reduced && (
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: playing.seed } : null}
@@ -521,7 +535,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         )}
         {phase === "ready" && started && !hidden && (
           <section className="pl-panel" aria-label="Listening controls">
-            {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}</p>}
+            {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}{strudel.current ? `\n${strudel.current.statsLine()}` : ""}</p>}
             {debug && <p className="pl-local se-sm pl-debug" role="status">
               {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}, session type ${audio.current?.audioSessionType ?? "n/a"}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
             </p>}
@@ -577,7 +591,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
 
             {(() => {
               const code = playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at
-                ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={signedIn ? () => setPatternStopped((v) => !v) : undefined} />
+                ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} />
                 : null;
               // the code sits right under the Face block for the owner, and on its own for a listener
               return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} /> : code;

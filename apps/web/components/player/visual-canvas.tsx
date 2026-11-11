@@ -40,7 +40,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     if (!cv || !ctx) { onFail(); return; }
     const clock = new BeatClock();
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
-    let lvl = -1, lvlAt = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
+    let lvl = -1, lvlFrom = 1, lvlAt = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
       const r = cv.getBoundingClientRect();
@@ -85,13 +85,13 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
         const target = beatsAt(s.state, Math.max(0, tau));
         const beats = clock.update(target, now);
         const c = s.state.colour;
-        // a silent state (silence, or the end of a session) fades the picture out over its transition, like the sound
-        const tr = s.state.transition, target01 = s.state.volume > 0.001 ? 1 : 0, span = Math.max(1, tr.time);
-        const settled = tau > (tr.delay ?? 0) + span;
-        if (lvl < 0 || lvlAt !== s.at && settled) { lvl = target01; }
-        lvlAt = s.at;
-        if (!settled && tau >= (tr.delay ?? 0)) lvl += (target01 - lvl) * Math.min(1, ((now - (last || now)) / 1000) / (span / 3));
-        if (target01 === 0 && lvl < 0.004) lvl = 0;
+        // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
+        // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
+        const tr = s.state.transition, target01 = s.state.volume > 0.001 ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;
+        if (lvlAt !== s.at) { lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; }
+        const p = Math.min(1, Math.max(0, (tau - delay) / span));
+        lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
+        if (lvl < 0.003) lvl = 0;
         const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff }, w / h);
         const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : { wash: raw.wash * lvl, glow: raw.glow ? { ...raw.glow, a: raw.glow.a * lvl } : null, items: raw.items.map((i) => ({ ...i, a: i.a * lvl })) };
         const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0;

@@ -522,12 +522,29 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       // allowing it again does not bring the old pattern back: the playing state is the synth until the model sends Strudel again
       expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: true })).error).toBeNull();
       expect(state(session_id).engine).toBeUndefined(); expect(state(session_id).pattern).toBeUndefined();
-      expect(((await svc.getFeedback(dbA, A, { session_id }, clock)).playing as { engine?: string }).engine).not.toBe("strudel");
+      const again = await svc.getFeedback(dbA, A, { session_id }, clock);
+      expect((again.playing as { engine?: string }).engine).not.toBe("strudel");
+      expect(JSON.stringify(again.notes)).toMatch(/owner stopped your Strudel pattern/); // still said after the owner allows it again
       // the same for the face lock
       await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
       expect(state(session_id).engine).toBe("strudel");
       expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
       expect(state(session_id).engine).toBeUndefined();
+    });
+
+    it("the player's poll answers `same` while nothing changed, and the full state when the model or the owner changes something", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000));
+      const first = (await dbA.rpc("player_poll", { p_session: session_id, p_known: null })).data as { v: string; same?: boolean; state: unknown };
+      expect(first.state).toBeTruthy(); expect(first.same).toBeUndefined(); expect(typeof first.v).toBe("string");
+      const again = (await dbA.rpc("player_poll", { p_session: session_id, p_known: first.v })).data as Record<string, unknown>;
+      expect(again).toMatchObject({ same: true, v: first.v }); expect(again.state).toBeUndefined(); expect(JSON.stringify(again).length).toBeLessThan(200);
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      const next = (await dbA.rpc("player_poll", { p_session: session_id, p_known: first.v })).data as { v: string; same?: boolean };
+      expect(next.same).toBeUndefined(); expect(next.v).not.toBe(first.v);
+      expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: false })).error).toBeNull();
+      const after = (await dbA.rpc("player_poll", { p_session: session_id, p_known: next.v })).data as { same?: boolean };
+      expect(after.same).toBeUndefined(); // the owner's switch and the stopped pattern are part of the version
     });
 
     it("a call after the session ended says session_ended", async () => {

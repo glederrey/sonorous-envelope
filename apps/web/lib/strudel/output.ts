@@ -17,10 +17,8 @@ export interface StrudelHooks {
 
 type Sd = typeof import("superdough");
 const WATCHDOG_MS = 2500;
-/** Strudel's patterns came out clearly louder than the synth at the same slider (test report 2026-11-11). Measured in a headless Chrome with a
- *  drums, bass and melody pattern: with 0.4 the average level matches the synth's (peaks are higher, drums are short). A fixed level match,
- *  not a limit: the code's own gain, compressor and the like are not touched, and the listener's volume still decides the rest. */
-export const STRUDEL_TRIM = 0.4;
+/** An event this late (a stalled page catching up) is dropped instead of played in a burst. Short stalls still play, late. */
+const LATE_DROP_S = 0.5;
 
 export class StrudelOutput {
   private sd: Sd | null = null;
@@ -39,12 +37,13 @@ export class StrudelOutput {
   private fade: GainNode;
   private hub: AudioNode | null = null; // superdough's last node, which feeds `fade`
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private stats = { played: 0, late: 0, invalid: 0, resyncs: 0, worstLate: 0 }; // for ?debug=1: what the page did with the events
   private held = false; // stopped for good and kept silent: the next play starts on a fresh node
   private seq = 0; // one per play: a report that comes from an older run is not the new code's
   private lastReport: Report | null = null;
 
   constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {
-    this.fade = new GainNode(ctx, { gain: STRUDEL_TRIM });
+    this.fade = new GainNode(ctx);
     this.fade.connect(out);
   }
 
@@ -121,7 +120,9 @@ export class StrudelOutput {
       // a hap already well past (the worker or the page was throttled, then caught up) is dropped: playing a burst of old events is the "speeds up" glitch
       // h.t is on the clock shifted back by the output latency (clockMsg), so a hap that is on time already lies up to `latency` behind currentTime
       const late = h ? this.ctx.currentTime - h.t - this.hooks.latency() : 0;
-      if (h && this.sd && this.current && late < 0.15) void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {});
+      if (!h) this.stats.invalid++;
+      else if (late >= LATE_DROP_S) this.stats.late++;
+      else if (this.sd && this.current) { this.stats.played++; this.stats.worstLate = Math.max(this.stats.worstLate, late); void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {}); }
     } else if (m.kind === "report") {
       if (typeof (m as { seq?: unknown }).seq === "number" && (m as { seq: number }).seq !== this.seq) return; // from an older code
       const r = validateReport(m.report);
@@ -171,20 +172,20 @@ export class StrudelOutput {
     this.lastReport = null;
     this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, seq: ++this.seq, ...this.clockMsg() });
     if (this.resync) clearInterval(this.resync);
-    this.resync = setInterval(() => this.send({ kind: "clock", ...this.clockMsg() }), 4000);
+    this.resync = setInterval(() => { this.stats.resyncs++; this.send({ kind: "clock", ...this.clockMsg() }); }, 4000);
   }
 
   private cancelStop() {
     if (this.stopTimer) clearTimeout(this.stopTimer);
     this.stopTimer = null;
     this.fade.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.fade.gain.setValueAtTime(STRUDEL_TRIM, this.ctx.currentTime);
+    this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
   }
 
   /** A fresh fade node: the notes of the old pattern (and their tails) went into the old one, which is cut. */
   private renewFade() {
     const old = this.fade;
-    this.fade = new GainNode(this.ctx, { gain: STRUDEL_TRIM });
+    this.fade = new GainNode(this.ctx);
     this.fade.connect(this.out);
     if (this.hub) { this.hub.disconnect(); this.hub.connect(this.fade); }
     old.disconnect();
@@ -196,7 +197,7 @@ export class StrudelOutput {
     const now = this.ctx.currentTime;
     this.cancelStop();
     if (fadeSeconds > 0 || after > 0) {
-      this.fade.gain.setValueAtTime(STRUDEL_TRIM, now + after);
+      this.fade.gain.setValueAtTime(1, now + after);
       this.fade.gain.linearRampToValueAtTime(0, now + after + Math.max(0.05, fadeSeconds));
     }
     this.stopTimer = setTimeout(() => this.hardStop(), (after + Math.max(0.05, fadeSeconds) + 0.1) * 1000);
@@ -213,6 +214,9 @@ export class StrudelOutput {
     this.fade.gain.setValueAtTime(0, now);
     this.held = true;
   }
+
+  /** One line for ?debug=1 */
+  statsLine() { const s = this.stats; return `Strudel: ${s.played} events played, ${s.late} dropped as late, ${s.invalid} refused, worst lateness ${Math.round(s.worstLate * 1000)} ms, ${s.resyncs} clock syncs.`; }
 
   close() { this.dead = true; if (this.stopTimer) clearTimeout(this.stopTimer); this.teardown(); }
 }

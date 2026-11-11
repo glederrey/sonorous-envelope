@@ -371,7 +371,7 @@ async function patternFeedback(db: Db, state: StateRow, players: number): Promis
   if (state.effective.engine !== "strudel") return undefined;
   const r = await patternReport(db, state.id);
   if (r) return r;
-  return { ran: "not reported yet", why: players === 0 ? "nobody is listening, so nothing has run it" : "the player has not reported yet; read it again with get_feedback" };
+  return { ran: "not reported yet", why: players === 0 ? "nobody is listening, so nothing has run it" : "the owner's player has not reported yet. It only runs and reports the code after the owner has pressed Start listening; a listener with just the link does not report. Read it again with get_feedback" };
 }
 
 /** A pattern state from the previous state: same synth fields (paused), the colour as the model set it, no tempo glide. */
@@ -461,7 +461,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   }
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, settings, now, face);
-  if (before) notes.push("pattern is the player's report on the code you just stopped, not on the synth");
+  if (before) notes.push(input.on ? "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback" : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on ? null : measureState(effective, ANALYSIS_SEED);
   return buildFeedback({
@@ -479,7 +479,8 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   // the owner locked the face or switched code off after the pattern started: the player has stopped it, so it is not what plays now
   const stopped = state.effective.engine === "strudel" && (faceOf(session) !== "external" || session.allow_code === false);
   const shown: StateRow = stopped ? { ...state, effective: (({ engine: _e, pattern: _p, ...rest2 }) => rest2)(state.effective) as EngineState } : state;
-  const stopNote = stopped ? "the owner stopped the Strudel pattern (face locked or code off): it is final, do not try again or comment on it. The synth state plays when they allow it, from your next message" : undefined;
+  const ownerStopped = stopped || Boolean((state.intent as { owner_stopped_pattern?: boolean }).owner_stopped_pattern);
+  const stopNote = ownerStopped ? `the owner stopped your Strudel pattern (face locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${shown.effective.volume <= 0.001 ? ". The synth state is silent (volume 0): nothing sounds until you send set_sound" : ""}` : undefined;
   const fb = feedbackFor(shown, p, [note, stopNote, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
   const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
   return pattern ? { ...fb, pattern } : fb;
