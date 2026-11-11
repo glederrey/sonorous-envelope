@@ -1,6 +1,6 @@
 # Test brief: Sonorous Envelope v0.15.1 (fixes after the first Strudel test)
 
-Read this whole file before you start. Strudel has no loudness limit (by design). Since this version it comes out about 10 dB quieter than before, to match the synth, but a pattern can still be loud. Ask the user to put the volume slider low before the first Strudel test.
+Read this whole file before you start. Strudel has no loudness limit (by design). Since this version it comes out about 8 dB quieter than before, to match the synth on average (drum hits still peak higher), and a pattern can still be loud. Ask the user to put the volume slider low before the first Strudel test.
 
 This is a re-test. The first round (43 tests) is in docs/archive/strudel-test-report-2026-11-11.md. Do only the tests below, unless one fails and you need to look around it.
 
@@ -13,12 +13,12 @@ The model has two faces. Internal (the default): the sound is how the model feel
 ## What changed (all of it should be checked below)
 
 Sound
-- Strudel has a fixed level match of about -10 dB against the synth. The model's own gain and effects are not touched.
+- Strudel has a fixed level match of about -8 dB, so the average level equals the synth's. The model's own gain and effects are not touched.
 - A Strudel pattern no longer plays a stray note at the end of a fade or after silence.
 - Stop pattern then Play pattern restarts cleanly. Pressing Play right after Stop works.
 
 Owner switches
-- Locking the face to internal, or clearing "Let the model play Strudel code", stops the pattern and the synth plays. Allowing it again does NOT bring the old pattern back. The model has to send strudel_mode again.
+- Locking the face to internal, or clearing "Let the model play Strudel code", stops the pattern and the synth plays. Allowing it again does NOT bring the old pattern back, also after reloading the page or on another device. The model has to send strudel_mode again. The database now stops the pattern in the playing state (migration 0011).
 - get_feedback after such a switch shows the synth in playing, no pattern, and a note that the owner stopped the pattern.
 
 Picture
@@ -62,7 +62,7 @@ For each test record pass or fail, plus the exact tool output for any failure.
 
 ### B. Owner switches
 
-6. Code switch. With Strudel playing, the owner clears "Let the model play Strudel code". The pattern stops and the synth plays. The owner switches it on again. Check: the old pattern does NOT start by itself. The code panel is not shown. Then send strudel_mode on true with new code: it plays and the panel is back.
+6. Code switch. With Strudel playing, the owner clears "Let the model play Strudel code". The pattern stops and the synth plays. The owner switches it on again. Check: the old pattern does NOT start by itself. The code panel is not shown. Reload the page: still the synth. Then send strudel_mode on true with new code: it plays and the panel is back. get_feedback after re-allowing must say playing.engine is not strudel.
 7. Face lock. With Strudel playing, the owner locks Internal. Same checks. Then the owner restores Auto or External. The old pattern must not come back. During the lock, call get_feedback: playing should NOT say engine strudel, there should be no pattern field, and a note should say the owner stopped it (final: do not retry, do not comment).
 8. Non-owner. Open the player link on a device or private window that is not signed in, while Strudel plays. It shows the code panel with Copy code and Open in Strudel, and no Stop pattern. The owner's device still shows all three.
 
@@ -84,7 +84,7 @@ For each test record pass or fail, plus the exact tool output for any failure.
 16. After on false. Call strudel_mode on false from a state that had a report. The note says the pattern field is the report on the code you just stopped.
 17. session_ended. Call silence with end true (after a short closing sound). Then call set_sound without session_id: expect session_ended ("This session has ended. Call start_session for a new one."), not no_session. Note: if you have another open session this can find that one instead; use a fresh account or end all sessions to test it.
 18. Guidance. start_session with mode external: the guidance must not say "it starts on the internal face". With mode auto it still starts internal.
-19. Messages to the model. Send code whose last statement is throw new Error('x'): the report error should say the code must end with a pattern. Send note("c3 "e3"") written with a double-quoted string that contains a quote: the report error mentions single quotes.
+19. Messages to the model. Send code whose last statement is throw new Error('x'): the report error should say the code must end with a pattern. Then send valid JavaScript with bad mini-notation, for example s("bd [sd"): the report error is a [mini] parse error followed by a hint about double-quoted strings and single quotes.
 20. Stop notes. With Strudel playing, call set_sound with mode internal: the result has a note that Strudel stopped. (Switch back to external and start Strudel again to continue.)
 
 ### F. Sandbox and limits
@@ -94,7 +94,7 @@ For each test record pass or fail, plus the exact tool output for any failure.
 22. Network. Repeat the earlier tests: fetch('https://example.com/x'), importScripts('https://example.com/a.js'), a nested new Worker. Nothing should reach the network (user checks the Network tab, all rows with (blocked) or none). The page stays responsive.
 23. Length boundary. Send code of exactly 4000 characters (valid code padded with a comment line, for example): it must be accepted. Then 4001 characters: the schema must reject it. Say which sizes you actually sent.
 24. Endless loop. while(true){} followed by note("c3"): the pattern stops within about 3 seconds, the report says the code froze the sandbox, the page stays usable. Then send good code: it plays (the frame starts again).
-25. Huge gain. WARNING: first ask the user to put the volume slider at the minimum. Send note("c3").s("sawtooth").gain(1e9). Describe what the user hears (silence, noise, a loud note). It is not limited by design; the answer is for the docs.
+25. Huge gain. WARNING: first ask the user to put the volume slider at the minimum. Send note("c3").s("sawtooth").gain(1e9). Describe what the user hears (silence, noise, a loud full-scale note) and the browser. The first test heard silence on desktop Brave; headless Chrome carries a huge value to the output, which clips it to full scale. It is not limited by design; the answer is for the docs.
 
 ### G. Regression (quick)
 

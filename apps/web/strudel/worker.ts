@@ -63,7 +63,7 @@ function sanitize(v: any): Record<string, unknown> {
 /** Plain words for the errors a model is likely to hit and not understand. */
 function friendly(msg: string): string {
   if (/unexpected ast format/i.test(msg)) return "the code must end with a pattern (an expression), not a statement such as throw, if or a declaration";
-  if (/\[mini\]/i.test(msg)) return `${msg} (double-quoted strings are mini-notation in Strudel: use single quotes for plain text)`;
+  if (/\[mini\]/i.test(msg)) return `${msg.slice(0, 90)}... Note: double-quoted strings are mini-notation in Strudel; use single quotes for plain text.`;
   return msg;
 }
 

@@ -17,9 +17,10 @@ export interface StrudelHooks {
 
 type Sd = typeof import("superdough");
 const WATCHDOG_MS = 2500;
-/** Strudel's patterns come out about 10 dB louder than the synth at the same slider (test report 2026-11-11). This is a fixed level match,
+/** Strudel's patterns came out clearly louder than the synth at the same slider (test report 2026-11-11). Measured in a headless Chrome with a
+ *  drums, bass and melody pattern: with 0.4 the average level matches the synth's (peaks are higher, drums are short). A fixed level match,
  *  not a limit: the code's own gain, compressor and the like are not touched, and the listener's volume still decides the rest. */
-export const STRUDEL_TRIM = 0.3;
+export const STRUDEL_TRIM = 0.4;
 
 export class StrudelOutput {
   private sd: Sd | null = null;
@@ -38,6 +39,7 @@ export class StrudelOutput {
   private fade: GainNode;
   private hub: AudioNode | null = null; // superdough's last node, which feeds `fade`
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private held = false; // stopped for good and kept silent: the next play starts on a fresh node
   private seq = 0; // one per play: a report that comes from an older run is not the new code's
   private lastReport: Report | null = null;
 
@@ -117,6 +119,7 @@ export class StrudelOutput {
     if (m.kind === "hap") {
       const h = validateHap(m.hap);
       // a hap already well past (the worker or the page was throttled, then caught up) is dropped: playing a burst of old events is the "speeds up" glitch
+      // h.t is on the clock shifted back by the output latency (clockMsg), so a hap that is on time already lies up to `latency` behind currentTime
       const late = h ? this.ctx.currentTime - h.t - this.hooks.latency() : 0;
       if (h && this.sd && this.current && late < 0.15) void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {});
     } else if (m.kind === "report") {
@@ -160,6 +163,7 @@ export class StrudelOutput {
       return;
     }
     if (this.dead) return;
+    if (this.held) { this.held = false; this.renewFade(); }
     this.cancelStop();
     this.current = src;
     this.lastAlive = performance.now(); // the worker has been quiet since it was stopped: the watchdog must not read that as a freeze
@@ -177,7 +181,7 @@ export class StrudelOutput {
     this.fade.gain.setValueAtTime(STRUDEL_TRIM, this.ctx.currentTime);
   }
 
-  /** A fresh fade node: every note already scheduled (and its tail) went into the old one, which is cut, so nothing sounds after a stop. */
+  /** A fresh fade node: the notes of the old pattern (and their tails) went into the old one, which is cut. */
   private renewFade() {
     const old = this.fade;
     this.fade = new GainNode(this.ctx, { gain: STRUDEL_TRIM });
@@ -202,7 +206,12 @@ export class StrudelOutput {
     if (this.frame) this.send({ kind: "stop" });
     if (this.resync) clearInterval(this.resync);
     this.resync = null; this.current = null; this.stopTimer = null;
-    this.renewFade(); // not "gain back to 1": a note scheduled ahead of the stop would sound at full volume
+    // Hold the fade node at zero: notes the worker had already handed to superdough (up to the lookahead, and their tails) sit upstream
+    // of it and would sound at full volume if the gain came back. The next play cuts them with a fresh node.
+    const now = this.ctx.currentTime;
+    this.fade.gain.cancelScheduledValues(now);
+    this.fade.gain.setValueAtTime(0, now);
+    this.held = true;
   }
 
   close() { this.dead = true; if (this.stopTimer) clearTimeout(this.stopTimer); this.teardown(); }

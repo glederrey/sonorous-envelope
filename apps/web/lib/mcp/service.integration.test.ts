@@ -519,7 +519,15 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       const fb = await svc.getFeedback(dbA, A, { session_id }, clock);
       expect((fb.playing as { engine?: string }).engine).not.toBe("strudel");
       expect(fb.pattern).toBeUndefined();
-      expect(JSON.stringify(fb.notes)).toMatch(/owner stopped the Strudel pattern/);
+      // allowing it again does not bring the old pattern back: the playing state is the synth until the model sends Strudel again
+      expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: true })).error).toBeNull();
+      expect(state(session_id).engine).toBeUndefined(); expect(state(session_id).pattern).toBeUndefined();
+      expect(((await svc.getFeedback(dbA, A, { session_id }, clock)).playing as { engine?: string }).engine).not.toBe("strudel");
+      // the same for the face lock
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      expect(state(session_id).engine).toBe("strudel");
+      expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
+      expect(state(session_id).engine).toBeUndefined();
     });
 
     it("a call after the session ended says session_ended", async () => {
@@ -528,6 +536,9 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       await svc.silence(dbA, A, { session_id, fade: 3, final: true, end: true }, tick(5000));
       await expect(svc.getFeedback(dbA, A, { session_id }, clock)).resolves.toBeDefined(); // reading an ended session is allowed
       await expect(svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000))).rejects.toMatchObject({ code: "session_ended" });
+      // without the id: the owner has no open session left, the last one ended
+      sql(`update sessions set ended_at = now() where owner_id='${A}' and ended_at is null`);
+      await expect(svc.setSound(dbA, A, { mood, final: true } as never, tick(5000))).rejects.toMatchObject({ code: "session_ended" });
     });
 
     it("the owner's player reports what the code did: owner only, first report wins, the model reads it as data", async () => {
