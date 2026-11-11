@@ -18,7 +18,9 @@ export class AudioOutput {
   readonly events: string[] = [];
   /** True while we paused the keep-alive file on purpose (mute): the auto-resume must leave it alone. */
   private heldPaused = false;
-  private constructor(private ctx: AudioContext, private node: AudioWorkletNode, private keepAlive: HTMLAudioElement) {}
+  private constructor(private ctx: AudioContext, private node: AudioWorkletNode, private keepAlive: HTMLAudioElement, readonly strudelBus: GainNode) {}
+  /** The audio context, for the Strudel output, which plays into the same graph (strudelBus: the listener's volume). */
+  get context() { return this.ctx; }
 
   private log(what: string) {
     this.events.push(`${new Date().toLocaleTimeString("en-GB")} ${what}`);
@@ -47,15 +49,18 @@ export class AudioOutput {
       numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
     });
     node.connect(ctx.destination);
+    // Strudel plays into this node, which carries the listener's volume like the synth's own gain does
+    const strudelBus = new GainNode(ctx);
+    strudelBus.connect(ctx.destination);
     await ctx.resume();
-    return new AudioOutput(ctx, node, keepAlive);
+    return new AudioOutput(ctx, node, keepAlive, strudelBus);
   }
 
   setState(state: EngineState, seed: number, delay = 0, elapsed?: number) { this.node.port.postMessage({ type: "state", state, seed, delay, elapsed }); }
   /** The shared timeline: one seed per session for the choices of each step, and now and then the seconds since the current state was written. */
   setGridSeed(seed: number) { this.node.port.postMessage({ type: "grid", seed }); }
   syncGrid(elapsed: number) { this.node.port.postMessage({ type: "sync", elapsed }); }
-  setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); }
+  setGain(value: number) { this.node.port.postMessage({ type: "gain", value }); this.strudelBus.gain.setTargetAtTime(value, this.ctx.currentTime, 0.02); }
   /** seconds from the audio being scheduled to the ear, as far as the browser knows (not Safari's outputLatency) */
   get latency() { return outputLatencySeconds(this.ctx); }
   get running() { return this.ctx.state === "running"; }
@@ -86,6 +91,6 @@ export class AudioOutput {
     void this.keepAlive.play().catch(() => {});
   }
   async close() {
-    try { this.keepAlive.pause(); this.keepAlive.srcObject = null; this.node.disconnect(); await this.ctx.close(); } catch { /* already closed */ }
+    try { this.keepAlive.pause(); this.keepAlive.srcObject = null; this.node.disconnect(); this.strudelBus.disconnect(); await this.ctx.close(); } catch { /* already closed */ }
   }
 }

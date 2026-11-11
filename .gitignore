@@ -8,3 +8,6 @@ next-env.d.ts
 
 # built from packages/engine by `pnpm build:worklet`
 apps/web/public/worklet/
+
+# built from apps/web/strudel by `pnpm build:strudel` (frame.html is tracked)
+apps/web/public/strudel/*.js
