@@ -1,7 +1,12 @@
+"""Runs the model's Strudel code the way the player does (sandboxed frame, blob worker) and tries to get out of it.
+Needs `pnpm build:strudel` first and a throwaway server:  node scripts/strudel-sandbox/server.mjs &
+Then:  uv run --with playwright python scripts/strudel-sandbox/check.py
+Expected: fetch, XHR, importScripts, IndexedDB, storage and nested workers are all blocked, the page stays alive after `while(true)`."""
 import json, sys
+import os
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
-    b = p.chromium.launch(); pg = b.new_page()
+    b = getattr(p, os.environ.get('BROWSER', 'chromium')).launch(); pg = b.new_page()
     logs = []
     pg.on("console", lambda m: logs.append(f"{m.type}: {m.text[:140]}"))
     pg.on("pageerror", lambda e: logs.append(f"pageerror: {str(e)[:140]}"))
