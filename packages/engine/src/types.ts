@@ -49,6 +49,10 @@ export interface EngineState {
   /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
    *  was written. The server fills it in; with the state's creation time every device knows where each step is. */
   grid?: { arp: number; bass: number; /** beats (quarter notes at the arpeggio's tempo) counted from the start of the session; unlike `arp` it stays continuous when the rate changes between states. Drives the visuals. */ beat?: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number; /** seconds the glide lasts (the transition the state was written with); the ramp must not depend on `transition`, which the player rewrites when a sound rests */ glide?: number };
+  /** Which engine makes the sound. Absent or `synth`: the built-in synth above. `strudel`: the listener's browser runs `pattern.code` (Strudel,
+   *  external face only, roadmap #18) at `pattern.bpm`, and the synth fields below are the paused synth state that `strudel_mode on:false` brings back. */
+  engine?: "synth" | "strudel";
+  pattern?: { code: string; bpm: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
   transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }

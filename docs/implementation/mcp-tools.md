@@ -198,6 +198,9 @@ The voice (`sessions.voice`) and a second set, `sessions.sticky` (migration 0005
 
 The feedback's `playing` mirrors what Claude can set: scale, tempo, wave, cutoff, volume, drone, pattern, rate, octaves, chord, and when present `arp: "off"`, `stack`, `pad`, `lfo` (one string per LFO), plus `echo` and `reverb` mix.
 
+## `strudel_mode`
+Switches the engine between the built-in synth and Strudel (roadmap #18, [strudel.md](strudel.md)). Input: `{ session_id?, on, code?, bpm?, colour?, final, title?, note? }`. `on: true` needs `code` (at most 4000 characters, parsed on the server with acorn, never run) and `bpm` (30 to 200; one cycle is one bar of four beats). `on: false` goes back to the synth where it was left. External face only: on the internal face it returns `internal_face` (with the owner's "final" note when locked); with the owner's switch off it returns `code_off`. The result is the usual feedback object with `playing: { engine: "strudel", bpm, code: "N characters" }`, no `reads_as`, and `pattern`: what the owner's player reported about the code that played (`ran`, `error`, `events_per_cycle`, `notes`, `source`), or `ran: "not reported yet"`. `set_sound` never changes the engine: while Strudel is on it only applies the colour, title and `rest_after`, with a note.
+
 ## `get_feedback`
 
 Input: `{ session_id: string }`. Returns the feedback object for the current state without changing anything except claiming reactions. Uses the stored analysis.

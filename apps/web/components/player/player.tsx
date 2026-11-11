@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Eye, EyeOff, Lock, Play, Volume2, VolumeX } from "lucide-react";
-import type { EngineState } from "@sonorous/engine";
+import { beatsAt, type EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
@@ -14,10 +14,12 @@ import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { OwnerControls } from "./owner-controls";
+import { StrudelPanel } from "./strudel-panel";
+import type { StrudelOutput } from "../../lib/strudel/output";
 import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
 
 type Phase = "joining" | "ready" | "ended" | "error";
-interface Playing { state: EngineState; seed: number; turn: number; final: boolean; at: number }
+interface Playing { state: EngineState; seed: number; turn: number; final: boolean; at: number; id?: string }
 
 const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
@@ -69,6 +71,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [nudgeMs, setNudgeMs] = useState(0);
   const [canvasOk, setCanvasOk] = useState(true);
   const nudge = useRef(0);
+  // Strudel (roadmap #18): the model's code plays in a sandbox on the external face, if the owner allows it. The listener may stop it here.
+  const [allowCode, setAllowCode] = useState(true);
+  const [patternStopped, setPatternStopped] = useState(false);
+  const strudel = useRef<StrudelOutput | null>(null);
+  const engineCtl = useRef({ face: "internal" as Face, allowCode: true, stopped: false });
+  engineCtl.current = { face, allowCode, stopped: patternStopped };
+  const reported = useRef(new Set<string>());
 
   const audio = useRef<AudioOutput | null>(null);
   const lastHue = useRef({ h: 220, h2: 245 });
@@ -102,12 +111,59 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
-  const apply = useCallback((row: { effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
+  /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code and the listener has not stopped it. */
+  const patternOn = (p: Playing) => {
+    const c = engineCtl.current;
+    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && !c.stopped;
+  };
+  const cycleNow = useCallback(() => {
+    const p = latest.current;
+    if (!p) return 0;
+    return beatsAt(p.state, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000)) / 4;
+  }, []);
+  const ensureStrudel = useCallback(async () => {
+    if (strudel.current || !audio.current) return strudel.current;
+    const { StrudelOutput } = await import("../../lib/strudel/output");
+    const a = audio.current;
+    if (!a || strudel.current) return strudel.current;
+    strudel.current = new StrudelOutput(a.context, a.strudelBus, {
+      cycleNow, latency: () => audio.current?.latency ?? 0,
+      onReport: (id, r) => {
+        // only the owner's device may report, and each state once: the model reads it as data from the player
+        if (!id || reported.current.has(id)) return;
+        reported.current.add(id);
+        // supabase-js sends a query only when it is awaited or given .then, so `void` alone would send nothing
+        supabase.rpc("report_pattern", { p_state: id, p_ok: r.ok, p_error: r.error ?? null, p_events: r.eventsPerCycle ?? null, p_notes: r.notes }).then(() => {}, () => {});
+      },
+    });
+    return strudel.current;
+  }, [supabase, cycleNow]);
+  /** Send a state to the right engine: the pattern into Strudel (the synth paused), anything else into the synth. */
+  const runEngine = useCallback((p: Playing, delay = 0, elapsed?: number) => {
+    const a = audio.current;
+    if (!a) return;
+    if (patternOn(p)) {
+      a.setState({ ...p.state, volume: 0 }, p.seed, delay, elapsed); // the synth is paused: it fades out over the transition
+      void ensureStrudel().then((o) => o?.play({ id: p.id ?? null, code: p.state.pattern!.code, bpm: p.state.pattern!.bpm, seed: p.seed & 0xffff }));
+    } else {
+      // the pattern fades out over the new state's transition (after its delay, for a closing fade)
+      strudel.current?.stop(Math.max(0.3, p.state.transition.time), delay);
+      a.setState(p.state, p.seed, delay, elapsed);
+    }
+  }, [ensureStrudel]);
+  // the owner locked the face, switched code off, or the listener stopped the pattern: the same state goes to the other engine
+  useEffect(() => {
+    const p = latest.current;
+    if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
+    runEngine(p, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
+  }, [face, allowCode, patternStopped, runEngine]);
+
+  const apply = useCallback((row: { id?: string; effective: EngineState; seed: number; turn: number; final: boolean; created_at: string }) => {
     const at = new Date(row.created_at).getTime();
     if (latest.current && at <= latest.current.at) return; // an older state, or the one already playing
     const state: EngineState = JSON.parse(JSON.stringify(row.effective));
     hardCaps(state); // second line of defence, the server already applied the safety rules
-    const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at };
+    const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at, id: row.id };
     latest.current = next;
     restedFrom.current = null; setRested(false); // a new state brings the sound back, with its own transition
     if (document.visibilityState === "hidden") dbg.current.applied++;
@@ -119,7 +175,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (wait > 0) setTimeout(() => { if (latest.current === next) setPlaying(next); }, wait * 1000);
     else setPlaying(next);
     // `elapsed`: seconds since the state started, by the server's clock, so this device lands on the shared step grid
-    audio.current?.setState(state, next.seed, wait, Math.max(age, delay)); // seconds since it was written, at the moment it starts
+    runEngine(next, wait, Math.max(age, delay)); // seconds since it was written, at the moment it starts
   }, []);
 
   // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
@@ -137,7 +193,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const restedAtMs = useRef(0); // the fade to silence takes 30 s: "Fading" until then, "Faded" after
   const restTick = useCallback(() => {
     const p = latest.current, r = settings.current.rest_after;
-    if (!p) return;
+    if (!p || (p.state.engine === "strudel" && p.state.pattern)) return; // a pattern keeps playing: the external face never fades
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
       restedFrom.current = p; restedAtMs.current = Date.now(); setRested(true);
@@ -180,7 +236,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       handle(data, error);
     };
     // shared by the page's own check and by the worker's check
-    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
+    const handle = (data: { settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; allow_code?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
@@ -190,7 +246,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       known.current = true;
       const f = normalizeFace(data.mode);
       const pol: Policy = data.mode_policy === "internal" || data.mode_policy === "external" ? data.mode_policy : "auto";
-      setFace(f); setPolicy(pol);
+      setFace(f); setPolicy(pol); setAllowCode(data.allow_code !== false);
       const parsed = parseSettings(data.settings);
       settings.current = { ...parsed, rest_after: effectiveRestAfter(parsed.rest_after, f) }; // the external face never fades
       if (data.now && clockSamples.current.length === 0) clockOffset.current = Date.parse(data.now) - Date.now(); // a first guess, from the worker
@@ -204,7 +260,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
           const fade = (data.state.effective.transition?.delay ?? 0) + (data.state.effective.transition?.time ?? 0);
           if (controls.current.started && age < (fade + 5) * 1000) wait = Math.max(0, fade * 1000 - age) + 500;
         }
-        setTimeout(() => { if (cancelled) return; setPhase("ended"); void audio.current?.close(); audio.current = null; }, wait);
+        setTimeout(() => { if (cancelled) return; setPhase("ended"); strudel.current?.close(); strudel.current = null; void audio.current?.close(); audio.current = null; }, wait);
         return;
       }
       if (data.state) apply(data.state);
@@ -369,7 +425,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const t = setInterval(() => { setTick((n) => n + 1); restTick(); }, 1000);
     return () => clearInterval(t);
   }, []);
-  useEffect(() => () => { void audio.current?.close(); }, []);
+  useEffect(() => () => { strudel.current?.close(); strudel.current = null; void audio.current?.close(); }, []);
 
   async function start() {
     setStarting(true);
@@ -383,7 +439,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       if (latest.current) {
         // joining late: start on the shared step grid, by the server's clock
         const age = (Date.now() + clockOffset.current - latest.current.at) / 1000, delay = latest.current.state.transition.delay ?? 0;
-        out.setState(restedFrom.current ? restedState(latest.current.state) : latest.current.state, latest.current.seed, Math.max(0, delay - age), Math.max(age, delay));
+        if (restedFrom.current) out.setState(restedState(latest.current.state), latest.current.seed, Math.max(0, delay - age), Math.max(age, delay));
+        else runEngine(latest.current, Math.max(0, delay - age), Math.max(age, delay));
       }
       setStarted(true);
     } catch {
@@ -458,7 +515,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             <div className="pl-bar">
               <p className="pl-status se-sm">
                 <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
+                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{face === "external" && allowCode && playing?.state.engine === "strudel" && playing.state.pattern ? " · Strudel" : ""}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
                 <span className="pl-when">
                 {playing
                     ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
@@ -503,6 +560,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
               <button type="button" className="se-btn pl-mute" aria-pressed={stillPicture} onClick={() => { setStillPicture(!stillPicture); rememberPicture(!stillPicture, nudgeMs); }}>
                 {stillPicture ? "Still picture. Tap for motion" : "Still picture"}
               </button>
+            )}
+
+            {playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && (
+              <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} stopped={patternStopped} onToggle={() => setPatternStopped((v) => !v)} />
             )}
 
             {signedIn && <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} />}

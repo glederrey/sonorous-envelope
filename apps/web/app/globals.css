@@ -1039,3 +1039,8 @@ html:has(.pl-field) .se-header {
 .ss-actions form { display: contents; }
 @media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn { padding: 0 12px; font-size: 14px; } }
 @media (max-width: 400px) { .ss-actions .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }
+
+/* the model's Strudel code in the player: read only, selectable, scrolls inside its box */
+.pl-code-pre { margin: 10px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 8%, transparent); color: var(--on-scrim); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pl-code summary { display: flex; align-items: center; gap: 6px; }
+.pl-code .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { SetSoundInput, Voice } from "@sonorous/shared";
+import { SetSoundInput, StrudelModeInput, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, inspect, setSound, silence, startSession } from "./service";
+import { ToolError, getFeedback, inspect, setSound, silence, startSession, strudelMode } from "./service";
 
 type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } } };
 
@@ -42,6 +42,12 @@ export function registerTools(server: McpServer) {
     description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing (playing), a rough reading of it (reads_as; a gap above about 0.3 from what you meant deserves one correction), any safety rule that changed what you sent (clamped, which includes a jump in level held to +4 dB), the listener's volume (controls, theirs: you cannot change it) and how many are listening (players: 0 means nobody now; keep updating). On the internal face (the default) do not mention the sound in your reply.",
     inputSchema: SetSoundInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => setSound(c.db, c.userId, args)));
+
+  server.registerTool("strudel_mode", {
+    title: "Strudel mode",
+    description: "Switch between the built-in synth and Strudel, live-coded music (strudel.cc). External face only, after the listener said yes. on true with code and bpm: your Strudel code plays in the listener's browser, with the usual Strudel sounds and samples; send new code to change it. on false: back to the synth. set_sound cannot switch the engine; while Strudel is on it only sets the picture. You cannot hear it: you get what the owner's player reports (pattern). The listener sees the code and can copy it to strudel.cc.",
+    inputSchema: StrudelModeInput,
+  }, (args, ctx) => run(ctx as Ctx, (c) => strudelMode(c.db, c.userId, args)));
 
   server.registerTool("get_feedback", {
     title: "Read the current sound",

@@ -17,13 +17,17 @@ async function rpc(method: string, params?: object) {
 }
 
 describe("MCP tools", () => {
-  it("lists the five tools with compact schemas", async () => {
+  it("lists the six tools with compact schemas", async () => {
     const r = await rpc("tools/list");
     const names = r.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["get_feedback", "inspect", "set_sound", "silence", "start_session"]);
+    expect(names).toEqual(["get_feedback", "inspect", "set_sound", "silence", "start_session", "strudel_mode"]);
     const set = r.result.tools.find((t: { name: string }) => t.name === "set_sound");
     expect(set.inputSchema.properties).toHaveProperty("mood"); // optional: left out, the last mood stays
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
+    const strudel = r.result.tools.find((t: { name: string }) => t.name === "strudel_mode");
+    expect(strudel.inputSchema.required).toContain("on");
+    expect(strudel.inputSchema.properties.code.maxLength).toBe(4000);
+    expect(JSON.stringify(strudel.inputSchema).length).toBeLessThan(4500);
   });
 
   it("stays under the length a client shows in full", () => {

@@ -61,7 +61,7 @@ export default async function Home() {
             </h1>
           <p className="lp-lede">
             A small synthesizer and a colour field for an AI model. It sets the mood while it works, you hear and see it
-            beside the chat, and it hears back what really played.
+            beside the chat, and it hears back what really played. When you ask for music, it can also write it live in Strudel.
           </p>
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
@@ -95,6 +95,20 @@ export default async function Home() {
             You stay in control of the volume, with a one-tap mute. The model decides the rest of how it sounds and looks.
             <a href="/safety"> How safety works</a>
           </p>
+        </section>
+
+        <section className="lp-loop" id="engines">
+          <h2 className="se-title">Two ways to make sound</h2>
+          <ol className="lp-loop-list">
+            <li>
+              <h3 className="se-heading">The built-in synth</h3>
+              <p className="se-muted">The model&apos;s own voice: a small synthesizer it plays from a mood. On the internal face it is how the model feels. On the external face it is sound made for you.</p>
+            </li>
+            <li>
+              <h3 className="se-heading">Strudel</h3>
+              <p className="se-muted">When you ask for music, the model can write it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples, as on strudel.cc. You can read the code in the player, copy it, and open it on strudel.cc to change it. It runs in a sandbox in your browser, on the external face only, and the owner can switch it off.</p>
+            </li>
+          </ol>
         </section>
 
         <section className="lp-split" id="hear">

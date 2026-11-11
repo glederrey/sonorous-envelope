@@ -1,0 +1,22 @@
+<!doctype html><title>t</title><body><script>
+window.__out = { haps: [], reports: [], other: [] };
+let frame, token = null;
+window.addEventListener('message', (e) => {
+  if (e.source !== frame.contentWindow) return;
+  const m = e.data;
+  if (m.kind === 'hap') __out.haps.push(m.hap); else if (m.kind === 'report') __out.reports.push(m.report); else __out.other.push(m.kind);
+  if (m.kind === 'frame') token = m.token;
+});
+window.run = async (code, bpm = 120) => {
+  __out.haps = []; __out.reports = []; __out.other = [];
+  if (!frame) {
+    frame = document.createElement('iframe'); frame.setAttribute('sandbox', 'allow-scripts'); frame.src = '/strudel/frame.html'; document.body.appendChild(frame);
+    await new Promise(r => frame.onload = r);
+    const worker = await (await fetch('/strudel/worker.js')).text();
+    frame.contentWindow.postMessage({ kind: 'init', token: 'T', worker }, '*');
+    await new Promise(r => setTimeout(r, 300));
+  }
+  frame.contentWindow.postMessage({ kind: 'play', code, bpm, seed: 1, ctxTime: 0, epochMs: Date.now(), cycle: 0 }, '*');
+};
+window.stop = () => frame.contentWindow.postMessage({ kind: 'stop' }, '*');
+</script>

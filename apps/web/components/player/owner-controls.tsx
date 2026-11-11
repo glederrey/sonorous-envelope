@@ -29,6 +29,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
   const [error, setError] = useState("");
+  const [allowCode, setAllowCode] = useState(true);
 
   const loadPending = useCallback(async () => {
     const { data } = await supabase.from("reactions").select("kind").eq("session_id", sessionId).is("delivered_at", null)
@@ -41,10 +42,11 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
     void (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data } = await supabase.from("sessions").select("owner_id,settings").eq("id", sessionId).maybeSingle();
+      const { data } = await supabase.from("sessions").select("owner_id,settings,allow_code").eq("id", sessionId).maybeSingle();
       if (cancelled || !data || data.owner_id !== u.user.id) return;
       const raw = data.settings && typeof data.settings === "object" ? (data.settings as Record<string, unknown>) : {};
       setOwner({ id: u.user.id, raw });
+      setAllowCode(data.allow_code !== false);
       const r = raw.rest_after;
       setRest(r === null ? "never" : typeof r === "number" ? String(r) : "900");
       void loadPending();
@@ -59,6 +61,12 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
     setError("");
     const { error: e } = await supabase.rpc("set_mode_policy", { p_session: sessionId, p_policy: value });
     if (e) setError("Could not change that. Try again."); else onChanged();
+  };
+
+  const chooseCode = async (value: boolean) => {
+    setError(""); setAllowCode(value);
+    const { error: e } = await supabase.rpc("set_allow_code", { p_session: sessionId, p_allow: value });
+    if (e) { setAllowCode(!value); setError("Could not change that. Try again."); } else onChanged();
   };
 
   const react = async (kind: ReactionKind) => {
@@ -88,6 +96,10 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged }: 
           ))}
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
+        <label className="pl-local" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }} title="Strudel is live-coded music the model writes. It runs in a sandbox in your browser, on the external face only.">
+          <input type="checkbox" checked={allowCode} onChange={(e) => void chooseCode(e.target.checked)} />
+          Let the model play Strudel code
+        </label>
       </div>
       {external && (
         <details className="pl-set se-sm">
