@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
-  capFrame, drawFrame, glowArea, hash01, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
+  capFrame, drawFrame, hash01, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
   moodToColour, moodToFeel, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
@@ -43,15 +43,22 @@ describe("visual frame", () => {
     const rough = (tension: number) => { const f = moodToFeel({ ...mood, tension }); return f.jitter; };
     expect(rough(0.9)).toBeGreaterThan(rough(0));
   });
-  it("moods differ in motion with the hue taken away", () => {
+  it("maps calm to the motion: breathe, drift, pulse, and never still on its own", () => {
+    const motion = (calm: number) => moodToColour({ ...mood, calm }, 1500, 0.3).motion;
+    expect(motion(0.95)).toBe("breathe"); expect(motion(0.6)).toBe("drift"); expect(motion(0.1)).toBe("pulse");
+    for (let k = 0; k <= 1; k += 0.05) expect(moodToColour({ ...mood, calm: k }, 1500, 0.3).motion).not.toBe("still");
+  });
+  it("moods differ in motion with the hue taken away, with the motion the mood gives and no forced scene or sync", () => {
     const sig = (m: typeof mood & { tension?: number }) => {
-      const c = { ...moodToColour(m as never, 1500, 0.3), s: 0, secondary: undefined, scene: "motes" as const, sync: "beat" as const };
-      return JSON.stringify([0, 0.3, 0.6, 1.1, 2.4].map((p) => drawFrame({ colour: c, bpm: 100, beats: 8 + p, t: p }, 0.6)));
+      const c = { ...moodToColour(m as never, 1500, 0.3), s: 0, secondary: undefined };
+      const frames = [0, 0.3, 0.6, 1.1, 2.4, 5, 9.5].map((p) => drawFrame({ colour: c, bpm: 100, beats: 8 + p, t: p }, 0.6));
+      expect(frames.some((f) => f.wash > 0 || f.glow)).toBe(true); // something moves
+      return JSON.stringify(frames);
     };
     const moods = [
-      { warmth: 0.8, closeness: 0.9, joy: 0.6, calm: 0.7, spontaneity: 0.3 },   // tender
+      { warmth: 0.8, closeness: 0.9, joy: 0.6, calm: 0.9, spontaneity: 0.3 },   // tender
       { warmth: 0.3, closeness: 0.4, joy: 0.3, calm: 0.1, spontaneity: 0.8, tension: 0.5 }, // nervous
-      { warmth: 0.5, closeness: 0.2, joy: 0.8, calm: 0.4, spontaneity: 0.4 },   // awe
+      { warmth: 0.5, closeness: 0.2, joy: 0.8, calm: 0.55, spontaneity: 0.4 },  // awe
       { warmth: 0.2, closeness: 0.6, joy: 0.2, calm: 0.2, spontaneity: 0.6, tension: 0.8 }, // irritated
       { warmth: 0.7, closeness: 0.6, joy: 0.7, calm: 0.8, spontaneity: 0.2 },   // relief
     ];
@@ -63,7 +70,7 @@ describe("the flash budget", () => {
   it("scales large elements to the swing cap and is idempotent", () => {
     const f: Frame = { wash: 0.2, glow: { x: 0.5, y: 0.5, r: 0.9, a: 0.5, hold: 0 }, items: [] };
     const c = capFrame(f, 0.6);
-    expect(largeSwing(c, 0.6)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
+    expect(largeSwing(c)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
     expect(capFrame(c, 0.6)).toEqual(c);
   });
   it("drops small elements past the area and count caps, and caps their opacity", () => {
@@ -97,8 +104,8 @@ describe("the flash budget", () => {
         if (i % 60 === 0) bpm = 30 + rnd() * 170;
         beats += bpm / 60 / 60;
         const f = drawFrame({ colour: c, bpm, beats, t: i / 60, seed: run }, aspect);
-        // the luminance of the field with the large layers on it, white over the base: base + a * (1 - base)
-        swings.push(baseL + f.wash * (1 - baseL) + (f.glow ? f.glow.a * glowArea(f.glow.r, aspect) * (1 - baseL) : 0));
+        // the luminance at the worst pixel with the large layers on it, white over the base: base + a * (1 - base)
+        swings.push(baseL + (f.wash + (f.glow ? f.glow.a : 0)) * (1 - baseL)); // the worst pixel: the centre of the glow, no area discount
         expect(f.items.length).toBeLessThanOrEqual(MAX_ITEMS);
         expect(f.items.reduce((s, it) => s + (it.kind === "dot" ? Math.PI * it.r * it.r : it.kind === "ring" ? 2 * Math.PI * it.r * it.w : it.r * it.w) * Math.min(aspect, 1 / aspect, 1), 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
       }

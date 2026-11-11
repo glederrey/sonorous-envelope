@@ -39,7 +39,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     const ctx = cv?.getContext("2d");
     if (!cv || !ctx) { onFail(); return; }
     const clock = new BeatClock();
-    let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16;
+    let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
 
     const resize = () => {
       const r = cv.getBoundingClientRect();
@@ -69,19 +69,27 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     };
 
     const loop = (now: number) => {
+      if (failed) return;
       raf = requestAnimationFrame(loop);
-      const { source: s, active: on, latency: lat } = live.current;
-      if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; clock.reset(); } return; }
-      // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
-      const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
-      const target = beatsAt(s.state, Math.max(0, tau));
-      const beats = clock.update(target, now);
-      const c = s.state.colour;
-      const frame = drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff }, w / h);
-      paint(frame, `${Math.round(c.h)},55%,88%`);
-      // a slow phone gets a smaller picture, not a stutter
-      if (last) { ema = ema * 0.95 + (now - last) * 0.05; if (ema > 24 && scale > SCALE_MIN) { scale = Math.max(SCALE_MIN, scale * 0.8); ema = 16; resize(); } }
-      last = now;
+      try {
+        const { source: s, active: on, latency: lat } = live.current;
+        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); } return; }
+        // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
+        const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
+        const target = beatsAt(s.state, Math.max(0, tau));
+        const beats = clock.update(target, now);
+        const c = s.state.colour;
+        const frame = drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff }, w / h);
+        const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0;
+        if (!(empty && wasEmpty)) paint(frame, `${Math.round(c.h)},55%,88%`); // a still state is not repainted 60 times a second
+        wasEmpty = empty;
+        // a slow phone gets a smaller picture, not a stutter
+        if (last) { ema = ema * 0.95 + (now - last) * 0.05; if (ema > 24 && scale > SCALE_MIN) { scale = Math.max(SCALE_MIN, scale * 0.8); ema = 16; resize(); wasEmpty = false; } }
+        last = now;
+      } catch {
+        // a canvas bug must not break the page: stop, and let the parent bring back the CSS field
+        failed = true; cancelAnimationFrame(raf); onFail();
+      }
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };

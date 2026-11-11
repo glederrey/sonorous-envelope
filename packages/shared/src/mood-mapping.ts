@@ -132,7 +132,9 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
   const h = (((250 - 300 * t) % 360) + 360) % 360;
   const sat = lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j);
   const l = Math.min(0.6, lerp(0.12, 0.45, 0.6 * j + 0.4 * cutNorm));
-  const motion = k > 0.85 ? "still" : k > 0.7 ? "drift" : "pulse";
+  // Motion is safe at any tempo now (visual.ts), so every mood moves: calm breathes over the phrase, the middle drifts, the agitated pulses on the beat.
+  // "still" is only for a model that asks for it.
+  const motion = k > 0.7 ? "breathe" : k > 0.45 ? "drift" : "pulse";
   // close and warm is a tight glow; the rest keeps the linear wash it always had
   const shape = m.closeness > 0.7 && w > 0.5 ? "glow" : "wash";
   return {

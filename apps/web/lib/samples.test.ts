@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyze, hardCaps, measure } from "@sonorous/shared";
+import { analyze, drawFrame, hardCaps, measure } from "@sonorous/shared";
 import { renderOffline } from "@sonorous/engine";
 import { SAMPLES, fadeOut, stateOfStep } from "./samples";
 
@@ -26,6 +26,15 @@ describe("landing samples", () => {
       expect(left.reduce((m, v) => Math.max(m, Math.abs(v)), 0)).toBeLessThan(0.98);
       expect(fadeOut(st, 3).volume).toBe(0);
     }
+  });
+  it("move, and move differently, as pictures: the motion the mood gives, no hue, no forced scene", () => {
+    const sigs = SAMPLES.map((s) => {
+      const c = { ...stateOfStep(s.steps[0], s.id).colour, s: 0, secondary: undefined };
+      const frames = [0, 0.3, 0.6, 1.1, 2.4, 5, 9.5].map((p) => drawFrame({ colour: c, bpm: 100, beats: 8 + p, t: p }));
+      expect(frames.some((f) => f.wash > 0 || f.glow), s.id).toBe(true);
+      return JSON.stringify(frames);
+    });
+    expect(new Set(sigs).size).toBe(SAMPLES.length);
   });
   it("sound different from each other, and the relief resolves to calmer and less tense", () => {
     const reads = SAMPLES.map((s) => analyze(stateOfStep(s.steps[0], s.id), s.seed).reads_as);
