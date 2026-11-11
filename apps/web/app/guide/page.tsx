@@ -106,8 +106,7 @@ export default function GuidePage() {
                 The player shows the code, collapsed, under &ldquo;Strudel code&rdquo;. You cannot edit it there. You can copy it, or open it on
                 strudel.cc, change it and play with it. The code runs in a sandbox in your browser: it cannot read the page, your account or the
                 network, and it only makes sound through the player. Your volume slider and the mute button work on it as on the synth. Strudel
-                has no other volume limits, so a pattern can be much louder than the synth: start with the slider low. You can stop the pattern on your device
-                with &ldquo;Stop pattern&rdquo;, and the owner can switch Strudel off for the session (&ldquo;Let the model play Strudel code&rdquo;) or lock the
+                has no other volume limits, so a pattern can be much louder than the synth: start with the slider low. The owner can switch Strudel off for the session (&ldquo;Let the model play Strudel code&rdquo;) or lock the
                 internal face, which stops it.
               </p>
               <p style={{ margin: 0 }}>
