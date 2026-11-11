@@ -87,6 +87,9 @@ export const Colour = z.object({
   secondary: z.object({ hue: z.number().min(0).max(360), saturation: unit, lightness: unit }).optional(),
   motion: z.enum(["still","drift","pulse"]).optional(),
   texture: z.enum(["flat","grain","soft_noise"]).optional(),
+  scene: z.enum(["none","motes","ripples","rain"]).optional(),   // moving things over the colour
+  density: unit.optional(), speed: unit.optional(),               // for a scene
+  sync: z.enum(["beat","phrase","free"]).optional(),              // what the motion follows; left out: the mood decides
 });
 
 export const Transition = z.object({

@@ -11,7 +11,13 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - The model sees the listener's volume in the feedback (`controls`). A sound it judges "too faint" may be quiet because the listener turned it down, and it should respect that, not compensate.
 
 ## Hard rules (not configurable)
-- No flashing faster than 3 per second (photosensitive epilepsy). Enforced on the server and again in the player; the colour field also glides over at least 1 s between states.
+- No flashing (photosensitive epilepsy). Until 2026-11-11 the rule was "nothing faster than 3 per second"; it is now stated the way WCAG 2.3.1 states it, and tighter, so that the picture can follow the beat at any tempo:
+  - Large elements (the wash over the field, the glow) together change the relative luminance by at most 0.09. A flash is a change of 0.1 or more, so the beat pulse is never one, however fast it repeats. This is checked on every frame in the player (`capFrame`) and by a property test over random states, tempos, scenes and glides.
+  - Saturated red (WCAG's definition) gets no pulse.
+  - Small elements (motes, rings, streaks) may be brighter and faster, but together cover at most 10% of the view, at most 48 of them. A phone is held close, so these are stricter than WCAG's 25% of 10 degrees.
+  - State changes glide over at least 1 s, and updates come at most every 300 ms.
+  - `prefers-reduced-motion` turns the moving picture off, and the listener has a "Still picture" button in the player.
+  - This follows accessibility guidance and is not a medical guarantee.
 - The master volume never goes above 0.9 in the engine, whatever is sent.
 - The echo stays inside its buffer and below self-oscillation (a stability limit, not a listener limit).
 - Mute is always one tap away and stays muted until the listener turns it back on.

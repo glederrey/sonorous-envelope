@@ -25,7 +25,7 @@ The first page anyone sees, before signing in. It explains the idea, how it work
 - Logo lockup (mark + wordmark) top left; "Sign in" or "Your sessions" top right.
 - Headline in `display`: "Let the model hum while it thinks." One line under it in `body`: "Sonorous Envelope gives Claude a second voice: a small synthesizer and a colour field you hear and see while it works."
 - Two actions: "Add to Claude" (primary, scrolls to the setup section) and "How it works" (secondary).
-- Behind the hero: a live, muted-by-default colour field drifting slowly (idle `field-a` → `field-b`, then a few preset moods gliding over ~8 s each). It respects `prefers-reduced-motion` and the 3 Hz rule like the player. An optional "Play a sample" button plays a short local demo state through the engine (tap required, volume capped low, stops on its own after 20 s).
+- Behind the hero: a live, muted-by-default colour field drifting slowly (idle `field-a` → `field-b`, then a few preset moods gliding over ~8 s each). It respects `prefers-reduced-motion` and the old 3 Hz CSS rule (it does not use the canvas). An optional "Play a sample" button plays a short local demo state through the engine (tap required, volume capped low, stops on its own after 20 s).
 
 ### 2. The idea
 Three short paragraphs, adapted from the README:
@@ -108,10 +108,11 @@ The model does not exist between two turns, but a sound that keeps playing reads
 - **A way to leave together: Claude's own closing sound.** When the user says in the chat that the session is over, that message is a turn, so Claude is there to answer. It plays a short closing sound of its own (one `set_sound` with a long transition, then fade) and the session ends. This is Claude's, not an automatic figure, which keeps the sound honest: the player never makes sound for Claude. Mechanism: `silence` takes `end: true` (mcp-tools.md); after the fade the server sets `ended_at`, the page shows "This session has ended", and the sessions page shows it as ended. The owner's "End session" button stays as it is (no figure: Claude is not there to play one). A listener who just closes the tab triggers nothing.
 
 ### Colour field
-- Full-screen canvas. Gradient from `colour` to `secondary`, slow drift (Perlin-like noise in the gradient angle), optional grain or soft-noise texture overlay.
-- `pulse` motion syncs brightness to the cutoff LFO phase sent in the state (computed locally from rate), within the limits (≤ 3 Hz, swing ≤ 0.2).
-- Glides over the transition time.
-- `prefers-reduced-motion`: disable pulse and drift; still colour changes, glided over ≥ 3 s.
+- The base is CSS: a gradient from `colour` to `secondary` (shape wash, glow or sweep), an optional grain or soft-noise texture, glided over the transition time (at least 1 s).
+- The motion is a canvas over it (`components/player/visual-canvas.tsx`), painted from the pure frame model (`packages/shared/src/visual.ts`). Each frame: the beat from `beatsAt` on the shared timeline (the server's clock, minus the output latency and the listener's "Sync" delay), followed by `BeatClock` so it never snaps; then `drawFrame` (the motion plus the flash budget); then paint. The canvas is drawn at half resolution (smaller still on a slow phone), pauses with the tab and starts from the clock when it returns.
+- `pulse`: a faint white wash on the beat. `drift`: a highlight that wanders. `breathe`: a glow that swells over the phrase (4 bars, 16 beats). `scene`: motes, ripples (a ring per beat) or rain. The mood shapes all of it (`feel`, see visuals.md).
+- `prefers-reduced-motion`: no canvas; the colour still changes. The "Still picture" button does the same for one listener. `?field=css` brings the old CSS motion back.
+- Listener controls: "Still picture" and "Sync" (0 to 400 ms, delays the picture, for Bluetooth), both remembered on the device (`se:picture`).
 
 ### Session details page
 - Timeline of states: turn, final, time, intent mood as five small bars, reads_as overlaid, gesture icon, clamps.

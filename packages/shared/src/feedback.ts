@@ -37,6 +37,9 @@ function playingOf(e: EngineState) {
   if (e.pad?.on && e.pad.notes.length) p.pad = { notes: e.pad.notes.map(midiName), wave: e.pad.wave };
   if (e.lfo.length) p.lfo = e.lfo.map((l) => `${l.target} ${r2(l.rate)}Hz depth ${r2(l.depth)} ${l.shape}`);
   p.echo = r2(e.fx.delay.mix); p.reverb = r2(e.fx.reverb.mix);
+  // the picture, only when you set something beyond the mood: scene, its density and speed, and what it follows
+  const c = e.colour;
+  if ((c.scene && c.scene !== "none") || c.sync) p.picture = [c.scene && c.scene !== "none" ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
   return p;
 }
 

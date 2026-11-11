@@ -15,6 +15,15 @@ export interface ResolvedColour {
   shape?: "wash" | "glow" | "sweep";
   texture: "flat" | "grain" | "soft_noise";
   pulseHz: number;
+  /** What moves on top of the colours (visuals.md). Settable by the model: `scene` a small set of moving things, `density` and `speed` 0 to 1,
+   *  `sync` what the motion follows: the beat, the phrase (4 bars), or nothing (free). */
+  scene?: "none" | "motes" | "ripples" | "rain";
+  density?: number;
+  speed?: number;
+  sync?: "beat" | "phrase" | "free";
+  /** How the mood shapes the motion, all 0 to 1, derived from the axes (never sent): depth = how hard the picture follows the beat, lift =
+   *  joy (0.5 neutral: above expands and rises, below contracts and sinks), jitter = tension, soft = warmth, near = closeness, irreg = spontaneity. */
+  feel?: { depth: number; lift: number; jitter: number; soft: number; near: number; irreg: number };
 }
 
 /** The complete, fully resolved state the engine plays. Every field is present. */
