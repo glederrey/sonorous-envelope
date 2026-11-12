@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+html{background:#0c0e12}
+body{width:1200px;height:630px;background:#0c0e12;color:#eceff3;font-family:Roboto,system-ui,sans-serif;position:relative;overflow:hidden}
+.field{position:absolute;inset:0;background:
+  radial-gradient(520px 420px at 930px 250px, rgba(69,199,182,.20), transparent 70%),
+  radial-gradient(520px 420px at 1080px 470px, rgba(244,169,64,.16), transparent 70%)}
+svg.rings{overflow:visible;position:absolute;right:-60px;top:40px;width:640px;height:560px}
+.bar{position:absolute;left:0;right:0;bottom:0;height:12px;background:linear-gradient(90deg,#f4a940,#45c7b6)}
+.wrap{position:absolute;left:84px;top:64px;width:720px}
+.brand{display:flex;align-items:center;gap:18px}
+.brand span{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:500;letter-spacing:.02em;color:#c9d0d9}
+h1{font-size:84px;line-height:92px;font-weight:700;letter-spacing:-.02em;margin-top:70px}
+.hum{color:#f4a940}.think{color:#45c7b6}
+p{text-wrap:balance;font-size:31px;line-height:42px;color:#9ba5b2;margin-top:34px;width:680px}
+.chip{display:inline-block;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:26px;color:#45c7b6;border:2px solid #45c7b6;border-radius:10px;padding:0 10px;line-height:38px;vertical-align:1px;margin-right:2px}
+</style>
+<div class="field"></div>
+<svg class="rings" viewBox="0 0 640 560" fill="none">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f4a940"/><stop offset="1" stop-color="#45c7b6"/></linearGradient></defs>
+  <g transform="translate(250 140) scale(4)">
+    <path d="M8 54 L21 10 C24 22 27 27 34 28 L44 28 C49 28 51 40 56 54 L8 54 Z" fill="url(#g)" fill-opacity="0.22"/>
+    <path d="M8 54 L21 10 C24 22 27 27 34 28 L44 28 C49 28 51 40 56 54" stroke="url(#g)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
+<div class="wrap">
+  <div class="brand">
+    <svg width="56" height="56" viewBox="0 0 64 64"><defs><linearGradient id="b" x1="8" y1="0" x2="56" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f4a940"/><stop offset="1" stop-color="#45c7b6"/></linearGradient></defs><g transform="translate(6 6) scale(.8)"><path d="M8 54 L21 10 C24 22 27 27 34 28 L44 28 C49 28 51 40 56 54 L8 54 Z" fill="url(#b)" fill-opacity=".22"/><path d="M8 54 L21 10 C24 22 27 27 34 28 L44 28 C49 28 51 40 56 54" fill="none" stroke="url(#b)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+    <span>sonorous envelope</span>
+  </div>
+  <h1>Let the model <span class="hum">hum</span> while <span class="think">it thinks.</span></h1>
+  <p><span class="chip">MCP</span> server: a synthesizer and a colour field for your AI model.</p>
+</div>
+<div class="bar"></div>
