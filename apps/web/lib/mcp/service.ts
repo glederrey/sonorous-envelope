@@ -406,7 +406,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
+  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (the synth under Strudel stays paused: a closing sound needs that first; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
