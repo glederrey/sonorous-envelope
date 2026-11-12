@@ -461,6 +461,12 @@ describe("the shared timeline", () => {
     const g2 = nextGrid({ effective: b, created_at: new Date(13_000).toISOString() }, 13_000 + 2_000);
     expect(g2.arp).toBeCloseTo(14, 9); // 1 s steps now
   });
+  it("keeps Strudel's beat as it is: no snapping to the paused synth's steps", () => {
+    const a = st(120); a.engine = "strudel"; a.pattern = { code: "s('bd')", bpm: 100 }; a.grid = { arp: 0.37, bass: 0, beat: 8.3 };
+    const g = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 3_000);
+    expect(g.beat).toBeCloseTo(8.3 + 3 * 100 / 60, 9); // exactly where Strudel's beat is
+    expect(g.fromTempo).toBe(100);
+  });
   it("counts the steps of a tempo glide in closed form, and a state written mid-glide starts from the tempo that played", () => {
     const a = st(120); a.grid = { arp: 0, bass: 0 };
     const b = st(60); b.transition = { time: 4, curve: "smooth" }; b.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000, b);

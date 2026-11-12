@@ -157,8 +157,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     } else {
       // The pattern fades out, at most 3 s, and the new synth state starts when that fade is almost done, so a closing sound does not
       // overlap it (a stop already under way is not restarted).
-      const left = strudel.current?.stop(Math.min(3, Math.max(0.3, p.state.transition.time)), delay) ?? 0;
-      a.setState(p.state, p.seed, Math.max(delay, left - 0.5), elapsed);
+      // A silent state (silence, a session end) fades Strudel over its own transition, like the picture; a state that brings a synth sound
+      // fades it in at most 3 s and starts when that is almost done.
+      const quiet = p.state.volume <= 0.001;
+      const fadeLen = quiet ? Math.max(0.3, p.state.transition.time) : Math.min(3, Math.max(0.3, p.state.transition.time));
+      const left = strudel.current?.stop(fadeLen, delay) ?? 0;
+      a.setState(p.state, p.seed, quiet ? delay : Math.max(delay, left - 0.5), elapsed);
     }
   }, [ensureStrudel]);
   // the owner locked the face or switched code off: the same state goes to the other engine

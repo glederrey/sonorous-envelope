@@ -25,6 +25,9 @@ export function nextGrid(prev: { effective: EngineState; created_at: string } | 
   // beat the counter and the beat must agree: `beat - arp * R` is a whole number of steps (R = beats per step of the NEW state's rate).
   // Without this a rate change leaves the picture's beat a fixed fraction of a step away from the notes for the rest of the session.
   const R = RATE_BEATS[next?.arp?.rate ?? prev.effective.arp.rate];
-  const beat = arp * R + R * Math.round((beatsAt(prev.effective, dt) - arp * R) / R);
+  // After a Strudel state the beat is Strudel's own (the paused synth's step counter has nothing to do with it): snapping it to the synth's
+  // steps would move the picture's beat, and the bar Strudel's clock is taken from, by up to half a step at every state written.
+  const strudelBefore = prev.effective.engine === "strudel" && Boolean(prev.effective.pattern);
+  const beat = strudelBefore ? beatsAt(prev.effective, dt) : arp * R + R * Math.round((beatsAt(prev.effective, dt) - arp * R) / R);
   return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: glideSeconds(next.transition) } : {}) };
 }
