@@ -154,9 +154,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       a.setState({ ...p.state, volume: 0 }, p.seed, delay, elapsed); // the synth is paused: it fades out over the transition
       void ensureStrudel().then((o) => o?.play({ id: p.id ?? null, code: p.state.pattern!.code, bpm: p.state.pattern!.bpm, seed: p.seed & 0xffff }));
     } else {
-      // the pattern fades out over the new state's transition (after its delay, for a closing fade)
-      strudel.current?.stop(Math.max(0.3, p.state.transition.time), delay);
-      a.setState(p.state, p.seed, delay, elapsed);
+      // The pattern fades out, at most 3 s, and the new synth state starts when that fade is almost done, so a closing sound does not
+      // overlap it (a stop already under way is not restarted).
+      const left = strudel.current?.stop(Math.min(3, Math.max(0.3, p.state.transition.time)), delay) ?? 0;
+      a.setState(p.state, p.seed, Math.max(delay, left - 0.5), elapsed);
     }
   }, [ensureStrudel]);
   // the owner locked the face or switched code off: the same state goes to the other engine
@@ -165,13 +166,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
     if (face !== "external" || !allowCode) {
       block(p.at);
-      // The owner turned Strudel off: the sound and the picture fade to nothing, not to the leftover synth state (which can be a busy one).
-      // The owner locked the internal face: the synth stays, and comes in gently.
-      const state: EngineState = !allowCode
-        ? { ...p.state, volume: 0, transition: { time: 3, curve: "smooth" } }
-        : { ...p.state, transition: { time: Math.max(6, p.state.transition.time), curve: "smooth" } };
-      if (!allowCode) setPlaying({ ...p, state });
-      runEngine({ ...p, state }, 0, allowCode ? 0 : Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
+      // The owner turned Strudel off or locked the internal face: the sound and the picture fade to nothing, not to the leftover synth state
+      // (the faces are different voices; the model's next set_sound brings the internal one). The state loses its pattern, so the picture
+      // does not count it as sounding.
+      const { engine: _engine, pattern: _pattern, ...rest } = p.state;
+      const state: EngineState = { ...rest, volume: 0, transition: { time: 3, curve: "smooth" } };
+      setPlaying({ ...p, state });
+      runEngine({ ...p, state }, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
       return;
     }
     runEngine(p, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));

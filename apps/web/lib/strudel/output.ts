@@ -38,6 +38,7 @@ export class StrudelOutput {
   private hub: AudioNode | null = null; // superdough's last node, which feeds `fade`
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
   private stats = { played: 0, late: 0, invalid: 0, resyncs: 0, worstLate: 0 }; // for ?debug=1: what the page did with the events
+  private stopEnd = 0; // audio-context time when the fade of a stop under way ends
   private held = false; // stopped for good and kept silent: the next play starts on a fresh node
   private seq = 0; // one per play: a report that comes from an older run is not the new code's
   private lastReport: Report | null = null;
@@ -192,8 +193,10 @@ export class StrudelOutput {
   }
 
   /** Stop the pattern: after `after` seconds, fading out over `fadeSeconds`. A new `play` before that cancels it. */
-  stop(fadeSeconds = 0.3, after = 0) {
-    if (!this.current) return;
+  /** Fade out and stop. Returns the seconds until it is silent. A stop already under way is left alone (a second state must not restart the fade from full volume). */
+  stop(fadeSeconds = 0.3, after = 0): number {
+    if (!this.current) return 0;
+    if (this.stopTimer) return Math.max(0, this.stopEnd - this.ctx.currentTime);
     const now = this.ctx.currentTime;
     // The new state has no pattern, so the shared clock now runs at the synth's tempo: a resync from it would move the worker's clock in the
     // middle of the fade (a gap, heard as a drop). The worker keeps its own time until it is stopped.
@@ -204,7 +207,9 @@ export class StrudelOutput {
       this.fade.gain.setValueAtTime(1, now + after);
       this.fade.gain.linearRampToValueAtTime(0, now + after + Math.max(0.05, fadeSeconds));
     }
+    this.stopEnd = now + after + Math.max(0.05, fadeSeconds);
     this.stopTimer = setTimeout(() => this.hardStop(), (after + Math.max(0.05, fadeSeconds) + 0.1) * 1000);
+    return after + Math.max(0.05, fadeSeconds);
   }
 
   private hardStop() {

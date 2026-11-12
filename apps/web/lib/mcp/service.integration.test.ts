@@ -531,6 +531,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(state(session_id).engine).toBe("strudel");
       expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
       expect(state(session_id).engine).toBeUndefined();
+      expect(state(session_id).volume).toBe(0); // the internal lock ends the sound too: the faces are different voices
     });
 
     it("the player's poll answers `same` while nothing changed, and the full state when the model or the owner changes something", async () => {
