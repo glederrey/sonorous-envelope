@@ -171,6 +171,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       // does not count it as sounding.
       const { engine: _engine, pattern: _pattern, ...rest } = p.state;
       const state: EngineState = { ...rest, volume: 0, transition: { time: 3, curve: "smooth" } };
+      latest.current = { ...p, state }; // this is now the state that plays here: allowing Strudel again must not bring the synth fields back
       setPlaying({ ...p, state });
       runEngine({ ...p, state }, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));
       return;
@@ -631,7 +632,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             </div>
           </section>
         )}
-        {(phase === "ended" || (phase === "ready" && !started)) && <aside className="pl-aside se-sm"><p style={{ margin: 0 }}>{shareText}</p>{shareAction}</aside>}
+        {phase === "ready" && !started && <aside className="pl-aside se-sm"><p style={{ margin: 0 }}>{shareText}</p><div className="pl-actions">{shareAction}</div></aside>}
       </main>
     </div>
   );
