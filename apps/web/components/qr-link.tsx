@@ -33,7 +33,7 @@ export function QrLink({ path }: { path: string }) {
     <>
       <button type="button" className="se-btn" aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <Smartphone size={16} aria-hidden />
-        Open on phone
+        QR code
       </button>
       {/* a centred popup: it keeps the page still and the code can be large; Esc, a click outside or Close shuts it */}
       <dialog ref={dialog} className="pl-qr-dialog" aria-label="QR code to listen on a phone" onClose={() => setOpen(false)}
