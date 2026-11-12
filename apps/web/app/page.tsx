@@ -13,7 +13,7 @@ export const metadata = { alternates: { canonical: "/" } };
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A synthesizer and a colour field for an AI model." },
+    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A remote MCP server that gives an AI model a synthesizer and a colour field." },
     { "@type": "Organization", name: "Sonorous Envelope", url: SITE_URL, logo: `${SITE_URL}/brand/logo-512.png` },
   ],
 };
