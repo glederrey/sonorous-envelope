@@ -82,6 +82,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
   const ownerBlocked = useRef<number | null>(null);
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
+  const [dimDelay, setDimDelay] = useState(0); // seconds the dark layer waits before it lifts (Strudel's first bar)
   const [dimAnimated, setDimAnimated] = useState(false); // the dark layer snaps at the first paint (a late joiner after silence sees black), then glides
   const block = (at: number) => { ownerBlocked.current = at; setBlockedAt(at); };
 
@@ -185,6 +186,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const state: EngineState = JSON.parse(JSON.stringify(row.effective));
     hardCaps(state); // second line of defence, the server already applied the safety rules
     const next = { state, seed: Number(row.seed), turn: row.turn, final: row.final, at, id: row.id };
+    // Strudel starts on the next bar: when it comes in from silence the picture fades in on that bar too, not before the music
+    const wasSounding = latest.current ? isSounding(latest.current.state) : true;
+    const ageNow = (Date.now() + clockOffset.current - at) / 1000;
+    if (!wasSounding && state.engine === "strudel" && state.pattern) {
+      const bars = beatsAt(state, Math.max(0, ageNow)) / 4;
+      setDimDelay((Math.ceil(bars + 0.05) - bars) * 240 / state.pattern.bpm + pictureLatency());
+    } else setDimDelay(0);
     latest.current = next;
     restedFrom.current = null; setRested(false); // a new state brings the sound back, with its own transition
     if (document.visibilityState === "hidden") dbg.current.applied++;
@@ -197,7 +205,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     else setPlaying(next);
     // `elapsed`: seconds since the state started, by the server's clock, so this device lands on the shared step grid
     runEngine(next, wait, Math.max(age, delay)); // seconds since it was written, at the moment it starts
-  }, []);
+  }, [pictureLatency]);
 
   // Presence between turns: with no update for rest_after seconds the sound fades to silence on its own (no state is
   // written). The clock is the server's: offset = server time minus ours, taken from get_player_state.
@@ -215,6 +223,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const restTick = useCallback(() => {
     const p = latest.current, r = settings.current.rest_after;
     if (!p || (p.state.engine === "strudel" && p.state.pattern)) return; // a pattern keeps playing: the external face never fades
+    if (p.state.volume <= 0.001) return; // already silent (a silence, an owner stop): nothing to fade, and the rested state would wipe the scene at once
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
       restedFrom.current = p; restedAtMs.current = Date.now(); setRested(true);
@@ -507,7 +516,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-h2": hue2, "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
     "--pl-l2": colour?.secondary?.l ?? Math.max(0, (colour?.l ?? 0.12) - 0.08),
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
-    "--pl-dim": playing && !isSounding(playing.state) ? 1 : 0,
+    "--pl-dim": playing && !isSounding(playing.state) ? 1 : 0, "--pl-dim-delay": `${playing && isSounding(playing.state) ? dimDelay : 0}s`,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
 
@@ -520,7 +529,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     : "Want your AI to make sound for you too?";
   const shareAction = signedIn
     ? <CopyLink path={`/s/${sessionId}`} label="Copy link" />
-    : <><a className="se-btn" href="/#add">Add it to your AI app</a><CopyLink path={`/s/${sessionId}`} label="Copy link" /></>;
+    : <><a className="se-btn" href="/#add">Add to your AI</a><CopyLink path={`/s/${sessionId}`} label="Copy link" /></>;
 
   return (
     <div

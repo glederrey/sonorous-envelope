@@ -897,7 +897,7 @@ html:has(.pl-field) .se-header {
 .pl-field > .pl-stage { grid-area: 1 / 1; }
 /* after silence the whole field goes dark with the sound (the canvas fades its own part) */
 .pl-dim { grid-area: 1 / 1; background: #000; opacity: var(--pl-dim, 0); pointer-events: none; z-index: 0; }
-.pl-dim[data-animated="true"] { transition: opacity var(--pl-t) ease-in-out; }
+.pl-dim[data-animated="true"] { transition: opacity var(--pl-t) ease-in-out var(--pl-dim-delay, 0s); }
 @media (prefers-reduced-motion: reduce) { .pl-dim[data-animated="true"] { transition-duration: 1s; } }
 /* drift: a slow highlight. pulse: a faint brightness swell, at most 3 Hz and a small swing (see limits.md) */
 .pl-field[data-motion="drift"]::after {

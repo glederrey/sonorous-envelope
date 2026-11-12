@@ -1,8 +1,8 @@
-# Test brief: Sonorous Envelope v0.15.5 (last small fixes)
+# Test brief: Sonorous Envelope v0.15.6 (last two visual fixes)
 
 Read this whole file before you start. Strudel has no loudness limit (by design): ask the user to keep the volume slider low.
 
-This is a short re-test of what was open in v0.15.4 (report in docs/archive/strudel-test-report-v0.15.4.md). Run only these tests, unless one fails and you need to look around it.
+This is a short re-test of what was open in v0.15.5 (report in docs/archive/strudel-test-report-v0.15.5.md). Run only these tests, unless one fails and you need to look around it.
 
 ## What the product is
 
@@ -10,26 +10,25 @@ A remote MCP server that gives an AI model a sound channel: a small synthesizer 
 
 ## What changed
 
-- When the owner ticks "Let the model play Strudel code" again after clearing it, nothing plays: silence and a black picture until the model sends something. (Before, a slow synth started.)
-- Before pressing Start listening, the box at the bottom has the sentence in small type on top and the two buttons on one row at the full width.
-- The button "Open on phone" is now called "QR code" (in the guest and owner views). Labels stay on one line.
-- When a session has ended, the link box at the bottom is gone.
+- When Strudel starts after a silence, the picture now fades in on the same bar as the music (before, the picture came first and the music waited for the next bar).
+- When the owner locks Internal while Strudel plays with a rain (or other) scene, the streaks now fade out with the sound instead of vanishing at once.
+- The guest button reads "Add to your AI" (before: "Add it to your AI app").
 
 ## Setup
 
-Reconnect the connector (six tools including strudel_mode). start_session with mode external, give the player link. The user opens it as the owner on desktop and taps Start listening. Ask for a private window (not signed in) for tests 3 and 4.
+Reconnect the connector (six tools including strudel_mode). start_session with mode external, give the player link. The user opens it as the owner on desktop and taps Start listening. Ask for a private window (not signed in) for test 3.
 
 ## Tests
 
 For each test record pass or fail and the exact tool output for any failure.
 
-1. Ticking the box again. Play Strudel (strudel_mode on, s("bd*2, hh*8").bank("RolandTR909"), bpm 120, colour scene rain). The owner clears "Let the model play Strudel code": sound and picture fade out. The owner ticks it again. Listen for 15 seconds: no sound at all, and the picture stays black. Then reload the page: still silent and black. Then send strudel_mode on with code: music and picture come back.
-2. Same with the Internal lock. Play Strudel, the owner locks Internal (fade to silence), then restores Auto, then (if shown) External. No sound comes back by itself. Then set_sound with a mood: the internal voice plays.
-3. Guest before listening. In the private window, open the player link (do not press Start listening). The box at the bottom has a small sentence, and "Add it to your AI app" and "Copy link" side by side on ONE row at the full width, with the labels on one line. Check at about 1300 px and 800 px wide, and on the phone.
-4. Guest after listening and owner controls. Press Start listening. At about 800 px wide, the buttons under the player sit on one row with the labels on one line ("Add it to your AI app", "Copy link", "QR code"), for the guest and for the owner (the owner has Copy link and QR code). The QR code popup still opens and closes (Esc, click outside, Close).
-5. Ended session. End a session (a short closing set_sound, then silence with end true). The page says "This session has ended." and shows NO link box and no Copy link button, in the owner's browser and in the private window.
-6. Regression. Silence with fade 6 while Strudel plays, then Strudel again: sound and picture fade together and come back. Same code twice: the notes say "same code and tempo as before". The synth: set_sound with a mood sounds normal and the picture follows. A session end with Strudel playing (on false, a closing set_sound, silence with end true) still fades quickly with no overlap.
-7. Phone. On the Android phone as owner with ?debug=1, Strudel playing, use the slider, Mute and the face buttons for a few minutes: no glitches or pulses. Write down the debug line.
+1. Picture with the music. Play Strudel (stack(s("bd*2, hh*8").bank("RolandTR909"), note("<c2 g2>").s("sawtooth").lpf(400).gain(.6)) at bpm 90, colour scene rain, sync beat, so that the wait for the next bar is long). Then silence with fade 6. When it is black and silent, send strudel_mode on again with the same code. Ask the user to watch and listen: do the picture and the music start together, on the same beat? Does the picture stay black until then? Repeat three times, with bpm 90 and bpm 130, and once with new code.
+2. Strudel from the synth. Play a synth sound first (set_sound), then strudel_mode on: the picture is already on (no black gap) and the music comes in on the next bar. Is that fine?
+3. Internal lock with a scene. Play Strudel with colour scene rain (or ripples). The owner locks Internal. Do the streaks fade out smoothly together with the sound and the background, over about 3 seconds, instead of disappearing at once? Restore Auto: nothing comes back by itself.
+4. Owner clears the box with a scene. Same with the Strudel box cleared: the streaks fade with the sound. (This worked before: check it still does.)
+5. Label. In the private window (not signed in), before pressing Start listening and after: the first button says "Add to your AI", with "Copy link" next to it on one row, labels on one line. On the phone as a guest too (it was not checked last time).
+6. Session end while Strudel plays. Play Strudel, then send, in this order: a closing set_sound (calm mood, transition 8) while strudel_mode is still ON (do NOT send on false first), then silence with end true. Does Strudel fade out in about 3 seconds at most, and the closing sound start only when it is almost gone? Do the picture and the sound end together, with "This session has ended."? (This path was not run in the last round.)
+7. Regression. Silence with fade 6, then Strudel again: picture and sound come back. Same code twice: the notes say "same code and tempo as before". The synth: set_sound with a mood sounds normal and the picture follows. Ticking the box again after clearing it: silence and black.
 
 ## What to report
 

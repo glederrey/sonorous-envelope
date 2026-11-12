@@ -41,7 +41,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     if (!cv || !ctx) { onFail(); return; }
     const clock = new BeatClock();
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
-    let lvl = -1, lvlFrom = 1, lvlAt = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
+    let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
       const r = cv.getBoundingClientRect();
@@ -89,8 +89,14 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
         // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
         // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
         const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;
-        if (lvlAt !== s.at) { lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; }
-        const p = Math.min(1, Math.max(0, (tau - delay) / span));
+        if (lvlAt !== s.at) {
+          lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; rampStart = null;
+          // Strudel comes in on the next bar: when the picture fades in from silence it waits for that bar, so it starts with the music
+          const fromQuiet = lvlFrom < 0.5 && target01 === 1 && s.state.engine === "strudel" && Boolean(s.state.pattern);
+          hold = fromQuiet ? Math.ceil(beatsAt(s.state, Math.max(0, (Date.now() + clockOffset.current - s.at) / 1000)) / 4 + 0.05) * 4 : null;
+        }
+        if (hold !== null && rampStart === null) { if (target >= hold) rampStart = tau; }
+        const p = hold !== null ? (rampStart === null ? 0 : Math.min(1, Math.max(0, (tau - rampStart) / span))) : Math.min(1, Math.max(0, (tau - delay) / span));
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
         if (lvl < 0.003) lvl = 0;
         const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff }, w / h);
