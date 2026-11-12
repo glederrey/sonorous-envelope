@@ -166,11 +166,21 @@ export class StrudelOutput {
     }
     if (this.dead) return;
     if (this.held) { this.held = false; this.renewFade(); }
+    const fresh = this.current === null; // a new start, not new code on a pattern that plays
     this.cancelStop();
     this.current = src;
     this.lastAlive = performance.now(); // the worker has been quiet since it was stopped: the watchdog must not read that as a freeze
     void this.ctx.resume();
     this.lastReport = null;
+    if (fresh) {
+      // a gentle way in, like the synth has: silent until the first bar, then up over half a second
+      const c = this.hooks.cycleNow(), toBar = (Math.ceil(c + 0.05) - c) * 240 / src.bpm, t = this.ctx.currentTime;
+      const start = t + Math.max(0, toBar - this.hooks.latency() - 0.05);
+      this.fade.gain.cancelScheduledValues(t);
+      this.fade.gain.setValueAtTime(0, t);
+      this.fade.gain.setValueAtTime(0, start);
+      this.fade.gain.linearRampToValueAtTime(1, start + 0.6);
+    }
     this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, seq: ++this.seq, ...this.clockMsg() });
     if (this.resync) clearInterval(this.resync);
     this.resync = setInterval(() => { this.stats.resyncs++; this.send({ kind: "clock", ...this.clockMsg() }); }, 4000);
