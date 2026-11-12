@@ -7,26 +7,28 @@ import "./globals.css";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains" });
 
-const DESCRIPTION = "Let the model hum while it thinks. A synthesizer and a colour field for an AI model.";
+const TITLE = "Sonorous Envelope: let the model hum while it thinks";
+const DESCRIPTION = "A remote MCP server that gives an AI model a synthesizer and a colour field. It sets the mood while it works, and you hear and see it beside the chat.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Sonorous Envelope",
+  title: TITLE,
   description: DESCRIPTION,
   applicationName: "Sonorous Envelope",
   // Google picks the favicon from these: an SVG plus PNGs that are a multiple of 48 px
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: "/brand/apple-touch-icon.png",
   },
   openGraph: {
-    type: "website", siteName: "Sonorous Envelope", title: "Sonorous Envelope", description: DESCRIPTION, url: "/",
-    images: [{ url: "/brand/og-image.png", width: 1200, height: 630, alt: "Sonorous Envelope" }],
+    type: "website", siteName: "Sonorous Envelope", title: TITLE, description: DESCRIPTION, url: "/",
+    images: [{ url: "/brand/og-image.png", width: 1200, height: 630, alt: "Sonorous Envelope: let the model hum while it thinks. An MCP server, a synthesizer and a colour field for your AI model." }],
   },
-  twitter: { card: "summary_large_image", title: "Sonorous Envelope", description: DESCRIPTION, images: ["/brand/og-image.png"] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/brand/og-image.png"] },
 };
 
 export const viewport: Viewport = {
