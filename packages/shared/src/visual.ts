@@ -1,6 +1,6 @@
 import type { ResolvedColour } from "@sonorous/engine";
 import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
-import { sceneHasLayers, sceneParts } from "./scenes";
+import { sceneBack, sceneParts } from "./scenes";
 
 export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
 
@@ -8,7 +8,7 @@ export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-k
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
 //
 // The flash rule (docs/safety.md): the beat pulse is designed to stay under the flash threshold by itself, at any tempo.
-//   - Large elements (the wash over the whole field, the glow, the fog and aurora layers) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
+//   - Large elements (the wash over the whole field, the glow, the aurora and mist layers) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
 //     at the worst pixel: the sum of their opacities, with no discount for the glow covering only part of the view.
 //     A white layer of opacity `a` over a base moves the luminance by at most `a`. WCAG 2.3.1 counts a flash from a 10% change,
 //     so nothing here is one, however fast it repeats.
@@ -28,7 +28,7 @@ export interface Frame {
   wash: number;
   /** a white radial highlight; `hold` is the fraction of the radius that stays at full opacity (hard edge) */
   glow: { x: number; y: number; r: number; a: number; hold: number } | null;
-  /** large soft things (fog, aurora): they share the luminance budget with the wash and the glow */
+  /** large soft things (aurora): they share the luminance budget with the wash and the glow */
   layers: Layer[];
   items: Item[];
 }
@@ -110,12 +110,15 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
+  /** width over height of the view, when known */
+  aspect?: number;
   /** A scene that is fading out while the colour's own fades in: the picture never swaps a scene at once. `k` is the progress of the new one, 0 to 1. */
   from?: { scene: SceneName | "none"; density?: number; speed?: number; k: number };
 }
 
 /** One frame of the motion, before the flash budget. Use `drawFrame` for the capped one. */
-export function visualFrame({ colour, bpm, beats, t, seed = 1, from }: FrameInput): Frame {
+export function visualFrame(input: FrameInput): Frame {
+  const { colour, bpm, beats, t, seed = 1, from } = input;
   const feel = colour.feel ?? NEUTRAL_FEEL;
   const motion = colour.motion;
   const scene = colour.scene ?? "none";
@@ -162,12 +165,12 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1, from }: FrameInpu
     }
   }
 
-  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red };
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6 };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
-  // A scene made of large soft layers (fog, an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
+  // A scene made of large soft layers (an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
   // motion's own wash and glow step back, by a factor that follows the crossfade, never a switch.
-  const layered = from && from.k < 0.999 ? clamp(from.k) * (sceneHasLayers(scene) ? 1 : 0) + (1 - clamp(from.k)) * (sceneHasLayers(from.scene) ? 1 : 0) : sceneHasLayers(scene) ? 1 : 0;
-  const back = lerp(1, 0.25, layered);
+  const kk = from && from.k < 0.999 ? clamp(from.k) : 1;
+  const back = kk * sceneBack(scene) + (1 - kk) * (from && kk < 1 ? sceneBack(from.scene) : 1);
   wash *= back; if (glow) glow = { ...glow, a: glow.a * back };
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
   return { wash, glow, layers: old ? [...now.layers, ...old.layers] : now.layers, items: old ? [...now.items, ...old.items] : now.items };
@@ -175,5 +178,5 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1, from }: FrameInpu
 
 /** The frame to paint: the motion, then the flash budget. */
 export function drawFrame(input: FrameInput, aspect = 0.6, minW = 0): Frame {
-  return capFrame(visualFrame(input), aspect, minW);
+  return capFrame(visualFrame({ ...input, aspect }), aspect, minW);
 }

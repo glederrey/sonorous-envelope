@@ -129,16 +129,18 @@ const ramp = (x: number, lo: number, hi: number) => clamp((x - lo) / (hi - lo));
  *  tension, each with the scene that carries it. Fuzzy, so neighbouring moods get neighbouring pictures; the strongest region wins, and a
  *  mood that fits none well (the middle of every axis) gets no scene. The form of each scene then follows the same axes (`feel`). */
 export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene"]>; density: number; speed: number } | null {
-  const { warmth: w, closeness: c, joy: j, calm: k } = m, t = clamp(m.tension ?? 0);
+  const { warmth: w, closeness: c, joy: j, calm: k, spontaneity: s2 } = m, t = clamp(m.tension ?? 0);
   const lowJoy = 1 - ramp(j, 0.2, 0.45), calm = ramp(k, 0.35, 0.65), notTense = 1 - ramp(t, 0.3, 0.6);
   const anger = ramp(t, 0.35, 0.65) * (1 - ramp(j, 0.45, 0.7)) * (1 - ramp(k, 0.5, 0.75));
   const score: Array<[NonNullable<ResolvedColour["scene"]>, number]> = [
     ["snow", lowJoy * ramp(k, 0.6, 0.85) * (1 - ramp(w, 0.35, 0.55)) * (1 - ramp(c, 0.2, 0.4)) * notTense], // lonely hush: cold, distant, very calm
     ["rain", Math.max(lowJoy * calm * notTense * (1 - ramp(w, 0.5, 0.75)),            // sad: cold, low, quiet, a thin rain
                       anger * (1 - ramp(w, 0.1, 0.3)))],                               // icy anger: a storm
-    ["fog", lowJoy * calm * notTense * ramp(w, 0.4, 0.65)],                            // melancholy: warm, low, quiet, a slow fog
-    ["embers", Math.max(anger * ramp(w, 0.05, 0.25),                                   // anger: sparks that jerk and flicker
-                        ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9)))], // tender: a hearth
+    ["embers", anger * ramp(w, 0.05, 0.25)],                                           // anger: sparks that jerk and flicker
+    ["fireflies", ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9))], // tender: soft lights that glow on and off
+    ["leaves", ramp(j, 0.05, 0.2) * (1 - ramp(j, 0.4, 0.6)) * ramp(w, 0.55, 0.75) * ramp(k, 0.25, 0.45) * notTense], // wistful and melancholic: warm, low joy
+    ["stars", ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
+    ["bubbles", ramp(j, 0.6, 0.8) * ramp(s2, 0.65, 0.9) * (1 - ramp(k, 0.7, 0.9)) * (1 - ramp(t, 0.4, 0.7))], // playful: rings that rise
     ["ripples", ramp(t, 0.3, 0.55) * ramp(j, 0.35, 0.55) * (1 - ramp(k, 0.5, 0.8))],   // nervous: rings that scatter
     ["motes", ramp(j, 0.55, 0.8) * (1 - ramp(k, 0.7, 0.95)) * (1 - ramp(t, 0.4, 0.7))], // happy: bright lights that rise
     ["aurora", ramp(j, 0.55, 0.8) * ramp(k, 0.65, 0.9) * (1 - ramp(c, 0.35, 0.6)) * notTense], // awe: open, high and slow

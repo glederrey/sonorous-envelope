@@ -109,14 +109,14 @@ describe("the flash budget", () => {
       const c = base({ h: 0, s: 1, l: 0.45, motion: "pulse", scene, density: 0.8, sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0.9 } });
       const total = (beats: number) => largeSwing(drawFrame({ colour: c, bpm: 120, beats, t: 0, seed: 4 }));
       const vals = [0, 0.1, 0.25, 0.5, 0.75].map((p) => total(40 + p));
-      if (scene === "aurora" || scene === "fog") continue; // these drift on their own slow clock, not on the beat: checked below
+      if (scene === "aurora") continue; // these drift on their own slow clock, not on the beat: checked below
       expect(Math.max(...vals) - Math.min(...vals)).toBeLessThan(0.004);
     }
-    const slow = (scene: "aurora" | "fog") => { const c = base({ h: 0, s: 1, l: 0.45, scene, density: 0.8, sync: "beat" }); const v = [0, 0.25, 0.5, 0.75].map((p) => largeSwing(drawFrame({ colour: c, bpm: 120, beats: 40 + p, t: 0 }))); return Math.max(...v) - Math.min(...v); };
-    expect(slow("aurora")).toBeLessThan(0.004); expect(slow("fog")).toBeLessThan(0.004);
+    const slow = (scene: "aurora") => { const c = base({ h: 0, s: 1, l: 0.45, scene, density: 0.8, sync: "beat" }); const v = [0, 0.25, 0.5, 0.75].map((p) => largeSwing(drawFrame({ colour: c, bpm: 120, beats: 40 + p, t: 0 }))); return Math.max(...v) - Math.min(...v); };
+    expect(slow("aurora")).toBeLessThan(0.004);
   });
   it("steps the wash and glow back with the crossfade, never in one frame", () => {
-    const c = base({ motion: "breathe", scene: "fog", density: 0.6, sync: "phrase" });
+    const c = base({ motion: "breathe", scene: "aurora", density: 0.6, sync: "phrase" });
     const g = (from?: { k: number }) => drawFrame({ colour: c, bpm: 100, beats: 24, t: 0, seed: 2, from: from ? { scene: "motes", ...from } : undefined }).glow!.a;
     expect(g()).toBeCloseTo(g({ k: 0.9995 }), 3);
     expect(g({ k: 0.998 })).toBeCloseTo(g(), 3);
@@ -155,14 +155,22 @@ describe("the flash budget", () => {
     }
   });
   it("a scene fades in and out over the crossfade: nothing of the new one at k=0, nothing of the old one at k=1", () => {
-    const c = base({ scene: "fog", density: 0.8 });
-    const at = (k: number) => drawFrame({ colour: c, bpm: 90, beats: 10, t: 0, seed: 3, from: { scene: "rain", density: 0.8, speed: 0.4, k } });
-    expect(at(0).layers.every((l) => l.a < 1e-9 || l.kind === "blob")).toBe(true);
+    const c = base({ scene: "aurora", density: 0.8 });
+    const at = (k: number) => drawFrame({ colour: c, bpm: 90, beats: 10, t: 0, seed: 3, from: { scene: "bubbles", density: 0.8, speed: 0.4, k } });
     expect(largeSwing(at(0.5)) - at(0.5).wash).toBeGreaterThan(0);
-    const drops = (k: number) => at(k).items.filter((i) => i.kind === "streak").length;
+    const drops = (k: number) => at(k).items.filter((i) => i.kind === "ring").length;
     expect(drops(1)).toBe(0);
-    expect(drops(0)).toBeGreaterThan(20);
+    expect(drops(0)).toBeGreaterThan(10);
     expect(at(0).layers.reduce((s, l) => s + l.a, 0)).toBeLessThan(at(1).layers.reduce((s, l) => s + l.a, 0));
+  });
+  it("waves never cross, in any mood, tempo or shape of view", () => {
+    for (const aspect of [0.5, 1, 1.8]) for (const density of [0.1, 0.6, 1]) for (const jitter of [0, 0.9]) for (const lift of [0, 1]) for (let beats = 0; beats < 30; beats += 0.37) {
+      const f = drawFrame({ colour: base({ scene: "waves", density, speed: 1, sync: "beat", feel: { ...moodToFeel(mood), jitter, lift, depth: 1 } }), bpm: 150, beats, t: 0, seed: 3 }, aspect);
+      const ws = f.items.filter((i) => i.kind === "wave");
+      // a wave's swing is in units of the smaller side, its line in fractions of the height
+      const px = (i: (typeof ws)[number], x: number) => { const a = (2 * Math.PI * x) / Math.max(0.05, i.k ?? 0.4) + (i.ph ?? 0), sine = Math.sin(a), tri = (2 / Math.PI) * Math.asin(sine); return i.y + (i.r * (tri + (sine - tri) * (i.soft ?? 1))) * Math.min(aspect, 1); };
+      for (let x = 0; x <= 1; x += 0.01) for (let j = 1; j < ws.length; j++) expect(px(ws[j], x)).toBeGreaterThan(px(ws[j - 1], x));
+    }
   });
   it("every scene draws something, and the layers of a scene are bounded blobs and ribbons", () => {
     for (const scene of SCENES) {
@@ -180,12 +188,15 @@ describe("emotions in the picture", () => {
     expect(e({})).toBe("none");
     expect(e({ joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 })).toBe("rain");     // sad
     expect(e({ joy: 0.15, calm: 0.85, warmth: 0.2, closeness: 0.1, spontaneity: 0.2, tension: 0 })).toBe("snow");   // lonely
-    expect(e({ joy: 0.25, calm: 0.8, warmth: 0.75, closeness: 0.7, spontaneity: 0.3, tension: 0.05 })).toBe("fog");    // melancholic
+    expect(e({ joy: 0.25, calm: 0.8, warmth: 0.75, closeness: 0.7, spontaneity: 0.3, tension: 0.05 })).toBe("leaves");    // melancholic
     expect(e({ joy: 0.12, calm: 0.12, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.85 })).toBe("embers"); // angry
     expect(e({ joy: 0.12, calm: 0.12, warmth: 0.1, closeness: 0.3, spontaneity: 0.6, tension: 0.85 })).toBe("rain");   // cold anger: a storm
     expect(e({ joy: 0.9, calm: 0.3, warmth: 0.7, closeness: 0.6, spontaneity: 0.6, tension: 0 })).toBe("motes");       // happy
     expect(e({ joy: 0.7, calm: 0.9, warmth: 0.5, closeness: 0.1, spontaneity: 0.3, tension: 0 })).toBe("aurora");      // awe
-    expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("embers");     // tender
+    expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("fireflies");  // tender
+    expect(e({ joy: 0.85, calm: 0.4, warmth: 0.7, closeness: 0.6, spontaneity: 0.9, tension: 0 })).toBe("bubbles");    // playful
+    expect(e({ joy: 0.4, calm: 0.5, warmth: 0.8, closeness: 0.6, spontaneity: 0.4, tension: 0 })).toBe("leaves");      // nostalgic
+    expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.2, spontaneity: 0.2, tension: 0 })).toBe("stars");        // serene
     expect(e({ joy: 0.55, calm: 0.25, warmth: 0.4, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
   });
   it("shapes the same scene by the mood: a storm leans and flickers, a drizzle falls straight", () => {

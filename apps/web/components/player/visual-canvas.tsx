@@ -69,9 +69,9 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
       for (const l of f.layers) {
         if (l.a <= 0.0005) continue;
         if (l.kind === "blob") {
-          const r = Math.max(1, l.r * m), g = ctx.createRadialGradient(l.x * w, l.y * h, 0, l.x * w, l.y * h, r);
-          g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, undefined, l.sat ?? 30)); g.addColorStop(0.5, hsla(l.dh, l.l ?? 88, l.a * 0.5, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, undefined, l.sat ?? 30));
-          ctx.fillStyle = g; ctx.fillRect(l.x * w - r, l.y * h - r, 2 * r, 2 * r);
+          const r = Math.max(1, l.r * m), sx = l.sx ?? 1, g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+          g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, undefined, l.sat ?? 30)); g.addColorStop(0.3, hsla(l.dh, l.l ?? 88, l.a * 0.85, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, undefined, l.sat ?? 30));
+          ctx.setTransform(sx, 0, 0, 1, l.x * w, l.y * h); ctx.fillStyle = g; ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.setTransform(1, 0, 0, 1, 0, 0);
         } else if (l.ys && l.cols && l.h) {
           // a curtain: one gradient in local coordinates (bright at the lower edge, fading upwards), moved to each column's edge
           const H = l.h * h, n = l.ys.length, cw = w / n, g = ctx.createLinearGradient(0, -H, 0, H * 0.1);

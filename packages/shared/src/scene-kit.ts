@@ -1,6 +1,6 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "fog", "aurora", "waves"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
@@ -27,11 +27,13 @@ export interface Item {
   k?: number; ph?: number;
 }
 
-/** A large soft thing (fog, an aurora). It counts in the luminance budget with the wash and the glow. */
+/** A large soft thing (an aurora). It counts in the luminance budget with the wash and the glow. */
 export interface Layer {
   kind: "blob" | "ribbon";
   /** blob: centre and radius (fraction of the smaller side). Ribbon: `y` is unused, see `ys` */
   x: number; y: number; r: number;
+  /** blob: stretch along x */
+  sx?: number;
   /** the most opaque it ever is (a white layer of opacity `a` moves the luminance by at most `a`) */
   a: number;
   dh: number;
@@ -52,6 +54,8 @@ export interface Clock {
   sync: "beat" | "phrase" | "free"; seed: number;
   /** 0 when the colours are saturated red: no large element may pulse then (the beat shows in the small ones) */
   red: number;
+  /** width over height of the view (the waves keep their swing under the gap between lines) */
+  aspect: number;
 }
 export type Feel = { depth: number; lift: number; jitter: number; soft: number; near: number; irreg: number };
 

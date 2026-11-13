@@ -2,7 +2,7 @@
 
 Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
 
-Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Eight scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `fog`, `aurora`, `waves`), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
+Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Eleven scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
 
 ### Emotions in the picture
 **Libraries (decision 2026-11-13).** None draws the picture. Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the flash budget (`capFrame`) and the tests cannot see what they draw, and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth; Canvas 2D paints it. The noise the scenes use is a 6-line smooth value noise on the engine's own `hash01` (`scene-kit.ts`), seeded, so nothing was added to the dependencies. A library would be worth it only for a per-pixel scene (a fluid or a real shader), which the budget also makes pointless at 0.09 opacity.
@@ -14,20 +14,22 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | sad | rain | thin, straight, slow drops; a mist at the foot |
 | angry (icy) | rain | the same drops slanted by the tension, fast |
 | angry | embers | many sharp sparks, flickering and jerking, orange whatever the hue; the hue itself is pulled to red |
-| melancholic | fog | one or two huge banks, low, with dust sinking |
+| melancholic, nostalgic | leaves | small autumn-coloured shapes tumbling down, slow and warm |
 | lonely | snow | slow flakes, nearly straight; a flurry when joy or spontaneity rise |
-| tender | embers | few, big, soft, slow: a hearth |
-| happy, excited | motes | bright lights that rise |
-| content, relief | waves | long low lines in perspective, swelling on the beat |
-| awe | aurora | curtains of colour, smooth; rippling with tension |
+| tender | fireflies | soft lights wandering and glowing on and off |
+| playful, excited | bubbles | thin rings rising and wobbling |
+| serene | stars | a twinkling sky, now and then a shooting star |
+| happy | motes | bright lights that rise |
+| content, relief | waves | parallel lines in perspective, all running one way at one pace, swing held under the gap so they never cross |
+| awe | aurora | one curtain of colour with bright rays; rippling with tension |
 | nervous | ripples | rings that scatter |
 | neutral | none | nothing (a quiet sound is the honest answer) |
 
 `moodToScene` scores each region of the axes and takes the strongest; below 0.3 it returns nothing. The scene is marked `sceneAuto` and is not reported back to the model in `playing.picture` (only what it set). The model's own `scene` replaces it, `none` turns it off. Density follows how strongly the mood fits, speed follows calm and tension.
 
-**Budget.** Fog, aurora, the mist under the rain and the hearth light under the embers are large elements: they count in the 0.09 luminance swing with the wash and the glow (the motion's own wash and glow step back to a quarter when a scene has layers). That makes them subtle on a bright field and fine on a dark one. If they are too faint to carry the emotion, that is a decision for Gael (a different bound, or the layer colour counted by its real luminance), not something to tune around. A change of scene is a crossfade of at least 1.5 s (the state's transition time, up to 8 s), so the swap itself is never a step.
+**Budget.** The aurora's curtain, the mist under the rain and the hearth light under the embers are large elements: they count in the 0.09 luminance swing with the wash and the glow (the motion's own wash and glow step back to a quarter when a scene has layers). The aurora gets the whole budget (the motion's own glow steps back to 8%) and adds its rays as small items, which have their own budget; that is what makes it visible. A fog scene was tried (flat banks) and removed: at 0.09 it was invisible, and with small elements it was only motes with fewer motes. It could come back if the bound changes. If they are too faint to carry the emotion, that is a decision for Gael (a different bound, or the layer colour counted by its real luminance), not something to tune around. A change of scene is a crossfade of at least 1.5 s (the state's transition time, up to 8 s), so the swap itself is never a step.
 
-**Known weak spots.** Fog is the faintest (see the budget). Aurora is the heaviest to draw (36 columns per ribbon); on a 4x throttled CPU it was the only scene that made the canvas shrink. The rain depth and splashes are tuned by eye on the lab only; the player has not been tried with a real session.
+**Known weak spots.** Aurora is the heaviest to draw (36 columns per ribbon); on a 4x throttled CPU it was the only scene that made the canvas shrink. The rain depth and splashes are tuned by eye on the lab only; the player has not been tried with a real session.
 
 ### How the mood shapes the motion
 Starting values, tuned by eye, not backed by evidence. They come from the same stretched axes as the sound (`moodToFeel`), so the picture cannot disagree with the sound, and none of them is only a hue.

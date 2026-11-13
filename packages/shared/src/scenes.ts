@@ -10,7 +10,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "fog" || s === "aurora" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "rain" || s === "embers";
+/** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
+export const sceneBack = (s: SceneName | "none") => s === "aurora" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -20,9 +22,12 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "rain" ? rain(d, v, feel, c)
     : scene === "snow" ? snow(d, v, feel, c)
     : scene === "embers" ? embers(d, v, feel, c)
-    : scene === "fog" ? fog(d, v, feel, c)
     : scene === "aurora" ? aurora(d, v, feel, c)
-    : waves(d, v, feel, c);
+    : scene === "waves" ? waves(d, v, feel, c)
+    : scene === "fireflies" ? fireflies(d, v, feel, c)
+    : scene === "stars" ? stars(d, v, feel, c)
+    : scene === "bubbles" ? bubbles(d, v, feel, c)
+    : leaves(d, v, feel, c);
   return fade(out, k);
 }
 
@@ -117,51 +122,92 @@ function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   return { items, layers };
 }
 
-/** Fog: one or two huge soft banks drifting past, low when the mood sinks, breathing slowly, with a little dust sinking through it. */
-function fog(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = 1 + Math.round(density * 1.5), layers: Layer[] = [], items: Item[] = [];
-  for (let i = 0; i < n; i++) {
-    const u = frac(hash01(i, c.seed) + c.b * lerp(0.0008, 0.0035, speed) * (i % 2 ? -1 : 1));
-    const edge = Math.sin(Math.PI * u) ** 0.7;
-    const y = clamp(lerp(0.45, 0.95, hash01(i, c.seed + 1)) + 0.12 * -c.lift2 * 0.5 + 0.03 * noise1(c.b / 50 + i * 5, c.seed + 4), 0.3, 1.05);
-    layers.push({ kind: "blob", x: lerp(-0.2, 1.2, u), y, r: lerp(0.4, 0.75, hash01(i, c.seed + 2)) * lerp(0.85, 1.2, feel.near) * (1 + 0.05 * Math.sin(2 * Math.PI * (c.b / 32 + hash01(i, c.seed + 3)))),
-      a: 0.09 * edge, dh: 20 * (hash01(i, c.seed + 5) - 0.5) });
-  }
-  const dust = Math.round(lerp(4, 16, density)), dir = c.lift2 >= 0.3 ? -1 : 1; // sinks, unless the mood is bright
-  for (let i = 0; i < dust; i++) {
-    const z = hash01(i, c.seed + 2), y = frac(hash01(i, c.seed + 1) + dir * c.b * lerp(0.004, 0.012, speed) * (0.5 + z));
-    items.push({ kind: "dot", x: hash01(i, c.seed) + 0.02 * Math.sin(2 * Math.PI * (c.b / 40 + z)), y, r: lerp(0.003, 0.007, z), w: 0, soft: 0.7, a: 0.3 * Math.min(1, Math.sin(Math.PI * y) * 3), l: 92 });
-  }
-  return { items, layers };
-}
-
-/** Aurora: curtains of light hanging from a wavering lower edge. Smooth for a calm mood; rippling fast for a tense one. */
+/** Aurora: one curtain of colour hanging from a wavering lower edge, with bright rays inside it. The curtain is a large layer (it has the whole budget); the rays are small items, which have a budget of their own. */
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const nr = density > 0.55 ? 2 : 1, N = 36, layers: Layer[] = [], DH = [55, -65, 130, -25];
-  const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.7 : 0.55 + 0.45 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
-  for (let j = 0; j < nr; j++) {
-    const ys: number[] = [], cols: number[] = [];
-    for (let i = 0; i < N; i++) {
-      ys.push(0.5 - 0.07 * j + 0.075 * noise1(i * 0.17 + c.b * drift + j * 10, c.seed + j) + 0.03 * Math.sin(i * 0.31 + c.b * drift * 2 + j));
-      cols.push(clamp(0.5 + 0.6 * noise1(i * 0.4 - c.b * drift * 0.8 + j * 7, c.seed + 20 + j) + feel.jitter * 0.35 * noise1(i * 0.9 + c.b * 0.7, c.seed + 30 + j)));
-    }
-    layers.push({ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h: lerp(0.2, 0.42, 1 - feel.jitter * 0.6) * (1 - 0.1 * j), a: 0.09 * swell * (1 - 0.3 * j), dh: DH[j], sat: 90, l: 62 });
+  const N = 48, ys: number[] = [], cols: number[] = [], items: Item[] = [];
+  const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.8 : 0.7 + 0.3 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
+  const h = lerp(0.28, 0.5, 1 - feel.jitter * 0.6);
+  for (let i = 0; i < N; i++) {
+    ys.push(0.52 + 0.08 * noise1(i * 0.12 + c.b * drift, c.seed) + 0.03 * Math.sin(i * 0.25 + c.b * drift * 2));
+    cols.push(clamp(0.45 + 0.9 * noise1(i * 0.3 - c.b * drift * 0.8, c.seed + 20) + feel.jitter * 0.4 * noise1(i * 0.9 + c.b * 0.7, c.seed + 30)));
   }
-  return { items: [], layers };
+  const rays = Math.round(lerp(8, 26, density));
+  for (let r = 0; r < rays; r++) {
+    const col = Math.floor(hash01(r, c.seed + 40) * N), k = cols[col], len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k;
+    if (k < 0.25) continue;
+    const flick = 0.6 + 0.4 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43)));
+    items.push({ kind: "streak", x: (col + 0.5) / N, y: ys[col] - len, r: len, w: 0.004 + 0.004 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.5 * k * flick * swell, dh: r % 2 ? 55 : -60, sat: 90, l: 70 } as Item);
+  }
+  return { items, layers: [{ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: 0.09 * swell, dh: 55, sat: 90, l: 62 }] };
 }
 
-/** Waves: lines of water in perspective. Calm: long, low and slow. Joy lifts them; tension makes them short and jagged; the beat swells them. */
+/** Waves: parallel lines of water in perspective, all running the same way at the same pace. Each line's swing is held below its gap to the next, so they can never cross. */
 function waves(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(3, 8, density)), items: Item[] = [];
+  const ys: number[] = [], want: number[] = [];
   for (let j = 0; j < n; j++) {
     const q = n === 1 ? 0.5 : j / (n - 1); // 0 far, 1 near
-    const dirn = j % 2 ? -1 : 1;
+    ys.push(0.5 + 0.43 * q ** 1.15);
+    want.push(lerp(0.005, 0.03, q) * lerp(0.45, 1.5, feel.depth) * (0.7 + 0.6 * clamp(feel.lift)) * (1 + 0.28 * c.hit));
+  }
+  const ph = 2 * Math.PI * c.b * lerp(0.03, 0.16, speed); // one phase for all: the lines travel together
+  for (let j = 0; j < n; j++) {
+    const q = n === 1 ? 0.5 : j / (n - 1);
+    const gap = Math.min(j > 0 ? ys[j] - ys[j - 1] : 1, j < n - 1 ? ys[j + 1] - ys[j] : 1) * (c.aspect > 0 && c.aspect < 1 ? 1 / c.aspect : 1); // the gap to the nearest line, from fractions of the height to the smaller side
     items.push({
-      kind: "wave", x: 0, y: 0.5 + 0.43 * q ** 1.15 + 0.01 * noise1(c.b / 20 + j * 4, c.seed + j),
-      r: lerp(0.005, 0.03, q) * lerp(0.45, 1.5, feel.depth) * (0.7 + 0.6 * clamp(feel.lift)) * (1 + 0.28 * c.hit),
+      kind: "wave", x: 0, y: ys[j], r: Math.min(want[j], gap * 0.42), // two neighbours swing 0.42 of the gap each at most: they cannot meet
       w: lerp(0.0014, 0.0042, q) * lerp(1, 1.4, feel.near), a: lerp(0.12, 0.38, q) * (0.8 + 0.2 * c.amp),
-      k: lerp(0.24, 0.55, q) * lerp(1, 0.65, feel.jitter), ph: 2 * Math.PI * c.b * lerp(0.03, 0.16, speed) * dirn + j * 1.7, soft: clamp(feel.soft * 1.2 - feel.jitter * 0.6),
+      k: lerp(0.3, 0.5, q) * lerp(1, 0.7, feel.jitter), ph: ph + j * 0.5, soft: clamp(feel.soft * 1.2 - feel.jitter * 0.6),
     });
+  }
+  return { items, layers: [] };
+}
+
+/** Fireflies: soft lights that wander slowly and glow on and off, each on its own slow rhythm. Tension makes them blink quicker. */
+function fireflies(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(5, 30, density)), items: Item[] = [], wander = lerp(0.01, 0.05, speed);
+  for (let i = 0; i < n; i++) {
+    const ph = hash01(i, c.seed + 3), per = lerp(11, 5, feel.jitter) * (0.7 + 0.6 * hash01(i, c.seed + 4));
+    const glow = Math.max(0, Math.sin(2 * Math.PI * (c.b / per + ph))) ** 3;
+    items.push({ kind: "dot", x: 0.1 + 0.8 * hash01(i, c.seed) + 0.07 * noise1(c.b * wander + i * 9, c.seed + 5), y: 0.1 + 0.8 * hash01(i, c.seed + 1) + 0.07 * noise1(c.b * wander + i * 9 + 50, c.seed + 6),
+      r: lerp(0.007, 0.016, feel.near) * (0.7 + 0.6 * hash01(i, c.seed + 2)) * (0.8 + 0.4 * glow), w: 0, soft: 1, a: 0.12 + 0.55 * glow * (1 + 0.3 * c.hit), hue: 62, sat: 85, l: 72 });
+  }
+  return { items, layers: [] };
+}
+
+/** Stars: a fixed sky that twinkles slowly and turns a little; now and then a shooting star. Quiet, open, far away. */
+function stars(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(14, 70, density)), items: Item[] = [];
+  for (let i = 0; i < n; i++) {
+    const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3);
+    const tw = 0.55 + 0.45 * Math.sin(2 * Math.PI * (c.b / (6 + 10 * hash01(i, c.seed + 4) - 4 * feel.jitter) + ph));
+    items.push({ kind: "dot", x: frac(hash01(i, c.seed) + c.b * 0.0003 * (0.5 + speed)), y: hash01(i, c.seed + 1) * 0.85, r: lerp(0.0015, 0.0042, z) * lerp(0.9, 1.4, feel.near), w: 0, soft: z > 0.8 ? 0.8 : 0, a: lerp(0.3, 0.7, z) * tw, l: 96 });
+  }
+  const per = lerp(40, 18, speed), idx = Math.floor(c.b / per), u = (c.b / per - idx) / 0.05; // a shooting star lasts 5% of its period
+  if (u >= 0 && u < 1 && hash01(idx, c.seed + 7) > 0.35) {
+    const x0 = 0.2 + 0.6 * hash01(idx, c.seed + 8), y0 = 0.05 + 0.3 * hash01(idx, c.seed + 9);
+    items.push({ kind: "streak", x: x0 + 0.3 * u, y: y0 + 0.17 * u, r: 0.1, w: 0.002, ang: Math.atan2(0.3, -0.17) - Math.PI, tail: true, a: 0.6 * Math.sin(Math.PI * u), l: 96 });
+  }
+  return { items, layers: [] };
+}
+
+/** Bubbles: thin rings that rise and wobble, small and large. Playful: more of them, quicker, with spontaneity. */
+function bubbles(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(4, 22, density)), items: Item[] = [];
+  for (let i = 0; i < n; i++) {
+    const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3), t = c.b * lerp(0.02, 0.07, speed) * (0.6 + 0.8 * z) + ph, cyc = Math.floor(t), y = 1.06 - (t - cyc) * 1.14;
+    items.push({ kind: "ring", x: hash01(i + cyc * 977, c.seed) + (0.015 + 0.03 * feel.irreg) * Math.sin(2 * Math.PI * (c.b / (8 + 8 * ph) + ph)), y, r: lerp(0.01, 0.042, z) * (1 + 0.2 * c.hit), w: lerp(0.0014, 0.003, z), a: lerp(0.3, 0.5, z) * Math.min(1, Math.sin(Math.PI * Math.min(1, Math.max(0, y))) * 3), l: 94 });
+  }
+  return { items, layers: [] };
+}
+
+/** Leaves: small tumbling shapes that fall and sway, in the colours of autumn whatever the field's hue. Wistful: slow, warm, a little untidy. */
+function leaves(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(4, 26, density)), items: Item[] = [];
+  for (let i = 0; i < n; i++) {
+    const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3), y = frac(hash01(i, c.seed + 1) + c.b * lerp(0.02, 0.06, speed) * (0.6 + 0.8 * z));
+    items.push({ kind: "streak", x: hash01(i, c.seed) + (0.03 + 0.05 * feel.irreg) * Math.sin(2 * Math.PI * (c.b / (10 + 10 * ph) + ph)), y, r: lerp(0.016, 0.04, z), w: lerp(0.006, 0.012, z), ang: 1.1 * Math.sin(2 * Math.PI * (c.b / (6 + 6 * ph) + ph)),
+      a: 0.5 * Math.min(1, Math.sin(Math.PI * y) * 3), hue: 18 + 28 * hash01(i, c.seed + 5), sat: 70, l: 52 + 12 * z });
   }
   return { items, layers: [] };
 }
