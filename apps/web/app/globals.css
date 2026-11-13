@@ -1204,3 +1204,4 @@ html:has(.pl-field) .se-header {
 .add-note { margin: 20px 0 0; }
 @media (max-width: 760px) { .add-panel { padding: 20px; } }
 .add-tabs + .gd-section { margin-top: 56px; padding-top: 40px; border-top: 1px solid var(--line); }
+.add-lede { font-size: clamp(17px, 1.7vw, 20px); }

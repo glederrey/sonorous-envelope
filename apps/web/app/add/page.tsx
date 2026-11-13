@@ -13,10 +13,7 @@ export default function AddPage() {
       <main className="doc-page">
         <div className="doc-head">
           <h1 className="doc-title">Add to your AI</h1>
-          <p>
-            Sonorous Envelope is a remote MCP server: one URL that an AI app can connect to. Adding it takes a minute, and the sound and
-            colour then play in a page you open next to the chat.
-          </p>
+          <p className="se-muted add-lede">Paste one URL into your AI app. It takes about a minute.</p>
           <div style={{ maxWidth: 560 }}>
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
           </div>
