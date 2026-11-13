@@ -137,7 +137,7 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["rain", Math.max(lowJoy * calm * (1 - ramp(t, 0.15, 0.3)) * (1 - ramp(w, 0.5, 0.75)),            // sad: cold, low, quiet, a thin rain
                       anger * (1 - ramp(w, 0.1, 0.3)))],                               // icy anger: a storm
     ["embers", anger * ramp(w, 0.05, 0.25)],                                           // anger: sparks that jerk and flicker
-    ["fireflies", Math.max(ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9)), ramp(w, 0.5, 0.75) * ramp(j, 0.5, 0.7) * (1 - ramp(j, 0.85, 1)) * ramp(k, 0.45, 0.7) * (1 - ramp(c, 0.7, 0.95)) * notTense)], // tender, hopeful: soft lights that glow on and off
+    ["fireflies", ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9))], // tender: soft lights that glow on and off
     ["leaves", ramp(j, 0.05, 0.2) * (1 - ramp(j, 0.4, 0.6)) * ramp(w, 0.55, 0.75) * ramp(k, 0.25, 0.45) * ramp(c, 0.35, 0.55) * notTense], // wistful and melancholic: warm, low joy
     ["stars", ramp(w, 0.2, 0.4) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
     ["fireworks", ramp(j, 0.8, 0.95) * (1 - ramp(k, 0.1, 0.3)) * notTense],                                      // elation: bursts of light
@@ -151,6 +151,10 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["flock", ramp(s2, 0.8, 1) * ramp(k, 0.3, 0.55) * (1 - ramp(k, 0.65, 0.85)) * (1 - ramp(t, 0.2, 0.45)) * ramp(j, 0.2, 0.4) * (1 - ramp(j, 0.6, 0.8))], // swept up, restless: a flock
     ["bubbles", ramp(j, 0.6, 0.8) * ramp(s2, 0.65, 0.9) * (1 - ramp(k, 0.7, 0.9)) * (1 - ramp(t, 0.4, 0.7))], // playful: rings that rise
     ["ripples", ramp(t, 0.3, 0.55) * ramp(j, 0.35, 0.55) * (1 - ramp(k, 0.5, 0.8))],   // nervous: rings that scatter
+    ["fire", ramp(w, 0.5, 0.75) * ramp(j, 0.5, 0.7) * (1 - ramp(j, 0.85, 1)) * ramp(k, 0.45, 0.7) * (1 - ramp(c, 0.7, 0.95)) * notTense], // hope, warmth: a flame that lifts
+    ["lightning", ramp(t, 0.45, 0.7) * (1 - ramp(j, 0.25, 0.45)) * ramp(k, 0.4, 0.6) * (1 - ramp(k, 0.8, 0.95))], // dread, foreboding: tense and quiet, a storm that has not broken
+    ["warp", 1.25 * ramp(w, 0.25, 0.45) * ramp(j, 0.55, 0.75) * (1 - ramp(j, 0.85, 1)) * ramp(k, 0.05, 0.2) * (1 - ramp(k, 0.25, 0.45)) * (1 - ramp(c, 0.4, 0.6)) * ramp(s2, 0.4, 0.6) * (1 - ramp(t, 0.4, 0.7))], // eager, anticipating: rushing forward (a little above 1, so it beats the happy motes where both apply)
+    ["caustics", (1 - ramp(w, 0.4, 0.6)) * ramp(j, 0.55, 0.75) * ramp(k, 0.55, 0.8) * ramp(c, 0.3, 0.5) * (1 - ramp(c, 0.65, 0.85)) * ramp(s2, 0.45, 0.65) * notTense], // dreamy, wonder: light playing on water
     ["motes", ramp(j, 0.55, 0.8) * (1 - ramp(k, 0.45, 0.65)) * (1 - ramp(t, 0.4, 0.7))], // happy: bright lights that rise
     ["seeds", ramp(j, 0.55, 0.75) * ramp(k, 0.4, 0.65) * (1 - ramp(k, 0.85, 1)) * ramp(s2, 0.3, 0.5) * (1 - ramp(s2, 0.7, 0.9)) * (1 - ramp(c, 0.5, 0.75)) * notTense], // light and free: seeds on the air
     ["tide", ramp(k, 0.7, 0.9) * ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.6, 0.75)) * ramp(c, 0.4, 0.6) * notTense], // peaceful, accepting: a line of foam
