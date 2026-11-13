@@ -63,6 +63,12 @@ export default async function Home() {
             A small synthesizer and a colour field for an AI model. It sets the mood while it works, you hear and see it
             beside the chat, and it hears back what really played. When you ask for music, it can also write it live in Strudel.
           </p>
+          <ul className="lp-chips" aria-label="What it has">
+            <li>A synthesizer</li>
+            <li>A colour field</li>
+            <li>30 visuals</li>
+            <li>Strudel</li>
+          </ul>
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">

@@ -97,7 +97,7 @@ In the internal face the owner gets a collapsed "Settings" block with "Fade to s
 - Share: shows the player link with a Copy button. Anyone with it can listen. (Built: the signed-in owner sees "Copy link to share" under the controls, and `/sessions` lists every session with Open and Copy buttons.)
 - End session.
 
-Listeners (anyone without the account) see only the colour and sound, the status line, hide controls, mute and volume (which change nothing for anyone else), the share row and "Add to your AI". They do **not** get the owner panel, limits, or reaction buttons. Instead of the share link they see "Want Claude to make sound for you too? Add it to your Claude", linking to the landing page's install steps (`/#add`).
+Listeners (anyone without the account) see only the colour and sound, the status line, hide controls, mute and volume (which change nothing for anyone else), the share row and "Add to your AI". They do **not** get the owner panel, limits, or reaction buttons. Next to the share link they see the button "Add to your AI", linking to the landing page's install steps (`/#add`).
 
 ### Presence between turns
 The model does not exist between two turns, but a sound that keeps playing reads as a heartbeat. In the first outside test people said goodbye several times instead of closing the window, as if leaving meant abandoning someone. The sound must not say there is someone there when there is not. Two measures:
