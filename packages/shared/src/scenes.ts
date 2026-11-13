@@ -138,7 +138,7 @@ function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
 const sstep = (a: number, b: number, x: number) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
 /** A veil layer: a low-resolution field of 0 to 1 over the view (x across, y down), smoothed up by the painter. The field is built for a few steps of time per second (`steps` per beat; `key` names everything it
  *  depends on) and every frame is a blend of the two steps around now, so the motion is smooth although the field is costly; the steps are cached and shared by the frames and by the canvases on the same state. */
-const VEILS = new Map<string, Float32Array>();
+const VEILS = new Map<string, Float32Array>(), OUT = new Map<string, Float32Array>();
 function veil(key: string, steps: number, b: number, gw: number, gh: number, build: (bq: number) => (x: number, y: number) => number, a: number, tone: { hue: number; sat: number; l: number; k: number }): Layer {
   const at = (idx: number) => {
     const k = `${key}|${idx}`; let g = VEILS.get(k);
@@ -149,7 +149,8 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
     }
     return g;
   };
-  const x = b * steps, i0 = Math.floor(x), fr = x - i0, A = at(i0), B = at(i0 + 1), grid = new Float32Array(gw * gh);
+  const x = b * steps, i0 = Math.floor(x), fr = x - i0, A = at(i0), B = at(i0 + 1);
+  let grid = OUT.get(key); if (!grid) { grid = new Float32Array(gw * gh); OUT.set(key, grid); if (OUT.size > 60) OUT.delete(OUT.keys().next().value as string); } // the blend of the two steps, one buffer per state reused every frame (the painter reads it at once)
   for (let q = 0; q < grid.length; q++) grid[q] = A[q] + (B[q] - A[q]) * fr;
   return { kind: "veil", x: 0.5, y: 0.5, r: 1, a, dh: 0, hue: tone.hue, sat: tone.sat, l: tone.l, k: tone.k, gw, gh, grid };
 }
@@ -177,11 +178,11 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const vA = dark ? { sat: 0.9, l: 0.6 } : { sat: 0.85, l: 0.3 }, vB = dark ? { sat: 0.8, l: 0.62 } : { sat: 0.8, l: 0.34 };
   const mA = toneLayer(c.bases, hueA, dark, 0.4, vA), mB = toneLayer(c.bases, hueB, dark, 0.25, vB);
   const vk = `${c.seed}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`;
-  const base = veil(`aua|${vk}`, 6, c.b, GW, GH, (bq) => {
+  const base = veil(`aua|${vk}`, 8, c.b, GW, GH, (bq) => {
     const { e, g, s } = cols(bq);
     return (x, y) => { const i = col(x), up = e[i] - y, len = h * (0.25 + 0.75 * s[i]) * (0.4 + 0.6 * g[i]); return (up < 0 ? Math.exp(up / 0.03) : Math.exp(-up / (len * 0.6))) * (0.3 + 0.7 * s[i]) * g[i] * 1.25; };
   }, mA.a * swell, mA);
-  const top = veil(`aub|${vk}`, 6, c.b, GW, GH, (bq) => {
+  const top = veil(`aub|${vk}`, 8, c.b, GW, GH, (bq) => {
     const { e, g, s } = cols(bq);
     return (x, y) => { const i = col(x), up = e[i] - y; if (up <= 0) return 0; return sstep(0.04, 0.45 * h, up) * Math.exp(-up / (h * 1.15)) * (0.45 + 0.55 * s[i]) * g[i] * 0.95; };
   }, mB.a * swell, mB);
@@ -333,7 +334,7 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
       return lerp(Math.min(1, thin) * 0.9, body, sstep(0.05, 0.25, hh));
     };
   };
-  return { items: [], layers: [veil(`smoke|${c.seed}|${P}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, 1.5, c.b, GW, GH, build, tone.a, tone)] };
+  return { items: [], layers: [veil(`smoke|${c.seed}|${P}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, 10, c.b, GW, GH, build, tone.a, tone)] };
 }
 
 /** Clouds: banks and puffs that drift slowly across, in two scales of noise so they have bulk and a ragged edge; thinner towards the top and the bottom of the view. A veil like the smoke, light on a dark sky and dark on a bright one. */
@@ -347,7 +348,7 @@ function clouds(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
       return body * (0.6 + 0.4 * sstep(0.15, 0.8, v)) * sstep(0, 0.14, y) * (1 - sstep(0.82, 1, y));
     };
   };
-  return { items: [], layers: [veil(`clouds|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}|${Math.round(feel.near * 20)}`, 3, c.b, GW, GH, build, tone.a, tone)] };
+  return { items: [], layers: [veil(`clouds|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}|${Math.round(feel.near * 20)}`, 5, c.b, GW, GH, build, tone.a, tone)] };
 }
 
 /** Circuit: right-angled traces across the view, with pulses of light that travel along them one segment on each beat, in steps, never smoothly. Cold, exact, a machine at work. */
