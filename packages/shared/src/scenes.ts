@@ -148,22 +148,27 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   return { items, layers: [{ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.09 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
 }
 
-/** Waves: parallel lines of water in perspective, all running the same way at the same pace. Each line's swing is held below its gap to the next, so they can never cross. */
+/** Waves: parallel lines of water across the whole view, in perspective (close together far away at the top, wider apart near the bottom), all running the same way at the same pace.
+ *  Each line's swing is held below its gap to the next, so they can never cross. The lines vanish at the top, at the bottom, at both or at neither, by the mood: the open sea (calm) fades at both ends,
+ *  a bright mood fades into the sky at the top, a low one into the deep at the bottom, a tense one is cut hard. Not the tide (a foam line low in the view). */
 function waves(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(3, 8, density)), items: Item[] = [];
+  const n = Math.round(lerp(6, 11, density)), items: Item[] = [];
   const ys: number[] = [], want: number[] = [];
+  const edge: "both" | "top" | "bottom" | "none" = feel.jitter > 0.6 ? "none" : feel.depth < 0.45 ? "both" : feel.lift >= 0.5 ? "top" : "bottom";
   for (let j = 0; j < n; j++) {
-    const q = n === 1 ? 0.5 : j / (n - 1); // 0 far, 1 near
-    ys.push(0.5 + 0.43 * q ** 1.15);
-    want.push(lerp(0.005, 0.03, q) * lerp(0.45, 1.5, feel.depth) * (0.7 + 0.6 * clamp(feel.lift)) * (1 + 0.28 * c.hit));
+    const q = n === 1 ? 0.5 : j / (n - 1); // 0 far (top), 1 near (bottom)
+    ys.push(0.05 + 0.92 * q ** 1.35);
+    want.push(lerp(0.004, 0.03, q) * lerp(0.45, 1.5, feel.depth) * (0.7 + 0.6 * clamp(feel.lift)) * (1 + 0.28 * c.hit));
   }
   const ph = 2 * Math.PI * c.b * lerp(0.03, 0.16, speed); // one phase for all: the lines travel together
+  const ss = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t); };
   for (let j = 0; j < n; j++) {
     const q = n === 1 ? 0.5 : j / (n - 1);
     const gap = Math.min(j > 0 ? ys[j] - ys[j - 1] : 1, j < n - 1 ? ys[j + 1] - ys[j] : 1) * (c.aspect > 0 && c.aspect < 1 ? 1 / c.aspect : 1); // the gap to the nearest line, from fractions of the height to the smaller side
+    const vanish = (edge === "top" || edge === "both" ? ss(ys[j] / 0.3) : 1) * (edge === "bottom" || edge === "both" ? ss((1 - ys[j]) / 0.3) : 1);
     items.push({
       kind: "wave", x: 0, y: ys[j], r: Math.min(want[j], gap * 0.42), // two neighbours swing 0.42 of the gap each at most: they cannot meet
-      w: lerp(0.0014, 0.0042, q) * lerp(1, 1.4, feel.near), a: lerp(0.12, 0.38, q) * (0.8 + 0.2 * c.amp),
+      w: lerp(0.0014, 0.0045, q) * lerp(1, 1.3, feel.near), a: lerp(0.14, 0.4, q) * (0.8 + 0.2 * c.amp) * Math.max(0.04, vanish),
       k: lerp(0.3, 0.5, q) * lerp(1, 0.7, feel.jitter), ph: ph + j * 0.5, soft: clamp(feel.soft * 1.2 - feel.jitter * 0.6),
     });
   }
@@ -173,12 +178,16 @@ function waves(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 /** Fireflies: soft lights that wander slowly and glow on and off, each on its own slow rhythm. Tension makes them blink quicker. */
 function fireflies(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(5, 30, density)), items: Item[] = [], wander = lerp(0.01, 0.05, speed);
-  const near62 = Math.abs(((c.h - 62 + 540) % 360) - 180) < 75; // a yellow-green light is lost on a green or yellow field: use amber there
+  // the light is yellow-green, amber or cyan: whichever is furthest in hue from the field, so it reads on any colour
+  const dist = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
+  const hueF = [62, 18, 190].reduce((best, h) => (dist(h, c.h) > dist(best, c.h) ? h : best), 62);
   for (let i = 0; i < n; i++) {
     const ph = hash01(i, c.seed + 3), per = lerp(11, 5, feel.jitter) * (0.7 + 0.6 * hash01(i, c.seed + 4));
     const glow = Math.max(0, Math.sin(2 * Math.PI * (c.b / per + ph))) ** 3;
-    items.push({ kind: "dot", x: 0.1 + 0.8 * hash01(i, c.seed) + 0.07 * noise1(c.b * wander + i * 9, c.seed + 5), y: 0.1 + 0.8 * hash01(i, c.seed + 1) + 0.07 * noise1(c.b * wander + i * 9 + 50, c.seed + 6),
-      r: lerp(0.007, 0.016, feel.near) * (0.7 + 0.6 * hash01(i, c.seed + 2)) * (0.8 + 0.4 * glow), w: 0, soft: 1, a: 0.14 + 0.6 * glow * (1 + 0.3 * c.hit), hue: near62 ? 18 : 62, sat: 90, l: near62 ? 62 : 78 });
+    const x = 0.1 + 0.8 * hash01(i, c.seed) + 0.07 * noise1(c.b * wander + i * 9, c.seed + 5), y = 0.1 + 0.8 * hash01(i, c.seed + 1) + 0.07 * noise1(c.b * wander + i * 9 + 50, c.seed + 6);
+    const r = lerp(0.009, 0.02, feel.near) * (0.7 + 0.6 * hash01(i, c.seed + 2)) * (0.85 + 0.35 * glow);
+    items.push({ kind: "dot", x, y, r: r * 2.2, w: 0, soft: 1, a: 0.1 + 0.45 * glow * (1 + 0.3 * c.hit), hue: hueF, sat: 95, l: 60 });  // the halo
+    items.push({ kind: "dot", x, y, r: r * 0.7, w: 0, soft: 0.3, a: 0.2 + 0.7 * glow, hue: hueF, sat: 80, l: 90 });                     // the bright body
   }
   return { items, layers: [] };
 }
@@ -224,16 +233,26 @@ function leaves(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   return { items, layers: [] };
 }
 
-/** Lanterns: warm lights that rise very slowly and sway, each with a bright core. Hope. */
+/** Spread: n well-separated places in the view (one per cell of a jittered grid, taken in a hashed order), so no two lights sit close together. */
+function spread(n: number, aspect: number, seed: number): Array<{ x: number; y: number; cw: number; ch: number }> {
+  const cols = Math.max(1, Math.round(Math.sqrt(n * (aspect > 0 ? aspect : 0.6)))), rows = Math.ceil(n / cols), cells: number[] = [];
+  for (let i = 0; i < cols * rows; i++) cells.push(i);
+  cells.sort((p, q) => hash01(p, seed) - hash01(q, seed));
+  const cw = 0.84 / cols, ch = 0.8 / rows;
+  return cells.slice(0, n).map((cell, i) => ({ x: 0.08 + ((cell % cols) + 0.5 + 0.5 * (hash01(i, seed + 1) - 0.5)) * cw, y: 0.08 + (Math.floor(cell / cols) + 0.5 + 0.5 * (hash01(i, seed + 2) - 0.5)) * ch, cw, ch }));
+}
+
+/** Lanterns: warm lights that stay in the view, bob a little, and each go on and off in their own slow rhythm (the glow, never the lantern). They are kept apart. Hope. */
 function lanterns(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(3, 14, density)), items: Item[] = [];
+  const n = Math.round(lerp(3, 12, density)), items: Item[] = [], pos = spread(n, c.aspect, c.seed + 60);
   for (let i = 0; i < n; i++) {
-    const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3), t = c.b * lerp(0.012, 0.032, speed) * (0.6 + 0.8 * z) + ph, cyc = Math.floor(t), y = 1.1 - (t - cyc) * 1.25;
-    const x = hash01(i + cyc * 977, c.seed) + (0.015 + 0.03 * feel.irreg) * Math.sin(2 * Math.PI * (c.b / (14 + 10 * ph) + ph));
-    const flick = 0.85 + 0.15 * Math.sin(2 * Math.PI * (c.b / (3 + 2 * ph) + ph)), fade = Math.min(1, Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, (y + 0.1) / 1.2))) * 2.5));
-    const r = lerp(0.02, 0.045, z) * (1 + 0.12 * c.hit);
-    items.push({ kind: "dot", x, y, r: r * 1.5, w: 0, soft: 1, a: 0.5 * flick * fade, hue: 34, sat: 95, l: 62 });
-    items.push({ kind: "dot", x, y, r: r * 0.45, w: 0, soft: 0.5, a: 0.8 * flick * fade, hue: 44, sat: 95, l: 82 });
+    const p = pos[i], ph = hash01(i, c.seed + 3), z = hash01(i, c.seed + 2), per = lerp(26, 12, speed) * (0.8 + 0.5 * ph);
+    const on = clamp(0.5 + 0.9 * Math.sin(2 * Math.PI * (c.b / per + ph))), glow = on * on * (3 - 2 * on); // mostly on or off, a smooth change between
+    const x = p.x + p.cw * 0.2 * noise1(c.b * 0.02 + i * 7, c.seed + 4), y = p.y + p.ch * 0.2 * noise1(c.b * 0.02 + i * 7 + 40, c.seed + 5) + 0.012 * Math.sin(2 * Math.PI * (c.b / 18 + ph));
+    const r = Math.min(lerp(0.018, 0.034, z), p.cw * 0.28) * (1 + 0.1 * c.hit * glow);
+    items.push({ kind: "dot", x, y, r: r * 0.55, w: 0, soft: 0.2, a: 0.2 + 0.1 * glow, hue: 30, sat: 80, l: 52 });          // the lantern itself, always there
+    items.push({ kind: "dot", x, y, r: r * 1.9, w: 0, soft: 1, a: 0.5 * glow, hue: 34, sat: 95, l: 62 });                     // the glow
+    items.push({ kind: "dot", x, y, r: r * 0.5, w: 0, soft: 0.5, a: 0.8 * glow, hue: 44, sat: 95, l: 84 });                   // the bright core
   }
   return { items, layers: [] };
 }
@@ -251,10 +270,12 @@ function seeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 /** Tide: a line of foam that comes up the view and slides back, with fainter lines of foam left behind it. The lines move together and never meet. Peaceful. */
 function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = 2 + Math.round(density * 2), items: Item[] = [];
-  const per = lerp(42, 16, speed), sw = Math.sin((2 * Math.PI * c.b) / per), lead = 0.74 + 0.11 * sw; // the lead line: up and back
+  // a fixed number of lines, one gap apart, hanging from the lead line: whatever the tide does, the lines reach the bottom of the view and nothing is left empty under it
+  const items: Item[] = [], gap = lerp(0.07, 0.05, density);
+  const per = lerp(42, 16, speed), sw = Math.sin((2 * Math.PI * c.b) / per), lead = 0.7 + 0.1 * sw;
+  const n = Math.ceil((1.02 - (0.7 - 0.1)) / gap) + 1;
   for (let j = 0; j < n; j++) {
-    items.push({ kind: "wave", x: 0, y: lead + 0.055 * j, r: 0.004 + 0.003 * feel.irreg, w: lerp(0.004, 0.002, j / n), a: lerp(0.5, 0.18, j / n) * (0.85 + 0.15 * c.amp), k: 0.45 - 0.03 * j, ph: 2 * Math.PI * c.b * 0.03 + j * 0.4, soft: 1 });
+    items.push({ kind: "wave", x: 0, y: lead + gap * j, r: 0.004 + 0.003 * feel.irreg, w: lerp(0.004, 0.0025, Math.min(1, j / 3)), a: (j === 0 ? 0.5 : 0.26 * Math.max(0.55, 1 - j * 0.08)) * (0.85 + 0.15 * c.amp), k: 0.45 - 0.01 * j, ph: 2 * Math.PI * c.b * 0.03 + j * 0.4, soft: 1 });
   }
   return { items, layers: [] };
 }

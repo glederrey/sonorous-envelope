@@ -60,7 +60,7 @@ export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
   const w = Math.max(i.w, minW);
   const area = i.kind === "dot" ? Math.PI * i.r * i.r * ((i.soft ?? 0) > 0.05 ? 2.56 : 1) : // a soft dot is painted at 1.6 times its radius
-     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
+     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * w * (1 + 4 * i.r) : i.r * w;
   return area * k;
 }
 
@@ -100,6 +100,8 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
+  /** false: no colour play (the moving gradient); the lab uses it to compare */
+  play?: boolean;
   /** width over height of the view, when known */
   aspect?: number;
   /** A scene that is fading out while the colour's own fades in: the picture never swaps a scene at once. `k` is the progress of the new one, 0 to 1. */
@@ -164,7 +166,7 @@ export function visualFrame(input: FrameInput): Frame {
   const back = kk * sceneBack(scene) + (1 - kk) * (from && kk < 1 ? sceneBack(from.scene) : 1);
   wash *= back; if (glow) glow = { ...glow, a: glow.a * back };
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
-  const play = motion === "still" ? [] : colourPlay(colour, feel, clock);
+  const play = motion === "still" || input.play === false ? [] : colourPlay(colour, feel, clock);
   return { wash, glow, layers: [...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
 }
 

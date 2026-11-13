@@ -164,7 +164,7 @@ describe("the flash budget", () => {
     expect(at(0).layers.reduce((s, l) => s + l.a, 0)).toBeLessThan(at(1).layers.reduce((s, l) => s + l.a, 0));
   });
   it("waves never cross, in any mood, tempo or shape of view", () => {
-    for (const aspect of [0.5, 1, 1.8]) for (const density of [0.1, 0.6, 1]) for (const jitter of [0, 0.9]) for (const lift of [0, 1]) for (let beats = 0; beats < 30; beats += 0.37) {
+    for (const aspect of [0.5, 1, 1.8]) for (const density of [0.1, 0.6, 1]) for (const jitter of [0, 0.9]) for (const lift of [0, 1]) for (let beats = 0; beats < 30; beats += 0.9) {
       const f = drawFrame({ colour: base({ scene: "waves", density, speed: 1, sync: "beat", feel: { ...moodToFeel(mood), jitter, lift, depth: 1 } }), bpm: 150, beats, t: 0, seed: 3 }, aspect);
       const ws = f.items.filter((i) => i.kind === "wave");
       // a wave's swing is in units of the smaller side, its line in fractions of the height

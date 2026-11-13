@@ -31,7 +31,8 @@ type Sync = "own" | "beat" | "phrase" | "free";
 
 export function VisualsLab() {
   const [bpm, setBpm] = useState(100);
-  const [set, setSet] = useState<"emotions" | "samples">("emotions");
+  const [set, setSet] = useState<"emotions" | "samples" | "gradients">("emotions");
+  const [play, setPlay] = useState(true);
   const [scene, setScene] = useState<Scene>("own");
   const [sync, setSync] = useState<Sync>("own");
   const [own, setOwn] = useState(true);
@@ -43,9 +44,10 @@ export function VisualsLab() {
   const panels = useMemo(() => (set === "samples" ? SAMPLES.map((s) => ({ id: s.id, name: s.name, seed: s.seed, state: stateOfStep(s.steps[0], s.id) }))
     : EMOTIONS.map((e) => { const m = stretchMood(e.mood); return { id: e.id, name: e.name, seed: 4242, state: moodToEngineState(m, m, 1) }; })).map((s) => {
     const state: EngineState = s.state;
-    if (!own) { state.arp.tempo = bpm; state.arp.rate = "1/4"; }
+    if (set === "gradients") state.colour = { ...state.colour, scene: "none" };
+    if (!own || set === "gradients") { state.arp.tempo = bpm; state.arp.rate = "1/4"; }
     state.grid = { arp: 0, bass: 0, beat: 0 };
-    if (scene !== "own") state.colour = { ...state.colour, scene };
+    if (scene !== "own" && set !== "gradients") state.colour = { ...state.colour, scene };
     if (sync !== "own") state.colour = { ...state.colour, sync };
     return { id: s.id, name: s.name, seed: s.seed, state };
   }), [bpm, scene, sync, set, own]);
@@ -55,28 +57,29 @@ export function VisualsLab() {
       {/* in the player the canvas fills the visible field; here the field is a card, so the canvas takes the card's height */}
       <style>{".lab-field > .pl-motion { height: 100%; position: static; }"}</style>
       <h1 style={{ margin: 0 }}>Visuals lab</h1>
-      <p className="se-sm" style={{ margin: 0 }}>Emotions as pictures (or the five landing samples). Same canvas and frame model as the player; tempo and scene are overridden here. The pulse stays under the flash limit at every tempo.</p>
+      <p className="se-sm" style={{ margin: 0 }}>{set === "gradients" ? "Gradients: each emotion's moving colours with no scene. The lights take one to two minutes for an orbit at 100 BPM, so raise Tempo (the tempo slider applies automatically here) to see them move. Tick Colour play off to compare with the plain gradient. " : ""}Emotions as pictures (or the five landing samples). Same canvas and frame model as the player; tempo and scene are overridden here. The pulse stays under the flash limit at every tempo.</p>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <label>Set <select value={set} onChange={(e) => { setSet(e.target.value as "emotions" | "samples"); setEpoch(Date.now()); }}><option>emotions</option><option>samples</option></select></label>
+        <label>Set <select value={set} onChange={(e) => { setSet(e.target.value as "emotions" | "samples" | "gradients"); setEpoch(Date.now()); }}><option>emotions</option><option>gradients</option><option>samples</option></select></label>
         <label><input type="checkbox" checked={own} onChange={(e) => { setOwn(e.target.checked); setEpoch(Date.now()); }} /> Mood's own tempo</label>
         <label>Tempo <input type="range" min={30} max={200} value={bpm} onChange={(e) => { setBpm(Number(e.target.value)); setEpoch(Date.now()); }} /> {bpm} BPM</label>
         <label>Scene <select value={scene} onChange={(e) => { setScene(e.target.value as Scene); setEpoch(Date.now()); }}>
           {(["own", "none", ...SCENES] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Sync <select value={sync} onChange={(e) => { setSync(e.target.value as Sync); setEpoch(Date.now()); }}>
           {(["own", "beat", "phrase", "free"] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
+        <label><input type="checkbox" checked={play} onChange={(e) => setPlay(e.target.checked)} /> Colour play</label>
         <label><input type="checkbox" checked={grey} onChange={(e) => setGrey(e.target.checked)} /> No hue (grey)</label>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, filter: grey ? "grayscale(1)" : undefined }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${set === "gradients" ? 330 : 240}px, 1fr))`, gap: 12, filter: grey ? "grayscale(1)" : undefined }}>
         {panels.map((p) => {
           const c = p.state.colour;
           const style = {
-            height: 280, borderRadius: 12,
+            height: set === "gradients" ? 380 : 280, borderRadius: 12,
             "--pl-h": c.h, "--pl-s": c.s, "--pl-l": c.l, "--pl-h2": c.secondary?.h ?? c.h + 25, "--pl-s2": c.secondary?.s ?? c.s, "--pl-l2": c.secondary?.l ?? Math.max(0, c.l - 0.08),
           } as CSSProperties;
           return (
             <figure key={p.id} style={{ margin: 0 }}>
               <div className="pl-field lab-field" style={style} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
-                <VisualCanvas source={{ state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active onFail={() => {}} />
+                <VisualCanvas source={{ state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} onFail={() => {}} />
               </div>
               <figcaption className="se-sm">{p.name} · {c.scene ?? "none"} · {c.sync ?? "mood"}</figcaption>
             </figure>
