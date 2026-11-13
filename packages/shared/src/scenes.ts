@@ -152,23 +152,26 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
  *  Each line's swing is held below its gap to the next, so they can never cross. The lines vanish at the top, at the bottom, at both or at neither, by the mood: the open sea (calm) fades at both ends,
  *  a bright mood fades into the sky at the top, a low one into the deep at the bottom, a tense one is cut hard. Not the tide (a foam line low in the view). */
 function waves(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(6, 11, density)), items: Item[] = [];
-  const ys: number[] = [], want: number[] = [];
+  const items: Item[] = [], ys: number[] = [], want: number[] = [];
   const edge: "both" | "top" | "bottom" | "none" = feel.jitter > 0.6 ? "none" : feel.depth < 0.45 ? "both" : feel.lift >= 0.5 ? "top" : "bottom";
+  // lines from the top to past the bottom edge (a cut line is fine), the gap between them growing gently with depth and never leaving a hole
+  for (let y = 0.03, i = 0; y < 1.08 && i < 40; i++) {
+    ys.push(y); y += lerp(0.04, 0.095, clamp(y)) * lerp(1.25, 0.9, density);
+  }
+  const n = ys.length;
   for (let j = 0; j < n; j++) {
-    const q = n === 1 ? 0.5 : j / (n - 1); // 0 far (top), 1 near (bottom)
-    ys.push(0.05 + 0.92 * q ** 1.35);
+    const q = clamp(ys[j]);
     want.push(lerp(0.004, 0.03, q) * lerp(0.45, 1.5, feel.depth) * (0.7 + 0.6 * clamp(feel.lift)) * (1 + 0.28 * c.hit));
   }
   const ph = 2 * Math.PI * c.b * lerp(0.03, 0.16, speed); // one phase for all: the lines travel together
   const ss = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t); };
   for (let j = 0; j < n; j++) {
-    const q = n === 1 ? 0.5 : j / (n - 1);
+    const q = clamp(ys[j]);
     const gap = Math.min(j > 0 ? ys[j] - ys[j - 1] : 1, j < n - 1 ? ys[j + 1] - ys[j] : 1) * (c.aspect > 0 && c.aspect < 1 ? 1 / c.aspect : 1); // the gap to the nearest line, from fractions of the height to the smaller side
     const vanish = (edge === "top" || edge === "both" ? ss(ys[j] / 0.3) : 1) * (edge === "bottom" || edge === "both" ? ss((1 - ys[j]) / 0.3) : 1);
     items.push({
       kind: "wave", x: 0, y: ys[j], r: Math.min(want[j], gap * 0.42), // two neighbours swing 0.42 of the gap each at most: they cannot meet
-      w: lerp(0.0014, 0.0045, q) * lerp(1, 1.3, feel.near), a: lerp(0.14, 0.4, q) * (0.8 + 0.2 * c.amp) * Math.max(0.04, vanish),
+      w: lerp(0.0012, 0.0035, q) * lerp(1, 1.3, feel.near), a: lerp(0.14, 0.4, q) * (0.8 + 0.2 * c.amp) * Math.max(0.04, vanish),
       k: lerp(0.3, 0.5, q) * lerp(1, 0.7, feel.jitter), ph: ph + j * 0.5, soft: clamp(feel.soft * 1.2 - feel.jitter * 0.6),
     });
   }
@@ -270,12 +273,15 @@ function seeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 /** Tide: a line of foam that comes up the view and slides back, with fainter lines of foam left behind it. The lines move together and never meet. Peaceful. */
 function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  // a fixed number of lines, one gap apart, hanging from the lead line: whatever the tide does, the lines reach the bottom of the view and nothing is left empty under it
-  const items: Item[] = [], gap = lerp(0.07, 0.05, density);
-  const per = lerp(42, 16, speed), sw = Math.sin((2 * Math.PI * c.b) / per), lead = 0.7 + 0.1 * sw;
-  const n = Math.ceil((1.02 - (0.7 - 0.1)) / gap) + 1;
+  // The foam line goes up and back between the bottom and 80% of the height; a fixed number of lines hang from it to the bottom edge, spread out in perspective,
+  // so whatever the tide does nothing is left empty under it, and they never cross (the order of their positions never changes).
+  const items: Item[] = [], n = Math.round(lerp(7, 11, density));
+  const per = lerp(42, 16, speed), u = 0.5 + 0.5 * Math.sin((2 * Math.PI * c.b) / per), lead = lerp(0.88, lerp(0.5, 0.2, clamp(0.3 + 0.7 * feel.depth)), u); // the high mark is up to 80% of the height (0.2 from the top), lower for a gentle mood
+  const ys: number[] = [];
+  for (let j = 0; j < n; j++) ys.push(lead + (1.04 - lead) * (j / (n - 1)) ** 1.25);
   for (let j = 0; j < n; j++) {
-    items.push({ kind: "wave", x: 0, y: lead + gap * j, r: 0.004 + 0.003 * feel.irreg, w: lerp(0.004, 0.0025, Math.min(1, j / 3)), a: (j === 0 ? 0.5 : 0.26 * Math.max(0.55, 1 - j * 0.08)) * (0.85 + 0.15 * c.amp), k: 0.45 - 0.01 * j, ph: 2 * Math.PI * c.b * 0.03 + j * 0.4, soft: 1 });
+    const gap = (j < n - 1 ? ys[j + 1] - ys[j] : ys[j] - ys[j - 1]) * (c.aspect > 0 && c.aspect < 1 ? 1 / c.aspect : 1);
+    items.push({ kind: "wave", x: 0, y: ys[j], r: Math.min(0.004 + 0.004 * feel.irreg + 0.004 * j / n, gap * 0.42), w: lerp(0.004, 0.0022, Math.min(1, j / 4)), a: (j === 0 ? 0.5 : 0.28 * Math.max(0.55, 1 - j * 0.05)) * (0.85 + 0.15 * c.amp), k: 0.45 - 0.01 * j, ph: 2 * Math.PI * c.b * 0.03 + j * 0.4, soft: 1 });
   }
   return { items, layers: [] };
 }
