@@ -66,7 +66,7 @@ export default async function Home() {
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">
-              Settings → Customize → Connectors → Add.<span className="lp-stepby"> <a href="/add">Step by step</a></span>
+              Settings → Customize → Connectors → Add.
             </p>
           </div>
           {live && (
