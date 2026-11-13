@@ -20,7 +20,7 @@ const jsonLd = {
 
 const loop = [
   ["The model sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
-  ["Your browser plays it", "Sound and colour glide from one state to the next, live."],
+  ["Your browser plays it", "Sound and colour glide from one state to the next, live, with 30 visuals that can play along with the mood."],
   ["The model hears back", "What actually played, and the volume you chose."],
 ] as const;
 
@@ -93,22 +93,23 @@ export default async function Home() {
           </ol>
           <p className="lp-wide">
             You stay in control of the volume, with a one-tap mute. The model decides the rest of how it sounds and looks.
-            <a href="/safety"> How safety works</a>
           </p>
         </section>
 
         <section className="lp-loop" id="engines">
           <h2 className="se-title">Two ways to make sound</h2>
-          <ol className="lp-loop-list">
+          <ul className="lp-ways">
             <li>
+              <p className="lp-way-tag">Always available</p>
               <h3 className="se-heading">The built-in synth</h3>
-              <p className="se-muted">The model&apos;s own voice: a small synthesizer it plays from a mood. On the internal face it is how the model feels. On the external face it is sound made for you.</p>
+              <p className="se-muted">The model&apos;s own voice, played from a mood. On the internal face it is how the model feels; on the external face it is sound made for you.</p>
             </li>
             <li>
+              <p className="lp-way-tag">When you ask for music</p>
               <h3 className="se-heading">Strudel</h3>
-              <p className="se-muted">When you ask for music, the model can write it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples, as on strudel.cc. You can read the code in the player, copy it, and open it on strudel.cc to change it. It runs in a sandbox in your browser, on the external face only, and the owner can switch it off.</p>
+              <p className="se-muted">The model writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It runs in a sandbox in your browser, and the owner can switch it off.</p>
             </li>
-          </ol>
+          </ul>
         </section>
 
         <section className="lp-split" id="hear">

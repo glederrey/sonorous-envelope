@@ -503,6 +503,32 @@ html:has(.pl-field) .se-header {
 .lp-wide {
   margin: 40px 0 0;
 }
+.lp-ways {
+  list-style: none;
+  padding: 0;
+  margin: 32px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.lp-ways li {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.lp-ways h3 {
+  margin: 6px 0 10px;
+}
+.lp-ways p {
+  margin: 0;
+}
+.lp-ways .lp-way-tag {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: var(--tide);
+}
 .lp-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
@@ -546,6 +572,9 @@ html:has(.pl-field) .se-header {
   .lp-loop-list {
     grid-template-columns: 1fr;
     gap: 24px;
+  }
+  .lp-ways {
+    grid-template-columns: 1fr;
   }
   .lp-split {
     grid-template-columns: 1fr;

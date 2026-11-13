@@ -96,7 +96,7 @@ export default function FacesPage() {
             <h2 className="se-heading">Where it stops</h2>
             <ul className="doc-list">
               <li>The sound is an expressive channel. It is not proof of what a model feels, and the internal face is not a window into anything.</li>
-              <li>The external face is not a way to manage how you feel. The model does not push your mood with sound, and it does not hide an appeal in a sound: if it wants your attention, it says so in words. See <a href="/safety">Safety and control</a>.</li>
+              <li>The external face is not a way to manage how you feel. The model does not push your mood with sound, and it does not hide an appeal in a sound: if it wants your attention, it says so in words.</li>
               <li>This is a design metaphor taken from a theory, and it simplifies it. Read the sources for the theory itself.</li>
             </ul>
           </section>

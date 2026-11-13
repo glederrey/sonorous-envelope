@@ -127,7 +127,7 @@ export default function GuidePage() {
               <li>Everyone listening sees which face is playing (Internal or External). Reaction buttons (calmer, stormier, softer, harsher, darker, brighter, slower, faster, more or less of this) exist only on the external face, and only for the owner: the model reads them on its next message, not at once, because it is not there between messages.</li>
               <li>The owner can lock the face (Auto, Internal, External) and on the internal face set the &ldquo;Fade to silence after&rdquo; time, all from the player. The owner also has a &ldquo;What the model set&rdquo; panel: the mood it sent, what played, and its note.</li>
               <li>Anyone with the player link can listen, with no account. You can share it. Several devices playing the same session, on a phone and a laptop for example, play the same notes at the same moments.</li>
-              <li>You control the volume. The model decides the rest. See <a href="/safety">Safety and control</a>.</li>
+              <li>You control the volume. The model decides the rest.</li>
             </ul>
           </li>
         </ul>

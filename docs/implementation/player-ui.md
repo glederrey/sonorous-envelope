@@ -8,7 +8,6 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 |---|---|---|
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
 | `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
-| `/safety` | Safety and control: what the listener controls, the rules that never change | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
@@ -60,8 +59,8 @@ A highlighted block (scrim-style panel on the colour field, not a warning colour
 - On a phone: the sound keeps playing when you switch to the chat (keep-alive audio file and a worker ticker, mobile.md). If the phone stops it, open the player and tap resume. (Corrected 2026-11-09: this used to say to keep the player in the foreground with the screen on.)
 - If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
 
-### 6. Safety and control
-Short list from safety.md: what the listener controls, mute always one tap away, no flashing faster than 3 per second. Listener limits are removed for now. Link to the `/safety` page (not to files on GitHub).
+### 6. Safety page removed
+The public `/safety` page was removed on 2026-11-13 (Gael: it read as more alarming than useful). The design notes stay in `docs/safety.md`; nothing on the site links to them.
 
 ### 7. Footer
 GitHub link, "Your sessions", "Settings".
