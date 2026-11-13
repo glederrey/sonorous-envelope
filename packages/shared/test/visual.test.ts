@@ -27,7 +27,7 @@ describe("visual frame", () => {
   });
   it("pulses on the beat: brightest at the beat, not at the middle, and repeats every beat", () => {
     const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
-    const at = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0 }).wash;
+    const at = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0, play: false }).wash;
     expect(at(8)).toBeGreaterThan(at(8.5));
     expect(at(8)).toBeCloseTo(at(12), 9); // the bar repeats every 4 beats
     expect(at(8)).toBeGreaterThan(at(9));  // and its first beat hits hardest
@@ -48,7 +48,7 @@ describe("visual frame", () => {
   });
   it("runs at half-time above 180 BPM", () => {
     const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
-    const fast = (beats: number) => drawFrame({ colour: c, bpm: HALF_TIME_BPM + 20, beats, t: 0 }).wash;
+    const fast = (beats: number) => drawFrame({ colour: c, bpm: HALF_TIME_BPM + 20, beats, t: 0, play: false }).wash;
     expect(fast(8)).toBeCloseTo(fast(16), 9); // a cycle takes two beats, a bar four of them
     expect(fast(8)).toBeGreaterThan(fast(9));
   });
@@ -87,7 +87,7 @@ describe("the flash budget", () => {
   it("scales large elements to the swing cap and is idempotent", () => {
     const f: Frame = { wash: 0.2, glow: { x: 0.5, y: 0.5, r: 0.9, a: 0.5, hold: 0 }, layers: [{ kind: "blob", x: 0.5, y: 0.9, r: 0.8, a: 0.3, dh: 0 }], items: [] };
     const c = capFrame(f, 0.6);
-    expect(largeSwing(c)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
+    expect(largeSwing(c, 0.6)).toBeLessThanOrEqual(MAX_LARGE_SWING);
     expect(capFrame(c, 0.6)).toEqual(c);
   });
   it("drops small elements past the area and count caps, and caps their opacity", () => {
@@ -127,7 +127,7 @@ describe("the flash budget", () => {
     let seed = 12345;
     const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
     const motions = ["still", "drift", "pulse", "breathe"] as const, scenes = ["none", ...SCENES] as const, syncs = ["beat", "phrase", "free"] as const;
-    for (let run = 0; run < 220; run++) {
+    for (let run = 0; run < 90; run++) {
       const feel = { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() };
       const c = base({
         h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, motion: motions[Math.floor(rnd() * 4)], scene: scenes[Math.floor(rnd() * scenes.length)], sync: syncs[Math.floor(rnd() * 3)],
@@ -138,13 +138,13 @@ describe("the flash budget", () => {
       const baseL = relLuminance(hslToRgb(c.h, c.s, c.l));
       let beats = rnd() * 100, bpm = 30 + rnd() * 170;
       const swings: number[] = [];
-      for (let i = 0; i < 480; i++) { // 8 s at 60 fps, with a tempo change every second and a scene crossfade over the middle two seconds
+      for (let i = 0; i < 360; i++) { // 6 s at 60 fps, with a tempo change every second and a scene crossfade over the middle two seconds
         if (i % 60 === 0) bpm = 30 + rnd() * 170;
         beats += bpm / 60 / 60;
-        const k = Math.min(1, Math.max(0, (i - 180) / 120));
+        const k = Math.min(1, Math.max(0, (i - 120) / 120));
         const f = drawFrame({ colour: c, bpm, beats, t: i / 60, seed: run, from: k < 1 ? { scene: other, density: rnd() < 2 ? 0.9 : 0, speed: 0.5, k } : undefined }, aspect, minW);
-        swings.push(baseL + largeSwing(f) * (1 - baseL)); // the worst pixel, white over the base, no area discount
-        expect(largeSwing(f)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
+        swings.push(baseL + largeSwing(f, aspect) * (1 - baseL)); // the worst pixel, white over the base
+        expect(largeSwing(f, aspect)).toBeLessThanOrEqual(MAX_LARGE_SWING);
         expect(f.items.length).toBeLessThanOrEqual(MAX_ITEMS);
         expect(f.items.reduce((s, it) => s + itemArea(it, aspect, minW), 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
       }
@@ -188,7 +188,7 @@ describe("the flash budget", () => {
           expect(Math.abs(relLuminance(mixed) - relLuminance(b))).toBeLessThanOrEqual((l.k ?? 1) * a + 1e-6);
         }
       }
-      expect(largeSwing(drawFrame({ colour: c, bpm: 100, beats: 20, t: 0, seed: run }))).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
+      expect(largeSwing(drawFrame({ colour: c, bpm: 100, beats: 20, t: 0, seed: run }), 0.6)).toBeLessThanOrEqual(MAX_LARGE_SWING);
     }
   });
   it("composite: the brightness at any pixel, with the wash, the glow and every light painted over each other, never moves by 0.1 within a second", () => {

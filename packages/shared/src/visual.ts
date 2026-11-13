@@ -51,9 +51,29 @@ export function glowArea(r: number, aspect: number): number {
   const a = aspect > 0 ? aspect : 1;
   return Math.min(1, Math.PI * r * r * (a <= 1 ? a : 1 / a));
 }
-/** What the large elements add to the luminance swing at the worst pixel: an upper bound on the change of relative luminance. */
-export function largeSwing(f: Frame): number {
-  return f.wash + (f.glow ? f.glow.a : 0) + f.layers.reduce((s, l) => s + l.a * (l.k ?? 1), 0);
+const piece = (t: number, stops: ReadonlyArray<readonly [number, number]>) => { if (t >= 1) return 0; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [t0, a0] = stops[i - 1], [t1, a1] = stops[i]; return a0 + (a1 - a0) * ((t - t0) / (t1 - t0 || 1)); } return 0; };
+const TINT_FALL = [[0, 1], [0.55, 0.5], [1, 0]] as const, BLOB_FALL = [[0, 1], [0.3, 0.85], [1, 0]] as const;
+/** What the large elements add to the luminance swing at one point of the view (x, y as fractions): the wash, the glow and every layer, each at its own opacity, falloff and swing per unit of
+ *  opacity (`k`), as the painter draws them. An upper bound on the change of relative luminance there. A ribbon counts at its full opacity everywhere. */
+export function swingAt(f: Frame, px: number, py: number, aspect = 0.6): number {
+  const asp = aspect > 0 ? aspect : 0.6, m = Math.min(asp, 1);
+  let sw = f.wash;
+  if (f.glow) { const g = f.glow, d = Math.hypot((px - g.x) * asp, py - g.y) / m / Math.max(1e-6, g.r); sw += piece(d, [[0, g.a], [Math.min(0.95, g.hold), g.a], [1, 0]]); }
+  for (const l of f.layers) {
+    if (l.kind === "ribbon") { sw += l.a * (l.k ?? 1); continue; }
+    const d = Math.hypot(((px - l.x) * asp) / (l.sx ?? 1), py - l.y) / m / Math.max(1e-6, l.r);
+    sw += l.a * (l.k ?? 1) * piece(d, l.kind === "tint" ? TINT_FALL : BLOB_FALL);
+  }
+  return sw;
+}
+/** The swing at the worst pixel: the largest `swingAt` over a grid of the view and the centres of the glow and the layers (where the falloffs peak). Overlapping lights add where they overlap,
+ *  and only there, which is what the rule says ("at the worst pixel"). */
+export function largeSwing(f: Frame, aspect = 0.6): number {
+  let worst = 0;
+  for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) worst = Math.max(worst, swingAt(f, (i + 0.5) / 7, (j + 0.5) / 9, aspect));
+  if (f.glow) worst = Math.max(worst, swingAt(f, f.glow.x, f.glow.y, aspect));
+  for (const l of f.layers) if (l.kind !== "ribbon") worst = Math.max(worst, swingAt(f, clamp(l.x), clamp(l.y), aspect));
+  return worst;
 }
 function pathArea(i: Item, aspect: number, w: number): number {
   const p = i.pts ?? [], X = aspect >= 1 ? aspect : 1, Y = aspect < 1 ? 1 / aspect : 1; // the view in units of its smaller side
@@ -74,9 +94,9 @@ export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   let { wash } = f, glow = f.glow ? { ...f.glow, a: Math.max(0, f.glow.a) } : null;
   let layers = f.layers.map((l) => ({ ...l, a: Math.max(0, l.a) }));
   wash = clamp(wash, 0, MAX_LARGE_SWING);
-  const swing = wash + (glow ? glow.a : 0) + layers.reduce((s, l) => s + l.a * (l.k ?? 1), 0);
-  if (swing > MAX_LARGE_SWING + 1e-9) { // the tolerance keeps the function idempotent in floating point
-    const k = MAX_LARGE_SWING / swing;
+  const swing = largeSwing({ wash, glow, layers, items: [] }, aspect);
+  if (swing > MAX_LARGE_SWING) { // scaled to a little under the limit: the grid that finds the worst pixel can miss a peak between its points
+    const k = (MAX_LARGE_SWING * 0.96) / swing;
     wash *= k; if (glow) glow.a *= k;
     layers = layers.map((l) => ({ ...l, a: l.a * k }));
   }
