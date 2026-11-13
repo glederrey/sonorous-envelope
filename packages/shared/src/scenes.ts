@@ -143,10 +143,12 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   // the lower edge of the curtain: slow noise plus folds that travel along it in both directions (the curtain ripples like cloth in the wind)
   const edge = (u: number) => 0.52 + 0.07 * noise1(u * 5.5 + c.b * drift, c.seed) + 0.05 * Math.sin(u * 9 - c.b * drift * 5 * fold) + 0.035 * Math.sin(u * 17 + c.b * drift * 7 * fold + 1.7) + 0.03 * Math.sin(u * 4 + c.b * drift * 3);
   // the brightness along it: bands that slide sideways at their own pace
-  const glow = (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - c.b * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + c.b * 0.7, c.seed + 30));
-  for (let i = 0; i < N; i++) { const u = (i + 0.5) / N; ys.push(edge(u)); cols.push(glow(u)); }
+  const glow = (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - c.b * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + c.b * 0.7, c.seed + 30)) * (0.78 + 0.22 * Math.sin(2 * Math.PI * (c.b / 11 + u * 2.3))); // the bands also pulse, slowly, as they do in the sky
+  // a second curtain behind the first, higher, slower and out of step with it: real displays stack curtains, and the two colours blend where they overlap
+  const ys2: number[] = [], cols2: number[] = [], edge2 = (u: number) => 0.4 + 0.06 * noise1(u * 4 - c.b * drift * 0.7, c.seed + 90) + 0.04 * Math.sin(u * 6 + c.b * drift * 2.5 + 2), glow2 = (u: number) => clamp(0.5 + 0.9 * noise1(u * 9 + c.b * drift * 2.5, c.seed + 91)) * (0.8 + 0.2 * Math.sin(2 * Math.PI * (c.b / 15 - u * 1.7)));
+  for (let i = 0; i < N; i++) { const u = (i + 0.5) / N; ys.push(edge(u)); cols.push(glow(u)); ys2.push(edge2(u)); cols2.push(glow2(u)); }
   // two colours that read against the field and against each other: the field's hue turned by a third and by two thirds of the wheel
-  const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360, mA = matchedLayer(c.bases, hueA, 0.9);
+  const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360, mA = matchedLayer(c.bases, hueA, 0.9), mB = matchedLayer(c.bases, hueB, 0.9);
   const rays = Math.round(lerp(10, 30, density));
   for (let r = 0; r < rays; r++) {
     // the rays sit on an even grid along the curtain and all slide together at one slow pace, so they never cross; each hangs from the lower edge, straight down, and swells and shrinks on its own
@@ -156,7 +158,10 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
     items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.55 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
-  return { items, layers: [{ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.09 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
+  // the two curtains share the brightness budget (a ribbon counts at its full opacity everywhere), so each gets half
+  return { items, layers: [
+    { kind: "ribbon", x: 0, y: 0, r: 0, ys: ys2, cols: cols2, h: h * 1.25, a: Math.min(0.7, 0.04 / mB.k) * swell, dh: 0, hue: mB.hue, sat: mB.sat * 100, l: mB.l * 100, k: mB.k },
+    { kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.05 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
 }
 
 /** Waves: parallel lines of water across the whole view, in perspective (close together far away at the top, wider apart near the bottom), all running the same way at the same pace.
@@ -290,16 +295,20 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
         a: Math.min(0.75, 0.09 / gm.k) * 0.8 * Math.sin(Math.PI * u) ** 0.8 * lerp(0.8, 1.2, density), dh: 0, hue: gm.hue, sat: gm.sat * 100, l: gm.l * 100, k: gm.k });
     }
   }
-  // fine filaments that curl up through the haze: small items, so they are lighter or darker than the field whatever its colour (the haze alone is matched to the field's brightness and can barely be seen)
-  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(11, 19, density));
+  // fine filaments that rise from the bottom, dense and sharp near the source and wider, fainter and more scattered the higher they go (small items, so they read on any colour: the haze alone is matched to the field's brightness)
+  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(10, 16, density));
   for (let f = 0; f < F; f++) {
-    const p = f % P, x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P + 0.05 * (hash01(f, c.seed + 66) - 0.5), ph = hash01(f, c.seed + 67), per = 1 / (rate * lerp(0.8, 1.3, hash01(f, c.seed + 68)));
-    const u0 = (((c.b / per + ph) % 1) + 1) % 1, pts: number[] = [], K = 14, life = 0.7;
+    const p = f % P, per = (26 + 30 * hash01(f, c.seed + 68)) / lerp(0.7, 1.4, speed), tt = c.b / per + hash01(f, c.seed + 67), life = Math.floor(tt), ph = tt - life, sd = c.seed + life * 211;
+    const x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P + 0.07 * (hash01(f, sd + 66) - 0.5), L = lerp(0.55, 1.0, hash01(f, sd + 69)) * Math.min(1, ph * 4), life1 = Math.sin(Math.PI * ph) ** 0.6;
+    const pts: Array<[number, number]> = [], K = 20;
     for (let k = 0; k <= K; k++) {
-      const s = k / K, u = u0 * life + s * 0.3; // the filament is a stretch of the rising stream
-      pts.push(x0 + (wind * u + 0.09 * noise1(c.b * 0.02 + u * 2.6 + f * 3, c.seed + 63) + 0.05 * Math.sin(u * 14 + ph * 9 + c.b * 0.05)) * (0.4 + u) * (1 + feel.jitter), 1.08 - u * 1.0);
+      const u = (k / K) * L;
+      pts.push([x0 + (wind * u + (0.025 + 0.34 * u * u) * noise1(c.b * 0.03 + u * 3.2 + f * 5, sd + 63) + 0.03 * u * Math.sin(u * 12 + hash01(f, sd) * 9 + c.b * 0.05)) * (1 + feel.jitter), 1.06 - u]);
     }
-    items.push(pathItem(pts, 0.0036, 0.22 * Math.sin(Math.PI * u0) ** 0.7, tone));
+    for (let q = 0; q < 4; q++) { // four stretches of the thread: each one fainter and wider than the one below it
+      const s = (q + 0.5) / 4, flat: number[] = []; for (let k = q * 5; k <= q * 5 + 5; k++) flat.push(pts[k][0], pts[k][1]);
+      items.push(pathItem(flat, 0.0028 * (1 + 4 * s), 0.3 * life1 * (1 - s) ** 1.1, tone));
+    }
   }
   return { items, layers };
 }
