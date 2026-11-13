@@ -149,12 +149,12 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360, mA = matchedLayer(c.bases, hueA, 0.9);
   const rays = Math.round(lerp(10, 30, density));
   for (let r = 0; r < rays; r++) {
-    // each ray slides along the curtain, stays on its lower edge, leans with the fold and grows and shrinks as it goes
-    const vel = (hash01(r, c.seed + 45) - 0.5) * 0.05 * lerp(0.5, 1.5, speed), u = frac(hash01(r, c.seed + 40) + c.b * vel + 8), k = glow(u);
+    // the rays sit on an even grid along the curtain and all slide together at one slow pace, so they never cross; each hangs from the lower edge, straight down, and swells and shrinks on its own
+    const u = frac((r + 0.5 + 0.5 * (hash01(r, c.seed + 40) - 0.5)) / rays + c.b * 0.004 * lerp(0.5, 1.5, speed) + 8), k = glow(u);
     if (k < 0.25) continue;
     const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
-    const slope = (edge(u + 0.01) - edge(u - 0.01)) / 0.02, flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
-    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: clamp(-slope * 0.12, -0.2, 0.2), a: 0.55 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
+    const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
+    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.55 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
   return { items, layers: [{ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.09 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
 }
@@ -291,7 +291,7 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
     }
   }
   // fine filaments that curl up through the haze: small items, so they are lighter or darker than the field whatever its colour (the haze alone is matched to the field's brightness and can barely be seen)
-  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(5, 9, density));
+  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(11, 19, density));
   for (let f = 0; f < F; f++) {
     const p = f % P, x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P + 0.05 * (hash01(f, c.seed + 66) - 0.5), ph = hash01(f, c.seed + 67), per = 1 / (rate * lerp(0.8, 1.3, hash01(f, c.seed + 68)));
     const u0 = (((c.b / per + ph) % 1) + 1) % 1, pts: number[] = [], K = 14, life = 0.7;
@@ -299,7 +299,7 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
       const s = k / K, u = u0 * life + s * 0.3; // the filament is a stretch of the rising stream
       pts.push(x0 + (wind * u + 0.09 * noise1(c.b * 0.02 + u * 2.6 + f * 3, c.seed + 63) + 0.05 * Math.sin(u * 14 + ph * 9 + c.b * 0.05)) * (0.4 + u) * (1 + feel.jitter), 1.08 - u * 1.0);
     }
-    items.push(pathItem(pts, 0.0036, 0.34 * Math.sin(Math.PI * u0) ** 0.7, tone));
+    items.push(pathItem(pts, 0.0036, 0.22 * Math.sin(Math.PI * u0) ** 0.7, tone));
   }
   return { items, layers };
 }
@@ -508,11 +508,18 @@ function scope(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const A = lerp(0.22, 0.36, feel.near) * kick, lap = lerp(10, 4, speed), head = frac(c.b / lap), closed = mode > 0, trail = closed ? 0.42 : 0.5;
   const pts: number[] = [];
   if (mode === 0) { // a waveform: two or three sines whose mix beats slowly, swept left to right by the beam
-    const f1 = 2 + Math.round(3 * hash01(c.seed, 71)), f2 = f1 + 1 + Math.round(2 * hash01(c.seed, 72)), mix = 0.5 + 0.5 * Math.sin(c.b * 0.05);
-    for (let i = 0; i <= N; i++) { const u = i / N; pts.push(0.06 + 0.88 * u, 0.5 - A * 0.9 * (0.6 * Math.sin(2 * Math.PI * f1 * u + c.b * 0.11) + 0.4 * mix * Math.sin(2 * Math.PI * f2 * u - c.b * 0.07)) * (0.5 + 0.5 * Math.sin(Math.PI * u) ** 0.5)); }
+    const harm = hash01(c.seed, 74) < 0.5, f1 = 2 + Math.round(3 * hash01(c.seed, 71)), f2 = f1 + 1 + Math.round(2 * hash01(c.seed, 72)), mix = 0.5 + 0.5 * Math.sin(c.b * 0.05);
+    if (harm) for (let i = 0; i <= N; i++) { const u = i / N, w = 2 * Math.PI * (1.5 + f1 * 0.5) * u + c.b * 0.09; let s = 0; for (let k = 1; k <= 5; k++) s += Math.sin(k * w) / k; pts.push(0.06 + 0.88 * u, 0.5 - A * 0.7 * s * (0.5 + 0.5 * Math.sin(Math.PI * u) ** 0.5)); } // a sawtooth built from its harmonics
+    else for (let i = 0; i <= N; i++) { const u = i / N; pts.push(0.06 + 0.88 * u, 0.5 - A * 0.9 * (0.6 * Math.sin(2 * Math.PI * f1 * u + c.b * 0.11) + 0.4 * mix * Math.sin(2 * Math.PI * f2 * u - c.b * 0.07)) * (0.5 + 0.5 * Math.sin(Math.PI * u) ** 0.5)); }
+  } else if (mode === 1 && hash01(c.seed, 75) < 0.5) { // a spirograph (hypotrochoid), the circle rolling inside another, its pen drifting
+    const Rr = 5, rr = 3, d = 3.2 + 0.8 * Math.sin(c.b * 0.03), mx = Rr - rr + d;
+    for (let i = 0; i <= N; i++) { const th = (2 * Math.PI * rr * i) / N + c.b * 0.01; pts.push(0.5 + (A * m * ((Rr - rr) * Math.cos(th) + d * Math.cos(((Rr - rr) / rr) * th)) / mx) / asp, 0.5 + A * m * ((Rr - rr) * Math.sin(th) - d * Math.sin(((Rr - rr) / rr) * th)) / mx); }
   } else if (mode === 1) { // Lissajous
     const R: Array<[number, number]> = [[1, 1], [1, 2], [2, 3], [3, 4], [3, 5]], [a, b] = R[Math.round(clamp(speed) * 4)], phi = c.b * lerp(0.012, 0.04, speed);
     for (let i = 0; i <= N; i++) { const th = (2 * Math.PI * i) / N; pts.push(0.5 + (A * m * Math.sin(a * th + phi + Math.PI / 2)) / asp, 0.5 + A * m * Math.sin(b * th)); }
+  } else if (hash01(c.seed, 76) < 0.5) { // a star: a small circle rolling inside a large one (7 to 2)
+    const Rr = 7, rr = 2, d = 2.6 + 0.6 * Math.sin(c.b * 0.04), mx = Rr - rr + d;
+    for (let i = 0; i <= N; i++) { const th = (2 * Math.PI * rr * i) / N - c.b * 0.012; pts.push(0.5 + (A * m * 1.1 * ((Rr - rr) * Math.cos(th) + d * Math.cos(((Rr - rr) / rr) * th)) / mx) / asp, 0.5 + A * m * 1.1 * ((Rr - rr) * Math.sin(th) - d * Math.sin(((Rr - rr) / rr) * th)) / mx); }
   } else { // a rose, r = cos(k theta), k from the seed (3, 4, 5 petals' worth) breathing a little
     const kk = [2, 3, 4, 5][Math.floor(hash01(c.seed, 73) * 4)] + 0.15 * Math.sin(c.b * 0.04);
     for (let i = 0; i <= N; i++) { const th = (Math.PI * 2 * i) / N, rr = Math.cos(kk * th) * 0.95; pts.push(0.5 + (A * m * 1.15 * rr * Math.cos(th)) / asp, 0.5 + A * m * 1.15 * rr * Math.sin(th)); }

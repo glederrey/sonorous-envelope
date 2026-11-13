@@ -24,7 +24,7 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | brooding | smoke | billowing plumes of soft haze (matched to the field's brightness) with fine filaments that curl up through them (light on a dark field, dark on a bright one) so it reads on any colour |
 | analytical | circuit | right-angled traces (a different board per session and cycle) with pulses that move one segment per beat, in steps |
 | alert | digital | many columns of falling blocks, heads with fading tails, stepwise, like the Matrix |
-| driven | scope | an oscilloscope: a bright beam draws the figure and leaves a fading trail over a faint afterglow; a swept waveform (sparse), a turning Lissajous (middle) or a breathing rose (dense); beat kicks the size and flares the beam |
+| driven | scope | an oscilloscope: a bright beam draws the figure and leaves a fading trail over a faint afterglow; by density and seed: a swept waveform or a sawtooth built from harmonics (sparse), a turning Lissajous or a spirograph (middle), a breathing rose or a star (dense); beat kicks the size and flares the beam |
 | determined | vines | plants that sprout from an edge or the inside, branch, curl and put out leaves, then wither, drop their leaves and draw back; another starts elsewhere |
 | elated | fireworks | rockets and bursts staggered across each bar, one to five at once by how elated (small items only, no wash or glow) |
 | longing | reeds | straw-coloured stems anchored at the bottom with seed heads; they sway, and a gust crosses the field every few bars and bends them |
@@ -33,7 +33,7 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | serene | stars | a twinkling sky, now and then a shooting star |
 | happy | motes | bright lights that rise |
 | content, relief | waves | parallel lines across the whole view in perspective, all running one way at one pace, swing held under the gap so they never cross; they vanish at the top, the bottom, both or neither by the mood (calm: both, bright: top, low: bottom, tense: neither) |
-| awe | aurora | one curtain of colour whose lower edge ripples with folds that travel along it, bands of brightness that slide sideways, and bright rays that drift along the edge, lean with it and swell and shrink |
+| awe | aurora | one curtain of colour whose lower edge ripples with folds that travel along it, bands of brightness that slide sideways, and bright rays on an even grid that slide together along the edge (never crossing) and swell and shrink |
 | nervous | ripples | rings that scatter |
 | neutral | none | nothing (a quiet sound is the honest answer) |
 
