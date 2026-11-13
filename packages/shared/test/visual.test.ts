@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
-  capFrame, drawFrame, hash01, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
+  capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
   moodToColour, moodToFeel, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
@@ -85,14 +85,14 @@ describe("visual frame", () => {
 
 describe("the flash budget", () => {
   it("scales large elements to the swing cap and is idempotent", () => {
-    const f: Frame = { wash: 0.2, glow: { x: 0.5, y: 0.5, r: 0.9, a: 0.5, hold: 0 }, items: [] };
+    const f: Frame = { wash: 0.2, glow: { x: 0.5, y: 0.5, r: 0.9, a: 0.5, hold: 0 }, layers: [{ kind: "blob", x: 0.5, y: 0.9, r: 0.8, a: 0.3, dh: 0 }], items: [] };
     const c = capFrame(f, 0.6);
     expect(largeSwing(c)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
     expect(capFrame(c, 0.6)).toEqual(c);
   });
   it("drops small elements past the area and count caps, and caps their opacity", () => {
     const dots = Array.from({ length: 200 }, (_, i) => ({ kind: "dot" as const, x: 0.5, y: 0.5, r: 0.05, w: 0, a: 1 + i }));
-    const c = capFrame({ wash: 0, glow: null, items: dots }, 0.6);
+    const c = capFrame({ wash: 0, glow: null, layers: [], items: dots }, 0.6);
     expect(c.items.length).toBeLessThanOrEqual(MAX_ITEMS);
     expect(c.items.reduce((s, i) => s + Math.PI * i.r * i.r * 0.6, 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
     expect(Math.max(...c.items.map((i) => i.a))).toBeLessThanOrEqual(0.5);
@@ -104,27 +104,30 @@ describe("the flash budget", () => {
     expect(drawFrame({ colour: red, bpm: 100, beats: 8, t: 0 }).wash).toBe(0);
     expect(redFactor(base({ h: 220 }))).toBe(1);
   });
-  it("property: no random state ever swings large areas by 10% of luminance, at any tempo, glide or scene", () => {
+  it("property: no random state ever swings large areas by 10% of luminance, at any tempo, glide or scene, scene switches included", () => {
     let seed = 12345;
     const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-    const motions = ["still", "drift", "pulse", "breathe"] as const, scenes = ["none", "motes", "ripples", "rain"] as const, syncs = ["beat", "phrase", "free"] as const;
-    for (let run = 0; run < 150; run++) {
+    const motions = ["still", "drift", "pulse", "breathe"] as const, scenes = ["none", ...SCENES] as const, syncs = ["beat", "phrase", "free"] as const;
+    for (let run = 0; run < 220; run++) {
+      const feel = { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() };
       const c = base({
-        h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, motion: motions[Math.floor(rnd() * 4)], scene: scenes[Math.floor(rnd() * 4)], sync: syncs[Math.floor(rnd() * 3)],
-        density: rnd(), speed: rnd(), feel: { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() },
+        h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, motion: motions[Math.floor(rnd() * 4)], scene: scenes[Math.floor(rnd() * scenes.length)], sync: syncs[Math.floor(rnd() * 3)],
+        density: rnd(), speed: rnd(), feel,
       });
-      const aspect = 0.4 + rnd() * 1.4;
+      const other = scenes[Math.floor(rnd() * scenes.length)];
+      const aspect = 0.4 + rnd() * 1.4, minW = rnd() * 0.004;
       const baseL = relLuminance(hslToRgb(c.h, c.s, c.l));
       let beats = rnd() * 100, bpm = 30 + rnd() * 170;
       const swings: number[] = [];
-      for (let i = 0; i < 480; i++) { // 8 s at 60 fps, with a tempo change every second
+      for (let i = 0; i < 480; i++) { // 8 s at 60 fps, with a tempo change every second and a scene crossfade over the middle two seconds
         if (i % 60 === 0) bpm = 30 + rnd() * 170;
         beats += bpm / 60 / 60;
-        const f = drawFrame({ colour: c, bpm, beats, t: i / 60, seed: run }, aspect);
-        // the luminance at the worst pixel with the large layers on it, white over the base: base + a * (1 - base)
-        swings.push(baseL + (f.wash + (f.glow ? f.glow.a : 0)) * (1 - baseL)); // the worst pixel: the centre of the glow, no area discount
+        const k = Math.min(1, Math.max(0, (i - 180) / 120));
+        const f = drawFrame({ colour: c, bpm, beats, t: i / 60, seed: run, from: k < 1 ? { scene: other, density: rnd() < 2 ? 0.9 : 0, speed: 0.5, k } : undefined }, aspect, minW);
+        swings.push(baseL + largeSwing(f) * (1 - baseL)); // the worst pixel, white over the base, no area discount
+        expect(largeSwing(f)).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
         expect(f.items.length).toBeLessThanOrEqual(MAX_ITEMS);
-        expect(f.items.reduce((s, it) => s + (it.kind === "dot" ? Math.PI * it.r * it.r : it.kind === "ring" ? 2 * Math.PI * it.r * it.w : it.r * it.w) * Math.min(aspect, 1 / aspect, 1), 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
+        expect(f.items.reduce((s, it) => s + itemArea(it, aspect, minW), 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
       }
       for (let i = 0; i + 60 <= swings.length; i += 10) {
         const win = swings.slice(i, i + 60);
@@ -132,6 +135,53 @@ describe("the flash budget", () => {
       }
     }
   });
+  it("a scene fades in and out over the crossfade: nothing of the new one at k=0, nothing of the old one at k=1", () => {
+    const c = base({ scene: "fog", density: 0.8 });
+    const at = (k: number) => drawFrame({ colour: c, bpm: 90, beats: 10, t: 0, seed: 3, from: { scene: "rain", density: 0.8, speed: 0.4, k } });
+    expect(at(0).layers.every((l) => l.a < 1e-9 || l.kind === "blob")).toBe(true);
+    expect(largeSwing(at(0.5)) - at(0.5).wash).toBeGreaterThan(0);
+    const drops = (k: number) => at(k).items.filter((i) => i.kind === "streak").length;
+    expect(drops(1)).toBe(0);
+    expect(drops(0)).toBeGreaterThan(20);
+    expect(at(0).layers.reduce((s, l) => s + l.a, 0)).toBeLessThan(at(1).layers.reduce((s, l) => s + l.a, 0));
+  });
+  it("every scene draws something, and the layers of a scene are bounded blobs and ribbons", () => {
+    for (const scene of SCENES) {
+      const f = visualFrame({ colour: base({ scene, density: 0.6, speed: 0.5, feel: moodToFeel(mood) }), bpm: 90, beats: 12.3, t: 1, seed: 5 });
+      expect(f.items.length + f.layers.length).toBeGreaterThan(0);
+      for (const i of f.items) { expect(Number.isFinite(i.x + i.y + i.r + i.w + i.a)).toBe(true); }
+    }
+  });
+});
+
+describe("emotions in the picture", () => {
+  const e = (o: Partial<typeof mood> & { tension?: number }) => moodToScene({ ...mood, ...o })?.scene ?? "none";
+  it("gives each emotion its own kind of scene, and nothing for a neutral mood", () => {
+    expect(e({})).toBe("none");
+    expect(e({ joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 })).toBe("rain");     // sad
+    expect(e({ joy: 0.25, calm: 0.8, warmth: 0.75, closeness: 0.7, spontaneity: 0.3, tension: 0.05 })).toBe("fog");    // melancholic
+    expect(e({ joy: 0.12, calm: 0.12, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.85 })).toBe("embers"); // angry
+    expect(e({ joy: 0.12, calm: 0.12, warmth: 0.1, closeness: 0.3, spontaneity: 0.6, tension: 0.85 })).toBe("rain");   // cold anger: a storm
+    expect(e({ joy: 0.9, calm: 0.3, warmth: 0.7, closeness: 0.6, spontaneity: 0.6, tension: 0 })).toBe("motes");       // happy
+    expect(e({ joy: 0.7, calm: 0.9, warmth: 0.5, closeness: 0.1, spontaneity: 0.3, tension: 0 })).toBe("aurora");      // awe
+    expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("embers");     // tender
+    expect(e({ joy: 0.55, calm: 0.25, warmth: 0.4, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
+  });
+  it("shapes the same scene by the mood: a storm leans and flickers, a drizzle falls straight", () => {
+    const rain = (jitter: number) => visualFrame({ colour: base({ scene: "rain", density: 0.7, speed: 0.5, feel: { ...moodToFeel(mood), jitter } }), bpm: 90, beats: 20, t: 0, seed: 2 }).items.filter((i) => i.kind === "streak");
+    const lean = (jitter: number) => rain(jitter).reduce((s, i) => s + (i.ang ?? 0), 0) / rain(jitter).length;
+    expect(lean(0.9)).toBeGreaterThan(lean(0) + 0.2);
+  });
+  it("marks a scene the mood picked, and the model's own scene replaces it", () => {
+    const c = moodToColour({ ...mood, joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }, 1500, 0.3);
+    expect(c.scene).toBe("rain"); expect(c.sceneAuto).toBe(true);
+    const own = applyColour(c, { scene: "snow" });
+    expect(own.scene).toBe("snow"); expect(own.sceneAuto).toBeUndefined();
+    expect(applyColour(c, { scene: "none" }).scene).toBe("none");
+  });
+});
+
+describe("limits", () => {
   it("hardCaps keeps the new fields in range and the old pulse under 3 Hz", () => {
     const s = neutralState(); s.colour = base({ motion: "pulse", pulseHz: 9, density: 4, speed: -1, feel: { depth: 3, lift: -2, jitter: 0, soft: 0, near: 0, irreg: 0 } });
     const { effective, clamps } = applyLimits({ mapped: s });

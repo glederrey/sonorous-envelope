@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { beatsAt, tempoAt, type EngineState } from "@sonorous/engine";
-import { drawFrame, EMPTY_FRAME, type Frame } from "@sonorous/shared";
+import { drawFrame, EMPTY_FRAME, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
 import { isSounding } from "../../lib/sounding";
 
@@ -28,6 +28,7 @@ interface Props {
   onFail: () => void;
 }
 
+interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number }
 const SCALE_START = 0.5, SCALE_MIN = 0.3;
 
 export function VisualCanvas({ source, clockOffset, latency, active, onFail }: Props) {
@@ -41,6 +42,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     if (!cv || !ctx) { onFail(); return; }
     const clock = new BeatClock();
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
+    let curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -53,25 +55,66 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
     const ro = new ResizeObserver(resize);
     ro.observe(cv);
 
-    const paint = (f: Frame, tint: string) => {
+    const MIN_LINE = 0.7; // device pixels: the thinnest line the painter draws (capFrame counts it in the area)
+    const paint = (f: Frame, hue: number) => {
       ctx.clearRect(0, 0, w, h);
       const m = Math.min(w, h);
+      const hsla = (dh: number, l: number, a: number, abs?: number, sat = 55) => `hsla(${Math.round(abs ?? hue + dh)},${sat}%,${l}%,${a})`;
       if (f.wash > 0) { ctx.fillStyle = `rgba(255,255,255,${f.wash})`; ctx.fillRect(0, 0, w, h); }
       if (f.glow) {
         const g = f.glow, r = Math.max(1, g.r * m), grad = ctx.createRadialGradient(g.x * w, g.y * h, 0, g.x * w, g.y * h, r);
         grad.addColorStop(0, `rgba(255,255,255,${g.a})`); grad.addColorStop(Math.min(0.95, g.hold), `rgba(255,255,255,${g.a})`); grad.addColorStop(1, "rgba(255,255,255,0)");
         ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
       }
+      for (const l of f.layers) {
+        if (l.a <= 0.0005) continue;
+        if (l.kind === "blob") {
+          const r = Math.max(1, l.r * m), g = ctx.createRadialGradient(l.x * w, l.y * h, 0, l.x * w, l.y * h, r);
+          g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, undefined, l.sat ?? 30)); g.addColorStop(0.5, hsla(l.dh, l.l ?? 88, l.a * 0.5, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, undefined, l.sat ?? 30));
+          ctx.fillStyle = g; ctx.fillRect(l.x * w - r, l.y * h - r, 2 * r, 2 * r);
+        } else if (l.ys && l.cols && l.h) {
+          // a curtain: one gradient in local coordinates (bright at the lower edge, fading upwards), moved to each column's edge
+          const H = l.h * h, n = l.ys.length, cw = w / n, g = ctx.createLinearGradient(0, -H, 0, H * 0.1);
+          g.addColorStop(0, hsla(l.dh, l.l ?? 80, 0, undefined, l.sat ?? 30)); g.addColorStop(0.9, hsla(l.dh, l.l ?? 80, l.a, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 80, 0, undefined, l.sat ?? 30));
+          ctx.fillStyle = g;
+          for (let i = 0; i < n; i++) {
+            const k = l.cols[i]; if (k <= 0.02) continue;
+            ctx.save(); ctx.translate(0, l.ys[i] * h); ctx.globalAlpha = k; ctx.fillRect(i * cw, -H, cw + 1, H * 1.1); ctx.restore();
+          }
+        }
+      }
       for (const i of f.items) {
-        ctx.fillStyle = ctx.strokeStyle = `hsla(${tint},${i.a})`;
+        const col = hsla(i.dh ?? 0, i.l ?? 88, i.a, i.hue, i.sat);
+        ctx.fillStyle = ctx.strokeStyle = col;
         if (i.kind === "dot" && i.soft && i.soft > 0.05) {
           const r = Math.max(1, i.r * m * 1.6), g = ctx.createRadialGradient(i.x * w, i.y * h, 0, i.x * w, i.y * h, r);
-          g.addColorStop(0, `hsla(${tint},${i.a})`); g.addColorStop(Math.min(0.95, 1 - i.soft), `hsla(${tint},${i.a})`); g.addColorStop(1, `hsla(${tint},0)`);
+          g.addColorStop(0, col); g.addColorStop(Math.min(0.95, 1 - i.soft), col); g.addColorStop(1, hsla(i.dh ?? 0, i.l ?? 88, 0, i.hue, i.sat));
           ctx.fillStyle = g; ctx.beginPath(); ctx.arc(i.x * w, i.y * h, r, 0, Math.PI * 2); ctx.fill();
         }
         else if (i.kind === "dot") { ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.fill(); }
-        else if (i.kind === "ring") { ctx.lineWidth = Math.max(1.5, i.w * m); ctx.beginPath(); ctx.arc(i.x * w, i.y * h, Math.max(0.5, i.r * m), 0, Math.PI * 2); ctx.stroke(); }
-        else { ctx.lineWidth = Math.max(1.5, i.w * m); ctx.beginPath(); ctx.moveTo(i.x * w, i.y * h); ctx.lineTo(i.x * w, i.y * h + i.r * m); ctx.stroke(); }
+        else if (i.kind === "ring") {
+          ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.beginPath();
+          ctx.ellipse(i.x * w, i.y * h, Math.max(0.5, i.r * m), Math.max(0.3, i.r * m * (i.sq ?? 1)), 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        else if (i.kind === "wave") {
+          // a line across the view: a sine (soft 1) or a zigzag (soft 0)
+          const N = 40, amp = i.r * m, wl = Math.max(0.05, i.k ?? 0.4) * w, soft = i.soft ?? 1, ph = i.ph ?? 0;
+          ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.beginPath();
+          for (let n = 0; n <= N; n++) {
+            const x = (n / N) * w, a = (2 * Math.PI * x) / wl + ph;
+            const sine = Math.sin(a), tri = (2 / Math.PI) * Math.asin(sine);
+            const y = i.y * h + amp * (tri + (sine - tri) * soft);
+            n === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        else {
+          // a streak runs from its tail along its angle; a drop's tail fades out behind it
+          const len = i.r * m, ang = i.ang ?? 0, x0 = i.x * w, y0 = i.y * h, x1 = x0 + Math.sin(ang) * len, y1 = y0 + Math.cos(ang) * len;
+          ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.lineCap = "round";
+          if (i.tail) { const g = ctx.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, hsla(i.dh ?? 0, i.l ?? 88, 0, i.hue, i.sat)); g.addColorStop(1, col); ctx.strokeStyle = g; }
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        }
       }
     };
 
@@ -80,7 +123,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
       raf = requestAnimationFrame(loop);
       try {
         const { source: s, active: on, latency: lat } = live.current;
-        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); } return; }
+        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; } return; }
         // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
         const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
         const target = beatsAt(s.state, Math.max(0, tau));
@@ -103,10 +146,22 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
         const p = hold !== null ? (rampStart === null ? 0 : Math.min(1, Math.max(0, (tau - rampStart) / span))) : Math.min(1, Math.max(0, (tau - ramp0 - delay) / span));
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
         if (lvl < 0.003) lvl = 0;
-        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff }, w / h);
-        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : { wash: raw.wash * lvl, glow: raw.glow ? { ...raw.glow, a: raw.glow.a * lvl } : null, items: raw.items.map((i) => ({ ...i, a: i.a * lvl })) };
-        const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0;
-        if (!(empty && wasEmpty)) paint(frame, `${Math.round(c.h)},55%,88%`); // a still state is not repainted 60 times a second
+        // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.
+        const sig = `${c.scene ?? "none"}|${c.density ?? 0.4}|${c.speed ?? 0.4}`;
+        if (sig !== curSig) {
+          if (curSig !== null && curScene) {
+            const fading = fromScene !== null && (now - fadeStart) / 1000 < fadeDur * 0.5; // changed again early in a fade: keep fading out the first
+            if (!fading) fromScene = curScene;
+            fadeStart = now; fadeDur = Math.min(8, Math.max(1.5, tr.time));
+          }
+          curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed };
+        }
+        const fk = fromScene ? Math.min(1, (now - fadeStart) / 1000 / fadeDur) : 1;
+        if (fk >= 1) fromScene = null;
+        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
+        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl);
+        const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0 && frame.layers.length === 0;
+        if (!(empty && wasEmpty)) paint(frame, c.h); // a still state is not repainted 60 times a second
         wasEmpty = empty;
         // a slow phone gets a smaller picture, not a stutter
         if (last) { ema = ema * 0.95 + (now - last) * 0.05; if (ema > 24 && scale > SCALE_MIN) { scale = Math.max(SCALE_MIN, scale * 0.8); ema = 16; resize(); wasEmpty = false; } }

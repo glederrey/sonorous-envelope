@@ -1,10 +1,14 @@
 import type { ResolvedColour } from "@sonorous/engine";
+import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
+import { sceneHasLayers, sceneParts } from "./scenes";
+
+export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
 
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
 //
 // The flash rule (docs/safety.md): the beat pulse is designed to stay under the flash threshold by itself, at any tempo.
-//   - Large elements (the wash over the whole field, the glow) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
+//   - Large elements (the wash over the whole field, the glow, the fog and aurora layers) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
 //     at the worst pixel: the sum of their opacities, with no discount for the glow covering only part of the view.
 //     A white layer of opacity `a` over a base moves the luminance by at most `a`. WCAG 2.3.1 counts a flash from a 10% change,
 //     so nothing here is one, however fast it repeats.
@@ -15,43 +19,22 @@ import type { ResolvedColour } from "@sonorous/engine";
 export const PHRASE_BEATS = 16;       // 4 bars of 4 beats (4/4 is assumed, there is no meter)
 export const MAX_LARGE_SWING = 0.09;
 export const MAX_SMALL_AREA = 0.1;
-export const MAX_ITEMS = 48;
+export const MAX_ITEMS = 160;
 export const MAX_ITEM_ALPHA = 0.5;
 export const HALF_TIME_BPM = 180;
 
-export interface Item {
-  kind: "dot" | "ring" | "streak";
-  /** centre, 0 to 1 of the width and height */
-  x: number; y: number;
-  /** radius (dot, ring) or length (streak), as a fraction of the smaller side */
-  r: number;
-  /** stroke width for a ring or a streak, same unit */
-  w: number;
-  a: number;
-  /** dots only: 0 a hard disc, 1 a disc that fades out from the centre */
-  soft?: number;
-}
 export interface Frame {
   /** opacity of a white layer over the whole field */
   wash: number;
   /** a white radial highlight; `hold` is the fraction of the radius that stays at full opacity (hard edge) */
   glow: { x: number; y: number; r: number; a: number; hold: number } | null;
+  /** large soft things (fog, aurora): they share the luminance budget with the wash and the glow */
+  layers: Layer[];
   items: Item[];
 }
 
-export const EMPTY_FRAME: Frame = { wash: 0, glow: null, items: [] };
+export const EMPTY_FRAME: Frame = { wash: 0, glow: null, layers: [], items: [] };
 const NEUTRAL_FEEL = { depth: 0.5, lift: 0.5, jitter: 0, soft: 0.5, near: 0.5, irreg: 0.3 };
-
-const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const frac = (x: number) => x - Math.floor(x);
-/** A deterministic number in [0, 1) from two integers. */
-export function hash01(a: number, b: number): number {
-  let h = (Math.imul(a | 0, 0x9e3779b1) ^ Math.imul((b | 0) + 0x7f4a7c15, 0x85ebca6b)) >>> 0;
-  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
-  h = Math.imul(h ^ (h >>> 12), 0x297a2d39) >>> 0;
-  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
-}
 
 export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const a = s * Math.min(l, 1 - l), f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
@@ -80,32 +63,42 @@ export function glowArea(r: number, aspect: number): number {
 }
 /** What the large elements add to the luminance swing at the worst pixel: an upper bound on the change of relative luminance. */
 export function largeSwing(f: Frame): number {
-  return f.wash + (f.glow ? f.glow.a : 0);
+  return f.wash + (f.glow ? f.glow.a : 0) + f.layers.reduce((s, l) => s + l.a, 0);
 }
-function itemArea(i: Item, aspect: number): number {
+/** The share of the view an item covers. `minW`: the thinnest line the painter draws, as a fraction of the smaller side (a line is never thinner than a pixel). */
+export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
-  const area = i.kind === "dot" ? Math.PI * i.r * i.r : i.kind === "ring" ? 2 * Math.PI * i.r * i.w : i.r * i.w;
+  const w = Math.max(i.w, minW);
+  const area = i.kind === "dot" ? Math.PI * i.r * i.r : i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
   return area * k;
 }
 
 /** The flash budget. Idempotent. Scales the large elements down to MAX_LARGE_SWING, and drops small ones past MAX_SMALL_AREA or MAX_ITEMS. */
-export function capFrame(f: Frame, aspect = 0.6): Frame {
+export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   let { wash } = f, glow = f.glow ? { ...f.glow, a: Math.max(0, f.glow.a) } : null;
+  let layers = f.layers.map((l) => ({ ...l, a: Math.max(0, l.a) }));
   wash = clamp(wash, 0, MAX_LARGE_SWING);
-  const swing = wash + (glow ? glow.a : 0);
+  const swing = wash + (glow ? glow.a : 0) + layers.reduce((s, l) => s + l.a, 0);
   if (swing > MAX_LARGE_SWING + 1e-9) { // the tolerance keeps the function idempotent in floating point
     const k = MAX_LARGE_SWING / swing;
     wash *= k; if (glow) glow.a *= k;
+    layers = layers.map((l) => ({ ...l, a: l.a * k }));
   }
   const items: Item[] = [];
   let area = 0;
   for (const i of f.items) {
     if (items.length >= MAX_ITEMS) break;
-    const a = itemArea(i, aspect);
+    const a = itemArea(i, aspect, minW);
     if (area + a > MAX_SMALL_AREA) continue;
     area += a; items.push({ ...i, a: clamp(i.a, 0, MAX_ITEM_ALPHA) });
   }
-  return { wash, glow, items };
+  return { wash, glow, layers, items };
+}
+
+/** The same picture at a fraction of its opacity (the fade with the sound after silence). */
+export function scaleFrame(f: Frame, k: number): Frame {
+  if (k >= 0.999) return f;
+  return { wash: f.wash * k, glow: f.glow ? { ...f.glow, a: f.glow.a * k } : null, layers: f.layers.map((l) => ({ ...l, a: l.a * k })), items: f.items.map((i) => ({ ...i, a: i.a * k })) };
 }
 
 export interface FrameInput {
@@ -116,14 +109,16 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
+  /** A scene that is fading out while the colour's own fades in: the picture never swaps a scene at once. `k` is the progress of the new one, 0 to 1. */
+  from?: { scene: SceneName | "none"; density?: number; speed?: number; k: number };
 }
 
 /** One frame of the motion, before the flash budget. Use `drawFrame` for the capped one. */
-export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Frame {
+export function visualFrame({ colour, bpm, beats, t, seed = 1, from }: FrameInput): Frame {
   const feel = colour.feel ?? NEUTRAL_FEEL;
   const motion = colour.motion;
   const scene = colour.scene ?? "none";
-  if (motion === "still" && scene === "none") return EMPTY_FRAME;
+  if (motion === "still" && scene === "none" && (!from || from.scene === "none")) return EMPTY_FRAME;
   const sync = colour.sync ?? (feel.depth >= 0.55 ? "beat" : "phrase");
   const half = bpm > HALF_TIME_BPM ? 0.5 : 1;
   const b = sync === "free" ? t * 1.5 : beats * half;       // free runs at a calm 90 BPM of its own
@@ -166,52 +161,15 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Fr
     }
   }
 
-  return { wash, glow, items: scene === "none" ? [] : sceneItems(colour, scene, feel, { b, beatPh, beatIdx, beats, kick, hit, weight, amp, lift2, sync, half, seed }) };
-}
-
-interface Clock { b: number; beatPh: number; beatIdx: number; beats: number; kick: number; hit: number; weight: number; amp: number; lift2: number; sync: "beat" | "phrase" | "free"; half: number; seed: number }
-
-function sceneItems(colour: ResolvedColour, scene: "motes" | "ripples" | "rain", feel: NonNullable<ResolvedColour["feel"]>, c: Clock): Item[] {
-  const density = clamp(colour.density ?? 0.4), speed = clamp(colour.speed ?? 0.4);
-  const items: Item[] = [];
-  if (scene === "motes") {
-    const n = Math.round(lerp(4, 36, density)), travel = c.b * lerp(0.004, 0.02, speed), dir = c.lift2 >= 0 ? -1 : 1;
-    const rs = lerp(0.008, 0.026, feel.near), sharpShare = 0.25 + 0.3 * feel.jitter;
-    for (let i = 0; i < n; i++) {
-      const x0 = hash01(i, c.seed), y0 = hash01(i, c.seed + 1), ph = hash01(i, c.seed + 3), cls = hash01(i, c.seed + 4);
-      // three kinds, so the field is not a sheet of identical discs: a few large soft lights, small sharp points (more with tension), the rest in between
-      const big = cls > 0.85, tiny = cls < sharpShare * 0.6;
-      const sz = big ? 2.2 + 0.8 * hash01(i, c.seed + 2) : tiny ? 0.45 : 0.7 + 0.6 * hash01(i, c.seed + 2);
-      const soft = big ? 1 : tiny ? 0 : clamp(feel.soft * (0.4 + 0.8 * hash01(i, c.seed + 6)));
-      const y = frac(y0 + dir * travel * (big ? 0.6 : 1)), x = x0 + 0.03 * Math.sin(2 * Math.PI * (c.b / 32 + ph));
-      const twinkle = c.sync === "free" ? 0 : (1 - frac(c.b + ph * feel.irreg)) ** 2;
-      items.push({ kind: "dot", x, y: y - 0.01 * dir * c.hit, r: rs * sz * (1 + 0.4 * c.hit), w: 0, soft,
-        a: (big ? 0.2 : tiny ? 0.5 : 0.4) * Math.sin(Math.PI * y) * (1 + 0.6 * c.amp * twinkle) });
-    }
-  } else if (scene === "ripples") {
-    const period = c.sync === "beat" ? 1 : 4, life = lerp(2.5, 4.5, density), idx = c.b / period, last = Math.floor(idx);
-    for (let k = last; k > last - Math.ceil(life) - 1; k--) {
-      const age = (idx - k) * (1 + speed); // in beats of life
-      if (age < 0 || age > life) continue;
-      const u = age / life, off = 0.04 + (feel.jitter + feel.irreg) * 0.25; // a calm, measured mood keeps the rings near the middle; a spontaneous or tense one scatters them
-      items.push({
-        kind: "ring", x: 0.5 + (hash01(k, c.seed) - 0.5) * off, y: 0.55 + (hash01(k, c.seed + 5) - 0.5) * off,
-        r: 0.04 + 0.5 * u, w: lerp(0.003, 0.008, feel.near) * (c.sync === "beat" && k % 4 === 0 ? 1.5 : 1), a: 0.45 * (1 - u) ** 0.7 * (0.4 + 0.6 * c.amp) * (c.sync === "beat" ? (k % 4 === 0 ? 1.25 : 0.8) : 1),
-      });
-    }
-  } else {
-    const n = Math.round(lerp(4, 30, density)), travel = c.b * lerp(0.02, 0.1, speed), len = lerp(0.05, 0.12, speed + 0.2 * feel.near);
-    for (let i = 0; i < n; i++) {
-      const z = hash01(i, c.seed + 2); // how near the drop is: near ones are longer, brighter and faster
-      const y = frac(hash01(i, c.seed + 1) + travel * (0.7 + 0.6 * z));
-      items.push({ kind: "streak", x: hash01(i, c.seed), y, r: len * (0.6 + 0.8 * z) * (1 + 0.5 * c.hit), w: 0.003 + 0.003 * z,
-        a: 0.42 * (0.6 + 0.5 * z) * Math.sin(Math.PI * y) * (0.8 + 0.6 * c.hit) });
-    }
-  }
-  return items;
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed };
+  const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
+  // a scene made of large soft layers (fog, an aurora, the mist and the hearth light) shares the luminance budget: the motion's own wash and glow step back
+  if (now.layers.length > 0 || (from && from.k < 0.999 && sceneHasLayers(from.scene))) { wash *= 0.25; if (glow) glow = { ...glow, a: glow.a * 0.25 }; }
+  const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
+  return { wash, glow, layers: old ? [...now.layers, ...old.layers] : now.layers, items: old ? [...now.items, ...old.items] : now.items };
 }
 
 /** The frame to paint: the motion, then the flash budget. */
-export function drawFrame(input: FrameInput, aspect = 0.6): Frame {
-  return capFrame(visualFrame(input), aspect);
+export function drawFrame(input: FrameInput, aspect = 0.6, minW = 0): Frame {
+  return capFrame(visualFrame(input), aspect, minW);
 }

@@ -123,26 +123,58 @@ export function nextSlowMood(prev: Mood | null | undefined, mood: Mood, final: b
   };
 }
 
+const ramp = (x: number, lo: number, hi: number) => clamp((x - lo) / (hi - lo));
+
+/** The scene the mood suggests when the model sets none (visuals.md, "Emotions in the picture"): the emotion regions of the five axes and
+ *  tension, each with the scene that carries it. Fuzzy, so neighbouring moods get neighbouring pictures; the strongest region wins, and a
+ *  mood that fits none well (the middle of every axis) gets no scene. The form of each scene then follows the same axes (`feel`). */
+export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene"]>; density: number; speed: number } | null {
+  const { warmth: w, closeness: c, joy: j, calm: k } = m, t = clamp(m.tension ?? 0);
+  const lowJoy = 1 - ramp(j, 0.2, 0.45), calm = ramp(k, 0.35, 0.65), notTense = 1 - ramp(t, 0.3, 0.6);
+  const anger = ramp(t, 0.35, 0.65) * (1 - ramp(j, 0.45, 0.7)) * (1 - ramp(k, 0.5, 0.75));
+  const score: Array<[NonNullable<ResolvedColour["scene"]>, number]> = [
+    ["rain", Math.max(lowJoy * calm * notTense * (1 - ramp(w, 0.5, 0.75)),            // sad: cold, low, quiet, a thin rain
+                      anger * (1 - ramp(w, 0.1, 0.3)))],                               // icy anger: a storm
+    ["fog", lowJoy * calm * notTense * ramp(w, 0.4, 0.65)],                            // melancholy: warm, low, quiet, a slow fog
+    ["snow", lowJoy * ramp(k, 0.6, 0.85) * (1 - ramp(w, 0.35, 0.55)) * (1 - ramp(c, 0.4, 0.7)) * notTense], // lonely hush: cold, distant, very calm
+    ["embers", Math.max(anger * ramp(w, 0.05, 0.25),                                   // anger: sparks that jerk and flicker
+                        ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9)))], // tender: a hearth
+    ["ripples", ramp(t, 0.3, 0.55) * ramp(j, 0.35, 0.55) * (1 - ramp(k, 0.5, 0.8))],   // nervous: rings that scatter
+    ["motes", ramp(j, 0.55, 0.8) * (1 - ramp(k, 0.7, 0.95)) * (1 - ramp(t, 0.4, 0.7))], // happy: bright lights that rise
+    ["aurora", ramp(j, 0.55, 0.8) * ramp(k, 0.65, 0.9) * (1 - ramp(c, 0.35, 0.6)) * notTense], // awe: open, high and slow
+    ["waves", ramp(j, 0.6, 0.8) * ramp(k, 0.65, 0.9) * ramp(c, 0.3, 0.55) * notTense], // content, relief: an even swell
+  ];
+  let best = score[0];
+  for (const x of score) if (x[1] > best[1]) best = x;
+  if (best[1] < 0.3) return null;
+  return { scene: best[0], density: clamp(0.2 + 0.55 * best[1]), speed: clamp(lerp(0.8, 0.12, k) + 0.15 * t) };
+}
+
 export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): ResolvedColour {
   const { warmth: w, joy: j, calm: k, spontaneity: s } = m;
   const cutNorm = clamp((Math.log2(cutoff) - Math.log2(400)) / (Math.log2(6000) - Math.log2(400)));
   // The follow-mode hue walks the whole wheel (blue, cyan, green, yellow, orange, red, magenta) so that moods that sound
   // different also look different. It is only a default: Claude can send any hue.
   const t = 0.45 * w + 0.3 * j + 0.25 * (1 - k);
-  const h = (((250 - 300 * t) % 360) + 360) % 360;
-  const sat = lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j);
+  const h0 = (((250 - 300 * t) % 360) + 360) % 360;
+  // anger is red whatever the rest says: tension with no joy and no calm pulls the hue round the short way to red
+  const anger = clamp(((m.tension ?? 0) - 0.35) / 0.3) * (1 - clamp((j - 0.45) / 0.25)) * (1 - clamp((k - 0.5) / 0.25));
+  const h = (360 + h0 + ((((356 - h0) % 360) + 540) % 360 - 180) * anger) % 360;
+  const sat = Math.min(0.85, lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j) + 0.35 * anger);
   const l = Math.min(0.6, lerp(0.12, 0.45, 0.6 * j + 0.4 * cutNorm));
   // Motion is safe at any tempo now (visual.ts), so every mood moves: calm breathes over the phrase, the middle drifts, the agitated pulses on the beat.
   // "still" is only for a model that asks for it.
   const motion = k > 0.7 ? "breathe" : k > 0.45 ? "drift" : "pulse";
   // close and warm is a tight glow; the rest keeps the linear wash it always had
   const shape = m.closeness > 0.7 && w > 0.5 ? "glow" : "wash";
+  const pick = moodToScene(m);
   return {
     h, s: sat, l,
     secondary: { h: (h + 25) % 360, s: sat, l: Math.max(0, l - 0.08) },
     motion, shape,
     texture: w < 0.3 ? "grain" : s > 0.6 ? "soft_noise" : "flat",
     pulseHz: motion === "pulse" ? Math.min(lfo1Rate, 1) : 0,
+    ...(pick ? { ...pick, sceneAuto: true } : {}),
     feel: moodToFeel(m),
   };
 }
@@ -325,7 +357,7 @@ export function applyColour(mapped: ResolvedColour, input: Colour | undefined): 
   // Anything sent is used, unless the call says mode "follow". Fields left out keep the mapped value.
   if (!input || input.mode === "follow") return mapped;
   const out: ResolvedColour = { ...mapped };
-  if (input.scene) out.scene = input.scene;
+  if (input.scene) { out.scene = input.scene; delete out.sceneAuto; }
   if (input.density !== undefined) out.density = input.density;
   if (input.speed !== undefined) out.speed = input.speed;
   if (input.sync) out.sync = input.sync;
