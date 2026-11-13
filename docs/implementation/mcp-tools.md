@@ -87,7 +87,7 @@ export const Colour = z.object({
   secondary: z.object({ hue: z.number().min(0).max(360), saturation: unit, lightness: unit }).optional(),
   motion: z.enum(["still","drift","pulse"]).optional(),
   texture: z.enum(["flat","grain","soft_noise"]).optional(),
-  scene: z.enum(["none","motes","ripples","rain","snow","embers","aurora","waves","fireflies","stars","bubbles","leaves","seeds","tide","smoke","clouds","glass","hearth","warp","caustics","lightning","circuit","digital","scope","vines","fireworks","reeds","network","flock"]).optional(),   // moving things over the colour; left out: the mood picks one (visuals.md), "none" turns it off
+  scene: z.enum(["none","motes","ripples","rain","snow","embers","aurora","waves","fireflies","stars","bubbles","leaves","seeds","tide","smoke","clouds","fire","warp","caustics","lightning","circuit","digital","scope","vines","fireworks","reeds","network","flock"]).optional(),   // moving things over the colour; left out: the mood picks one (visuals.md), "none" turns it off
   density: unit.optional(), speed: unit.optional(),               // for a scene
   sync: z.enum(["beat","phrase","free"]).optional(),              // what the motion follows; left out: the mood decides
 });

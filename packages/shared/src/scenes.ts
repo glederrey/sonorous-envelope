@@ -11,9 +11,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "hearth" || s === "caustics" || s === "lightning" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "rain" || s === "embers";
 /** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "hearth" || s === "caustics" || s === "lightning" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
+export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -30,8 +30,7 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "tide" ? tide(d, v, feel, c)
     : scene === "smoke" ? smoke(d, v, feel, c)
     : scene === "clouds" ? clouds(d, v, feel, c)
-    : scene === "glass" ? glass(d, v, feel, c)
-    : scene === "hearth" ? hearth(d, v, feel, c)
+    : scene === "fire" ? fire(d, v, feel, c)
     : scene === "warp" ? warp(d, v, feel, c)
     : scene === "caustics" ? caustics(d, v, feel, c)
     : scene === "lightning" ? lightning(d, v, feel, c)
@@ -144,7 +143,7 @@ const sstep = (a: number, b: number, x: number) => { const u = clamp((x - a) / (
 /** A veil layer: a low-resolution field of 0 to 1 over the view (x across, y down), smoothed up by the painter. The field is built for a few steps of time per second (`steps` per beat; `key` names everything it
  *  depends on) and every frame is a blend of the two steps around now, so the motion is smooth although the field is costly; the steps are cached and shared by the frames and by the canvases on the same state. */
 const VEILS = new Map<string, Float32Array>(), OUT = new Map<string, Float32Array>();
-function veil(key: string, steps: number, b: number, gw: number, gh: number, build: (bq: number) => (x: number, y: number) => number, a: number, tone: { hue: number; sat: number; l: number; k: number }): Layer {
+function veil(key: string, steps: number, b: number, gw: number, gh: number, build: (bq: number) => (x: number, y: number) => number, a: number, tone: { hue: number; sat: number; l: number; k: number }, post?: (v: number) => number, tag = ""): Layer {
   const at = (idx: number) => {
     const k = `${key}|${idx}`; let g = VEILS.get(k);
     if (!g) {
@@ -155,8 +154,9 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
     return g;
   };
   const x = b * steps, i0 = Math.floor(x), fr = x - i0, A = at(i0), B = at(i0 + 1);
-  let grid = OUT.get(key); if (!grid) { grid = new Float32Array(gw * gh); OUT.set(key, grid); if (OUT.size > 60) OUT.delete(OUT.keys().next().value as string); } // the blend of the two steps, one buffer per state reused every frame (the painter reads it at once)
-  for (let q = 0; q < grid.length; q++) grid[q] = A[q] + (B[q] - A[q]) * fr;
+  const ok = key + tag; let grid = OUT.get(ok); if (!grid) { grid = new Float32Array(gw * gh); OUT.set(ok, grid); if (OUT.size > 60) OUT.delete(OUT.keys().next().value as string); } // the blend of the two steps, one buffer per state reused every frame (the painter reads it at once)
+  if (post) for (let q = 0; q < grid.length; q++) grid[q] = post(A[q] + (B[q] - A[q]) * fr);
+  else for (let q = 0; q < grid.length; q++) grid[q] = A[q] + (B[q] - A[q]) * fr;
   return { kind: "veil", x: 0.5, y: 0.5, r: 1, a, dh: 0, hue: tone.hue, sat: tone.sat, l: tone.l, k: tone.k, gw, gh, grid };
 }
 
@@ -631,55 +631,58 @@ function network(density: number, speed: number, feel: Feel, c: Clock): SceneOut
   return { items, layers: [] };
 }
 
-/** Glass: rain on a window. Small drops cling, swell, then slide down in stop-and-go steps and leave a thin trail that fades; a mist of tiny drops stays put. Slow and halting, on a surface (not rain in the air). */
-function glass(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(10, 34, density)), items: Item[] = [], per0 = lerp(36, 16, speed);
-  for (let i = 0; i < n * 3; i++) items.push({ kind: "dot", x: hash01(i, c.seed + 80), y: hash01(i, c.seed + 81), r: 0.0025 + 0.003 * hash01(i, c.seed + 82), w: 0, soft: 0, a: 0.26, l: 92, sat: 20 });
-  for (let i = 0; i < n; i++) {
-    const per = per0 * (0.7 + 0.6 * hash01(i, c.seed + 83)), t = c.b / per + hash01(i, c.seed + 84), life = Math.floor(t), u = t - life, sd = c.seed + life * 131;
-    const x0 = 0.06 + 0.88 * hash01(i, sd + 1), y0 = 0.08 + 0.5 * hash01(i, sd + 2), r1 = lerp(0.012, 0.03, hash01(i, sd + 3)) * lerp(0.9, 1.2, feel.near);
-    const slide = clamp((u - 0.35) / 0.55), seg = slide * 4, k = Math.floor(Math.min(seg, 3.999)), prog = (k + sstep(0, 0.45, seg - k)) / 4; // moves in the first part of each of four steps, then holds
-    const dist = lerp(0.12, 0.5, hash01(i, sd + 4)) * lerp(0.8, 1.3, feel.jitter), y = y0 + dist * prog, x = x0 + 0.012 * Math.sin(prog * 5 + i);
-    const al = Math.min(sstep(0, 0.08, u), 1 - sstep(0.9, 1, u)), r = r1 * (0.45 + 0.55 * sstep(0, 0.3, u)) * (1 - 0.25 * sstep(0.3, 0.9, u));
-    if (slide > 0 && y - y0 > 0.01) { const pts: number[] = []; for (let q = 0; q <= 8; q++) { const yy = y0 + ((y - y0) * q) / 8; pts.push(x0 + 0.012 * Math.sin(((yy - y0) / dist) * 5 + i), yy); } items.push(pathItem(pts, r * 0.4, 0.2 * al, { l: 90, sat: 20 })); }
-    items.push({ kind: "dot", x, y, r, w: 0, soft: 0.15, a: 0.5 * al, l: 88, sat: 25 });
-    items.push({ kind: "dot", x: x - r * 0.25, y: y - r * 0.3, r: r * 0.35, w: 0, soft: 0.6, a: 0.65 * al, l: 99, sat: 10 });
-  }
-  return { items, layers: [] };
-}
-
-/** Hearth: a low flame. A bright dense base along the bottom with tongues that rise, narrow and flicker fast, as a veil in a warm colour. */
-function hearth(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), asp = c.aspect > 0 ? c.aspect : 0.6;
-  const tone = lum < 0.45 ? toneLayer(c.bases, 28, true, 0.5, { sat: 0.95, l: 0.58 }) : toneLayer(c.bases, 28, false, 0.5, { sat: 0.9, l: 0.3 });
-  const T = 3 + Math.round(4 * clamp(density)), GW = Math.round(clamp(c.px / 6, 48, 110)), GH = Math.round(clamp(GW / asp, 48, 150));
+/** Fire: tongues of flame with a turbulent, eroded edge, flickering fast, in three layers from one field: a wide red-orange body, an orange middle and a hot yellow-white core, with sparks rising off it.
+ *  The palette varies by session: a campfire (red, orange, yellow) most often, a blue gas flame, or a green copper one. */
+function fire(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const asp = c.aspect > 0 ? c.aspect : 0.6, T = 3 + Math.round(4 * clamp(density)), GW = Math.round(clamp(c.px / 5, 48, 140)), GH = Math.round(clamp(GW / asp, 48, 190));
+  const pick = hash01(c.seed, 130), pal = pick < 0.6 ? [[8, 0.95, 0.5], [28, 0.97, 0.56], [50, 0.95, 0.8]] : pick < 0.88 ? [[228, 0.9, 0.55], [196, 0.9, 0.62], [185, 0.7, 0.9]] : [[130, 0.85, 0.45], [150, 0.85, 0.55], [75, 0.8, 0.82]];
+  const fl = lerp(1.4, 3, speed);
   const build = (bq: number) => {
-    const fl = lerp(1.6, 3.4, speed), xs: number[] = [], hs: number[] = [];
-    for (let k = 0; k < T; k++) { xs.push((k + 0.5 + 0.5 * noise1(bq * 0.05 + k * 9, c.seed + 90)) / T); hs.push(lerp(0.28, 0.6, hash01(k, c.seed + 91)) * (0.7 + 0.45 * (0.5 + 0.5 * noise1(bq * fl + k * 13, c.seed + 92)))); }
+    const xs: number[] = [], hs: number[] = [], ws: number[] = [];
+    for (let k = 0; k < T; k++) { xs.push((k + 0.5 + 0.7 * noise1(bq * 0.04 + k * 9, c.seed + 90)) / T); hs.push(lerp(0.3, 0.62, hash01(k, c.seed + 91)) * (0.75 + 0.4 * (0.5 + 0.5 * noise1(bq * fl + k * 13, c.seed + 92)))); ws.push(lerp(0.07, 0.13, hash01(k, c.seed + 95)) * (0.8 + 0.3 * noise1(bq * 0.9 + k, c.seed + 96))); }
     return (x: number, y: number) => {
-      const hh = 1 - y; if (hh > 0.7) return 0;
-      let v = Math.exp(-hh / 0.05) * (0.55 + 0.45 * (0.5 + 0.5 * noise1(x * 9 + bq * fl, c.seed + 93)));
-      for (let k = 0; k < T; k++) {
-        if (hh >= hs[k]) continue;
-        const f = 1 - hh / hs[k], w = 0.075 * f ** 0.6 + 0.01, d = (x - xs[k] - 0.035 * noise1(bq * 1.5 + hh * 6 + k * 5, c.seed + 94)) / w;
-        v += Math.exp(-d * d) * f ** 1.2;
-      }
-      return Math.min(1, v);
+      const hh = 1 - y; if (hh > 0.75) return 0;
+      const nx = 0.05 * fbm2(x * 7, hh * 5 - bq * fl * 1.5, c.seed + 97, 2), u = x + nx; // the flame is pushed about sideways as it rises
+      let H = 0.1; for (let k = 0; k < T; k++) { const d = (u - xs[k]) / ws[k]; H = Math.max(H, hs[k] * Math.exp(-d * d)); }
+      const e = 0.5 + 0.5 * fbm2(x * 11 + 3, hh * 9 - bq * fl * 3, c.seed + 98, 3); // the eroded, licking edge
+      const v = 1 - hh / H; if (v <= 0) return 0;
+      return clamp((v * 1.5 - 0.5 * e * (1 - v * 0.6)) * (0.85 + 0.25 * noise1(bq * fl * 2 + x * 6, c.seed + 99)));
     };
   };
-  return { items: [], layers: [veil(`hearth|${GW}x${GH}|${c.seed}|${T}|${Math.round(speed * 20)}`, 16, c.b, GW, GH, build, tone.a, tone)] };
+  const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), key = `fire|${GW}x${GH}|${c.seed}|${T}|${Math.round(speed * 20)}`;
+  const layer = (i: number, budget: number, post: (v: number) => number) => { const [h, sa, l] = pal[i], t = toneLayer(c.bases, h, lum < 0.55, budget, { sat: sa, l: lum < 0.55 ? l : l * 0.55 }); return veil(key, 16, c.b, GW, GH, build, t.a, t, post, `|${i}`); };
+  const layers = [layer(0, 0.5, (v) => v ** 0.65), layer(1, 0.45, (v) => sstep(0.2, 0.85, v)), layer(2, 0.4, (v) => sstep(0.55, 1, v))];
+  const items: Item[] = [], sparks = Math.round(lerp(10, 36, density)), [h1, s1] = pal[1];
+  for (let i = 0; i < sparks; i++) { // sparks that leave the flames and drift up and out
+    const per = lerp(8, 14, hash01(i, c.seed + 131)), t = c.b / per + hash01(i, c.seed + 132), u = t - Math.floor(t), sd = c.seed + Math.floor(t) * 71;
+    const x = 0.1 + 0.8 * hash01(i, sd + 1) + 0.06 * Math.sin(u * 9 + i) + 0.1 * (u * u) * (hash01(i, sd + 2) - 0.5), y = 0.97 - 0.75 * u ** 0.85;
+    items.push({ kind: "dot", x, y, r: 0.0035 * (1 - 0.5 * u), w: 0, soft: 0.3, a: 0.85 * Math.sin(Math.PI * u) ** 0.6, hue: h1 + 12 * hash01(i, sd + 3), sat: s1 * 100, l: 70 });
+  }
+  return { items, layers };
 }
 
-/** Warp: a starfield rush. Streaks fly outward from a slowly drifting vanishing point, faster and longer the further out they are, in light that stretches with the beat. */
+/** Warp: a starfield rush with depth. Far stars crawl and near ones streak; a few big bright stars rush up to the viewer; the colours range from white to blue, magenta and gold; a nebula glows behind, a soft core
+ *  burns at the vanishing point (which drifts), and a ring of light leaves it on each beat (a wider one on the bar). Dust twinkles in the gaps. */
 function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(40, 160, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, kx = asp < 1 ? 1 : 1 / asp, ky = asp < 1 ? asp : 1;
+  const n = Math.round(lerp(60, 200, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, kx = asp < 1 ? 1 : 1 / asp, ky = asp < 1 ? asp : 1;
   const vx = 0.5 + 0.08 * Math.sin(c.b / 23 + c.seed), vy = 0.5 + 0.06 * Math.cos(c.b / 31), rate = lerp(0.02, 0.08, speed), stretch = 1 + 0.35 * c.kick * feel.jitter;
+  const pal: Array<[number, number]> = [[0, 0], [0, 0], [0, 0], [210, 70], [210, 70], [310, 60], [45, 70]]; // mostly white, some blue, magenta, gold
+  for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
+  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: 210 }); // the core
+  const ring = c.beatPh, bar = c.beatIdx % 4 === 0;
+  items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + (bar ? 0.9 : 0.55) * ring, w: bar ? 0.004 : 0.0025, a: (bar ? 0.3 : 0.16) * (1 - ring), l: 92, sat: 40, hue: 210, sq: 1 }); // a ring of light leaves on the beat
   for (let i = 0; i < n; i++) {
-    const th = 2 * Math.PI * hash01(i, c.seed + 100), ph = frac(hash01(i, c.seed + 101) + c.b * rate * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
-    const len = (0.015 + 0.22 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th);
-    items.push({ kind: "streak", x: vx + dxp * rho * kx, y: vy + dyp * rho * ky, r: len, w: 0.0016 + 0.0026 * ph, ang: Math.atan2(dxp, dyp), tail: true, a: 0.7 * Math.min(1, ph * 4), l: 94, sat: hash01(i, c.seed + 103) < 0.25 ? 60 : 10, hue: 210 });
+    const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
+    const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
+    items.push({ kind: "streak", x: vx + dxp * rho * kx, y: vy + dyp * rho * ky, r: len, w: (near ? 0.0022 : 0.0014) + 0.0026 * ph, ang: Math.atan2(dxp, dyp), tail: true, a: 0.7 * Math.min(1, ph * 4), l: 94, sat, hue });
   }
-  return { items, layers: [] };
+  for (let i = 0; i < 5; i++) { // a few big bright stars that rush up to the viewer
+    const th = 2 * Math.PI * hash01(i, c.seed + 109), ph = frac(hash01(i, c.seed + 110) + c.b * rate * 0.5), rho = 0.05 + 0.95 * ph ** 2.6;
+    items.push({ kind: "dot", x: vx + Math.cos(th) * rho * kx, y: vy + Math.sin(th) * rho * ky, r: 0.004 + 0.02 * ph ** 2, w: 0, soft: 0.8, a: 0.8 * Math.min(1, ph * 5) * (1 - 0.5 * ph ** 3), l: 96, sat: 30, hue: 45 });
+  }
+  const GW = Math.round(clamp(c.px / 8, 40, 100)), GH = Math.round(clamp(GW / asp, 40, 140)), tone = toneLayer(c.bases, 255 + 50 * hash01(c.seed, 111), true, 0.18, { sat: 0.7, l: 0.5 });
+  const nebula = veil(`warp|${GW}x${GH}|${c.seed}`, 4, c.b, GW, GH, (bq) => (x, y) => sstep(0.1, 0.85, 0.5 + 0.6 * fbm2(x * 2.4 + bq * 0.01, y * 2.4 - bq * 0.008, c.seed + 112, 3)) * (0.35 + 0.65 * Math.exp(-(((x - 0.5) * asp) ** 2 + (y - 0.5) ** 2) * 2.5)), tone.a, tone);
+  return { items, layers: [nebula] };
 }
 
 /** Caustics: the bright net of light on the floor of a pool. Two ridged noises sliding past each other; where both are near zero a bright line, so the lines form a drifting mesh. */

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, type CSSProperties } from "react";
 import type { EngineState } from "@sonorous/engine";
-import { moodToEngineState, stretchMood, SCENES, type Mood } from "@sonorous/shared";
+import { moodToEngineState, nextGrid, stretchMood, SCENES, type Mood } from "@sonorous/shared";
 import { SAMPLES, stateOfStep } from "../../../lib/samples";
 import { VisualCanvas } from "../../../components/player/visual-canvas";
 
@@ -38,6 +38,14 @@ const EMOTIONS: Array<{ id: string; name: string; mood: Mood }> = [
 ];
 type Sync = "own" | "beat" | "phrase" | "free";
 
+/** What the `silence` tool writes (service.ts): the same state with the volume 0, the layers off, a fade, and the grid carried on from the state before. */
+function silentOf(prev: EngineState, prevAt: number, now: number): EngineState {
+  const e: EngineState = JSON.parse(JSON.stringify(prev));
+  e.volume = 0; delete e.engine; delete e.pattern; e.drone.on = false; e.bass.on = false; e.arp.on = false; e.transition = { time: 8, curve: "smooth" };
+  e.grid = nextGrid({ effective: prev, created_at: new Date(prevAt).toISOString() }, now, e);
+  return e;
+}
+
 export function VisualsLab() {
   const [bpm, setBpm] = useState(100);
   const [set, setSet] = useState<"emotions" | "samples" | "gradients">("emotions");
@@ -46,6 +54,7 @@ export function VisualsLab() {
   const [sync, setSync] = useState<Sync>("own");
   const [own, setOwn] = useState(true);
   const [grey, setGrey] = useState(false);
+  const [silentAt, setSilentAt] = useState<number | null>(null); // the picture after a `silence` call, written the way the server writes it (same grid logic)
   const [only, setOnly] = useState("all"); // one panel, large, to judge a single canvas (the grid runs up to 25 at once)
   const [epoch, setEpoch] = useState(() => Date.now());
   const clock = useRef(0);
@@ -78,6 +87,7 @@ export function VisualsLab() {
           {(["own", "beat", "phrase", "free"] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Show <select value={only} onChange={(e) => { setOnly(e.target.value); setEpoch(Date.now()); }}>
           <option value="all">all</option>{panels.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        <button type="button" onClick={() => setSilentAt((v) => (v ? null : Date.now()))}>{silentAt ? "Back to sound" : "Silence (8 s fade)"}</button>
         <label><input type="checkbox" checked={play} onChange={(e) => setPlay(e.target.checked)} /> Colour play</label>
         <label><input type="checkbox" checked={grey} onChange={(e) => setGrey(e.target.checked)} /> No hue (grey)</label>
       </div>
@@ -91,7 +101,7 @@ export function VisualsLab() {
           return (
             <figure key={p.id} style={{ margin: 0 }}>
               <div className="pl-field lab-field" style={style} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
-                <VisualCanvas source={{ state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} onFail={() => {}} />
+                <VisualCanvas source={silentAt ? { state: silentOf(p.state, epoch, silentAt), at: silentAt, seed: p.seed } : { state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} onFail={() => {}} />
               </div>
               <figcaption className="se-sm">{p.name} · {c.scene ?? "none"} · {c.sync ?? "mood"}</figcaption>
             </figure>

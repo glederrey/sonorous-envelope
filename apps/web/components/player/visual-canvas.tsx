@@ -36,13 +36,13 @@ const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, onFail }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
-  const live = useRef({ source, active, latency, play });
-  live.current = { source, active, latency, play };
+  const live = useRef({ source, active, latency, play, onFail });
+  live.current = { source, active, latency, play, onFail }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
 
   useEffect(() => {
     const cv = ref.current;
     const ctx = cv?.getContext("2d");
-    if (!cv || !ctx) { onFail(); return; }
+    if (!cv || !ctx) { live.current.onFail(); return; }
     const clock = new BeatClock();
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
     let curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
@@ -212,12 +212,12 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         last = now;
       } catch {
         // a canvas bug must not break the page: stop, and let the parent bring back the CSS field
-        failed = true; cancelAnimationFrame(raf); onFail();
+        failed = true; cancelAnimationFrame(raf); live.current.onFail();
       }
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [clockOffset, onFail]);
+  }, [clockOffset]);
 
   return <canvas ref={ref} className="pl-motion" aria-hidden />;
 }
