@@ -12,9 +12,9 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 
 ## Hard rules (not configurable)
 - No flashing (photosensitive epilepsy). Until 2026-11-11 the rule was "nothing faster than 3 per second"; it is now stated the way WCAG 2.3.1 states it, and tighter, so that the picture can follow the beat at any tempo:
-  - Large elements (the wash over the field, the glow) together change the relative luminance by at most 0.09. A flash is a change of 0.1 or more, so the beat pulse is never one, however fast it repeats. This is checked on every frame in the player (`capFrame`) and by a property test over random states, tempos, scenes and glides.
+  - Large elements (the wash over the field, the glow, the fog and aurora layers) together change the relative luminance by at most 0.09. A flash is a change of 0.1 or more, so the beat pulse is never one, however fast it repeats. This is checked on every frame in the player (`capFrame`) and by a property test over random states, tempos, scenes and glides.
   - Saturated red (WCAG's definition) gets no pulse.
-  - Small elements (motes, rings, streaks) may be brighter and faster, but together cover at most 10% of the view, at most 48 of them. A phone is held close, so these are stricter than WCAG's 25% of 10 degrees.
+  - Small elements (motes, rings, streaks) may be brighter and faster, but together cover at most 10% of the view, at most 160 of them, counting every line at least one device pixel wide. A change of scene is a crossfade (at least 1.5 s) whose frames go through the same budget. A phone is held close, so these are stricter than WCAG's 25% of 10 degrees.
   - State changes glide over at least 1 s, and updates come at most every 300 ms.
   - `prefers-reduced-motion` turns the moving picture off, and the listener has a "Still picture" button in the player.
   - This follows accessibility guidance and is not a medical guarantee.
