@@ -64,6 +64,10 @@ export interface Clock {
   aspect: number;
   /** width of the picture in pixels (the veil scenes pick the fineness of their field by it) */
   px: number;
+  /** beats per second of `b` (half-time already applied): a scene that must not repeat faster than a rate in Hz (rings, flashes) divides by it */
+  bps: number;
+  /** seconds of the page's clock, for things that must run at a fixed rate whatever the tempo */
+  sec: number;
   /** the field's hue and base colours (the primary and the secondary), for scenes that choose a colour that reads against it */
   h: number; s: number; bases: Array<[number, number, number]>;
 }

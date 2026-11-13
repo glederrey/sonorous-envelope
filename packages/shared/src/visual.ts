@@ -174,7 +174,7 @@ export function visualFrame(input: FrameInput): Frame {
   }
 
   const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
-  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, h: colour.h, s: colour.s, bases };
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, sec: t, h: colour.h, s: colour.s, bases };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
   // A scene made of large soft layers (an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
   // motion's own wash and glow step back, by a factor that follows the crossfade, never a switch.

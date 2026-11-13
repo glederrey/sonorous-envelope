@@ -596,8 +596,10 @@ function reeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   // a kind of plant and a colour by session: reeds with seed heads, tall grass, cattails, wheat, or flowers; straw, green, silver or autumn
   const kind = Math.floor(hash01(c.seed, 170) * 5), pi = Math.floor(hash01(c.seed, 171) * 4), col = [{ hue: 44, sat: 50, l: 60 }, { hue: 110, sat: 40, l: 52 }, { hue: 195, sat: 15, l: 74 }, { hue: 18, sat: 55, l: 52 }][pi];
   const n = Math.round(lerp(14, 36, density) * (kind === 1 ? 1.7 : kind === 4 ? 0.7 : 1)), items: Item[] = [], per = lerp(16, 8, speed), gust = (c.b / per) % 1, gx = gust * 1.6 - 0.3;
+  // stems are placed in a scrambled order, so if the small-element budget drops the last ones the gaps are spread over the field, never a bare right-hand side
+  const stride = [41, 43, 47, 53, 59].find((p) => n % p !== 0) ?? 1;
   for (let i = 0; i < n; i++) {
-    const x0 = 0.03 + (0.94 * (i + 0.5 + 0.6 * (hash01(i, c.seed + 2) - 0.5))) / n, H = lerp(kind === 1 ? 0.14 : 0.22, kind === 3 ? 0.5 : 0.58, hash01(i, c.seed + 3)) * lerp(0.85, 1.1, feel.near), ph = hash01(i, c.seed + 4);
+    const j = (i * stride) % n, x0 = 0.03 + (0.94 * (j + 0.5 + 0.6 * (hash01(i, c.seed + 2) - 0.5))) / n, H = lerp(kind === 1 ? 0.14 : 0.22, kind === 3 ? 0.5 : 0.58, hash01(i, c.seed + 3)) * lerp(0.85, 1.1, feel.near), ph = hash01(i, c.seed + 4);
     const g = Math.exp(-(((x0 - gx) / 0.16) ** 2)) * (0.1 + 0.08 * feel.depth) * Math.sin(Math.PI * clamp(gust)), sw = 0.03 * (0.6 + feel.irreg) * Math.sin(2 * Math.PI * (c.b / (9 + 6 * ph) + ph)), D = (g + sw) * (0.6 + 0.6 * hash01(i, c.seed + 5));
     const pts: number[] = [];
     for (let k = 0; k <= 8; k++) { const s = k / 8; pts.push(x0 + (D * s ** 1.8) / 1, 1.03 - H * s * (1 - 0.25 * Math.abs(D) * 4 * s)); }
@@ -671,14 +673,14 @@ function fire(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
  *  burns at the vanishing point (which drifts), and a ring of light leaves it on each beat (a wider one on the bar). Dust twinkles in the gaps. */
 function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(60, 200, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, kx = asp < 1 ? 1 : 1 / asp, ky = asp < 1 ? asp : 1;
-  const vx = 0.5 + 0.08 * Math.sin(c.b / 23 + c.seed), vy = 0.5 + 0.06 * Math.cos(c.b / 31), rate = lerp(0.02, 0.08, speed), stretch = 1 + 0.35 * c.kick * feel.jitter;
+  const vx = 0.5 + 0.08 * Math.sin(c.b / 23 + c.seed), vy = 0.5 + 0.06 * Math.cos(c.b / 31), rate = lerp(0.02, 0.08, speed), calmK = Math.min(1, 1.2 / Math.max(0.5, c.bps)), stretch = 1 + 0.35 * c.kick * feel.jitter * calmK;
   // a look by session: cool white and blue, warm gold, neon, mono with many big stars, or a tunnel of rings
   const v = Math.floor(hash01(c.seed, 150) * 5), pals: Array<Array<[number, number]>> = [[[0, 0], [0, 0], [0, 0], [210, 70], [210, 70], [190, 60]], [[0, 0], [0, 0], [45, 75], [45, 75], [20, 80], [350, 60]], [[310, 80], [180, 80], [0, 0], [270, 70], [310, 80]], [[0, 0]], [[0, 0], [0, 0], [200, 60], [200, 60]]];
-  const pal = pals[v], nebHue = [230, 20, 300, 255, 200][v], rings = v === 4 ? 4 : v === 2 ? 2 : 1, bigStars = v === 3 ? 12 : 5, nStars = Math.round(n * (v === 4 ? 0.6 : v === 3 ? 1.3 : 1));
+  const pal = pals[v], nebHue = [230, 20, 300, 255, 200][v], rings = v === 4 ? 3 : v === 2 ? 2 : 1, bigStars = v === 3 ? 12 : 5, nStars = Math.round(n * (v === 4 ? 0.6 : v === 3 ? 1.3 : 1));
   for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
-  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: nebHue }); // the core
-  const bar = c.beatIdx % 4 === 0;
-  for (let q = 0; q < rings; q++) { const ring = frac(c.beatPh + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + (bar || v === 4 ? 0.9 : 0.55) * ring, w: bar || v === 4 ? 0.004 : 0.0025, a: ((bar || v === 4) ? 0.3 : 0.16) * (1 - ring), l: 92, sat: 40, hue: nebHue }); } // rings of light leave on the beat
+  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick * calmK), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: nebHue }); // the core
+  // rings of light leave the core at a fixed pace, 2.6 s from the core to the edge whatever the tempo (and at most three at once), so they can never strobe
+  for (let q = 0; q < rings; q++) { const ring = frac(c.sec / 2.6 + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
   for (let i = 0; i < nStars; i++) {
     const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
     const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
