@@ -139,10 +139,12 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["embers", anger * ramp(w, 0.05, 0.25)],                                           // anger: sparks that jerk and flicker
     ["fireflies", ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9))], // tender: soft lights that glow on and off
     ["leaves", ramp(j, 0.05, 0.2) * (1 - ramp(j, 0.4, 0.6)) * ramp(w, 0.55, 0.75) * ramp(k, 0.25, 0.45) * ramp(c, 0.35, 0.55) * notTense], // wistful and melancholic: warm, low joy
-    ["stars", ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
+    ["stars", ramp(w, 0.2, 0.4) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
     ["fireworks", ramp(j, 0.8, 0.95) * (1 - ramp(k, 0.1, 0.3)) * notTense],                                      // elation: bursts of light
     ["smoke", (1 - ramp(j, 0.3, 0.5)) * ramp(k, 0.45, 0.7) * ramp(t, 0.2, 0.4) * (1 - ramp(t, 0.5, 0.7))],      // brooding, uneasy: wisps that rise and curl
-    ["jellyfish", ramp(k, 0.7, 0.9) * ramp(s2, 0.6, 0.8) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.8, 0.95)) * notTense], // dreamy: domes that pulse
+    ["circuit", (1 - ramp(w, 0.25, 0.45)) * (1 - ramp(s2, 0.3, 0.5)) * ramp(j, 0.35, 0.5) * (1 - ramp(j, 0.6, 0.75)) * ramp(k, 0.4, 0.6) * (1 - ramp(k, 0.8, 0.95)) * notTense], // focused, exact: traces and stepped pulses
+    ["digital", (1 - ramp(w, 0.25, 0.45)) * ramp(t, 0.3, 0.5) * (1 - ramp(t, 0.65, 0.85)) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.65, 0.8)) * (1 - ramp(k, 0.55, 0.8))], // alert, processing: falling blocks
+    ["bars", (1 - ramp(w, 0.25, 0.45)) * ramp(j, 0.5, 0.7) * (1 - ramp(k, 0.5, 0.75)) * (1 - ramp(s2, 0.5, 0.7)) * notTense], // driven, mechanical: an equaliser
     ["vines", ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.65, 0.8)) * ramp(k, 0.35, 0.5) * (1 - ramp(k, 0.6, 0.75)) * ramp(t, 0.25, 0.4) * (1 - ramp(t, 0.55, 0.7)) * (1 - ramp(s2, 0.4, 0.6))], // determined: growth
     ["moths", ramp(w, 0.5, 0.7) * (1 - ramp(c, 0.3, 0.5)) * ramp(j, 0.1, 0.25) * (1 - ramp(j, 0.5, 0.65)) * ramp(k, 0.3, 0.6) * notTense], // longing: warm, far, drawn to a light
     ["flock", ramp(s2, 0.8, 1) * ramp(k, 0.3, 0.55) * (1 - ramp(k, 0.65, 0.85)) * (1 - ramp(t, 0.2, 0.45)) * ramp(j, 0.2, 0.4) * (1 - ramp(j, 0.6, 0.8))], // swept up, restless: a flock

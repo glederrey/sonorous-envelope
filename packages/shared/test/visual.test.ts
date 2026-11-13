@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30000 }); // the property tests draw tens of thousands of frames
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
   capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
@@ -256,12 +258,14 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.6, spontaneity: 0.2, tension: 0 })).toBe("tide");        // peaceful
     expect(e({ joy: 0.95, calm: 0.1, warmth: 0.8, closeness: 0.6, spontaneity: 0.8, tension: 0.1 })).toBe("fireworks");    // excited
     expect(e({ joy: 0.25, calm: 0.6, warmth: 0.4, closeness: 0.4, spontaneity: 0.3, tension: 0.35 })).toBe("smoke");       // brooding
-    expect(e({ joy: 0.6, calm: 0.85, warmth: 0.5, closeness: 0.4, spontaneity: 0.8, tension: 0 })).toBe("jellyfish");      // dreamy
+    expect(e({ joy: 0.5, calm: 0.6, warmth: 0.2, closeness: 0.3, spontaneity: 0.15, tension: 0.1 })).toBe("circuit");   // analytical
+    expect(e({ joy: 0.45, calm: 0.35, warmth: 0.2, closeness: 0.3, spontaneity: 0.4, tension: 0.5 })).toBe("digital");  // alert
+    expect(e({ joy: 0.7, calm: 0.3, warmth: 0.2, closeness: 0.3, spontaneity: 0.3, tension: 0.1 })).toBe("bars");     // driven
     expect(e({ joy: 0.55, calm: 0.5, warmth: 0.4, closeness: 0.4, spontaneity: 0.2, tension: 0.4 })).toBe("vines");        // determined
     expect(e({ joy: 0.35, calm: 0.5, warmth: 0.7, closeness: 0.15, spontaneity: 0.3, tension: 0 })).toBe("moths");         // longing
     expect(e({ joy: 0.45, calm: 0.45, warmth: 0.5, closeness: 0.4, spontaneity: 0.95, tension: 0.1 })).toBe("flock");      // restless
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.2, spontaneity: 0.2, tension: 0 })).toBe("stars");        // serene
-    expect(e({ joy: 0.55, calm: 0.25, warmth: 0.4, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
+    expect(e({ joy: 0.55, calm: 0.25, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
   });
   it("shapes the same scene by the mood: a storm leans and flickers, a drizzle falls straight", () => {
     const rain = (jitter: number) => visualFrame({ colour: base({ scene: "rain", density: 0.7, speed: 0.5, feel: { ...moodToFeel(mood), jitter } }), bpm: 90, beats: 20, t: 0, seed: 2 }).items.filter((i) => i.kind === "streak");

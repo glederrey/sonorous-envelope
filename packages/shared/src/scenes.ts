@@ -1,4 +1,4 @@
-import { matchedLayer } from "./colour-math";
+import { matchedLayer, relLuminance } from "./colour-math";
 import { clamp, frac, hash01, lerp, noise1, type Clock, type Feel, type Item, type Layer, type SceneName, type SceneOut } from "./scene-kit";
 
 // The scenes (docs/visuals.md): what moves over the colours. Each is a pure function of the clock, the mood's feel and the seed.
@@ -11,9 +11,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "rain" || s === "embers";
 /** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
+export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -30,7 +30,9 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "seeds" ? seeds(d, v, feel, c)
     : scene === "tide" ? tide(d, v, feel, c)
     : scene === "smoke" ? smoke(d, v, feel, c)
-    : scene === "jellyfish" ? jellyfish(d, v, feel, c)
+    : scene === "circuit" ? circuit(d, v, feel, c)
+    : scene === "digital" ? digital(d, v, feel, c)
+    : scene === "bars" ? bars(d, v, feel, c)
     : scene === "vines" ? vines(d, v, feel, c)
     : scene === "fireworks" ? fireworks(d, v, feel, c)
     : scene === "moths" ? moths(d, v, feel, c)
@@ -294,58 +296,87 @@ function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}): Item => ({ kind: "path", x: pts[0], y: pts[1], r: 0, w, a, pts, ...extra });
 
-/** Smoke: thin wisps that rise from the bottom, curl more as they climb and thin out (three strokes, each fainter and finer). Brooding, uneasy. */
+/** Smoke: billowing plumes. Each plume is a column of soft puffs that leave a source at the bottom, swell as they rise, swirl in the turbulence, merge with their neighbours and thin out
+ *  to nothing. The puffs are large soft layers, so they share the brightness budget where they overlap. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(2, 6, density)), items: Item[] = [], sp = lerp(0.015, 0.05, speed), curl = 0.04 + 0.06 * feel.jitter + 0.03 * feel.irreg;
+  const gm = matchedLayer(c.bases, c.h, 0.04); // grey of the lightness that changes the field's brightness least: the smoke can be strongly opaque and is seen as a colourless haze
+  const P = Math.round(lerp(1, 2.4, density)), M = 10, layers: Layer[] = [], rate = lerp(0.012, 0.034, speed), wind = 0.18 * noise1(c.b / 45, c.seed + 60);
+  for (let p = 0; p < P; p++) {
+    const x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P, ph = hash01(p, c.seed + 62);
+    for (let m = 0; m < M; m++) {
+      const u = ((c.b * rate + m / M + ph) % 1 + 1) % 1; // 0 at the source, 1 gone
+      const sway = 0.1 * noise1(c.b * 0.02 + u * 2.2 + p * 7, c.seed + 63) + 0.06 * noise1(c.b * 0.05 + m * 3.1, c.seed + 64) * u;
+      layers.push({ kind: "blob", x: x0 + (wind * u + sway) * (0.4 + u) * (1 + feel.jitter), y: 1.1 - u * 1.0,
+        r: lerp(0.07, 0.26, u ** 0.8) * lerp(0.85, 1.2, feel.near) * (1 + 0.15 * noise1(c.b * 0.04 + m * 5, c.seed + 65)),
+        a: Math.min(0.75, 0.09 / gm.k) * 0.8 * Math.sin(Math.PI * u) ** 0.8 * lerp(0.8, 1.2, density), dh: 0, hue: gm.hue, sat: gm.sat * 100, l: gm.l * 100, k: gm.k });
+    }
+  }
+  return { items: [], layers };
+}
+
+/** Circuit: right-angled traces across the view, with pulses of light that travel along them one segment on each beat, in steps, never smoothly. Cold, exact, a machine at work. */
+function circuitTrace(sd: number, asp: number): number[] {
+  const pts: number[] = [], U = 0.045; // one cell, as a fraction of the height
+  let x = 0.06 + 0.88 * hash01(sd, 1), y = 0.06 + 0.88 * hash01(sd, 2), dir = Math.floor(hash01(sd, 3) * 4);
+  x = Math.round(x / (U / asp)) * (U / asp); y = Math.round(y / U) * U; pts.push(x, y);
+  for (let k = 0; k < 12; k++) {
+    const len = 1 + Math.floor(hash01(sd, 10 + k) * 5);
+    x += [1, 0, -1, 0][dir] * len * (U / asp); y += [0, 1, 0, -1][dir] * len * U;
+    if (x < 0.03 || x > 0.97 || y < 0.03 || y > 0.97) { x = Math.min(0.97, Math.max(0.03, x)); y = Math.min(0.97, Math.max(0.03, y)); pts.push(x, y); break; }
+    pts.push(x, y); dir = (dir + (hash01(sd, 30 + k) < 0.5 ? 1 : 3)) % 4;
+  }
+  return pts;
+}
+function circuit(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(4, 12, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, L = 40; // every traces' layout comes from the session seed and the cycle: no two sessions, and no two cycles, draw the same board
   for (let i = 0; i < n; i++) {
-    const x0 = 0.12 + 0.76 * (i + 0.5 * hash01(i, c.seed)) / n, ph = hash01(i, c.seed + 3), N = 18;
-    const pt = (s: number) => { // s: 0 at the foot, 1 at the top; the waves travel up the wisp
-      const x = x0 + curl * (0.25 + s * 1.6) * Math.sin(2 * Math.PI * (s * 1.5 - c.b * sp + ph)) + 0.05 * noise1(s * 2 + c.b * 0.01 + i * 11, c.seed + 5) * s;
-      return [x, 1.03 - s * 0.95];
-    };
-    for (const [s0, s1, a, w] of [[0, 0.4, 0.34, 0.0045], [0.4, 0.7, 0.2, 0.003], [0.7, 1, 0.1, 0.002]] as const) {
-      const pts: number[] = [];
-      for (let k = 0; k <= N; k++) pts.push(...pt(s0 + ((s1 - s0) * k) / N));
-      items.push(pathItem(pts, w, a, { l: 80 }));
+    const t = c.b / L + i / n, cyc = Math.floor(t), u = t - cyc, fade = Math.min(1, u * 8, (1 - u) * 8);
+    const pts = circuitTrace(Math.floor(hash01(i + cyc * 977, c.seed + 7) * 100000), asp), segs = pts.length / 2 - 1;
+    items.push(pathItem(pts, 0.0022, 0.2 * fade, { l: 84, sat: 35 }));
+    for (let k = 0; k <= segs; k++) items.push({ kind: "dot", x: pts[2 * k], y: pts[2 * k + 1], r: 0.0042, w: 0, soft: 0, a: 0.3 * fade, l: 88, sat: 35 }); // the pads at the corners
+    // the pulse: one segment per beat, in steps (the beat index, not its fraction), with a tail of two segments behind it
+    const head = (Math.floor(c.b * (c.sync === "free" ? 1 : 1)) + i * 3) % (segs + 3);
+    for (let tl = 0; tl < 3; tl++) {
+      const sg = head - tl; if (sg < 0 || sg >= segs) continue;
+      items.push(pathItem([pts[2 * sg], pts[2 * sg + 1], pts[2 * sg + 2], pts[2 * sg + 3]], 0.0045 - 0.001 * tl, (0.5 - 0.15 * tl) * fade, { l: 92, sat: 60 }));
     }
   }
   return { items, layers: [] };
 }
 
-/** Jellyfish: a dome that contracts on each beat and hops up a little, then glides and sinks, with tentacles trailing behind. Dreamy. */
-function jellyfish(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(1, 4, density)), items: Item[] = [], pos = spread(n, c.aspect, c.seed + 80);
-  for (let i = 0; i < n; i++) {
-    const p = pos[i], ph = hash01(i, c.seed + 3), z = hash01(i, c.seed + 2);
-    const cyc = 4 * (1 + 0.15 * (ph - 0.5)), u = ((c.b / cyc + ph) % 1 + 1) % 1, pulse = Math.sin(Math.PI * Math.min(1, u * 1.6)) * (u < 0.625 ? 1 : 0); // contracts in the first part of each cycle
-    const R = lerp(0.045, 0.085, z) * lerp(0.9, 1.2, feel.near), bell = R * (1 - 0.2 * pulse);
-    const x = p.x + p.cw * 0.35 * noise1(c.b * 0.012 + i * 9, c.seed + 4), y = p.y + p.ch * 0.3 * noise1(c.b * 0.012 + i * 9 + 30, c.seed + 5) - 0.025 * pulse + 0.02 * (u - 0.5);
-    const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), px = m / asp, py = m; // small-side units to fractions of the width and the height
-    const dome: number[] = [];
-    for (let k = 0; k <= 14; k++) { const t = Math.PI * (k / 14); dome.push(x - Math.cos(t) * bell * px * (1 + 0.15 * pulse), y - Math.sin(t) * bell * py * 0.85); }
-    items.push(pathItem(dome, 0.004, 0.5, { l: 88, dh: 25 }));
-    items.push({ kind: "dot", x, y: y - bell * py * 0.3, r: bell * 0.75, w: 0, soft: 1, a: 0.16 + 0.1 * pulse, l: 85, dh: 25 });
-    for (let t = 0; t < 4; t++) {
-      const tx = x + (t - 1.5) * bell * px * 0.55, pts: number[] = [];
-      for (let k = 0; k <= 10; k++) { const s = k / 10; pts.push(tx + Math.sin(2 * Math.PI * (s * 1.1 - c.b / cyc + t * 0.25 + ph)) * bell * px * 0.22 * s, y + s * bell * py * (2.4 - 0.5 * pulse)); }
-      items.push(pathItem(pts, 0.0028, 0.3 - 0.04 * t, { l: 88, dh: 25 }));
+/** Digital: columns of small blocks that fall one cell per tick, with a bright head and a fading tail: stepwise, like a machine drawing text. Alert, processing. */
+function digital(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const cols = Math.round(lerp(16, 48, density)), items: Item[] = [], rows = 26, tail = 7, cell = 1 / rows, asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+  for (let i = 0; i < cols; i++) {
+    const heads = 1 + (hash01(i, c.seed + 9) > 0.45 ? 1 : 0), rate = (1 + Math.floor(hash01(i, c.seed + 2) * 3)) * 0.5 * lerp(0.7, 2, speed), x = (i + 0.5) / cols;
+    for (let h = 0; h < heads; h++) {
+      const pos = Math.floor(c.b * rate + hash01(i + h * 57, c.seed + 3) * (rows + tail)) % (rows + tail + 6 + 4 * h);
+      for (let k = 0; k < tail; k++) {
+        const row = pos - k; if (row < 0 || row >= rows) continue;
+        if (k > 0 && hash01(row + i * 31 + h * 7, Math.floor(c.b * 2) + c.seed) < 0.12) continue; // a cell dropped out now and then
+        items.push({ kind: "streak", x, y: row * cell, r: (cell * 0.7) / m, w: Math.min(0.0058, ((0.5 / cols) * asp) / m), ang: 0, a: k === 0 ? 0.5 : 0.4 * (1 - k / tail) ** 1.4, l: k === 0 ? 96 : 80, sat: 75 });
+      }
     }
   }
   return { items, layers: [] };
 }
 
-/** The branches of a vine, as a pure function of its seed: a winding stem from the foot with side branches, as lists of points (fractions of the view). */
-function vineTree(seed: number, x0: number): number[][] {
-  const stem: number[] = [], N = 20;
-  for (let k = 0; k <= N; k++) { const s = k / N; stem.push(x0 + 0.07 * noise1(s * 2.4, seed) + 0.025 * Math.sin(s * 9 + seed), 1.03 - s * (0.55 + 0.25 * hash01(seed, 5))); }
-  const out = [stem];
-  for (let b = 0; b < 3; b++) {
-    const at = Math.floor(N * (0.3 + 0.2 * b + 0.05 * hash01(seed, 10 + b))), side = (b + seed) % 2 ? 1 : -1, br: number[] = [stem[at * 2], stem[at * 2 + 1]];
-    for (let k = 1; k <= 9; k++) { const s = k / 9; br.push(br[0] + side * s * (0.09 + 0.05 * hash01(seed, 20 + b)) + 0.02 * Math.sin(s * 6 + b), br[1] - s * (0.1 + 0.05 * hash01(seed, 30 + b))); }
-    out.push(br);
+/** Bars: an equaliser. Columns of small blocks whose levels jump to new values on each beat (in whole steps, never smoothly), with a peak marker that hangs at the top for a beat and then drops
+ *  a block at a time. Machine-like, driven by the music's pulse. */
+function bars(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const nb = Math.round(lerp(12, 30, density)), rows = 16, items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+  const bw = 0.84 / nb, cell = 0.6 / rows, step = Math.floor(c.b * lerp(1, 2, speed));
+  const lvl = (i: number, st: number) => Math.round(1 + (rows - 3) * clamp(0.5 + 0.55 * noise1(st * 0.9 + i * 0.7, c.seed + 11) * (0.6 + 0.4 * feel.depth) + 0.18 * (hash01(st * 31 + i, c.seed + 12) - 0.5) + 0.12 * (feel.lift - 0.5)));
+  for (let i = 0; i < nb; i++) {
+    const L = lvl(i, step), x = 0.08 + (i + 0.5) * bw, bwPx = (Math.min(bw * asp, cell) * 0.7) / m;
+    for (let k = 0; k < L; k++) items.push({ kind: "streak", x, y: 0.95 - (k + 1) * cell, r: (cell * 0.78) / m, w: bwPx, ang: 0, a: 0.18 + 0.3 * (k / rows), l: k > rows * 0.7 ? 94 : 84, sat: 70 });
+    // the peak: the highest level of the last few steps, dropping one block per step after it hangs
+    let peak = L, hold = 0; for (let h = 1; h <= 6; h++) { const past = lvl(i, step - h) - Math.max(0, h - 2); if (past > peak) { peak = past; hold = h; } }
+    items.push({ kind: "streak", x, y: 0.95 - (Math.min(rows, peak) + 1.4) * cell, r: (cell * 0.5) / m, w: bwPx, ang: 0, a: 0.5 * (1 - 0.1 * hold), l: 97, sat: 50 });
   }
-  return out;
+  return { items, layers: [] };
 }
+
 /** The first `g` (0 to 1) of a polyline. */
 function partOf(p: number[], g: number): number[] {
   const n = p.length / 2 - 1, t = g * n, k = Math.floor(t), out = p.slice(0, 2 * (k + 1));
@@ -353,70 +384,162 @@ function partOf(p: number[], g: number): number[] {
   return out;
 }
 
-/** Vines: branches that draw themselves upward from the bottom over a couple of bars, hold, fade, and grow again somewhere else. Determination. */
+/** A plant, as a pure function of its seed: a stem that winds from a point of the view in a direction of its own, with side branches that curl at their tips, and the places where leaves sit.
+ *  Branches are lists of points (fractions of the view); `at` is the share of the stem's growth at which each branch starts. */
+function plant(sd: number, asp: number) {
+  const step = 0.032, branches: Array<{ pts: number[]; at: number }> = [], leaves: Array<{ x: number; y: number; at: number; a: number }> = [];
+  const grow = (x: number, y: number, ang: number, n: number, curl: number, sdd: number, at0: number, span: number) => {
+    const pts = [x, y];
+    for (let k = 1; k <= n; k++) {
+      ang += curl * noise1(k * 0.35, sdd) + (k > n - 5 ? 0.35 * curl * 4 * ((sdd % 2) ? 1 : -1) : 0); // the tip curls in
+      x += (Math.cos(ang) * step) / asp; y += Math.sin(ang) * step; pts.push(x, y);
+      if (k % 3 === 0 && leaves.length < 14) leaves.push({ x, y, at: at0 + span * (k / n), a: ang });
+    }
+    return pts;
+  };
+  const ox = hash01(sd, 1), oy = hash01(sd, 2), edge = Math.floor(hash01(sd, 3) * 5); // from an edge or from the inside
+  const x0 = edge === 0 ? 0.02 : edge === 1 ? 0.98 : edge === 2 ? ox : edge === 3 ? ox : 0.15 + 0.7 * ox, y0 = edge === 2 ? 1.02 : edge === 3 ? -0.02 : oy;
+  const ang0 = Math.atan2(0.5 - y0, (0.5 - x0) * asp) + (hash01(sd, 4) - 0.5) * 1.3;
+  const stem = grow(x0, y0, ang0, 24, 0.22, sd + 5, 0, 1);
+  branches.push({ pts: stem, at: 0 });
+  const nb = 3 + Math.floor(hash01(sd, 6) * 3);
+  for (let b = 0; b < nb; b++) {
+    const k = Math.floor(5 + (b / nb) * 17), side = (b + sd) % 2 ? 1 : -1, fx = stem[2 * k], fy = stem[2 * k + 1];
+    const base = Math.atan2(stem[2 * k + 1] - stem[2 * k - 1], (stem[2 * k] - stem[2 * k - 2]) * asp) + side * (0.7 + 0.5 * hash01(sd, 20 + b));
+    branches.push({ pts: grow(fx, fy, base, 7 + Math.floor(hash01(sd, 30 + b) * 6), 0.3, sd + 40 + b, k / 24, 0.2), at: k / 24 });
+  }
+  return { branches, leaves };
+}
+
+/** Vines: plants that sprout anywhere (an edge or the inside), grow in their own direction and branch, curl at the tips and put out leaves, hold for a while, then wither: the leaves fall and the
+ *  stem draws back to where it began. Another one starts somewhere else. Determination, life going on. */
 function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(1, 4, density)), items: Item[] = [], L = lerp(40, 20, speed);
+  const n = Math.round(lerp(2, 5, density)), items: Item[] = [], L = lerp(44, 26, speed), asp = c.aspect > 0 ? c.aspect : 0.6;
   for (let i = 0; i < n; i++) {
-    const t = c.b / L + i / n, cyc = Math.floor(t), u = t - cyc, sd = Math.floor(hash01(i + cyc * 977, c.seed + 6) * 1000);
-    const g = u < 0.5 ? (u / 0.5) ** 0.8 : 1, fade = u < 0.75 ? 1 : Math.max(0, (1 - u) / 0.25);
-    const x0 = 0.1 + 0.8 * (i + hash01(i + cyc * 977, c.seed)) / n, tree = vineTree(sd, Math.min(0.92, x0));
-    tree.forEach((br, bi) => {
-      const gb = bi === 0 ? g : Math.min(1, Math.max(0, (g - 0.25 - 0.2 * bi) / 0.35)); // the branches start once the stem is past their fork
-      if (gb <= 0.02) return;
-      const pts = partOf(br, gb);
-      items.push(pathItem(pts, bi === 0 ? 0.0045 : 0.003, (bi === 0 ? 0.42 : 0.34) * fade, { l: 80 }));
-      if (gb > 0.95) items.push({ kind: "dot", x: br[br.length - 2], y: br[br.length - 1], r: 0.006, w: 0, soft: 0.5, a: 0.4 * fade, l: 90 });
-    });
+    const t = c.b / L + i / n, cyc = Math.floor(t), u = t - cyc;
+    const grown = u < 0.45 ? 1 - (1 - u / 0.45) ** 2 : 1, dying = u < 0.7 ? 0 : Math.min(1, (u - 0.7) / 0.28), vis = grown * (1 - dying ** 1.4);
+    if (vis <= 0.01) continue;
+    const pl = plant(Math.floor(hash01(i + cyc * 977, c.seed + 8) * 100000), asp);
+    for (const br of pl.branches) {
+      const g = br.at === 0 ? vis : clamp((vis - br.at) / 0.25) * (1 - dying * 0.3);
+      if (g <= 0.02) continue;
+      items.push(pathItem(partOf(br.pts, g), br.at === 0 ? 0.0045 : 0.003, (br.at === 0 ? 0.46 : 0.36) * (1 - 0.35 * dying), { l: 80, sat: 40 }));
+    }
+    for (const lf of pl.leaves) {
+      const born = clamp((grown - lf.at * 0.9) / 0.08); if (born <= 0) continue;
+      const fall = clamp((dying - 0.1 * hash01(lf.x * 100, 5)) / 0.7), sway = Math.sin(fall * 9 + lf.x * 20) * 0.02;
+      items.push({ kind: "leaf", x: lf.x + sway, y: lf.y + fall * 0.35, r: 0.016 * born * (1 - 0.3 * dying), w: 0, ang: lf.a + fall * 4, sq: Math.max(0.25, Math.abs(Math.cos(fall * 6 + lf.x * 9))), a: 0.5 * born * (1 - fall), hue: 105 + 30 * hash01(lf.x * 77, 3) - 70 * dying, sat: 55, l: 52 });
+    }
   }
   return { items, layers: [] };
 }
 
-/** Fireworks: on the first beat of each bar a shell rises and bursts into small lights that fly out, slow, droop and fade. Only small items: no wash, no glow. Elation. */
+/** Fireworks: on the first beat of a bar a shell rises and bursts into small lights that fly out, slow, droop and fade. Several shells run at once, staggered across the bar, and the more
+ *  the mood is elated the more there are. Only small items: no wash, no glow. */
 function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const items: Item[] = [], streams = density > 0.55 ? 2 : 1, N = Math.round(lerp(14, 30, density)), life = lerp(3.4, 2.2, speed);
+  const items: Item[] = [], streams = 1 + Math.round(density * 4), N = Math.round(lerp(12, 24, density)), life = lerp(3.4, 2.2, speed);
+  const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
   for (let s = 0; s < streams; s++) {
-    const bar = (c.b - 2 * s) / 4, k = Math.floor(bar), age = (bar - k) * 4; // beats since the burst; the rocket climbs in the last beat before it
+    const bar = (c.b - (4 * s) / streams) / 4, k = Math.floor(bar), age = (bar - k) * 4; // beats since the burst; the rocket climbs in the last beat before it
     for (const [kk, ag] of [[k, age], [k + 1, age - 4]] as const) {
-      const cx = 0.2 + 0.6 * hash01(kk + 31 * s, c.seed), cy = 0.18 + 0.3 * hash01(kk + 31 * s, c.seed + 1), hue = (c.h + 360 * hash01(kk + 31 * s, c.seed + 2)) % 360;
-      if (ag >= -1 && ag < 0) { const u = ag + 1; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u) , r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
+      const id = kk * 17 + s * 101, cx = 0.15 + 0.7 * hash01(id, c.seed), cy = 0.15 + 0.35 * hash01(id, c.seed + 1), hue = (c.h + 360 * hash01(id, c.seed + 2)) % 360, size = 0.7 + 0.6 * hash01(id, c.seed + 3);
+      if (ag >= -1 && ag < 0) { const u = ag + 1; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u), r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
       if (ag < 0 || ag > life) continue;
-      const u = ag / life, rad = lerp(0.12, 0.26, feel.near) * (0.8 + 0.4 * feel.depth);
+      const u = ag / life, rad = lerp(0.1, 0.22, feel.near) * (0.8 + 0.4 * feel.depth) * size;
       for (let p = 0; p < N; p++) {
-        const a = 2 * Math.PI * (p / N + 0.05 * hash01(p, kk)), sp = rad * (0.55 + 0.45 * hash01(p, kk + 5)), e = 1 - Math.exp(-4 * u);
-        const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
-        items.push({ kind: "dot", x: cx + (Math.cos(a) * sp * e * m) / asp, y: cy + Math.sin(a) * sp * e * m + 0.12 * u * u, r: 0.0045 * (1 - 0.5 * u), w: 0, soft: 0.3, a: 0.7 * (1 - u) ** 1.4, hue: (hue + 30 * hash01(p, kk + 9)) % 360, sat: 90, l: 72 });
+        const a = 2 * Math.PI * (p / N + 0.08 * hash01(p, id)), sp = rad * (0.5 + 0.5 * hash01(p, id + 5)), e = 1 - Math.exp(-4 * u);
+        items.push({ kind: "dot", x: cx + (Math.cos(a) * sp * e * m) / asp, y: cy + Math.sin(a) * sp * e * m + 0.12 * u * u, r: 0.0045 * (1 - 0.5 * u), w: 0, soft: 0.3, a: 0.7 * (1 - u) ** 1.4, hue: (hue + 30 * hash01(p, id + 9)) % 360, sat: 90, l: 72 });
       }
     }
   }
   return { items, layers: [] };
 }
 
-/** Moths: one small warm light, and pale specks on tilted orbits around it that now and then dart away and come back. Longing. */
+/** Moths: several lights that drift about on their own, and pale specks that circle one light on a tilted orbit, now and then leave it and fly across to another. Longing, drawn to something. */
 function moths(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(4, 9, density)), items: Item[] = [];
-  const lx = 0.3 + 0.4 * hash01(1, c.seed + 90), ly = 0.35 + 0.3 * hash01(2, c.seed + 90), flick = 0.8 + 0.2 * Math.sin(c.b * 1.3) + 0.1 * noise1(c.b * 0.4, c.seed + 91);
-  const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
-  items.push({ kind: "dot", x: lx, y: ly, r: 0.05, w: 0, soft: 1, a: 0.4 * flick, hue: 38, sat: 95, l: 62 });
-  items.push({ kind: "dot", x: lx, y: ly, r: 0.011, w: 0, soft: 0.5, a: 0.8 * flick, hue: 44, sat: 90, l: 88 });
-  for (let i = 0; i < n; i++) {
-    const ph = hash01(i, c.seed + 3), tilt = Math.PI * hash01(i, c.seed + 4), rx = 0.07 + 0.09 * hash01(i, c.seed + 5), ry = rx * (0.35 + 0.4 * hash01(i, c.seed + 6));
-    const dart = 0.6 + 1.1 * Math.max(0, noise1(c.b * 0.05 + i * 3.7, c.seed + 7)), a = 2 * Math.PI * (c.b / lerp(9, 4, speed) * (0.7 + 0.6 * ph) + ph);
-    const ex = Math.cos(a) * rx * dart, ey = Math.sin(a) * ry * dart;
-    items.push({ kind: "dot", x: lx + ((ex * Math.cos(tilt) - ey * Math.sin(tilt)) * m) / asp, y: ly + (ex * Math.sin(tilt) + ey * Math.cos(tilt)) * m, r: 0.0042, w: 0, soft: 0.2, a: 0.35 + 0.25 * Math.sin(c.b * 3 + i * 2) ** 2, l: 90, hue: 50, sat: 40 });
+  const nl = 2 + Math.round(density * 2), nm = Math.round(lerp(6, 14, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+  const lights = Array.from({ length: nl }, (_, l) => ({ x: 0.5 + 0.3 * noise1(c.b * 0.004 + l * 17, c.seed + 90), y: 0.5 + 0.25 * noise1(c.b * 0.004 + l * 17 + 50, c.seed + 91), f: 0.8 + 0.2 * Math.sin(c.b * 1.3 + l * 2) + 0.1 * noise1(c.b * 0.4 + l * 9, c.seed + 92) }));
+  lights.forEach((L, l) => {
+    items.push({ kind: "dot", x: L.x, y: L.y, r: 0.05, w: 0, soft: 1, a: 0.38 * L.f, hue: 38 + 6 * l, sat: 95, l: 62 });
+    items.push({ kind: "dot", x: L.x, y: L.y, r: 0.011, w: 0, soft: 0.5, a: 0.8 * L.f, hue: 44, sat: 90, l: 88 });
+  });
+  const ease = (x: number) => x * x * (3 - 2 * x);
+  for (let i = 0; i < nm; i++) {
+    const ph = hash01(i, c.seed + 3), T = lerp(18, 9, speed) * (0.8 + 0.5 * hash01(i, c.seed + 4)), t = c.b / T + ph, e = Math.floor(t), f = t - e;
+    const pick = (ep: number) => Math.floor(hash01(i + ep * 131, c.seed + 6) * nl), A = lights[pick(e)], B = lights[pick(e - 1)];
+    const tilt = Math.PI * hash01(i, c.seed + 4.5), rx = 0.06 + 0.07 * hash01(i, c.seed + 5), ry = rx * (0.35 + 0.4 * hash01(i, c.seed + 6.5));
+    const ang = 2 * Math.PI * (c.b / lerp(8, 3.5, speed) * (0.7 + 0.6 * ph) + ph), flight = 0.22; // the first fifth of an epoch is the flight from the last light to this one
+    const ex = Math.cos(ang) * rx, ey = Math.sin(ang) * ry, ox = ((ex * Math.cos(tilt) - ey * Math.sin(tilt)) * m) / asp, oy = (ex * Math.sin(tilt) + ey * Math.cos(tilt)) * m;
+    const q = f < flight ? ease(f / flight) : 1, arc = f < flight ? Math.sin(Math.PI * q) * 0.06 : 0;
+    const x = lerp(B.x, A.x, q) + ox * (f < flight ? q : 1) - arc * (A.y - B.y), y = lerp(B.y, A.y, q) + oy * (f < flight ? q : 1) + arc * (A.x - B.x);
+    items.push({ kind: "dot", x, y, r: 0.0042, w: 0, soft: 0.2, a: 0.35 + 0.25 * Math.sin(c.b * 3 + i * 2) ** 2, l: 90, hue: 50, sat: 40 });
   }
   return { items, layers: [] };
 }
 
-/** A flock: dozens of dark specks that move as one body whose shape breathes, wheeling across the view. Swept up, restless. */
-function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(30, 80, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), sp = lerp(0.012, 0.04, speed);
-  const cx = 0.5 + 0.28 * Math.sin(2 * Math.PI * c.b * sp * 0.9), cy = 0.42 + 0.2 * Math.sin(2 * Math.PI * c.b * sp * 1.3 + 1), vx = Math.cos(2 * Math.PI * c.b * sp * 0.9);
-  const R = lerp(0.1, 0.18, feel.near);
+/** Boids (Reynolds, as in the project Gael pointed to): each bird steers by three rules over staggered radii, separation (nearest, strongest), alignment (middle) and cohesion (outer), plus a pull
+ *  to its speed of cruise, a little noise on its heading, a soft wall, a goal that wanders and an obstacle that wanders through and splits whatever it meets. Forces are added to the acceleration
+ *  (limited), then the velocity, then the position, in fixed steps, so the simulation is the same for every listener: it restarts from the seed every EPOCH beats and is advanced by whole steps
+ *  from there (a listener who joins late catches up at once). Flocks form, split, merge and change size by themselves; the cohesion breathes over time so the size goes from small to large. */
+const EPOCH = 72, STEPS_PER_BEAT = 6;
+interface Boids { n: number; x: Float64Array; y: Float64Array; vx: Float64Array; vy: Float64Array; grp: Uint8Array; step: number; key: string }
+const SIMS = new Map<string, Boids>();
+function goalOf(f: number, step: number, seed: number): [number, number] {
+  const b = step / STEPS_PER_BEAT;
+  return [0.5 + 0.32 * Math.sin((2 * Math.PI * b) / (38 + 11 * f) + 2.1 * f + hash01(seed, 5)), 0.45 + 0.24 * Math.sin((2 * Math.PI * b) / (29 + 9 * f) + 1.3 * f + hash01(seed, 6))];
+}
+function newBoids(seed: number, n: number, nf: number, key: string): Boids {
+  const B: Boids = { n, x: new Float64Array(n), y: new Float64Array(n), vx: new Float64Array(n), vy: new Float64Array(n), grp: new Uint8Array(n), step: 0, key };
   for (let i = 0; i < n; i++) {
-    const th = 2 * Math.PI * hash01(i, c.seed + 1) + c.b * 0.04 * (0.5 + hash01(i, c.seed + 2)), rr = Math.sqrt(hash01(i, c.seed + 3));
-    const shape = 1 + 0.45 * noise1(th * 1.3 + c.b * 0.12, c.seed + 4); // the outline breathes
-    const dx = Math.cos(th) * rr * R * shape * (1.5 + 0.4 * Math.sign(vx)), dy = Math.sin(th) * rr * R * shape * 0.8;
-    items.push({ kind: "dot", x: cx + (dx * m) / asp, y: cy + dy * m, r: 0.0034 + 0.0016 * hash01(i, c.seed + 5), w: 0, soft: 0, a: 0.55, l: 8 });
+    const g = i % nf, [gx, gy] = goalOf(g, 0, seed), a = 2 * Math.PI * hash01(i, seed + 1), r = 0.08 * Math.sqrt(hash01(i, seed + 2)), th = 2 * Math.PI * hash01(i, seed + 3);
+    B.grp[i] = g; B.x[i] = gx + Math.cos(a) * r; B.y[i] = gy + Math.sin(a) * r; B.vx[i] = Math.cos(th) * 0.01; B.vy[i] = Math.sin(th) * 0.01;
+  }
+  return B;
+}
+function stepBoids(B: Boids, seed: number, nf: number) {
+  const { n, x, y, vx, vy, grp } = B, t = B.step / STEPS_PER_BEAT;
+  const ra = 0.03, rb = 0.075, rc = 0.16, cruise = 0.0125, maxAcc = 0.0035;
+  const coh = 0.5 + 0.55 * Math.sin((2 * Math.PI * t) / 41 + hash01(seed, 7) * 6), sepW = 1.5 + 0.6 * Math.sin((2 * Math.PI * t) / 53 + 1), goalW = 0.22 + 0.18 * Math.sin((2 * Math.PI * t) / 67 + 2);
+  const ox = 0.5 + 0.4 * Math.sin((2 * Math.PI * t) / 23 + 0.5), oy = 0.5 + 0.35 * Math.cos((2 * Math.PI * t) / 31); // an obstacle that wanders through
+  const ax = new Float64Array(n), ay = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0, alx = 0, aly = 0, na = 0, cx = 0, cy = 0, nc = 0;
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      const dx = x[j] - x[i], dy = y[j] - y[i], d = Math.hypot(dx, dy);
+      if (d < ra) { sx -= dx / (d * d + 1e-4); sy -= dy / (d * d + 1e-4); }
+      else if (d < rb) { alx += vx[j]; aly += vy[j]; na++; }
+      else if (d < rc) { cx += dx; cy += dy; nc++; }
+    }
+    let fx = 0.00012 * sepW * sx, fy = 0.00012 * sepW * sy;
+    if (na) { fx += 0.12 * (alx / na - vx[i]); fy += 0.12 * (aly / na - vy[i]); }
+    if (nc) { fx += 0.012 * coh * (cx / nc); fy += 0.012 * coh * (cy / nc); }
+    const [gx, gy] = goalOf(grp[i], B.step, seed); fx += 0.003 * goalW * (gx - x[i]) * 10; fy += 0.003 * goalW * (gy - y[i]) * 10;
+    const odx = x[i] - ox, ody = y[i] - oy, od = Math.hypot(odx, ody); if (od < 0.15) { fx += (0.0016 * (0.15 - od)) / (od + 0.02) * (odx / (od + 1e-6)); fy += (0.0016 * (0.15 - od)) / (od + 0.02) * (ody / (od + 1e-6)); }
+    const sp = Math.hypot(vx[i], vy[i]) || 1e-6; fx += 0.15 * (cruise - sp) * (vx[i] / sp); fy += 0.15 * (cruise - sp) * (vy[i] / sp); // cruise: steer the speed, do not clamp it
+    const na2 = 2 * Math.PI * hash01(i + B.step * 131, seed + 11); fx += 0.0005 * Math.cos(na2); fy += 0.0005 * Math.sin(na2); // noise on the heading
+    if (x[i] < 0.06) fx += 0.0012; if (x[i] > 0.94) fx -= 0.0012; if (y[i] < 0.06) fy += 0.0012; if (y[i] > 0.94) fy -= 0.0012; // a soft wall
+    const am = Math.hypot(fx, fy); if (am > maxAcc) { fx *= maxAcc / am; fy *= maxAcc / am; }
+    ax[i] = fx; ay[i] = fy;
+  }
+  for (let i = 0; i < n; i++) { vx[i] += ax[i]; vy[i] += ay[i]; x[i] += vx[i]; y[i] += vy[i]; }
+  B.step++;
+}
+function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const nf = 1 + Math.round(density * 2), n = Math.round(lerp(40, 80, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6;
+  const ep = Math.floor(c.b / EPOCH), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
+  const key = `${c.seed}|${ep}|${n}|${nf}`;
+  let B = SIMS.get(key);
+  if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 24) SIMS.delete(SIMS.keys().next().value as string); }
+  while (B.step < target) stepBoids(B, c.seed + ep * 7919, nf);
+  const lum = c.bases.reduce((a, b) => a + relLuminance(b), 0) / Math.max(1, c.bases.length), light = lum < 0.3, m = Math.min(asp, 1);
+  for (let i = 0; i < n; i++) {
+    const sp = Math.hypot(B.vx[i], B.vy[i]) || 1e-6, len = 0.014;
+    // a short tail along the heading (the direction in pixels, so a wide view and a tall one agree)
+    const dxp = B.vx[i] * asp, dyp = B.vy[i], dn = Math.hypot(dxp, dyp) || 1e-6;
+    items.push({ kind: "dot", x: B.x[i], y: B.y[i], r: 0.0066, w: 0, soft: 0, a: 0.5 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
+    items.push({ kind: "streak", x: B.x[i] - ((dxp / dn) * len * m) / asp, y: B.y[i] - (dyp / dn) * len * m, r: len, w: 0.0016, ang: Math.atan2(dxp / dn, dyp / dn), tail: true, a: 0.3 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
+    void sp;
   }
   return { items, layers: [] };
 }

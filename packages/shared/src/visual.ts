@@ -23,7 +23,7 @@ export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-k
 export const PHRASE_BEATS = 16;       // 4 bars of 4 beats (4/4 is assumed, there is no meter)
 export const MAX_LARGE_SWING = 0.09;
 export const MAX_SMALL_AREA = 0.1;
-export const MAX_ITEMS = 160;
+export const MAX_ITEMS = 400;
 export const MAX_ITEM_ALPHA = 0.5;
 export const HALF_TIME_BPM = 180;
 

@@ -20,7 +20,9 @@ const EMOTIONS: Array<{ id: string; name: string; mood: Mood }> = [
   { id: "free", name: "Free", mood: { warmth: 0.5, closeness: 0.3, joy: 0.75, calm: 0.55, spontaneity: 0.5, tension: 0 } },
   { id: "peaceful", name: "Peaceful", mood: { warmth: 0.5, closeness: 0.6, joy: 0.5, calm: 0.9, spontaneity: 0.2, tension: 0 } },
   { id: "brooding", name: "Brooding", mood: { warmth: 0.4, closeness: 0.4, joy: 0.25, calm: 0.6, spontaneity: 0.3, tension: 0.35 } },
-  { id: "dreamy", name: "Dreamy", mood: { warmth: 0.5, closeness: 0.4, joy: 0.6, calm: 0.85, spontaneity: 0.8, tension: 0 } },
+  { id: "analytical", name: "Analytical", mood: { warmth: 0.2, closeness: 0.3, joy: 0.5, calm: 0.6, spontaneity: 0.15, tension: 0.1 } },
+  { id: "alert", name: "Alert", mood: { warmth: 0.2, closeness: 0.3, joy: 0.45, calm: 0.35, spontaneity: 0.4, tension: 0.5 } },
+  { id: "driven", name: "Driven", mood: { warmth: 0.2, closeness: 0.3, joy: 0.7, calm: 0.3, spontaneity: 0.3, tension: 0.1 } },
   { id: "determined", name: "Determined", mood: { warmth: 0.4, closeness: 0.4, joy: 0.55, calm: 0.5, spontaneity: 0.2, tension: 0.4 } },
   { id: "restless", name: "Restless", mood: { warmth: 0.5, closeness: 0.4, joy: 0.45, calm: 0.45, spontaneity: 0.95, tension: 0.1 } },
   { id: "longing", name: "Longing", mood: { warmth: 0.7, closeness: 0.15, joy: 0.35, calm: 0.5, spontaneity: 0.3, tension: 0 } },
@@ -29,7 +31,7 @@ const EMOTIONS: Array<{ id: string; name: string; mood: Mood }> = [
   { id: "sad", name: "Sad", mood: { warmth: 0.3, closeness: 0.4, joy: 0.12, calm: 0.75, spontaneity: 0.2, tension: 0.05 } },
   { id: "melancholic", name: "Melancholic", mood: { warmth: 0.7, closeness: 0.7, joy: 0.25, calm: 0.8, spontaneity: 0.3, tension: 0.05 } },
   { id: "lonely", name: "Lonely", mood: { warmth: 0.2, closeness: 0.1, joy: 0.15, calm: 0.85, spontaneity: 0.2, tension: 0 } },
-  { id: "anxious", name: "Anxious", mood: { warmth: 0.4, closeness: 0.4, joy: 0.5, calm: 0.25, spontaneity: 0.6, tension: 0.55 } },
+  { id: "anxious", name: "Anxious", mood: { warmth: 0.5, closeness: 0.4, joy: 0.5, calm: 0.25, spontaneity: 0.6, tension: 0.55 } },
   { id: "angry", name: "Angry", mood: { warmth: 0.35, closeness: 0.4, joy: 0.1, calm: 0.12, spontaneity: 0.6, tension: 0.9 } },
 ];
 type Sync = "own" | "beat" | "phrase" | "free";
@@ -47,7 +49,7 @@ export function VisualsLab() {
   const latency = useRef(() => 0).current;
 
   const panels = useMemo(() => (set === "samples" ? SAMPLES.map((s) => ({ id: s.id, name: s.name, seed: s.seed, state: stateOfStep(s.steps[0], s.id) }))
-    : EMOTIONS.map((e) => { const m = stretchMood(e.mood); return { id: e.id, name: e.name, seed: 4242, state: moodToEngineState(m, m, 1) }; })).map((s) => {
+    : EMOTIONS.map((e) => { const m = stretchMood(e.mood); return { id: e.id, name: e.name, seed: 4242 + 977 * EMOTIONS.indexOf(e), state: moodToEngineState(m, m, 1) }; })).map((s) => {
     const state: EngineState = s.state;
     if (set === "gradients") state.colour = { ...state.colour, scene: "none" };
     if (!own || set === "gradients") { state.arp.tempo = bpm; state.arp.rate = "1/4"; }

@@ -20,7 +20,7 @@ export function playHues(h: number, feel: Feel, lift2: number): number[] {
 export function colourPlay(colour: ResolvedColour, feel: Feel, c: Clock): Layer[] {
   const hues = playHues(colour.h, feel, c.lift2), n = feel.jitter > 0.5 ? 5 : 4;
   const sat = clamp(colour.s * 1.3 + 0.25, 0.45, 0.9);
-  const period = lerp(40, 11, clamp(0.5 * feel.depth + 0.5 * feel.jitter)); // beats for the first orbit
+  const period = lerp(30, 9, clamp(0.5 * feel.depth + 0.5 * feel.jitter)); // beats for the first orbit
   const out: Layer[] = [];
   for (let i = 0; i < n; i++) {
     const hs = (j: number) => hash01(i, c.seed + 70 + j), dir = i % 2 ? -1 : 1;
@@ -30,9 +30,9 @@ export function colourPlay(colour: ResolvedColour, feel: Feel, c: Clock): Layer[
     // on the beat the light swells and jumps; in phrase sync it swells slowly over four bars instead
     const beat = c.sync === "beat" ? c.hit : c.sync === "phrase" ? 0.5 - 0.5 * Math.cos(2 * Math.PI * ((c.beats / 16 + i / n) % 1)) : 0;
     const swell = pulses ? beat : 0;
-    const kick = pulses && c.sync === "beat" ? c.hit * 0.05 : 0;
-    const cx = 0.5 + (hs(4) - 0.5) * 0.3 + A * Math.sin((2 * Math.PI * c.b * dir) / P + phi) + 0.12 * noise1(c.b / 21 + i * 5, c.seed + 80) + kick * (hash01(c.beatIdx, i + c.seed) - 0.5) * 2;
-    const cy = 0.5 + (hs(5) - 0.5) * 0.3 + A * 0.9 * Math.cos((2 * Math.PI * c.b * dir) / (P * 1.27) + phi * 1.7) + 0.12 * noise1(c.b / 25 + i * 7, c.seed + 90) + kick * (hash01(c.beatIdx, i + c.seed + 9) - 0.5) * 2;
+    const kick = pulses && c.sync === "beat" ? c.hit * 0.07 : 0;
+    const cx = 0.5 + (hs(4) - 0.5) * 0.3 + A * Math.sin((2 * Math.PI * c.b * dir) / P + phi) + 0.17 * noise1(c.b / 16 + i * 5, c.seed + 80) + kick * (hash01(c.beatIdx, i + c.seed) - 0.5) * 2;
+    const cy = 0.5 + (hs(5) - 0.5) * 0.3 + A * 0.9 * Math.cos((2 * Math.PI * c.b * dir) / (P * 1.27) + phi * 1.7) + 0.17 * noise1(c.b / 19 + i * 7, c.seed + 90) + kick * (hash01(c.beatIdx, i + c.seed + 9) - 0.5) * 2;
     const breathe = 1 + 0.3 * Math.sin((2 * Math.PI * c.beats) / 16 + phi);
     out.push({
       kind: "tint", x: cx, y: cy, r: lerp(0.35, 0.58, hs(6)) * lerp(0.9, 1.25, feel.near) * breathe * (1 + 0.1 * swell),
