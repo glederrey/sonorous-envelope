@@ -58,7 +58,7 @@ export default async function SessionsPage() {
                   It will appear here.
                 </p>
                 <p className="se-sm se-muted" style={{ margin: 0 }}>
-                  Not connected yet? <a href="/#add">Add it to your AI app</a>. Your <a href="/settings">settings</a> list the
+                  Not connected yet? <a href="/#add">Add to your AI</a>. Your <a href="/settings">settings</a> list the
                   apps that can reach your account.
                 </p>
               </div>

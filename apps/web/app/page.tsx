@@ -122,7 +122,7 @@ export default async function Home() {
 
         <section className="lp-split" id="add">
           <div>
-            <h2 className="se-title">Add it to your AI app</h2>
+            <h2 className="se-title">Add to your AI</h2>
             <p className="se-muted">Takes a minute. It works in the web, desktop and mobile apps on the same account. The steps below are for claude.ai; other apps with custom MCP connectors (ChatGPT, for example) have a similar menu.</p>
           </div>
           <ol className="lp-steps">

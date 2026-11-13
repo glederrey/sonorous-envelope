@@ -49,7 +49,7 @@ export default function GuidePage() {
         <div className="doc-head">
           <h1 className="doc-title">Using the connector</h1>
           <p>
-            Once the connector is added (see <a href="/#add">Add it to your AI app</a>), the model calls these tools itself.
+            Once the connector is added (see <a href="/#add">Add to your AI</a>), the model calls these tools itself.
             You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
           </p>
           <p className="se-sm se-muted">
