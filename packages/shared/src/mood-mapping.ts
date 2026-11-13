@@ -156,6 +156,7 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["tide", ramp(k, 0.7, 0.9) * ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.6, 0.75)) * ramp(c, 0.4, 0.6) * notTense], // peaceful, accepting: a line of foam
     ["aurora", ramp(j, 0.55, 0.8) * ramp(k, 0.65, 0.9) * (1 - ramp(c, 0.35, 0.6)) * notTense], // awe: open, high and slow
     ["waves", ramp(j, 0.6, 0.8) * ramp(k, 0.65, 0.9) * ramp(c, 0.3, 0.55) * notTense], // content, relief: an even swell
+    ["clouds", ramp(c, 0.5, 0.7) * (1 - ramp(c, 0.85, 1)) * ramp(j, 0.2, 0.35) * (1 - ramp(j, 0.5, 0.65)) * (1 - ramp(w, 0.45, 0.65)) * ramp(k, 0.3, 0.45) * (1 - ramp(k, 0.7, 0.85)) * notTense], // pensive: cool, quiet, overcast
   ];
   let best = score[0];
   for (const x of score) if (x[1] > best[1]) best = x;

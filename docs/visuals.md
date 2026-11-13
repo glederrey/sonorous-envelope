@@ -2,7 +2,7 @@
 
 Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
 
-Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Twenty-two scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `seeds`, `tide`, `smoke`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
+Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Twenty-three scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `seeds`, `tide`, `smoke`, `clouds`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
 
 ### Emotions in the picture
 **Libraries (decision 2026-11-13).** None draws the picture. Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the flash budget (`capFrame`) and the tests cannot see what they draw, and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth; Canvas 2D paints it. The noise the scenes use is a 6-line smooth value noise on the engine's own `hash01` (`scene-kit.ts`), seeded, so nothing was added to the dependencies. A library would be worth it only for a per-pixel scene (a fluid or a real shader), which the budget also makes pointless at 0.09 opacity.
@@ -21,7 +21,8 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | hopeful | fireflies | (as tender) soft lights that each glow on and off |
 | free, light | seeds | dandelion tufts drifting across and bobbing |
 | peaceful | tide | a line of foam that comes up and slides back, with lines below it down to the bottom (never an empty strip) |
-| brooding | smoke | billowing plumes of soft haze (matched to the field's brightness) with fine filaments that all rise from the bottom, dense and sharp there, wider, fainter and more scattered higher up (light on a dark field, dark on a bright one) so it reads on any colour |
+| pensive | clouds | banks and puffs of two scales of noise drifting slowly across, thinner towards the top and bottom; a `veil` like the smoke |
+| brooding | smoke | one to five plumes (by density): a thin thread leaves the bottom, then folds into soft translucent sheets that curl and billow, spreading and thinning as they rise; one `veil` layer (a density field of plume mask times the creases of a domain-warped noise), light on a dark field and dark on a really bright one |
 | analytical | circuit | right-angled traces (a different board per session and cycle) with pulses that move one segment per beat, in steps |
 | alert | digital | many columns of falling blocks, heads with fading tails, stepwise, like the Matrix |
 | driven | scope | an oscilloscope: a bright beam draws the figure and leaves a fading trail over a faint afterglow; by density and seed: a swept waveform or a sawtooth built from harmonics (sparse), a turning Lissajous or a spirograph (middle), a breathing rose or a star (dense); beat kicks the size and flares the beam |
@@ -33,7 +34,7 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | serene | stars | a twinkling sky, now and then a shooting star |
 | happy | motes | bright lights that rise |
 | content, relief | waves | parallel lines across the whole view in perspective, all running one way at one pace, swing held under the gap so they never cross; they vanish at the top, the bottom, both or neither by the mood (calm: both, bright: top, low: bottom, tense: neither) |
-| awe | aurora | two curtains of colour, one behind the other, in two hues that blend where they overlap; the front one's lower edge ripples with folds that travel along it, bands of brightness that slide sideways, and bright rays on an even grid that slide together along the edge (never crossing) and swell and shrink |
+| awe | aurora | a curtain of soft light from a rippling lower edge: a bright base fading upward, dense vertical striations that slide along it, a second fainter colour high above; two `veil` layers plus a few thin rays (a vivid light glow on a dark sky, a deep vivid colour on a bright one) |
 | nervous | ripples | rings that scatter |
 | neutral | none | nothing (a quiet sound is the honest answer) |
 
@@ -120,3 +121,5 @@ Keep the current rule that colour follows the sound by default, and add an optio
 
 ## Suggested first step
 Add radial and conic gradients and a "breathe" and "orbit" motion to the existing field, driven by the mood in `follow` mode, with the owner's visual-intensity limit. See what it feels like before adding model-chosen scenes.
+
+**Veil layers (2026-11-13).** A `veil` layer is a low-resolution field (about 50 by 70 cells, a few steps of time per beat, cached) in one colour, smoothed up over the view by the painter. It counts in the flash budget at its full opacity times its `k` everywhere (`swingAt`), like a ribbon. `toneLayer` (`colour-math.ts`) picks the most opaque it may be: the blend is in sRGB, so the real swing of a faint layer is far below the worst ratio up to full opacity. What a veil can show is capped by the 0.09 swing: on a bright field a pale wisp is faint by construction.

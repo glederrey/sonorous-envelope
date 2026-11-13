@@ -54,13 +54,13 @@ export function glowArea(r: number, aspect: number): number {
 const piece = (t: number, stops: ReadonlyArray<readonly [number, number]>) => { if (t >= 1) return 0; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [t0, a0] = stops[i - 1], [t1, a1] = stops[i]; return a0 + (a1 - a0) * ((t - t0) / (t1 - t0 || 1)); } return 0; };
 const TINT_FALL = [[0, 1], [0.55, 0.5], [1, 0]] as const, BLOB_FALL = [[0, 1], [0.3, 0.85], [1, 0]] as const;
 /** What the large elements add to the luminance swing at one point of the view (x, y as fractions): the wash, the glow and every layer, each at its own opacity, falloff and swing per unit of
- *  opacity (`k`), as the painter draws them. An upper bound on the change of relative luminance there. A ribbon counts at its full opacity everywhere. */
+ *  opacity (`k`), as the painter draws them. An upper bound on the change of relative luminance there. A ribbon or a veil counts at its full opacity everywhere. */
 export function swingAt(f: Frame, px: number, py: number, aspect = 0.6): number {
   const asp = aspect > 0 ? aspect : 0.6, m = Math.min(asp, 1);
   let sw = f.wash;
   if (f.glow) { const g = f.glow, d = Math.hypot((px - g.x) * asp, py - g.y) / m / Math.max(1e-6, g.r); sw += piece(d, [[0, g.a], [Math.min(0.95, g.hold), g.a], [1, 0]]); }
   for (const l of f.layers) {
-    if (l.kind === "ribbon") { sw += l.a * (l.k ?? 1); continue; }
+    if (l.kind === "ribbon" || l.kind === "veil") { sw += l.a * (l.k ?? 1); continue; }
     const d = Math.hypot(((px - l.x) * asp) / (l.sx ?? 1), py - l.y) / m / Math.max(1e-6, l.r);
     sw += l.a * (l.k ?? 1) * piece(d, l.kind === "tint" ? TINT_FALL : BLOB_FALL);
   }
@@ -72,7 +72,7 @@ export function largeSwing(f: Frame, aspect = 0.6): number {
   let worst = 0;
   for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) worst = Math.max(worst, swingAt(f, (i + 0.5) / 7, (j + 0.5) / 9, aspect));
   if (f.glow) worst = Math.max(worst, swingAt(f, f.glow.x, f.glow.y, aspect));
-  for (const l of f.layers) if (l.kind !== "ribbon") worst = Math.max(worst, swingAt(f, clamp(l.x), clamp(l.y), aspect));
+  for (const l of f.layers) if (l.kind !== "ribbon" && l.kind !== "veil") worst = Math.max(worst, swingAt(f, clamp(l.x), clamp(l.y), aspect));
   return worst;
 }
 function pathArea(i: Item, aspect: number, w: number): number {

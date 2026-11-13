@@ -1,6 +1,6 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
@@ -31,7 +31,7 @@ export interface Item {
 
 /** A large soft thing (an aurora). It counts in the luminance budget with the wash and the glow. */
 export interface Layer {
-  kind: "blob" | "ribbon" | "tint";
+  kind: "blob" | "ribbon" | "tint" | "veil";
   /** blob: centre and radius (fraction of the smaller side). Ribbon: `y` is unused, see `ys` */
   x: number; y: number; r: number;
   /** blob: stretch along x */
@@ -45,6 +45,8 @@ export interface Layer {
   hue?: number; k?: number;
   /** ribbon: the lower edge of the curtain per column (0 to 1 of the height), its height, and a 0 to 1 strength per column */
   ys?: number[]; h?: number; cols?: number[];
+  /** veil: a low-resolution field of 0 to 1 (rows from the top, `gw` columns by `gh` rows), painted smoothed up over the whole view in the layer's one colour at opacity `a` times the field. Counts at its full `a * k` everywhere. */
+  gw?: number; gh?: number; grid?: number[];
 }
 
 export interface SceneOut { items: Item[]; layers: Layer[] }
@@ -79,4 +81,14 @@ export function hash01(a: number, b: number): number {
 export function noise1(x: number, seed: number): number {
   const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f);
   return lerp(hash01(i, seed), hash01(i + 1, seed), u) * 2 - 1;
+}
+/** Smooth 2-D value noise in [-1, 1], and a sum of octaves of it (also in [-1, 1]): pure functions of the position and a seed. */
+export function noise2(x: number, y: number, seed: number): number {
+  const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), s = seed * 131;
+  return lerp(lerp(hash01(i + s, j), hash01(i + 1 + s, j), u), lerp(hash01(i + s, j + 1), hash01(i + 1 + s, j + 1), u), v) * 2 - 1;
+}
+export function fbm2(x: number, y: number, seed: number, octaves = 3): number {
+  let sum = 0, amp = 0.5, norm = 0, f = 1;
+  for (let o = 0; o < octaves; o++) { sum += amp * noise2(x * f, y * f, seed + o * 17); norm += amp; amp *= 0.5; f *= 2; }
+  return sum / norm;
 }

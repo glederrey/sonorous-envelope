@@ -1,5 +1,5 @@
-import { matchedLayer, relLuminance } from "./colour-math";
-import { clamp, frac, hash01, lerp, noise1, type Clock, type Feel, type Item, type Layer, type SceneName, type SceneOut } from "./scene-kit";
+import { bestTone, relLuminance, toneLayer } from "./colour-math";
+import { clamp, fbm2, frac, hash01, lerp, noise1, type Clock, type Feel, type Item, type Layer, type SceneName, type SceneOut } from "./scene-kit";
 
 // The scenes (docs/visuals.md): what moves over the colours. Each is a pure function of the clock, the mood's feel and the seed.
 // The mood shapes the form, not only the hue (a sad rain is thin, straight and slow; an angry one is slanted, fast and ragged),
@@ -11,9 +11,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "rain" || s === "embers";
 /** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
+export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -29,6 +29,7 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "seeds" ? seeds(d, v, feel, c)
     : scene === "tide" ? tide(d, v, feel, c)
     : scene === "smoke" ? smoke(d, v, feel, c)
+    : scene === "clouds" ? clouds(d, v, feel, c)
     : scene === "circuit" ? circuit(d, v, feel, c)
     : scene === "digital" ? digital(d, v, feel, c)
     : scene === "scope" ? scope(d, v, feel, c)
@@ -134,34 +135,59 @@ function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   return { items, layers };
 }
 
-/** Aurora: one curtain of vivid colour hanging from a wavering lower edge, with bright rays inside it. The curtain is painted at the lightness that changes the field's
- *  brightness least, so it can be strongly opaque (it is the colour that reads, not the light); the rays are small items, which have a budget of their own. */
+const sstep = (a: number, b: number, x: number) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+/** A veil layer from a function of the position (x across, y down, both 0 to 1) sampled on a low-resolution grid; the painter smooths it up over the view. The fields move slowly, so each is computed for a step of time
+ *  (`key` names everything it depends on, the step included) and reused by every frame in that step and every canvas on the same state. */
+const VEILS = new Map<string, number[]>();
+function veil(key: string, gw: number, gh: number, f: (x: number, y: number) => number, a: number, tone: { hue: number; sat: number; l: number; k: number }): Layer {
+  let grid = VEILS.get(key);
+  if (!grid) {
+    grid = [];
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) grid.push(clamp(f((i + 0.5) / gw, (j + 0.5) / gh)));
+    VEILS.set(key, grid); if (VEILS.size > 160) VEILS.delete(VEILS.keys().next().value as string);
+  }
+  return { kind: "veil", x: 0.5, y: 0.5, r: 1, a, dh: 0, hue: tone.hue, sat: tone.sat, l: tone.l, k: tone.k, gw, gh, grid };
+}
+
+/** Aurora: a curtain of soft light hanging from a rippling lower edge, as in the photographs: a sharp bright base that fades upward, dense vertical striations of different lengths that slide along it, and a second,
+ *  fainter colour (pink or violet) high above the green base. Two veils (low-resolution fields smoothed up over the view) share the brightness budget; a few thin rays carry the shape where the colour alone cannot. */
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const N = 48, ys: number[] = [], cols: number[] = [], items: Item[] = [];
-  const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
+  const GW = 96, GH = 44, items: Item[] = [];
+  const bq = Math.floor(c.b * 6) / 6, drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
   const h = lerp(0.3, 0.52, 1 - feel.jitter * 0.6), fold = lerp(0.6, 1.6, speed);
-  // the lower edge of the curtain: slow noise plus folds that travel along it in both directions (the curtain ripples like cloth in the wind)
-  const edge = (u: number) => 0.52 + 0.07 * noise1(u * 5.5 + c.b * drift, c.seed) + 0.05 * Math.sin(u * 9 - c.b * drift * 5 * fold) + 0.035 * Math.sin(u * 17 + c.b * drift * 7 * fold + 1.7) + 0.03 * Math.sin(u * 4 + c.b * drift * 3);
-  // the brightness along it: bands that slide sideways at their own pace
-  const glow = (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - c.b * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + c.b * 0.7, c.seed + 30)) * (0.78 + 0.22 * Math.sin(2 * Math.PI * (c.b / 11 + u * 2.3))); // the bands also pulse, slowly, as they do in the sky
-  // a second curtain behind the first, higher, slower and out of step with it: real displays stack curtains, and the two colours blend where they overlap
-  const ys2: number[] = [], cols2: number[] = [], edge2 = (u: number) => 0.4 + 0.06 * noise1(u * 4 - c.b * drift * 0.7, c.seed + 90) + 0.04 * Math.sin(u * 6 + c.b * drift * 2.5 + 2), glow2 = (u: number) => clamp(0.5 + 0.9 * noise1(u * 9 + c.b * drift * 2.5, c.seed + 91)) * (0.8 + 0.2 * Math.sin(2 * Math.PI * (c.b / 15 - u * 1.7)));
-  for (let i = 0; i < N; i++) { const u = (i + 0.5) / N; ys.push(edge(u)); cols.push(glow(u)); ys2.push(edge2(u)); cols2.push(glow2(u)); }
+  // the lower edge: slow noise plus folds that travel along it (the curtain ripples like cloth in the wind)
+  const edge = (u: number) => 0.52 + 0.07 * noise1(u * 5.5 + bq * drift, c.seed) + 0.05 * Math.sin(u * 9 - bq * drift * 5 * fold) + 0.035 * Math.sin(u * 17 + bq * drift * 7 * fold + 1.7) + 0.03 * Math.sin(u * 4 + bq * drift * 3);
+  // the brightness along it: broad bands that slide sideways and pulse slowly, as they do in the sky
+  const glow = (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - bq * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + bq * 0.7, c.seed + 30)) * (0.78 + 0.22 * Math.sin(2 * Math.PI * (bq / 11 + u * 2.3)));
+  // the striations: many thin vertical rays of different lengths, drifting along the curtain
+  const stri = (u: number) => clamp(0.5 + 0.55 * noise1(u * 58 - bq * drift * 2.4 * fold, c.seed + 5) + 0.3 * noise1(u * 21 + bq * drift * 1.4, c.seed + 6));
+  const e: number[] = [], g: number[] = [], s: number[] = [];
+  for (let i = 0; i < GW; i++) { const u = (i + 0.5) / GW; e.push(edge(u)); g.push(glow(u)); s.push(stri(u)); }
   // two colours that read against the field and against each other: the field's hue turned by a third and by two thirds of the wheel
-  const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360, mA = matchedLayer(c.bases, hueA, 0.9), mB = matchedLayer(c.bases, hueB, 0.9);
-  const rays = Math.round(lerp(10, 30, density));
+  const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360;
+  // on a dark sky the glow is a vivid colour lighter than it (that is what an aurora is); on a bright one nothing can be lighter, so the curtain is a deep vivid colour darker than it
+  const dark = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length) < 0.3;
+  const vA = dark ? { sat: 0.9, l: 0.6 } : { sat: 0.85, l: 0.3 }, vB = dark ? { sat: 0.8, l: 0.62 } : { sat: 0.8, l: 0.34 };
+  const mA = toneLayer(c.bases, hueA, dark, 0.062, vA), mB = toneLayer(c.bases, hueB, dark, 0.02, vB);
+  const col = (x: number) => Math.min(GW - 1, Math.floor(x * GW));
+  const vk = `${c.seed}|${bq}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, base = veil(`aua|${vk}`, GW, GH, (x, y) => {
+    const i = col(x), up = e[i] - y, len = h * (0.25 + 0.75 * s[i]) * (0.4 + 0.6 * g[i]);
+    return (up < 0 ? Math.exp(up / 0.03) : Math.exp(-up / (len * 0.6))) * (0.3 + 0.7 * s[i]) * g[i] * 1.25;
+  }, mA.a * swell, mA);
+  const top = veil(`aub|${vk}`, GW, GH, (x, y) => {
+    const i = col(x), up = e[i] - y; if (up <= 0) return 0;
+    return sstep(0.04, 0.45 * h, up) * Math.exp(-up / (h * 1.15)) * (0.45 + 0.55 * s[i]) * g[i] * 0.95;
+  }, mB.a * swell, mB);
+  const rays = Math.round(lerp(14, 28, density));
   for (let r = 0; r < rays; r++) {
-    // the rays sit on an even grid along the curtain and all slide together at one slow pace, so they never cross; each hangs from the lower edge, straight down, and swells and shrinks on its own
+    // the rays sit on an even grid along the curtain and all slide together at one slow pace, so they never cross
     const u = frac((r + 0.5 + 0.5 * (hash01(r, c.seed + 40) - 0.5)) / rays + c.b * 0.004 * lerp(0.5, 1.5, speed) + 8), k = glow(u);
     if (k < 0.25) continue;
     const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
     const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
-    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.55 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
+    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.004 + 0.004 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.5 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
-  // the two curtains share the brightness budget (a ribbon counts at its full opacity everywhere), so each gets half
-  return { items, layers: [
-    { kind: "ribbon", x: 0, y: 0, r: 0, ys: ys2, cols: cols2, h: h * 1.25, a: Math.min(0.7, 0.04 / mB.k) * swell, dh: 0, hue: mB.hue, sat: mB.sat * 100, l: mB.l * 100, k: mB.k },
-    { kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.05 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
+  return { items, layers: [top, base] };
 }
 
 /** Waves: parallel lines of water across the whole view, in perspective (close together far away at the top, wider apart near the bottom), all running the same way at the same pace.
@@ -280,37 +306,37 @@ function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}): Item => ({ kind: "path", x: pts[0], y: pts[1], r: 0, w, a, pts, ...extra });
 
-/** Smoke: billowing plumes. Each plume is a column of soft puffs that leave a source at the bottom, swell as they rise, swirl in the turbulence, merge with their neighbours and thin out
- *  to nothing. The puffs are large soft layers, so they share the brightness budget where they overlap. Brooding, uneasy. */
+/** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
+ *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const gm = matchedLayer(c.bases, c.h, 0.04); // grey of the lightness that changes the field's brightness least: the smoke can be strongly opaque and is seen as a colourless haze
-  const P = Math.round(lerp(1, 2.4, density)), M = 10, layers: Layer[] = [], rate = lerp(0.012, 0.034, speed), wind = 0.18 * noise1(c.b / 45, c.seed + 60);
-  for (let p = 0; p < P; p++) {
-    const x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P, ph = hash01(p, c.seed + 62);
-    for (let m = 0; m < M; m++) {
-      const u = ((c.b * rate + m / M + ph) % 1 + 1) % 1; // 0 at the source, 1 gone
-      const sway = 0.1 * noise1(c.b * 0.02 + u * 2.2 + p * 7, c.seed + 63) + 0.06 * noise1(c.b * 0.05 + m * 3.1, c.seed + 64) * u;
-      layers.push({ kind: "blob", x: x0 + (wind * u + sway) * (0.4 + u) * (1 + feel.jitter), y: 1.1 - u * 1.0,
-        r: lerp(0.07, 0.26, u ** 0.8) * lerp(0.85, 1.2, feel.near) * (1 + 0.15 * noise1(c.b * 0.04 + m * 5, c.seed + 65)),
-        a: Math.min(0.75, 0.09 / gm.k) * 0.8 * Math.sin(Math.PI * u) ** 0.8 * lerp(0.8, 1.2, density), dh: 0, hue: gm.hue, sat: gm.sat * 100, l: gm.l * 100, k: gm.k });
+  const tone = bestTone(c.bases, c.h, 0.082);
+  const bq = Math.floor(c.b * 3) / 3, P = 1 + Math.round(4 * clamp(density)), rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60), GW = 50, GH = 68;
+  const x0 = (p: number) => (p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P;
+  const f = (x: number, y: number) => {
+    const hh = 1 - y, hs = hh * 3 - rise * 3; // the noise is carried upward with time
+    let m = 0, thin = 0;
+    for (let p = 0; p < P; p++) {
+      const cx = x0(p) + (wind * hh + 0.08 * noise1(bq * 0.02 + hh * 2.4 + p * 7, c.seed + 63)) * (0.4 + hh) * (1 + feel.jitter), wd = (0.02 + 0.22 * hh ** 0.9) * (P > 2 ? 0.8 : 1), dx = (x - cx) / wd;
+      m += Math.exp(-dx * dx); thin += Math.exp(-dx * dx * 4);
     }
-  }
-  // fine filaments that rise from the bottom, dense and sharp near the source and wider, fainter and more scattered the higher they go (small items, so they read on any colour: the haze alone is matched to the field's brightness)
-  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(10, 16, density));
-  for (let f = 0; f < F; f++) {
-    const p = f % P, per = (26 + 30 * hash01(f, c.seed + 68)) / lerp(0.7, 1.4, speed), tt = c.b / per + hash01(f, c.seed + 67), life = Math.floor(tt), ph = tt - life, sd = c.seed + life * 211;
-    const x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P + 0.07 * (hash01(f, sd + 66) - 0.5), L = lerp(0.55, 1.0, hash01(f, sd + 69)) * Math.min(1, ph * 4), life1 = Math.sin(Math.PI * ph) ** 0.6;
-    const pts: Array<[number, number]> = [], K = 20;
-    for (let k = 0; k <= K; k++) {
-      const u = (k / K) * L;
-      pts.push([x0 + (wind * u + (0.025 + 0.34 * u * u) * noise1(c.b * 0.03 + u * 3.2 + f * 5, sd + 63) + 0.03 * u * Math.sin(u * 12 + hash01(f, sd) * 9 + c.b * 0.05)) * (1 + feel.jitter), 1.06 - u]);
-    }
-    for (let q = 0; q < 4; q++) { // four stretches of the thread: each one fainter and wider than the one below it
-      const s = (q + 0.5) / 4, flat: number[] = []; for (let k = q * 5; k <= q * 5 + 5; k++) flat.push(pts[k][0], pts[k][1]);
-      items.push(pathItem(flat, 0.0028 * (1 + 4 * s), 0.3 * life1 * (1 - s) ** 1.1, tone));
-    }
-  }
-  return { items, layers };
+    const tw = 0.25 + 1.4 * hh, wx = fbm2(x * 2.4, hs * 0.9 + 3, c.seed + 1, 2) * tw * 0.5, wy = fbm2(x * 2.4 + 9, hs * 0.9, c.seed + 2, 2) * tw * 0.5;
+    const r = fbm2(x * 4 + wx * 2.2, hs * 2.6 + wy * 2.2, c.seed + 3, 3), sheet = sstep(0.45, 0.97, 1 - Math.abs(r) * 3);
+    const body = Math.min(1, m) * (0.1 + 1.1 * sheet) * Math.max(0, 1 - hh ** 2.4);
+    return lerp(Math.min(1, thin) * 0.9, body, sstep(0.05, 0.25, hh));
+  };
+  return { items: [], layers: [veil(`smoke|${c.seed}|${bq}|${P}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, GW, GH, f, tone.a, tone)] };
+}
+
+/** Clouds: banks and puffs that drift slowly across, in two scales of noise so they have bulk and a ragged edge; thinner towards the top and the bottom of the view. A veil like the smoke, light on a dark sky and dark on a bright one. */
+function clouds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const tone = bestTone(c.bases, c.h, 0.082);
+  const bq = Math.floor(c.b * 6) / 6, drift = bq * lerp(0.004, 0.014, speed), cover = lerp(-0.12, 0.2, density) + 0.1 * (feel.near - 0.5), GW = 56, GH = 40;
+  const f = (x: number, y: number) => {
+    const n = fbm2(x * 2.1 - drift * 2.2, y * 3.6 + 1.7 + 0.15 * noise1(bq * 0.01, c.seed + 8), c.seed + 4, 4), m = fbm2(x * 4.6 - drift * 3.6, y * 7.2, c.seed + 5, 3);
+    const v = n * 0.85 + m * 0.35 + cover, body = sstep(0.04, 0.38, v);
+    return body * (0.6 + 0.4 * sstep(0.15, 0.8, v)) * sstep(0, 0.14, y) * (1 - sstep(0.82, 1, y));
+  };
+  return { items: [], layers: [veil(`clouds|${c.seed}|${bq}|${Math.round(density * 20)}|${Math.round(speed * 20)}|${Math.round(feel.near * 20)}`, GW, GH, f, tone.a, tone)] };
 }
 
 /** Circuit: right-angled traces across the view, with pulses of light that travel along them one segment on each beat, in steps, never smoothly. Cold, exact, a machine at work. */

@@ -98,7 +98,7 @@ export const Colour = z.object({
   motion: z.enum(["still", "drift", "pulse", "breathe"]).optional().describe("still, drift, pulse (on the beat) or breathe"),
   shape: z.enum(["wash", "glow", "sweep"]).optional().describe("layout: wash (linear, default), glow (radial), sweep (conic)"),
   texture: z.enum(["flat", "grain", "soft_noise"]).optional(),
-  scene: z.enum(["none", "motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"]).optional().describe("left out: the mood picks; none: off"),
+  scene: z.enum(["none", "motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"]).optional().describe("left out: the mood picks; none: off"),
   density: unit.optional().describe("how many, for a scene"),
   speed: unit.optional().describe("how fast, for a scene"),
   sync: z.enum(["beat", "phrase", "free"]).optional().describe("what the motion follows: beat, phrase (4-bar swell) or free. Left out: the mood decides"),

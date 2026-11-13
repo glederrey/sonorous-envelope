@@ -45,4 +45,22 @@ export function matchedLayer(bases: Rgb[], hue: number, sat: number): { hue: num
   memo.set(key, best);
   return best;
 }
+/** A layer that is lighter than the field (on a dark one) or darker (on a bright one), nearly colourless: for things that must be seen as a shape (smoke, cloud), which a layer matched to the field's brightness cannot be.
+ *  With `vivid` (a saturation and lightness) the colour is that one instead of a grey (an aurora's glow). Returns its colour, the most opaque it may be, and `k`: the swing per unit of opacity that holds at every opacity up to that one, so that `a * k` is within `budget` (the real swing is smaller still:
+ *  the blend is in sRGB, so a faint layer changes the luminance far less than a full one, and the plain "worst ratio up to full opacity" would throw most of the budget away). */
+export function toneLayer(bases: Rgb[], hue: number, light: boolean, budget: number, vivid?: { sat: number; l: number }): { hue: number; sat: number; l: number; k: number; a: number } {
+  const l = vivid ? vivid.l : light ? 0.93 : 0.07, s = vivid ? vivid.sat : 0.08, c = hslToRgb(hue, s, l);
+  let a = 0, k = 0.01, worst = 0.01;
+  for (let q = 0.01; q <= 0.9001; q += 0.01) {
+    worst = Math.max(worst, ...bases.map((b) => Math.abs(relLuminance(mix(b, c, q)) - relLuminance(b)) / q));
+    if (q * worst > budget) break;
+    a = q; k = worst;
+  }
+  return { hue, sat: s * 100, l: l * 100, k, a: Math.max(0.01, a) };
+}
+/** The tone for a pale thing (smoke, cloud): light on every field but a really bright one, where nothing can be lighter and it turns dark. */
+export function bestTone(bases: Rgb[], hue: number, budget: number): { hue: number; sat: number; l: number; k: number; a: number } {
+  const lum = bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, bases.length);
+  return toneLayer(bases, hue, lum < 0.4, budget);
+}
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
