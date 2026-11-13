@@ -5,7 +5,7 @@ import type { Transition } from "./schemas";
 // Claude decides how it sounds and looks: tempo, scale, wave, roughness, echo, colour, transitions are all free.
 // What is left here is not a listener limit. It is two safety rules and two stability limits, and the player
 // applies the same function again before playing (docs/implementation/limits.md).
-//   - safety: the picture never flashes (large areas swing the luminance by under 10%, see visual.ts and docs/safety.md), and the master volume never goes above 0.9
+//   - safety: the master volume never goes above 0.9 (the large-element flash cap was lifted on 2026-11-13, see visual.ts and docs/safety.md)
 //   - stability: the echo feedback stays below 1 and the echo time inside the delay buffer (1.5 s)
 // Real listener limits (consent, harshness, colour caps) are a later piece of work; the old code is in the git history.
 
