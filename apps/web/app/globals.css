@@ -676,6 +676,26 @@ html:has(.pl-field) .se-header {
   display: grid;
   gap: 10px;
 }
+.gd-section {
+  padding-top: 24px;
+}
+.gd-section + .gd-section {
+  margin-top: 64px;
+  padding-top: 56px;
+  border-top: 2px solid var(--line-strong);
+}
+.gd-section > .se-title {
+  margin-bottom: 8px;
+}
+.gd-prose {
+  max-width: 68ch;
+}
+.gd-prose h3 {
+  margin: 36px 0 10px;
+}
+.gd-prose p {
+  margin: 0 0 14px;
+}
 .gd-tool-name {
   display: flex;
   flex-direction: column;
