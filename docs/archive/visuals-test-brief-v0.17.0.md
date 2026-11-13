@@ -71,7 +71,7 @@ For each test record pass or fail, plus what the user saw. For any failure give 
 
 ### F. The site
 23. The landing page: the hero shows chips (A synthesizer, A colour field, 30 visuals, Strudel). Below it only three sections: "Two ways to make sound" (two cards), "Hear what to expect" and "Keep the player open".
-24. The header has Add to your AI, Connector and Two faces. "Add to your AI" opens a page with the connector URL, Claude steps, and outlines for ChatGPT, GitHub Copilot in VS Code and Microsoft Copilot Studio (only Claude is tested). The "Add to your AI" button in a player opened by a guest goes there, and so does "Step by step" in the hero.
+24. The header has Add to your AI, Connector and Two faces. "Add to your AI" opens a page with the connector URL and one tab per app (Claude, ChatGPT, Cursor, GitHub Copilot, anything else), each with numbered steps and a Tested or Not tested yet badge (Claude and ChatGPT are tested). The "Add to your AI" button in a player opened by a guest goes there, and so does "Step by step" in the hero.
 25. The Connector page has "The tools" and "How it works" as two separate sections.
 26. `/safety` returns a 404 and nothing links to it.
 
