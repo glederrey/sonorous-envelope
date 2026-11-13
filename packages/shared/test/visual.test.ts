@@ -253,7 +253,7 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("fireflies");  // tender
     expect(e({ joy: 0.85, calm: 0.4, warmth: 0.7, closeness: 0.6, spontaneity: 0.9, tension: 0 })).toBe("bubbles");    // playful
     expect(e({ joy: 0.4, calm: 0.5, warmth: 0.8, closeness: 0.6, spontaneity: 0.4, tension: 0 })).toBe("leaves");      // nostalgic
-    expect(e({ joy: 0.75, calm: 0.6, warmth: 0.7, closeness: 0.5, spontaneity: 0.4, tension: 0 })).toBe("lanterns");   // hopeful
+    expect(e({ joy: 0.75, calm: 0.6, warmth: 0.7, closeness: 0.5, spontaneity: 0.4, tension: 0 })).toBe("fireflies");   // hopeful
     expect(e({ joy: 0.75, calm: 0.55, warmth: 0.5, closeness: 0.3, spontaneity: 0.5, tension: 0 })).toBe("seeds");      // free
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.6, spontaneity: 0.2, tension: 0 })).toBe("tide");        // peaceful
     expect(e({ joy: 0.95, calm: 0.1, warmth: 0.8, closeness: 0.6, spontaneity: 0.8, tension: 0.1 })).toBe("fireworks");    // excited

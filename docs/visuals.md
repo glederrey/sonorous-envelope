@@ -2,7 +2,7 @@
 
 Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
 
-Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Twenty-three scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `lanterns`, `seeds`, `tide`, `smoke`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
+Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Twenty-two scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `seeds`, `tide`, `smoke`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
 
 ### Emotions in the picture
 **Libraries (decision 2026-11-13).** None draws the picture. Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the flash budget (`capFrame`) and the tests cannot see what they draw, and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth; Canvas 2D paints it. The noise the scenes use is a 6-line smooth value noise on the engine's own `hash01` (`scene-kit.ts`), seeded, so nothing was added to the dependencies. A library would be worth it only for a per-pixel scene (a fluid or a real shader), which the budget also makes pointless at 0.09 opacity.
@@ -18,22 +18,22 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | lonely | snow | slow flakes, nearly straight; a flurry when joy or spontaneity rise |
 | tender | fireflies | soft lights wandering and glowing on and off |
 | playful, excited | bubbles | thin rings rising and wobbling |
-| hopeful | lanterns | warm lights that stay put, kept apart, bob a little and each switch their glow on and off |
+| hopeful | fireflies | (as tender) soft lights that each glow on and off |
 | free, light | seeds | dandelion tufts drifting across and bobbing |
 | peaceful | tide | a line of foam that comes up and slides back, with lines below it down to the bottom (never an empty strip) |
-| brooding | smoke | billowing plumes of soft puffs rising from the bottom, swelling, swirling and thinning out (dark on a bright field, pale on a dark one) |
+| brooding | smoke | billowing plumes of soft haze (matched to the field's brightness) with fine filaments that curl up through them (light on a dark field, dark on a bright one) so it reads on any colour |
 | analytical | circuit | right-angled traces (a different board per session and cycle) with pulses that move one segment per beat, in steps |
 | alert | digital | many columns of falling blocks, heads with fading tails, stepwise, like the Matrix |
-| driven | scope | an oscilloscope in XY mode: one glowing Lissajous figure that turns slowly, with fading copies behind it and a kick on each beat; the ratio comes from a fixed list by the speed |
+| driven | scope | an oscilloscope: a bright beam draws the figure and leaves a fading trail over a faint afterglow; a swept waveform (sparse), a turning Lissajous (middle) or a breathing rose (dense); beat kicks the size and flares the beam |
 | determined | vines | plants that sprout from an edge or the inside, branch, curl and put out leaves, then wither, drop their leaves and draw back; another starts elsewhere |
 | elated | fireworks | rockets and bursts staggered across each bar, one to five at once by how elated (small items only, no wash or glow) |
 | longing | reeds | straw-coloured stems anchored at the bottom with seed heads; they sway, and a gust crosses the field every few bars and bends them |
-| curious | network | nodes drifting on slow paths, linked while close (links fade with distance); on beats a few links carry a bright point |
+| curious | network | nodes that wander, fade out and come back somewhere else, so the links keep changing; linked while close (fading with distance); on beats a few links carry a bright point |
 | restless | flock | boids (separation, alignment, cohesion, cruise, noise, a wandering goal and obstacle) in a deterministic simulation: flocks form, split, merge and swell from small to large; white on a dark field, dark on a bright one |
 | serene | stars | a twinkling sky, now and then a shooting star |
 | happy | motes | bright lights that rise |
 | content, relief | waves | parallel lines across the whole view in perspective, all running one way at one pace, swing held under the gap so they never cross; they vanish at the top, the bottom, both or neither by the mood (calm: both, bright: top, low: bottom, tense: neither) |
-| awe | aurora | one curtain of colour with bright rays; rippling with tension |
+| awe | aurora | one curtain of colour whose lower edge ripples with folds that travel along it, bands of brightness that slide sideways, and bright rays that drift along the edge, lean with it and swell and shrink |
 | nervous | ripples | rings that scatter |
 | neutral | none | nothing (a quiet sound is the honest answer) |
 

@@ -26,7 +26,6 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "aurora" ? aurora(d, v, feel, c)
     : scene === "waves" ? waves(d, v, feel, c)
     : scene === "fireflies" ? fireflies(d, v, feel, c)
-    : scene === "lanterns" ? lanterns(d, v, feel, c)
     : scene === "seeds" ? seeds(d, v, feel, c)
     : scene === "tide" ? tide(d, v, feel, c)
     : scene === "smoke" ? smoke(d, v, feel, c)
@@ -140,19 +139,22 @@ function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const N = 48, ys: number[] = [], cols: number[] = [], items: Item[] = [];
   const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
-  const h = lerp(0.3, 0.52, 1 - feel.jitter * 0.6);
-  for (let i = 0; i < N; i++) {
-    ys.push(0.52 + 0.08 * noise1(i * 0.12 + c.b * drift, c.seed) + 0.03 * Math.sin(i * 0.25 + c.b * drift * 2));
-    cols.push(clamp(0.55 + 0.9 * noise1(i * 0.3 - c.b * drift * 0.8, c.seed + 20) + feel.jitter * 0.4 * noise1(i * 0.9 + c.b * 0.7, c.seed + 30)));
-  }
+  const h = lerp(0.3, 0.52, 1 - feel.jitter * 0.6), fold = lerp(0.6, 1.6, speed);
+  // the lower edge of the curtain: slow noise plus folds that travel along it in both directions (the curtain ripples like cloth in the wind)
+  const edge = (u: number) => 0.52 + 0.07 * noise1(u * 5.5 + c.b * drift, c.seed) + 0.05 * Math.sin(u * 9 - c.b * drift * 5 * fold) + 0.035 * Math.sin(u * 17 + c.b * drift * 7 * fold + 1.7) + 0.03 * Math.sin(u * 4 + c.b * drift * 3);
+  // the brightness along it: bands that slide sideways at their own pace
+  const glow = (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - c.b * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + c.b * 0.7, c.seed + 30));
+  for (let i = 0; i < N; i++) { const u = (i + 0.5) / N; ys.push(edge(u)); cols.push(glow(u)); }
   // two colours that read against the field and against each other: the field's hue turned by a third and by two thirds of the wheel
   const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360, mA = matchedLayer(c.bases, hueA, 0.9);
   const rays = Math.round(lerp(10, 30, density));
   for (let r = 0; r < rays; r++) {
-    const col = Math.floor(hash01(r, c.seed + 40) * N), k = cols[col], len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k;
+    // each ray slides along the curtain, stays on its lower edge, leans with the fold and grows and shrinks as it goes
+    const vel = (hash01(r, c.seed + 45) - 0.5) * 0.05 * lerp(0.5, 1.5, speed), u = frac(hash01(r, c.seed + 40) + c.b * vel + 8), k = glow(u);
     if (k < 0.25) continue;
-    const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43)));
-    items.push({ kind: "streak", x: (col + 0.5) / N, y: ys[col] - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.55 * k * flick * swell, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
+    const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
+    const slope = (edge(u + 0.01) - edge(u - 0.01)) / 0.02, flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
+    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: clamp(-slope * 0.12, -0.2, 0.2), a: 0.55 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
   return { items, layers: [{ kind: "ribbon", x: 0, y: 0, r: 0, ys, cols, h, a: Math.min(0.75, 0.09 / mA.k) * swell, dh: 0, hue: mA.hue, sat: mA.sat * 100, l: mA.l * 100, k: mA.k }] };
 }
@@ -245,30 +247,6 @@ function leaves(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   return { items, layers: [] };
 }
 
-/** Spread: n well-separated places in the view (one per cell of a jittered grid, taken in a hashed order), so no two lights sit close together. */
-function spread(n: number, aspect: number, seed: number): Array<{ x: number; y: number; cw: number; ch: number }> {
-  const cols = Math.max(1, Math.round(Math.sqrt(n * (aspect > 0 ? aspect : 0.6)))), rows = Math.ceil(n / cols), cells: number[] = [];
-  for (let i = 0; i < cols * rows; i++) cells.push(i);
-  cells.sort((p, q) => hash01(p, seed) - hash01(q, seed));
-  const cw = 0.84 / cols, ch = 0.8 / rows;
-  return cells.slice(0, n).map((cell, i) => ({ x: 0.08 + ((cell % cols) + 0.5 + 0.5 * (hash01(i, seed + 1) - 0.5)) * cw, y: 0.08 + (Math.floor(cell / cols) + 0.5 + 0.5 * (hash01(i, seed + 2) - 0.5)) * ch, cw, ch }));
-}
-
-/** Lanterns: warm lights that stay in the view, bob a little, and each go on and off in their own slow rhythm (the glow, never the lantern). They are kept apart. Hope. */
-function lanterns(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(3, 12, density)), items: Item[] = [], pos = spread(n, c.aspect, c.seed + 60);
-  for (let i = 0; i < n; i++) {
-    const p = pos[i], ph = hash01(i, c.seed + 3), z = hash01(i, c.seed + 2), per = lerp(26, 12, speed) * (0.8 + 0.5 * ph);
-    const on = clamp(0.5 + 0.9 * Math.sin(2 * Math.PI * (c.b / per + ph))), glow = on * on * (3 - 2 * on); // mostly on or off, a smooth change between
-    const x = p.x + p.cw * 0.2 * noise1(c.b * 0.02 + i * 7, c.seed + 4), y = p.y + p.ch * 0.2 * noise1(c.b * 0.02 + i * 7 + 40, c.seed + 5) + 0.012 * Math.sin(2 * Math.PI * (c.b / 18 + ph));
-    const r = Math.min(lerp(0.018, 0.034, z), p.cw * 0.28) * (1 + 0.1 * c.hit * glow);
-    items.push({ kind: "dot", x, y, r: r * 0.55, w: 0, soft: 0.2, a: 0.2 + 0.1 * glow, hue: 30, sat: 80, l: 52 });          // the lantern itself, always there
-    items.push({ kind: "dot", x, y, r: r * 1.9, w: 0, soft: 1, a: 0.5 * glow, hue: 34, sat: 95, l: 62 });                     // the glow
-    items.push({ kind: "dot", x, y, r: r * 0.5, w: 0, soft: 0.5, a: 0.8 * glow, hue: 44, sat: 95, l: 84 });                   // the bright core
-  }
-  return { items, layers: [] };
-}
-
 /** Dandelion seeds: tufts that drift across the view, turning slowly and bobbing on the air. Light, free. */
 function seeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(4, 22, density)), items: Item[] = [];
@@ -312,7 +290,18 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
         a: Math.min(0.75, 0.09 / gm.k) * 0.8 * Math.sin(Math.PI * u) ** 0.8 * lerp(0.8, 1.2, density), dh: 0, hue: gm.hue, sat: gm.sat * 100, l: gm.l * 100, k: gm.k });
     }
   }
-  return { items: [], layers };
+  // fine filaments that curl up through the haze: small items, so they are lighter or darker than the field whatever its colour (the haze alone is matched to the field's brightness and can barely be seen)
+  const lum = c.bases.reduce((s, b) => s + relLuminance(b), 0) / Math.max(1, c.bases.length), tone = lum < 0.3 ? { l: 90, sat: 8 } : { l: 14, sat: 8 }, items: Item[] = [], F = Math.round(P * lerp(5, 9, density));
+  for (let f = 0; f < F; f++) {
+    const p = f % P, x0 = (p + 0.5 + 0.5 * (hash01(p, c.seed + 61) - 0.5)) / P + 0.05 * (hash01(f, c.seed + 66) - 0.5), ph = hash01(f, c.seed + 67), per = 1 / (rate * lerp(0.8, 1.3, hash01(f, c.seed + 68)));
+    const u0 = (((c.b / per + ph) % 1) + 1) % 1, pts: number[] = [], K = 14, life = 0.7;
+    for (let k = 0; k <= K; k++) {
+      const s = k / K, u = u0 * life + s * 0.3; // the filament is a stretch of the rising stream
+      pts.push(x0 + (wind * u + 0.09 * noise1(c.b * 0.02 + u * 2.6 + f * 3, c.seed + 63) + 0.05 * Math.sin(u * 14 + ph * 9 + c.b * 0.05)) * (0.4 + u) * (1 + feel.jitter), 1.08 - u * 1.0);
+    }
+    items.push(pathItem(pts, 0.0036, 0.34 * Math.sin(Math.PI * u0) ** 0.7, tone));
+  }
+  return { items, layers };
 }
 
 /** Circuit: right-angled traces across the view, with pulses of light that travel along them one segment on each beat, in steps, never smoothly. Cold, exact, a machine at work. */
@@ -447,17 +436,17 @@ function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneO
  *  (limited), then the velocity, then the position, in fixed steps, so the simulation is the same for every listener: it restarts from the seed every EPOCH beats and is advanced by whole steps
  *  from there (a listener who joins late catches up at once). Flocks form, split, merge and change size by themselves; the cohesion breathes over time so the size goes from small to large. */
 const EPOCH = 72, STEPS_PER_BEAT = 6;
-interface Boids { n: number; x: Float64Array; y: Float64Array; vx: Float64Array; vy: Float64Array; grp: Uint8Array; step: number; key: string }
+interface Boids { n: number; x: Float64Array; y: Float64Array; vx: Float64Array; vy: Float64Array; grp: Uint8Array; step: number; key: string; px: Float64Array; py: Float64Array }
 const SIMS = new Map<string, Boids>();
 function goalOf(f: number, step: number, seed: number): [number, number] {
   const b = step / STEPS_PER_BEAT;
   return [0.5 + 0.32 * Math.sin((2 * Math.PI * b) / (38 + 11 * f) + 2.1 * f + hash01(seed, 5)), 0.45 + 0.24 * Math.sin((2 * Math.PI * b) / (29 + 9 * f) + 1.3 * f + hash01(seed, 6))];
 }
 function newBoids(seed: number, n: number, nf: number, key: string): Boids {
-  const B: Boids = { n, x: new Float64Array(n), y: new Float64Array(n), vx: new Float64Array(n), vy: new Float64Array(n), grp: new Uint8Array(n), step: 0, key };
+  const B: Boids = { n, x: new Float64Array(n), y: new Float64Array(n), vx: new Float64Array(n), vy: new Float64Array(n), grp: new Uint8Array(n), step: 0, key, px: new Float64Array(n), py: new Float64Array(n) };
   for (let i = 0; i < n; i++) {
     const g = i % nf, [gx, gy] = goalOf(g, 0, seed), a = 2 * Math.PI * hash01(i, seed + 1), r = 0.08 * Math.sqrt(hash01(i, seed + 2)), th = 2 * Math.PI * hash01(i, seed + 3);
-    B.grp[i] = g; B.x[i] = gx + Math.cos(a) * r; B.y[i] = gy + Math.sin(a) * r; B.vx[i] = Math.cos(th) * 0.01; B.vy[i] = Math.sin(th) * 0.01;
+    B.grp[i] = g; B.x[i] = gx + Math.cos(a) * r; B.y[i] = gy + Math.sin(a) * r; B.vx[i] = Math.cos(th) * 0.01; B.vy[i] = Math.sin(th) * 0.01; B.px[i] = B.x[i]; B.py[i] = B.y[i];
   }
   return B;
 }
@@ -487,7 +476,7 @@ function stepBoids(B: Boids, seed: number, nf: number) {
     const am = Math.hypot(fx, fy); if (am > maxAcc) { fx *= maxAcc / am; fy *= maxAcc / am; }
     ax[i] = fx; ay[i] = fy;
   }
-  for (let i = 0; i < n; i++) { vx[i] += ax[i]; vy[i] += ay[i]; x[i] += vx[i]; y[i] += vy[i]; }
+  for (let i = 0; i < n; i++) { B.px[i] = x[i]; B.py[i] = y[i]; vx[i] += ax[i]; vy[i] += ay[i]; x[i] += vx[i]; y[i] += vy[i]; }
   B.step++;
 }
 function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
@@ -495,32 +484,49 @@ function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const ep = Math.floor(c.b / EPOCH), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
   const key = `${c.seed}|${ep}|${n}|${nf}`;
   let B = SIMS.get(key);
-  if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 24) SIMS.delete(SIMS.keys().next().value as string); }
+  if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 96) SIMS.delete(SIMS.keys().next().value as string); }
   while (B.step < target) stepBoids(B, c.seed + ep * 7919, nf);
+  const fs = clamp(u * STEPS_PER_BEAT - target); // the simulation moves in steps; the picture glides between the last two (else it moves at the step rate, a stutter)
   const lum = c.bases.reduce((a, b) => a + relLuminance(b), 0) / Math.max(1, c.bases.length), light = lum < 0.3, m = Math.min(asp, 1);
   for (let i = 0; i < n; i++) {
     const sp = Math.hypot(B.vx[i], B.vy[i]) || 1e-6, len = 0.014;
     // a short tail along the heading (the direction in pixels, so a wide view and a tall one agree)
     const dxp = B.vx[i] * asp, dyp = B.vy[i], dn = Math.hypot(dxp, dyp) || 1e-6;
-    items.push({ kind: "dot", x: B.x[i], y: B.y[i], r: 0.0066, w: 0, soft: 0, a: 0.5 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
-    items.push({ kind: "streak", x: B.x[i] - ((dxp / dn) * len * m) / asp, y: B.y[i] - (dyp / dn) * len * m, r: len, w: 0.0016, ang: Math.atan2(dxp / dn, dyp / dn), tail: true, a: 0.3 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
+    const bx = lerp(B.px[i], B.x[i], fs), by = lerp(B.py[i], B.y[i], fs);
+    items.push({ kind: "dot", x: bx, y: by, r: 0.0066, w: 0, soft: 0, a: 0.5 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
+    items.push({ kind: "streak", x: bx - ((dxp / dn) * len * m) / asp, y: by - (dyp / dn) * len * m, r: len, w: 0.0016, ang: Math.atan2(dxp / dn, dyp / dn), tail: true, a: 0.3 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
     void sp;
   }
   return { items, layers: [] };
 }
 
-/** Scope: an oscilloscope in XY mode. One glowing Lissajous figure that turns slowly as its phase drifts, with fading copies behind it (phosphor persistence) and a kick on each beat. The sound drawn.
- *  The ratio comes from a short fixed list by the (quantized) speed, so a new state goes through the crossfade and the figure never snaps; ratios stay at 5 or below, never a dense mesh. */
+/** Scope: an oscilloscope. A bright beam draws the figure and leaves a trail that fades behind it (phosphor); the whole figure glows faintly underneath. Three figures by how dense the picture is: a waveform
+ *  swept across the screen again and again (sparse), a Lissajous figure that turns as its phase drifts (middle), a rose with petals that breathe (dense). The ratio of the Lissajous comes from a fixed
+ *  list by the (quantized) speed, so a new state goes through the crossfade; ratios stay at 5 or below. The beat kicks the size and flares the beam. */
 function scope(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const R: Array<[number, number]> = [[1, 1], [1, 2], [2, 3], [3, 4], [3, 5]], [a, b] = R[Math.round(clamp(speed) * 4)];
-  const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), A = lerp(0.2, 0.34, feel.near) * (1 + 0.09 * c.hit), N = 160, items: Item[] = [];
-  const phi = c.b * lerp(0.012, 0.04, speed), copies = 3 + (density > 0.5 ? 1 : 0);
-  for (let k = copies; k >= 0; k--) {
-    const ph = phi - k * 0.07, pts: number[] = [];
-    for (let i = 0; i <= N; i++) { const th = (2 * Math.PI * i) / N; pts.push(0.5 + (A * m * Math.sin(a * th + ph + Math.PI / 2)) / asp, 0.5 + A * m * Math.sin(b * th)); }
-    if (k === 0) { items.push(pathItem(pts, 0.0055, 0.16, { l: 82, sat: 80 })); items.push(pathItem(pts, 0.0022, 0.5, { l: 95, sat: 55 })); }
-    else items.push(pathItem(pts, 0.0018, 0.26 * (1 - k / (copies + 1)), { l: 88, sat: 70 }));
+  const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), kick = 1 + 0.1 * c.hit, items: Item[] = [], mode = density < 0.3 ? 0 : density < 0.7 ? 1 : 2, N = 220;
+  const A = lerp(0.22, 0.36, feel.near) * kick, lap = lerp(10, 4, speed), head = frac(c.b / lap), closed = mode > 0, trail = closed ? 0.42 : 0.5;
+  const pts: number[] = [];
+  if (mode === 0) { // a waveform: two or three sines whose mix beats slowly, swept left to right by the beam
+    const f1 = 2 + Math.round(3 * hash01(c.seed, 71)), f2 = f1 + 1 + Math.round(2 * hash01(c.seed, 72)), mix = 0.5 + 0.5 * Math.sin(c.b * 0.05);
+    for (let i = 0; i <= N; i++) { const u = i / N; pts.push(0.06 + 0.88 * u, 0.5 - A * 0.9 * (0.6 * Math.sin(2 * Math.PI * f1 * u + c.b * 0.11) + 0.4 * mix * Math.sin(2 * Math.PI * f2 * u - c.b * 0.07)) * (0.5 + 0.5 * Math.sin(Math.PI * u) ** 0.5)); }
+  } else if (mode === 1) { // Lissajous
+    const R: Array<[number, number]> = [[1, 1], [1, 2], [2, 3], [3, 4], [3, 5]], [a, b] = R[Math.round(clamp(speed) * 4)], phi = c.b * lerp(0.012, 0.04, speed);
+    for (let i = 0; i <= N; i++) { const th = (2 * Math.PI * i) / N; pts.push(0.5 + (A * m * Math.sin(a * th + phi + Math.PI / 2)) / asp, 0.5 + A * m * Math.sin(b * th)); }
+  } else { // a rose, r = cos(k theta), k from the seed (3, 4, 5 petals' worth) breathing a little
+    const kk = [2, 3, 4, 5][Math.floor(hash01(c.seed, 73) * 4)] + 0.15 * Math.sin(c.b * 0.04);
+    for (let i = 0; i <= N; i++) { const th = (Math.PI * 2 * i) / N, rr = Math.cos(kk * th) * 0.95; pts.push(0.5 + (A * m * 1.15 * rr * Math.cos(th)) / asp, 0.5 + A * m * 1.15 * rr * Math.sin(th)); }
   }
+  items.push(pathItem(pts, 0.002, 0.1, { l: 86, sat: 60 })); // the screen's own afterglow: the whole figure, faint
+  const seg = 14, per = Math.floor(N * trail / seg);
+  for (let s = 0; s < seg; s++) { // the trail: the newest part brightest, the oldest gone
+    const k = (s + 1) / seg, i0 = Math.floor(head * N - (seg - s) * per), i1 = i0 + per + 1, sub: number[] = [];
+    for (let i = i0; i <= i1; i++) { if (!closed && (i < 0 || i > N)) continue; const j = ((i % N) + N) % N; sub.push(pts[2 * j], pts[2 * j + 1]); }
+    if (sub.length >= 4) items.push(pathItem(sub, lerp(0.0018, 0.0042, k), 0.62 * k * k, { l: lerp(80, 96, k), sat: lerp(75, 45, k) }));
+  }
+  const hj = Math.min(N, Math.floor(head * N)), hi = ((hj % N) + N) % N;
+  items.push({ kind: "dot", x: pts[2 * hi], y: pts[2 * hi + 1], r: 0.012 * (1 + 0.5 * c.hit), w: 0, soft: 1, a: 0.5, l: 95, sat: 50 }); // the beam itself
+  items.push({ kind: "dot", x: pts[2 * hi], y: pts[2 * hi + 1], r: 0.0045, w: 0, soft: 0.3, a: 0.7, l: 99, sat: 20 });
   return { items, layers: [] };
 }
 
@@ -543,19 +549,25 @@ function reeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 /** Network: nodes drifting about on slow noise paths, linked whenever two are close, the link fading in and out with their distance; on each beat a few links carry a bright point from one node to the other. Thinking. */
 function network(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(26, 42, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, d0 = 0.3, drift = lerp(0.006, 0.02, speed);
-  const P: Array<[number, number]> = [];
-  for (let i = 0; i < n; i++) P.push([clamp(hash01(i, c.seed) + 0.14 * noise1(c.b * drift + i * 11, c.seed + 1), 0.03, 0.97), clamp(hash01(i, c.seed + 2) + 0.14 * noise1(c.b * drift + i * 11 + 70, c.seed + 3), 0.03, 0.97)]);
+  const P: Array<[number, number, number]> = []; // x, y and how present the node is
+  for (let i = 0; i < n; i++) {
+    // each node lives for a while, fading in somewhere, wandering, then fading out; it comes back somewhere else, so the links never settle into the same roads
+    const per = 26 + 40 * hash01(i, c.seed + 8), t = c.b / per + hash01(i, c.seed + 9), life = Math.floor(t), u = t - life, sd = c.seed + life * 101 + 1;
+    P.push([clamp(hash01(i, sd) + 0.2 * noise1(c.b * drift + i * 11, c.seed + 1), 0.03, 0.97), clamp(hash01(i, sd + 2) + 0.2 * noise1(c.b * drift + i * 11 + 70, c.seed + 3), 0.03, 0.97), Math.min(1, u * 6, (1 - u) * 6)]);
+  }
   const near: number[] = new Array(n).fill(-1), nearD: number[] = new Array(n).fill(9);
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-    const d = Math.hypot((P[i][0] - P[j][0]) * asp, P[i][1] - P[j][1]) / Math.min(asp, 1);
+    const d = Math.hypot((P[i][0] - P[j][0]) * asp, P[i][1] - P[j][1]) / Math.min(asp, 1), pr = P[i][2] * P[j][2];
+    if (pr < 0.05) continue;
     if (d < nearD[i]) { nearD[i] = d; near[i] = j; } if (d < nearD[j]) { nearD[j] = d; near[j] = i; }
-    if (d < d0) items.push(pathItem([P[i][0], P[i][1], P[j][0], P[j][1]], 0.0018, 0.42 * (1 - d / d0) ** 1.5, { l: 86, sat: 50 }));
+    if (d < d0) items.push(pathItem([P[i][0], P[i][1], P[j][0], P[j][1]], 0.0018, 0.42 * (1 - d / d0) ** 1.5 * pr, { l: 86, sat: 50 }));
   }
   const ease = (x: number) => x * x * (3 - 2 * x);
   for (let i = 0; i < n; i++) {
-    items.push({ kind: "dot", x: P[i][0], y: P[i][1], r: 0.0052, w: 0, soft: 0, a: 0.5, l: 92, sat: 40 });
+    if (P[i][2] < 0.05) continue;
+    items.push({ kind: "dot", x: P[i][0], y: P[i][1], r: 0.0052, w: 0, soft: 0, a: 0.5 * P[i][2], l: 92, sat: 40 });
     const j = near[i];
-    if (j >= 0 && nearD[i] < d0 && hash01(i + c.beatIdx * 37, c.seed + 6) < 0.13) { const q = ease(c.beatPh); items.push({ kind: "dot", x: lerp(P[i][0], P[j][0], q), y: lerp(P[i][1], P[j][1], q), r: 0.0075, w: 0, soft: 0.6, a: 0.55, l: 96, sat: 60 }); }
+    if (j >= 0 && nearD[i] < d0 && hash01(i + c.beatIdx * 37, c.seed + 6) < 0.13) { const q = ease(c.beatPh); items.push({ kind: "dot", x: lerp(P[i][0], P[j][0], q), y: lerp(P[i][1], P[j][1], q), r: 0.0075, w: 0, soft: 0.6, a: 0.55 * P[i][2], l: 96, sat: 60 }); }
   }
   return { items, layers: [] };
 }
