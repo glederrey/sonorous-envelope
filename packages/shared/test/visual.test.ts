@@ -27,13 +27,26 @@ describe("visual frame", () => {
   it("draws nothing for a still field without a scene", () => {
     expect(visualFrame({ colour: base({ motion: "still" }), bpm: 100, beats: 3, t: 1 })).toBe(EMPTY_FRAME);
   });
-  it("pulses on the beat: brightest at the beat, not at the middle, and repeats every beat", () => {
-    const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
-    const at = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0, play: false }).wash;
-    expect(at(8)).toBeGreaterThan(at(8.5));
-    expect(at(8)).toBeCloseTo(at(12), 9); // the bar repeats every 4 beats
-    expect(at(8)).toBeGreaterThan(at(9));  // and its first beat hits hardest
-    expect(at(9)).toBeCloseTo(at(10), 9);
+  it("has no wash and no glow: a base colour, a slow gradient and the scene", () => {
+    for (const motion of ["still", "drift", "pulse", "breathe"] as const) for (const beats of [8, 8.5, 9]) {
+      const f = visualFrame({ colour: base({ motion, sync: "beat", feel: moodToFeel(mood) }), bpm: 120, beats, t: 0 });
+      expect(f.wash).toBe(0); expect(f.glow).toBeNull();
+    }
+  });
+  it("keeps the gradient off the beat: its lights barely move between two points of a beat", () => {
+    const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1 } });
+    const l = (beats: number) => visualFrame({ colour: c, bpm: 120, beats, t: 0 }).layers;
+    const a = l(8), b = l(8.05);
+    expect(a.length).toBeGreaterThan(0);
+    a.forEach((x, i) => { expect(Math.abs(x.x - b[i].x)).toBeLessThan(0.02); expect(Math.abs(x.a - b[i].a)).toBeLessThan(0.02); });
+  });
+  it("lets the listener turn the gradient and the visuals off, separately", () => {
+    const c = base({ scene: "motes", density: 0.7, feel: moodToFeel(mood) });
+    const f = (o: { play?: boolean; visuals?: boolean }) => visualFrame({ colour: c, bpm: 100, beats: 8, t: 0, seed: 2, ...o });
+    expect(f({}).layers.length).toBeGreaterThan(0); expect(f({}).items.length).toBeGreaterThan(0);
+    expect(f({ play: false }).layers.length).toBe(0); expect(f({ play: false }).items.length).toBeGreaterThan(0);
+    expect(f({ visuals: false }).items.length).toBe(0); expect(f({ visuals: false }).layers.length).toBeGreaterThan(0);
+    expect(f({ play: false, visuals: false })).toEqual(EMPTY_FRAME);
   });
   it("shows the beat in the shape too, so red (no brightness pulse) still moves: streaks stretch and brighten on the beat", () => {
     const c = base({ h: 0, s: 1, l: 0.45, motion: "pulse", scene: "rain", density: 1, sync: "beat", feel: { ...moodToFeel(mood), depth: 1 } });
@@ -42,23 +55,15 @@ describe("visual frame", () => {
     const len = (beats: number) => f(beats).items.reduce((s, i) => s + i.r, 0);
     expect(len(8.02)).toBeGreaterThan(len(8.6));
   });
-  it("follows the phrase slowly in phrase sync: one swell over 16 beats", () => {
+  it("swells its lights slowly over the phrase: one swell over 16 beats", () => {
     const c = base({ sync: "phrase" });
-    const w = (beats: number) => drawFrame({ colour: c, bpm: 120, beats, t: 0 }).wash;
-    expect(w(8)).toBeGreaterThan(w(0.5));
-    expect(w(0)).toBeCloseTo(w(16), 9);
+    const a = (beats: number) => visualFrame({ colour: c, bpm: 120, beats, t: 0 }).layers[0].a;
+    expect(a(8)).toBeGreaterThan(a(0.5));
+    expect(a(0)).toBeCloseTo(a(16), 9);
   });
-  it("runs at half-time above 180 BPM", () => {
-    const c = base({ sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0, soft: 1 } });
-    const fast = (beats: number) => drawFrame({ colour: c, bpm: HALF_TIME_BPM + 20, beats, t: 0, play: false }).wash;
-    expect(fast(8)).toBeCloseTo(fast(16), 9); // a cycle takes two beats, a bar four of them
-    expect(fast(8)).toBeGreaterThan(fast(9));
-  });
-  it("carries the mood in the form, not only the hue: joy expands, low joy contracts, calm couples less", () => {
-    const glow = (joy: number) => drawFrame({ colour: base({ motion: "breathe", sync: "beat", feel: moodToFeel({ ...mood, joy, calm: 0.1 }) }), bpm: 100, beats: 8.05, t: 0 }).glow!;
-    expect(glow(1).r).toBeGreaterThan(glow(0).r);
-    const swing = (calm: number) => { const c = base({ sync: "beat", feel: moodToFeel({ ...mood, calm }) }); const v = [0, 0.25, 0.5, 0.75].map((p) => drawFrame({ colour: c, bpm: 100, beats: 4 + p, t: 0 }).wash); return Math.max(...v) - Math.min(...v); };
-    expect(swing(0.1)).toBeGreaterThan(swing(0.9));
+  it("carries the mood in the form, not only the hue: joy makes the lights stronger", () => {
+    const a = (joy: number) => visualFrame({ colour: base({ sync: "beat", feel: moodToFeel({ ...mood, joy, calm: 0.1 }) }), bpm: 100, beats: 8.05, t: 0 }).layers[0].a;
+    expect(a(1)).toBeGreaterThan(a(0));
     const rough = (tension: number) => { const f = moodToFeel({ ...mood, tension }); return f.jitter; };
     expect(rough(0.9)).toBeGreaterThan(rough(0));
   });
@@ -71,7 +76,7 @@ describe("visual frame", () => {
     const sig = (m: typeof mood & { tension?: number }) => {
       const c = { ...moodToColour(m as never, 1500, 0.3), s: 0, secondary: undefined };
       const frames = [0, 0.3, 0.6, 1.1, 2.4, 5, 9.5].map((p) => drawFrame({ colour: c, bpm: 100, beats: 8 + p, t: p }, 0.6));
-      expect(frames.some((f) => f.wash > 0 || f.glow)).toBe(true); // something moves
+      expect(frames.some((f) => f.layers.length > 0)).toBe(true); // something moves
       return JSON.stringify(frames);
     };
     const moods = [
@@ -105,14 +110,6 @@ describe("the flash budget", () => {
     expect(redFactor(red)).toBe(0);
     expect(drawFrame({ colour: red, bpm: 100, beats: 8, t: 0 }).wash).toBe(0);
     expect(redFactor(base({ h: 220 }))).toBe(1);
-  });
-  it("steps the wash and glow back with the crossfade, never in one frame", () => {
-    const c = base({ motion: "breathe", scene: "aurora", density: 0.6, sync: "phrase" });
-    const g = (from?: { k: number }) => drawFrame({ colour: c, bpm: 100, beats: 24, t: 0, seed: 2, from: from ? { scene: "motes", ...from } : undefined }).glow!.a;
-    expect(g()).toBeCloseTo(g({ k: 0.9995 }), 3);
-    expect(g({ k: 0.998 })).toBeCloseTo(g(), 3);
-    expect(g({ k: 0.5 })).toBeGreaterThan(g() + 1e-4); // half way: between the two
-    expect(g({ k: 0 })).toBeGreaterThan(g({ k: 0.5 }));
   });
   it("property: no random state ever has more small elements or more of the view covered by them than the caps, at any tempo, glide or scene, scene switches included", () => {
     let seed = 12345;

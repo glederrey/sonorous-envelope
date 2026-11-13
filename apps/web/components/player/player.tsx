@@ -70,7 +70,9 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [policy, setPolicy] = useState<Policy>("auto");
   // the moving picture (canvas): the listener can turn it off, nudge its timing for devices that cannot report their delay, and
   // ?field=css brings back the old CSS motion
-  const [stillPicture, setStillPicture] = useState(false);
+  const [gradientOn, setGradientOn] = useState(true);
+  const [visualsOn, setVisualsOn] = useState(true);
+  const stillPicture = !gradientOn && !visualsOn; // both off: the base colour only
   const [nudgeMs, setNudgeMs] = useState(0);
   const [canvasOk, setCanvasOk] = useState(true);
   const nudge = useRef(0);
@@ -113,12 +115,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // the picture's own settings, per device: ?field=css keeps the old CSS motion
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; nudge?: number };
-      setStillPicture(Boolean(v.still)); const n = Number.isFinite(v.nudge) ? Math.min(400, Math.max(0, Number(v.nudge))) : 0; setNudgeMs(n); nudge.current = n;
+      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; nudge?: number };
+      setGradientOn(v.still ? false : v.gradient !== false); setVisualsOn(v.still ? false : v.visuals !== false); const n = Number.isFinite(v.nudge) ? Math.min(400, Math.max(0, Number(v.nudge))) : 0; setNudgeMs(n); nudge.current = n;
     } catch { /* private window */ }
     if (new URLSearchParams(window.location.search).get("field") === "css") setCanvasOk(false);
   }, []);
-  const rememberPicture = (still: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ still, nudge: n })); } catch { /* private window */ } };
+  const rememberPicture = (gradient: boolean, visuals: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, nudge: n })); } catch { /* private window */ } };
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
@@ -546,7 +548,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       {canvasOk && !reduced && (
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
-          clockOffset={clockOffset} latency={pictureLatency} active={started && !stillPicture} onFail={failCanvas}
+          clockOffset={clockOffset} latency={pictureLatency} active={started && !stillPicture} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
         />
       )}
       <main className="pl-stage">
@@ -616,16 +618,21 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 <label className="pl-slider" title="Delay the picture so it matches the sound, for example on Bluetooth headphones. Leave it at 0 if they already match.">
                   <span>Picture delay</span>
                   <input type="range" min={0} max={400} step={10} value={nudgeMs} style={{ "--fill": `${(nudgeMs / 400) * 100}%` } as CSSProperties}
-                    onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(stillPicture, n); }} />
+                    onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(gradientOn, visualsOn, n); }} />
                   <output>{nudgeMs} ms</output>
                 </label>
               )}
             </div>
 
             {canvasOk && !reduced && (
-              <button type="button" className="se-btn pl-mute" aria-pressed={stillPicture} onClick={() => { setStillPicture(!stillPicture); rememberPicture(!stillPicture, nudgeMs); }}>
-                {stillPicture ? "Still picture. Tap for motion" : "Still picture"}
-              </button>
+              <>
+                <button type="button" className="se-btn pl-mute" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn, nudgeMs); }}>
+                  {gradientOn ? "Gradient: on" : "Gradient: off"}
+                </button>
+                <button type="button" className="se-btn pl-mute" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn, nudgeMs); }}>
+                  {visualsOn ? "Visuals: on" : "Visuals: off"}
+                </button>
+              </>
             )}
 
             {(() => {

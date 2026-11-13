@@ -26,6 +26,8 @@ interface Props {
   active: boolean;
   /** false: no moving gradient (the lab compares with and without) */
   play?: boolean;
+  /** false: no scene (the listener turned the visuals off) */
+  visuals?: boolean;
   /** the canvas could not be used: the parent falls back to the CSS field */
   onFail: () => void;
 }
@@ -33,11 +35,11 @@ interface Props {
 interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
-export function VisualCanvas({ source, clockOffset, latency, active, play = true, onFail }: Props) {
+export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
-  const live = useRef({ source, active, latency, play, onFail });
-  live.current = { source, active, latency, play, onFail }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
+  const live = useRef({ source, active, latency, play, visuals, onFail });
+  live.current = { source, active, latency, play, visuals, onFail }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
 
   useEffect(() => {
     const cv = ref.current;
@@ -166,7 +168,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
       if (failed) return;
       raf = requestAnimationFrame(loop);
       try {
-        const { source: s, active: on, latency: lat, play: playOn } = live.current;
+        const { source: s, active: on, latency: lat, play: playOn, visuals: visualsOn } = live.current;
         if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; } return; }
         // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
         const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
@@ -202,7 +204,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         }
         const fk = fromScene ? Math.min(1, (now - fadeStart) / 1000 / fadeDur) : 1;
         if (fk >= 1) fromScene = null;
-        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
+        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, visuals: visualsOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
         const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl);
         const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0 && frame.layers.length === 0;
         if (!(empty && wasEmpty)) paint(frame, c.h); // a still state is not repainted 60 times a second

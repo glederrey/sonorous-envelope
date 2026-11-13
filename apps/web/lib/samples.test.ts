@@ -31,7 +31,7 @@ describe("landing samples", () => {
     const sigs = SAMPLES.map((s) => {
       const c = { ...stateOfStep(s.steps[0], s.id).colour, s: 0, secondary: undefined };
       const frames = [0, 0.3, 0.6, 1.1, 2.4, 5, 9.5].map((p) => drawFrame({ colour: c, bpm: 100, beats: 8 + p, t: p }));
-      expect(frames.some((f) => f.wash > 0 || f.glow), s.id).toBe(true);
+      expect(frames.some((f) => f.layers.length > 0 || f.items.length > 0), s.id).toBe(true);
       return JSON.stringify(frames);
     });
     expect(new Set(sigs).size).toBe(SAMPLES.length);

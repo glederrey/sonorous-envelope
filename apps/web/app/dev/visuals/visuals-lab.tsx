@@ -54,6 +54,7 @@ export function VisualsLab() {
   const [bpm, setBpm] = useState(100);
   const [set, setSet] = useState<"emotions" | "samples" | "gradients">("emotions");
   const [play, setPlay] = useState(true);
+  const [visuals, setVisuals] = useState(true);
   const [scene, setScene] = useState<Scene>("own");
   const [sync, setSync] = useState<Sync>("own");
   const [own, setOwn] = useState(true);
@@ -92,7 +93,8 @@ export function VisualsLab() {
         <label>Show <select value={only} onChange={(e) => { setOnly(e.target.value); setEpoch(Date.now()); }}>
           <option value="all">all</option>{panels.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <button type="button" onClick={() => setSilentAt((v) => (v ? null : Date.now()))}>{silentAt ? "Back to sound" : "Silence (8 s fade)"}</button>
-        <label><input type="checkbox" checked={play} onChange={(e) => setPlay(e.target.checked)} /> Colour play</label>
+        <label><input type="checkbox" checked={play} onChange={(e) => setPlay(e.target.checked)} /> Gradient</label>
+        <label><input type="checkbox" checked={visuals} onChange={(e) => setVisuals(e.target.checked)} /> Visuals</label>
         <label><input type="checkbox" checked={grey} onChange={(e) => setGrey(e.target.checked)} /> No hue (grey)</label>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: only !== "all" ? "minmax(0, 720px)" : `repeat(auto-fit, minmax(${set === "gradients" ? 330 : 240}px, 1fr))`, gap: 12, filter: grey ? "grayscale(1)" : undefined }}>
@@ -105,7 +107,7 @@ export function VisualsLab() {
           return (
             <figure key={p.id} style={{ margin: 0 }}>
               <div className="pl-field lab-field" style={{ ...style, position: "relative" }} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
-                <VisualCanvas source={silentAt ? { state: silentOf(p.state, epoch, silentAt), at: silentAt, seed: p.seed } : { state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} onFail={() => {}} />
+                <VisualCanvas source={silentAt ? { state: silentOf(p.state, epoch, silentAt), at: silentAt, seed: p.seed } : { state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} visuals={visuals} onFail={() => {}} />
                 <div aria-hidden style={{ position: "absolute", inset: 0, background: "#000", borderRadius: 12, pointerEvents: "none", zIndex: 1, opacity: silentAt ? 1 : 0, transition: silentAt ? "opacity 8s ease-in-out" : "none" }} />
               </div>
               <figcaption className="se-sm">{p.name} · {c.scene ?? "none"} · {c.sync ?? "mood"}</figcaption>

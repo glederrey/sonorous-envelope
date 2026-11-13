@@ -12,8 +12,6 @@ const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.i
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
 export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "ink" || s === "rain" || s === "embers";
-/** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "ink" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;

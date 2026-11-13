@@ -1,6 +1,6 @@
 import type { ResolvedColour } from "@sonorous/engine";
 import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
-import { sceneBack, sceneParts } from "./scenes";
+import { sceneParts } from "./scenes";
 import { hslToRgb, isSaturatedRed, relLuminance, type Rgb } from "./colour-math";
 import { colourPlay } from "./gradients";
 
@@ -114,8 +114,10 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
-  /** false: no colour play (the moving gradient); the lab uses it to compare */
+  /** false: no gradient (colour play, the slow moving colours). The listener can turn it off */
   play?: boolean;
+  /** false: no scene. The listener can turn it off; the base colour stays */
+  visuals?: boolean;
   /** width over height of the view, when known */
   aspect?: number;
   /** width of the picture in pixels, when known: the veil scenes use it to pick how fine their field is */
@@ -126,10 +128,10 @@ export interface FrameInput {
 
 /** One frame of the motion, before the flash budget. Use `drawFrame` for the capped one. */
 export function visualFrame(input: FrameInput): Frame {
-  const { colour, bpm, beats, t, seed = 1, from } = input;
+  const { colour, bpm, beats, t, seed = 1 } = input, from = input.visuals === false ? undefined : input.from;
   const feel = colour.feel ?? NEUTRAL_FEEL;
   const motion = colour.motion;
-  const scene = colour.scene ?? "none";
+  const scene = input.visuals === false ? "none" : colour.scene ?? "none";
   if (motion === "still" && scene === "none" && (!from || from.scene === "none")) return EMPTY_FRAME;
   const sync = colour.sync ?? (feel.depth >= 0.55 ? "beat" : "phrase");
   const half = bpm > HALF_TIME_BPM ? 0.5 : 1;
@@ -149,38 +151,13 @@ export function visualFrame(input: FrameInput): Frame {
   // Phrase sync stays calm: no per-beat bump there.
   const weight = sync === "beat" ? (beatIdx % 4 === 0 ? 1 : 0.7) : 1;
   const hit = sync === "beat" ? kick * weight * amp : 0;
-  const accent = sync === "beat" && feel.jitter > 0.4 ? Math.max(0, 1 - Math.abs(beatPh - 0.5) * 8) * 0.03 * feel.jitter : 0; // an off-beat accent for tension
 
-  let wash = 0;
-  if (motion === "pulse") wash = (0.04 * amp * env * weight + accent) * red;
-
-  let glow: Frame["glow"] = null;
-  if (motion === "pulse") {
-    // a pulse also opens a glow on the beat, so joy, closeness and warmth show in it as well as in the other motions
-    const size = lerp(0.45, 0.9, feel.near);
-    const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: size * (1 + 0.25 * lift2 * amp * env + 0.14 * hit), a: 0.05 * amp * env * weight * red, hold: 0.5 * (1 - feel.soft) };
-  } else if (motion === "drift" || motion === "breathe") {
-    const size = lerp(0.55, 1, feel.near);
-    const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    const grow = 1 + 0.08 * lift2 * amp * kick + 0.1 * hit;
-    if (motion === "drift") {
-      const x = 0.5 + 0.35 * Math.sin((2 * Math.PI * beats) / 64) + jx, y = 0.5 + 0.3 * Math.sin((2 * Math.PI * beats) / 83 + 1) - 0.08 * lift2 + jy;
-      glow = { x, y, r: 0.55 * size * grow, a: (0.07 + 0.02 * amp * env) * red, hold: 0.5 * (1 - feel.soft) };
-    } else {
-      const sw = sync === "beat" ? env : 0.5 - 0.5 * Math.cos(2 * Math.PI * frac(beats / PHRASE_BEATS));
-      glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: lerp(0.35, 0.6, sw) * size * grow, a: 0.09 * (0.2 + 0.8 * sw) * red, hold: 0.5 * (1 - feel.soft) };
-    }
-  }
+  // No wash and no glow any more (Gael, 2026-11-13): the picture is a base colour, a slow gradient (colour play) and the scene. The beat shows in the scene.
+  const wash = 0, glow: Frame["glow"] = null;
 
   const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
   const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, h: colour.h, s: colour.s, bases };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
-  // A scene made of large soft layers (an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
-  // motion's own wash and glow step back, by a factor that follows the crossfade, never a switch.
-  const kk = from && from.k < 0.999 ? clamp(from.k) : 1;
-  const back = kk * sceneBack(scene) + (1 - kk) * (from && kk < 1 ? sceneBack(from.scene) : 1);
-  wash *= back; if (glow) glow = { ...glow, a: glow.a * back };
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
   const play = motion === "still" || input.play === false ? [] : colourPlay(colour, feel, clock);
   return { wash, glow, layers: [...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
