@@ -2,6 +2,7 @@ import { SiteHeader } from "../../components/site-header";
 import { CopyField } from "../../components/copy-field";
 import { mcpResourceUrl } from "../../lib/env";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "Add to your AI · Sonorous Envelope", alternates: { canonical: "/add" } };
 
 export default function AddPage() {
