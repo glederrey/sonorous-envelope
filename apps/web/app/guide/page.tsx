@@ -80,10 +80,12 @@ export default function GuidePage() {
         </ul>
         </section>
 
-        <section className="gd-section gd-prose" aria-labelledby="gd-how">
+        <section className="gd-section" aria-labelledby="gd-how">
           <h2 className="se-title" id="gd-how">How it works</h2>
 
-          <h3 className="se-heading" id="faces">The two faces</h3>
+          <div className="gd-cards">
+            <article className="gd-card">
+            <h3 className="se-heading" id="faces">The two faces</h3>
           <p>
             The sound has two faces. The <strong>internal face</strong> is the default: the sound is how the model is, like a posture or a
             tone of voice, and it does not talk about it. The <strong>external face</strong> is sound it makes for you when you ask for it
@@ -93,8 +95,10 @@ export default function GuidePage() {
             A session starts internal. The model can offer to switch in words, and switches only after you say yes. You can lock a face at
             any time from the player, and a lock is final. <a href="/faces">Where the idea comes from, with reading</a>.
           </p>
+            </article>
 
-          <h3 className="se-heading" id="strudel">The synth and Strudel</h3>
+            <article className="gd-card">
+            <h3 className="se-heading" id="strudel">The synth and Strudel</h3>
           <p>
             The <strong>built-in synth</strong> is the model&apos;s own voice, played from a mood. <strong>Strudel</strong> is live-coded
             music, as on <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">strudel.cc</a>, and it is for the external
@@ -105,15 +109,19 @@ export default function GuidePage() {
             Strudel has no volume limit of its own, so a pattern can be much louder than the synth: start with the slider low. The owner can
             switch Strudel off for the session (&ldquo;Let the model play Strudel code&rdquo;).
           </p>
+            </article>
+          </div>
 
+          <article className="gd-card gd-wide">
           <h3 className="se-heading">Good to know</h3>
-          <ul className="doc-list">
+          <ul className="doc-list gd-know">
             <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
             <li>The sound plays in the player page, not in the chat app. Keep that page open; closing it stops the sound. On a phone it keeps playing when you switch to the chat.</li>
             <li>The model is not there between messages. After 15 minutes without an update the sound fades to silence, unless the model turned that off. A session with no sound for 30 minutes shows as inactive and wakes up when you come back to the same conversation; after a week it ends.</li>
             <li>Anyone with the player link can listen, with no account, on any number of devices. Only the owner can end the session, lock a face, or press the reaction buttons (external face only).</li>
             <li>You control the volume and the mute. The model decides the rest. Two buttons in the player, &ldquo;Gradient&rdquo; and &ldquo;Visuals&rdquo;, turn the moving colours and the scene off.</li>
           </ul>
+          </article>
         </section>
       </main>
     </>
