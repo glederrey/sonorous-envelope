@@ -61,6 +61,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [volume, setVolume] = useState(0.8);
   const [tick, setTick] = useState(0);
   const [reduced, setReduced] = useState(false);
+  // The picture's seed belongs to the session, not to a state: a state's own seed would move every item whenever any command arrives.
+  const pictureSeed = useMemo(() => voiceSeedOf(sessionId) & 0xffff, [sessionId]);
   const [audioState, setAudioState] = useState<string>("running");
   const [rested, setRested] = useState(false); // the sound has faded because the model has not updated for rest_after
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
@@ -543,7 +545,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       <div className="pl-dim" data-animated={dimAnimated} aria-hidden />
       {canvasOk && !reduced && (
         <VisualCanvas
-          source={playing ? { state: playing.state, at: playing.at, seed: playing.seed } : null}
+          source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
           clockOffset={clockOffset} latency={pictureLatency} active={started && !stillPicture} onFail={failCanvas}
         />
       )}

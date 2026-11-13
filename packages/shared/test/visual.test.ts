@@ -14,6 +14,14 @@ describe("visual frame", () => {
     expect(visualFrame({ colour: c, bpm: 100, beats: 12.3, t: 4, seed: 3 })).toEqual(visualFrame({ colour: c, bpm: 100, beats: 12.3, t: 4, seed: 3 }));
     expect(hash01(5, 9)).toBe(hash01(5, 9));
   });
+  it("keeps the scene where it is when only the colour changes (the seed belongs to the session)", () => {
+    const f = (h: number, beats: number) => visualFrame({ colour: base({ h, scene: "rain", density: 0.6, feel: moodToFeel(mood) }), bpm: 100, beats, t: 0, seed: 7 }).items;
+    expect(f(40, 20.5)).toEqual(f(40, 20.5).map((i) => ({ ...i })));
+    expect(f(200, 20.5).map(({ x, y }) => [x, y])).toEqual(f(40, 20.5).map(({ x, y }) => [x, y]));
+    // and a step of a hundredth of a beat moves the items a hair, never across the view
+    const a = f(40, 20.5), b = f(40, 20.51);
+    a.forEach((i, k) => expect(Math.hypot(i.x - b[k].x, i.y - b[k].y)).toBeLessThan(0.05));
+  });
   it("draws nothing for a still field without a scene", () => {
     expect(visualFrame({ colour: base({ motion: "still" }), bpm: 100, beats: 3, t: 1 })).toBe(EMPTY_FRAME);
   });
