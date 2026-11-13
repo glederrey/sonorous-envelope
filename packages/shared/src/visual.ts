@@ -1,72 +1,40 @@
 import type { ResolvedColour } from "@sonorous/engine";
+import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
+import { sceneParts } from "./scenes";
+import { hslToRgb, isSaturatedRed, relLuminance, type Rgb } from "./colour-math";
+import { colourPlay } from "./gradients";
+
+export { hslToRgb, isSaturatedRed, relLuminance } from "./colour-math";
+
+export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
 
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
 //
-// The flash rule (docs/safety.md): the beat pulse is designed to stay under the flash threshold by itself, at any tempo.
-//   - Large elements (the wash over the whole field, the glow) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
-//     at the worst pixel: the sum of their opacities, with no discount for the glow covering only part of the view.
-//     A white layer of opacity `a` over a base moves the luminance by at most `a`. WCAG 2.3.1 counts a flash from a 10% change,
-//     so nothing here is one, however fast it repeats.
-//   - Saturated red gets no pulse at all.
-//   - Small elements (motes, rings, streaks) may be faster and brighter, but together cover at most MAX_SMALL_AREA of the view.
-//   - Above HALF_TIME_BPM the beat motion runs at half-time. That is for looks: the cap above is what keeps it safe.
+// The flash rule is lifted for the large elements (Gael, 2026-11-13, docs/safety.md): MAX_LARGE_SWING (0.09) is the old target and `largeSwing` still measures it, but nothing scales the wash, the glow or the layers to it.
+// What `capFrame` still does: small elements (motes, rings, streaks) together cover at most MAX_SMALL_AREA of the view, and at most MAX_ITEMS of them.
+//   - Above HALF_TIME_BPM the beat motion runs at half-time, for looks.
 
 export const PHRASE_BEATS = 16;       // 4 bars of 4 beats (4/4 is assumed, there is no meter)
 export const MAX_LARGE_SWING = 0.09;
 export const MAX_SMALL_AREA = 0.1;
-export const MAX_ITEMS = 48;
+export const MAX_ITEMS = 400;
 export const MAX_ITEM_ALPHA = 0.5;
 export const HALF_TIME_BPM = 180;
 
-export interface Item {
-  kind: "dot" | "ring" | "streak";
-  /** centre, 0 to 1 of the width and height */
-  x: number; y: number;
-  /** radius (dot, ring) or length (streak), as a fraction of the smaller side */
-  r: number;
-  /** stroke width for a ring or a streak, same unit */
-  w: number;
-  a: number;
-  /** dots only: 0 a hard disc, 1 a disc that fades out from the centre */
-  soft?: number;
-}
 export interface Frame {
   /** opacity of a white layer over the whole field */
   wash: number;
   /** a white radial highlight; `hold` is the fraction of the radius that stays at full opacity (hard edge) */
   glow: { x: number; y: number; r: number; a: number; hold: number } | null;
+  /** large soft things (aurora): they share the luminance budget with the wash and the glow */
+  layers: Layer[];
   items: Item[];
 }
 
-export const EMPTY_FRAME: Frame = { wash: 0, glow: null, items: [] };
+export const EMPTY_FRAME: Frame = { wash: 0, glow: null, layers: [], items: [] };
 const NEUTRAL_FEEL = { depth: 0.5, lift: 0.5, jitter: 0, soft: 0.5, near: 0.5, irreg: 0.3 };
 
-const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const frac = (x: number) => x - Math.floor(x);
-/** A deterministic number in [0, 1) from two integers. */
-export function hash01(a: number, b: number): number {
-  let h = (Math.imul(a | 0, 0x9e3779b1) ^ Math.imul((b | 0) + 0x7f4a7c15, 0x85ebca6b)) >>> 0;
-  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
-  h = Math.imul(h ^ (h >>> 12), 0x297a2d39) >>> 0;
-  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
-}
-
-export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  const a = s * Math.min(l, 1 - l), f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
-  return [f(0) * 255, f(8) * 255, f(4) * 255];
-}
-/** WCAG relative luminance of an sRGB colour given as 0 to 255 channels. */
-export function relLuminance([r, g, b]: [number, number, number]): number {
-  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-}
-/** WCAG's saturated red: R/(R+G+B) at least 0.8 and (R-G-B)*320 above 20. */
-export function isSaturatedRed([r, g, b]: [number, number, number]): boolean {
-  const sum = r + g + b;
-  return sum > 0 && r / sum >= 0.8 && (r - g - b) * 320 > 20;
-}
 /** 0 when the base colours are saturated red (no pulse), else 1. */
 export function redFactor(c: Pick<ResolvedColour, "h" | "s" | "l" | "secondary">): number {
   const reds = [hslToRgb(c.h, c.s, c.l), ...(c.secondary ? [hslToRgb(c.secondary.h, c.secondary.s, c.secondary.l)] : [])];
@@ -78,34 +46,64 @@ export function glowArea(r: number, aspect: number): number {
   const a = aspect > 0 ? aspect : 1;
   return Math.min(1, Math.PI * r * r * (a <= 1 ? a : 1 / a));
 }
-/** What the large elements add to the luminance swing at the worst pixel: an upper bound on the change of relative luminance. */
-export function largeSwing(f: Frame): number {
-  return f.wash + (f.glow ? f.glow.a : 0);
+const piece = (t: number, stops: ReadonlyArray<readonly [number, number]>) => { if (t >= 1) return 0; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [t0, a0] = stops[i - 1], [t1, a1] = stops[i]; return a0 + (a1 - a0) * ((t - t0) / (t1 - t0 || 1)); } return 0; };
+const TINT_FALL = [[0, 1], [0.55, 0.5], [1, 0]] as const, BLOB_FALL = [[0, 1], [0.3, 0.85], [1, 0]] as const;
+/** What the large elements add to the luminance swing at one point of the view (x, y as fractions): the wash, the glow and every layer, each at its own opacity, falloff and swing per unit of
+ *  opacity (`k`), as the painter draws them. An upper bound on the change of relative luminance there. A ribbon or a veil counts at its full opacity everywhere. */
+export function swingAt(f: Frame, px: number, py: number, aspect = 0.6): number {
+  const asp = aspect > 0 ? aspect : 0.6, m = Math.min(asp, 1);
+  let sw = f.wash;
+  if (f.glow) { const g = f.glow, d = Math.hypot((px - g.x) * asp, py - g.y) / m / Math.max(1e-6, g.r); sw += piece(d, [[0, g.a], [Math.min(0.95, g.hold), g.a], [1, 0]]); }
+  for (const l of f.layers) {
+    if (l.kind === "ribbon" || l.kind === "veil") { sw += l.a * (l.k ?? 1); continue; }
+    const d = Math.hypot(((px - l.x) * asp) / (l.sx ?? 1), py - l.y) / m / Math.max(1e-6, l.r);
+    sw += l.a * (l.k ?? 1) * piece(d, l.kind === "tint" ? TINT_FALL : BLOB_FALL);
+  }
+  return sw;
 }
-function itemArea(i: Item, aspect: number): number {
+/** The swing at the worst pixel: the largest `swingAt` over a grid of the view and the centres of the glow and the layers (where the falloffs peak). Overlapping lights add where they overlap,
+ *  and only there, which is what the rule says ("at the worst pixel"). */
+export function largeSwing(f: Frame, aspect = 0.6): number {
+  let worst = 0;
+  for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) worst = Math.max(worst, swingAt(f, (i + 0.5) / 7, (j + 0.5) / 9, aspect));
+  if (f.glow) worst = Math.max(worst, swingAt(f, f.glow.x, f.glow.y, aspect));
+  for (const l of f.layers) if (l.kind !== "ribbon" && l.kind !== "veil") worst = Math.max(worst, swingAt(f, clamp(l.x), clamp(l.y), aspect));
+  return worst;
+}
+function pathArea(i: Item, aspect: number, w: number): number {
+  const p = i.pts ?? [], X = aspect >= 1 ? aspect : 1, Y = aspect < 1 ? 1 / aspect : 1; // the view in units of its smaller side
+  let len = 0; for (let k = 2; k < p.length; k += 2) len += Math.hypot((p[k] - p[k - 2]) * X, (p[k + 1] - p[k - 1]) * Y);
+  return len * w;
+}
+/** The share of the view an item covers. `minW`: the thinnest line the painter draws, as a fraction of the smaller side (a line is never thinner than a pixel). */
+export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
-  const area = i.kind === "dot" ? Math.PI * i.r * i.r : i.kind === "ring" ? 2 * Math.PI * i.r * i.w : i.r * i.w;
+  const w = Math.max(i.w, minW);
+  const area = i.kind === "dot" ? Math.PI * i.r * i.r * ((i.soft ?? 0) > 0.05 ? 2.56 : 1) : // a soft dot is painted at 1.6 times its radius
+     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "path" ? pathArea(i, a, w) : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * w * (1 + 4 * i.r) : i.r * w;
   return area * k;
 }
 
-/** The flash budget. Idempotent. Scales the large elements down to MAX_LARGE_SWING, and drops small ones past MAX_SMALL_AREA or MAX_ITEMS. */
-export function capFrame(f: Frame, aspect = 0.6): Frame {
+/** What is left of the flash budget. Idempotent. Drops small elements past MAX_SMALL_AREA or MAX_ITEMS; the large elements are no longer capped (Gael, 2026-11-13). */
+export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   let { wash } = f, glow = f.glow ? { ...f.glow, a: Math.max(0, f.glow.a) } : null;
-  wash = clamp(wash, 0, MAX_LARGE_SWING);
-  const swing = wash + (glow ? glow.a : 0);
-  if (swing > MAX_LARGE_SWING + 1e-9) { // the tolerance keeps the function idempotent in floating point
-    const k = MAX_LARGE_SWING / swing;
-    wash *= k; if (glow) glow.a *= k;
-  }
+  let layers = f.layers.map((l) => ({ ...l, a: Math.max(0, l.a) }));
+  wash = Math.max(0, wash); // no ceiling on the large elements any more (Gael, 2026-11-13): `MAX_LARGE_SWING` is the old target and `largeSwing` still measures it, but nothing is scaled down to it
   const items: Item[] = [];
   let area = 0;
   for (const i of f.items) {
     if (items.length >= MAX_ITEMS) break;
-    const a = itemArea(i, aspect);
+    const a = itemArea(i, aspect, minW);
     if (area + a > MAX_SMALL_AREA) continue;
     area += a; items.push({ ...i, a: clamp(i.a, 0, MAX_ITEM_ALPHA) });
   }
-  return { wash, glow, items };
+  return { wash, glow, layers, items };
+}
+
+/** The same picture at a fraction of its opacity (the fade with the sound after silence). */
+export function scaleFrame(f: Frame, k: number): Frame {
+  if (k >= 0.999) return f;
+  return { wash: f.wash * k, glow: f.glow ? { ...f.glow, a: f.glow.a * k } : null, layers: f.layers.map((l) => ({ ...l, a: l.a * k })), items: f.items.map((i) => ({ ...i, a: i.a * k })) };
 }
 
 export interface FrameInput {
@@ -116,14 +114,25 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
+  /** false: no gradient (colour play, the slow moving colours). The listener can turn it off */
+  play?: boolean;
+  /** false: no scene. The listener can turn it off; the base colour stays */
+  visuals?: boolean;
+  /** width over height of the view, when known */
+  aspect?: number;
+  /** width of the picture in pixels, when known: the veil scenes use it to pick how fine their field is */
+  px?: number;
+  /** A scene that is fading out while the colour's own fades in: the picture never swaps a scene at once. `k` is the progress of the new one, 0 to 1. */
+  from?: { scene: SceneName | "none"; density?: number; speed?: number; k: number };
 }
 
 /** One frame of the motion, before the flash budget. Use `drawFrame` for the capped one. */
-export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Frame {
+export function visualFrame(input: FrameInput): Frame {
+  const { colour, bpm, beats, t, seed = 1 } = input, from = input.visuals === false ? undefined : input.from;
   const feel = colour.feel ?? NEUTRAL_FEEL;
   const motion = colour.motion;
-  const scene = colour.scene ?? "none";
-  if (motion === "still" && scene === "none") return EMPTY_FRAME;
+  const scene = input.visuals === false ? "none" : colour.scene ?? "none";
+  if (motion === "still" && scene === "none" && (!from || from.scene === "none")) return EMPTY_FRAME;
   const sync = colour.sync ?? (feel.depth >= 0.55 ? "beat" : "phrase");
   const half = bpm > HALF_TIME_BPM ? 0.5 : 1;
   const b = sync === "free" ? t * 1.5 : beats * half;       // free runs at a calm 90 BPM of its own
@@ -142,76 +151,19 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1 }: FrameInput): Fr
   // Phrase sync stays calm: no per-beat bump there.
   const weight = sync === "beat" ? (beatIdx % 4 === 0 ? 1 : 0.7) : 1;
   const hit = sync === "beat" ? kick * weight * amp : 0;
-  const accent = sync === "beat" && feel.jitter > 0.4 ? Math.max(0, 1 - Math.abs(beatPh - 0.5) * 8) * 0.03 * feel.jitter : 0; // an off-beat accent for tension
 
-  let wash = 0;
-  if (motion === "pulse") wash = (0.04 * amp * env * weight + accent) * red;
+  // No wash and no glow any more (Gael, 2026-11-13): the picture is a base colour, a slow gradient (colour play) and the scene. The beat shows in the scene.
+  const wash = 0, glow: Frame["glow"] = null;
 
-  let glow: Frame["glow"] = null;
-  if (motion === "pulse") {
-    // a pulse also opens a glow on the beat, so joy, closeness and warmth show in it as well as in the other motions
-    const size = lerp(0.45, 0.9, feel.near);
-    const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: size * (1 + 0.25 * lift2 * amp * env + 0.14 * hit), a: 0.05 * amp * env * weight * red, hold: 0.5 * (1 - feel.soft) };
-  } else if (motion === "drift" || motion === "breathe") {
-    const size = lerp(0.55, 1, feel.near);
-    const jx = (hash01(beatIdx, seed) - 0.5) * 0.12 * feel.jitter, jy = (hash01(beatIdx, seed + 7) - 0.5) * 0.12 * feel.jitter;
-    const grow = 1 + 0.08 * lift2 * amp * kick + 0.1 * hit;
-    if (motion === "drift") {
-      const x = 0.5 + 0.35 * Math.sin((2 * Math.PI * beats) / 64) + jx, y = 0.5 + 0.3 * Math.sin((2 * Math.PI * beats) / 83 + 1) - 0.08 * lift2 + jy;
-      glow = { x, y, r: 0.55 * size * grow, a: (0.07 + 0.02 * amp * env) * red, hold: 0.5 * (1 - feel.soft) };
-    } else {
-      const sw = sync === "beat" ? env : 0.5 - 0.5 * Math.cos(2 * Math.PI * frac(beats / PHRASE_BEATS));
-      glow = { x: 0.5 + jx, y: 0.55 - 0.06 * lift2 + jy, r: lerp(0.35, 0.6, sw) * size * grow, a: 0.09 * (0.2 + 0.8 * sw) * red, hold: 0.5 * (1 - feel.soft) };
-    }
-  }
-
-  return { wash, glow, items: scene === "none" ? [] : sceneItems(colour, scene, feel, { b, beatPh, beatIdx, beats, kick, hit, weight, amp, lift2, sync, half, seed }) };
-}
-
-interface Clock { b: number; beatPh: number; beatIdx: number; beats: number; kick: number; hit: number; weight: number; amp: number; lift2: number; sync: "beat" | "phrase" | "free"; half: number; seed: number }
-
-function sceneItems(colour: ResolvedColour, scene: "motes" | "ripples" | "rain", feel: NonNullable<ResolvedColour["feel"]>, c: Clock): Item[] {
-  const density = clamp(colour.density ?? 0.4), speed = clamp(colour.speed ?? 0.4);
-  const items: Item[] = [];
-  if (scene === "motes") {
-    const n = Math.round(lerp(4, 36, density)), travel = c.b * lerp(0.004, 0.02, speed), dir = c.lift2 >= 0 ? -1 : 1;
-    const rs = lerp(0.008, 0.026, feel.near), sharpShare = 0.25 + 0.3 * feel.jitter;
-    for (let i = 0; i < n; i++) {
-      const x0 = hash01(i, c.seed), y0 = hash01(i, c.seed + 1), ph = hash01(i, c.seed + 3), cls = hash01(i, c.seed + 4);
-      // three kinds, so the field is not a sheet of identical discs: a few large soft lights, small sharp points (more with tension), the rest in between
-      const big = cls > 0.85, tiny = cls < sharpShare * 0.6;
-      const sz = big ? 2.2 + 0.8 * hash01(i, c.seed + 2) : tiny ? 0.45 : 0.7 + 0.6 * hash01(i, c.seed + 2);
-      const soft = big ? 1 : tiny ? 0 : clamp(feel.soft * (0.4 + 0.8 * hash01(i, c.seed + 6)));
-      const y = frac(y0 + dir * travel * (big ? 0.6 : 1)), x = x0 + 0.03 * Math.sin(2 * Math.PI * (c.b / 32 + ph));
-      const twinkle = c.sync === "free" ? 0 : (1 - frac(c.b + ph * feel.irreg)) ** 2;
-      items.push({ kind: "dot", x, y: y - 0.01 * dir * c.hit, r: rs * sz * (1 + 0.4 * c.hit), w: 0, soft,
-        a: (big ? 0.2 : tiny ? 0.5 : 0.4) * Math.sin(Math.PI * y) * (1 + 0.6 * c.amp * twinkle) });
-    }
-  } else if (scene === "ripples") {
-    const period = c.sync === "beat" ? 1 : 4, life = lerp(2.5, 4.5, density), idx = c.b / period, last = Math.floor(idx);
-    for (let k = last; k > last - Math.ceil(life) - 1; k--) {
-      const age = (idx - k) * (1 + speed); // in beats of life
-      if (age < 0 || age > life) continue;
-      const u = age / life, off = 0.04 + (feel.jitter + feel.irreg) * 0.25; // a calm, measured mood keeps the rings near the middle; a spontaneous or tense one scatters them
-      items.push({
-        kind: "ring", x: 0.5 + (hash01(k, c.seed) - 0.5) * off, y: 0.55 + (hash01(k, c.seed + 5) - 0.5) * off,
-        r: 0.04 + 0.5 * u, w: lerp(0.003, 0.008, feel.near) * (c.sync === "beat" && k % 4 === 0 ? 1.5 : 1), a: 0.45 * (1 - u) ** 0.7 * (0.4 + 0.6 * c.amp) * (c.sync === "beat" ? (k % 4 === 0 ? 1.25 : 0.8) : 1),
-      });
-    }
-  } else {
-    const n = Math.round(lerp(4, 30, density)), travel = c.b * lerp(0.02, 0.1, speed), len = lerp(0.05, 0.12, speed + 0.2 * feel.near);
-    for (let i = 0; i < n; i++) {
-      const z = hash01(i, c.seed + 2); // how near the drop is: near ones are longer, brighter and faster
-      const y = frac(hash01(i, c.seed + 1) + travel * (0.7 + 0.6 * z));
-      items.push({ kind: "streak", x: hash01(i, c.seed), y, r: len * (0.6 + 0.8 * z) * (1 + 0.5 * c.hit), w: 0.003 + 0.003 * z,
-        a: 0.42 * (0.6 + 0.5 * z) * Math.sin(Math.PI * y) * (0.8 + 0.6 * c.hit) });
-    }
-  }
-  return items;
+  const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, h: colour.h, s: colour.s, bases };
+  const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
+  const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
+  const play = motion === "still" || input.play === false ? [] : colourPlay(colour, feel, clock);
+  return { wash, glow, layers: [...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
 }
 
 /** The frame to paint: the motion, then the flash budget. */
-export function drawFrame(input: FrameInput, aspect = 0.6): Frame {
-  return capFrame(visualFrame(input), aspect);
+export function drawFrame(input: FrameInput, aspect = 0.6, minW = 0): Frame {
+  return capFrame(visualFrame({ ...input, aspect }), aspect, minW);
 }

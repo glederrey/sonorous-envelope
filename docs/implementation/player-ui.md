@@ -8,7 +8,6 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 |---|---|---|
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
 | `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
-| `/safety` | Safety and control: what the listener controls, the rules that never change | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
@@ -60,8 +59,8 @@ A highlighted block (scrim-style panel on the colour field, not a warning colour
 - On a phone: the sound keeps playing when you switch to the chat (keep-alive audio file and a worker ticker, mobile.md). If the phone stops it, open the player and tap resume. (Corrected 2026-11-09: this used to say to keep the player in the foreground with the screen on.)
 - If the page was closed, reopen the link from the conversation or from "Your sessions": it picks up the current state.
 
-### 6. Safety and control
-Short list from safety.md: what the listener controls, mute always one tap away, no flashing faster than 3 per second. Listener limits are removed for now. Link to the `/safety` page (not to files on GitHub).
+### 6. Safety page removed
+The public `/safety` page was removed on 2026-11-13 (Gael: it read as more alarming than useful). The design notes stay in `docs/safety.md`; nothing on the site links to them.
 
 ### 7. Footer
 GitHub link, "Your sessions", "Settings".
@@ -98,7 +97,7 @@ In the internal face the owner gets a collapsed "Settings" block with "Fade to s
 - Share: shows the player link with a Copy button. Anyone with it can listen. (Built: the signed-in owner sees "Copy link to share" under the controls, and `/sessions` lists every session with Open and Copy buttons.)
 - End session.
 
-Listeners (anyone without the account) see only the colour and sound, the status line, hide controls, mute and volume (which change nothing for anyone else), the share row and "Add it to your AI app". They do **not** get the owner panel, limits, or reaction buttons. Instead of the share link they see "Want Claude to make sound for you too? Add it to your Claude", linking to the landing page's install steps (`/#add`).
+Listeners (anyone without the account) see only the colour and sound, the status line, hide controls, mute and volume (which change nothing for anyone else), the share row and "Add to your AI". They do **not** get the owner panel, limits, or reaction buttons. Next to the share link they see the button "Add to your AI", linking to the landing page's install steps (`/#add`).
 
 ### Presence between turns
 The model does not exist between two turns, but a sound that keeps playing reads as a heartbeat. In the first outside test people said goodbye several times instead of closing the window, as if leaving meant abandoning someone. The sound must not say there is someone there when there is not. Two measures:
@@ -110,9 +109,9 @@ The model does not exist between two turns, but a sound that keeps playing reads
 ### Colour field
 - The base is CSS: a gradient from `colour` to `secondary` (shape wash, glow or sweep), an optional grain or soft-noise texture, glided over the transition time (at least 1 s).
 - The motion is a canvas over it (`components/player/visual-canvas.tsx`), painted from the pure frame model (`packages/shared/src/visual.ts`). Each frame: the beat from `beatsAt` on the shared timeline (the server's clock, minus the output latency and the listener's "Sync" delay), followed by `BeatClock` so it never snaps; then `drawFrame` (the motion plus the flash budget); then paint. The canvas is drawn at half resolution (smaller still on a slow phone), pauses with the tab and starts from the clock when it returns.
-- `pulse`: a faint white wash on the beat. `drift`: a highlight that wanders. `breathe`: a glow that swells over the phrase (4 bars, 16 beats). `scene`: motes, ripples (a ring per beat) or rain. The mood shapes all of it (`feel`, see visuals.md).
-- `prefers-reduced-motion`: no canvas; the colour still changes. The "Still picture" button does the same for one listener. `?field=css` brings the old CSS motion back.
-- Listener controls: "Still picture" and "Sync" (0 to 400 ms, delays the picture, for Bluetooth), both remembered on the device (`se:picture`).
+- `pulse`: a faint white wash on the beat. `drift`: a highlight that wanders. `breathe`: a glow that swells over the phrase (4 bars, 16 beats). `scene`: motes, ripples (a ring per beat), rain (fine drops with depth, splashes and a mist), snow, embers (rising sparks), aurora, waves, fireflies, stars, bubbles or leaves; the mood picks one when the model sets none, and a change of scene is a crossfade of at least 1.5 s. The mood shapes all of it (`feel`, see visuals.md).
+- `prefers-reduced-motion`: no canvas; the colour still changes. The "Gradient" and "Visuals" buttons do it for one listener: the picture is three parts, the base colour (always on), the gradient (colour play, slow, off the beat) and the visuals (the scene); each of the last two can be turned off. `?field=css` brings the old CSS motion back.
+- Listener controls: "Gradient", "Visuals" and "Sync" (0 to 400 ms, delays the picture, for Bluetooth), both remembered on the device (`se:picture`).
 
 ### Session details page
 - Timeline of states: turn, final, time, intent mood as five small bars, reads_as overlaid, gesture icon, clamps.

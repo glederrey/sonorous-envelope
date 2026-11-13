@@ -11,12 +11,10 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 - The model sees the listener's volume in the feedback (`controls`). A sound it judges "too faint" may be quiet because the listener turned it down, and it should respect that, not compensate.
 
 ## Hard rules (not configurable)
-- No flashing (photosensitive epilepsy). Until 2026-11-11 the rule was "nothing faster than 3 per second"; it is now stated the way WCAG 2.3.1 states it, and tighter, so that the picture can follow the beat at any tempo:
-  - Large elements (the wash over the field, the glow) together change the relative luminance by at most 0.09. A flash is a change of 0.1 or more, so the beat pulse is never one, however fast it repeats. This is checked on every frame in the player (`capFrame`) and by a property test over random states, tempos, scenes and glides.
-  - Saturated red (WCAG's definition) gets no pulse.
-  - Small elements (motes, rings, streaks) may be brighter and faster, but together cover at most 10% of the view, at most 48 of them. A phone is held close, so these are stricter than WCAG's 25% of 10 degrees.
+- ~~No flashing~~ **Lifted for the large elements (Gael, 2026-11-13).** Until then large elements together changed the relative luminance by at most 0.09 (a WCAG 2.3.1 flash starts at 0.1), checked on every frame by `capFrame` and by property tests; saturated red got no pulse. That cap, the red rule and their tests are removed: the picture's large elements (wash, glow, layers, veils) are no longer scaled to any limit, and the beat pulse is only designed small. What `capFrame` still enforces:
+  - Small elements (motes, rings, streaks) together cover at most 10% of the view, at most 400 of them, counting every line at least one device pixel wide. A change of scene is a crossfade of at least 1.5 s.
   - State changes glide over at least 1 s, and updates come at most every 300 ms.
-  - `prefers-reduced-motion` turns the moving picture off, and the listener has a "Still picture" button in the player.
+  - `prefers-reduced-motion` turns the moving picture off, and the listener has "Gradient" and "Visuals" buttons in the player (both off: the base colour only).
   - This follows accessibility guidance and is not a medical guarantee.
 - The synth's master volume never goes above 0.9 in the engine, whatever is sent.
 - **Strudel is outside the sound limits** (Gael, 2026-11-11): the music the model writes in Strudel has no loudness limit, no parameter clamps and no level hold, so that it sounds as it does on strudel.cc. Only the listener's own volume slider and mute apply, and a pattern can be much louder than the synth. What stays is isolation, which has nothing to do with the sound: the model's code runs in a sandboxed frame with no access to the page, the login session, storage or the network, and it only makes sound through the player. The flash rule is untouched (the code cannot draw). The owner can switch Strudel off, and a face lock stops it. See [implementation/strudel.md](implementation/strudel.md).

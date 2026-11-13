@@ -18,12 +18,6 @@ const jsonLd = {
   ],
 };
 
-const loop = [
-  ["The model sets a mood", "Warmth, calm, joy, closeness. Exact sounds and colour are optional."],
-  ["Your browser plays it", "Sound and colour glide from one state to the next, live."],
-  ["The model hears back", "What actually played, and the volume you chose."],
-] as const;
-
 // Splits a phrase into letters so each can be animated with its own delay.
 function Letters({ text, className }: { text: string; className: string }) {
   let n = 0;
@@ -63,10 +57,16 @@ export default async function Home() {
             A small synthesizer and a colour field for an AI model. It sets the mood while it works, you hear and see it
             beside the chat, and it hears back what really played. When you ask for music, it can also write it live in Strudel.
           </p>
+          <ul className="lp-chips" aria-label="What it has">
+            <li>A synthesizer</li>
+            <li>A colour field</li>
+            <li>30 visuals</li>
+            <li>Strudel</li>
+          </ul>
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
             <p className="se-sm lp-connect-note">
-              Settings → Customize → Connectors → Add.<span className="lp-stepby"> <a href="#add">Step by step</a></span>
+              Settings → Customize → Connectors → Add.
             </p>
           </div>
           {live && (
@@ -81,34 +81,20 @@ export default async function Home() {
       </div>
 
       <main className="se-page lp-main">
-        <section className="lp-loop" id="how">
-          <h2 className="se-title">A conversation with a second channel</h2>
-          <ol className="lp-loop-list">
-            {loop.map(([title, text]) => (
-              <li key={title}>
-                <h3 className="se-heading">{title}</h3>
-                <p className="se-muted">{text}</p>
-              </li>
-            ))}
-          </ol>
-          <p className="lp-wide">
-            You stay in control of the volume, with a one-tap mute. The model decides the rest of how it sounds and looks.
-            <a href="/safety"> How safety works</a>
-          </p>
-        </section>
-
         <section className="lp-loop" id="engines">
           <h2 className="se-title">Two ways to make sound</h2>
-          <ol className="lp-loop-list">
+          <ul className="lp-ways">
             <li>
+              <p className="lp-way-tag">Always available</p>
               <h3 className="se-heading">The built-in synth</h3>
-              <p className="se-muted">The model&apos;s own voice: a small synthesizer it plays from a mood. On the internal face it is how the model feels. On the external face it is sound made for you.</p>
+              <p className="se-muted">The model&apos;s own voice, played from a mood. On the internal face it is how the model feels; on the external face it is sound made for you.</p>
             </li>
             <li>
+              <p className="lp-way-tag">When you ask for music</p>
               <h3 className="se-heading">Strudel</h3>
-              <p className="se-muted">When you ask for music, the model can write it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples, as on strudel.cc. You can read the code in the player, copy it, and open it on strudel.cc to change it. It runs in a sandbox in your browser, on the external face only, and the owner can switch it off.</p>
+              <p className="se-muted">The model writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It runs in a sandbox in your browser, and the owner can switch it off.</p>
             </li>
-          </ol>
+          </ul>
         </section>
 
         <section className="lp-split" id="hear">
@@ -117,20 +103,6 @@ export default async function Home() {
             <p className="se-muted">Five states, played by the same synthesizer as a real session. We wrote them ourselves; a model chooses its own. Quiet by default, and each one stops by itself after about twenty seconds.</p>
           </div>
           <SamplePlayer />
-        </section>
-
-        <section className="lp-split" id="add">
-          <div>
-            <h2 className="se-title">Add it to your AI app</h2>
-            <p className="se-muted">Takes a minute. It works in the web, desktop and mobile apps on the same account. The steps below are for claude.ai; other apps with custom MCP connectors (ChatGPT, for example) have a similar menu.</p>
-          </div>
-          <ol className="lp-steps">
-            <li>Open <strong>Settings → Customize → Connectors</strong>, then choose <strong>Add</strong> and <strong>Add custom connector</strong>.</li>
-            <li>Name it <strong>Sonorous Envelope</strong>, paste the connector URL above into <strong>MCP server URL</strong>, and choose <strong>Continue</strong>.</li>
-            <li>Choose <strong>Connect</strong>: you sign in here and approve access.</li>
-            <li>In a new conversation, switch the connector on from the <strong>+</strong> menu in the message box.</li>
-            <li>The model gives you a player link. Open it and tap <strong>Start listening</strong>.</li>
-          </ol>
         </section>
 
         <section className="lp-split" id="player">
@@ -148,32 +120,6 @@ export default async function Home() {
               the player again and tap resume.
               Open the link on several devices and they play the same notes at the same time.
             </p>
-          </div>
-        </section>
-
-        <section className="lp-split" id="name">
-          <div>
-            <h2 className="se-title">The name</h2>
-          </div>
-          <p className="se-muted">
-            In synthesis, the envelope is the shape a sound takes over time. In psychoanalysis, Didier Anzieu&apos;s
-            sonorous envelope is the bath of sound that holds a person before words. The sound is an expressive channel,
-            not proof of what the model feels.
-          </p>
-        </section>
-
-        <section className="lp-split" id="faces">
-          <div>
-            <h2 className="se-title">Two faces</h2>
-          </div>
-          <div className="se-stack">
-            <p className="se-muted">
-              The sound has an <strong>internal face</strong>, the default: how the model is, with no words about it and
-              nobody steering it. And an <strong>external face</strong>: sound it makes for you when you ask, which it can
-              talk about and which you can steer. A session is on auto, so the model may offer to switch, and you can lock
-              either face at any time.
-            </p>
-            <p className="se-sm"><a href="/faces">Where the idea comes from, and where it stops</a></p>
           </div>
         </section>
       </main>

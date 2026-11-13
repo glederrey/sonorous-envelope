@@ -32,7 +32,8 @@ function playingOf(e: EngineState) {
   if (e.engine === "strudel" && e.pattern) {
     // the synth fields are the paused synth; what plays is the pattern
     const c = e.colour, p: Record<string, unknown> = { engine: "strudel", bpm: Math.round(e.pattern.bpm), code: `${e.pattern.code.length} characters` };
-    if ((c.scene && c.scene !== "none") || c.sync) p.picture = [c.scene && c.scene !== "none" ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
+    const chosen = c.scene && c.scene !== "none" && !c.sceneAuto; // a scene the mood picked is not reported: only what you set
+    if (chosen || c.sync) p.picture = [chosen ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
     return p;
   }
   const p: Record<string, unknown> = {
@@ -47,7 +48,8 @@ function playingOf(e: EngineState) {
   p.echo = r2(e.fx.delay.mix); p.reverb = r2(e.fx.reverb.mix);
   // the picture, only when you set something beyond the mood: scene, its density and speed, and what it follows
   const c = e.colour;
-  if ((c.scene && c.scene !== "none") || c.sync) p.picture = [c.scene && c.scene !== "none" ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
+  const chosen = c.scene && c.scene !== "none" && !c.sceneAuto; // a scene the mood picked is not reported: only what you set
+  if (chosen || c.sync) p.picture = [chosen ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
   return p;
 }
 
