@@ -46,7 +46,7 @@ export interface Layer {
   /** ribbon: the lower edge of the curtain per column (0 to 1 of the height), its height, and a 0 to 1 strength per column */
   ys?: number[]; h?: number; cols?: number[];
   /** veil: a low-resolution field of 0 to 1 (rows from the top, `gw` columns by `gh` rows), painted smoothed up over the whole view in the layer's one colour at opacity `a` times the field. Counts at its full `a * k` everywhere. */
-  gw?: number; gh?: number; grid?: number[];
+  gw?: number; gh?: number; grid?: ArrayLike<number>;
 }
 
 export interface SceneOut { items: Item[]; layers: Layer[] }

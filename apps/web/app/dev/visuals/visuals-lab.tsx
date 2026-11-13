@@ -46,6 +46,7 @@ export function VisualsLab() {
   const [sync, setSync] = useState<Sync>("own");
   const [own, setOwn] = useState(true);
   const [grey, setGrey] = useState(false);
+  const [only, setOnly] = useState("all"); // one panel, large, to judge a single canvas (the grid runs up to 25 at once)
   const [epoch, setEpoch] = useState(() => Date.now());
   const clock = useRef(0);
   const latency = useRef(() => 0).current;
@@ -68,21 +69,23 @@ export function VisualsLab() {
       <h1 style={{ margin: 0 }}>Visuals lab</h1>
       <p className="se-sm" style={{ margin: 0 }}>{set === "gradients" ? "Gradients: each emotion's moving colours with no scene. The lights take one to two minutes for an orbit at 100 BPM, so raise Tempo (the tempo slider applies automatically here) to see them move. Tick Colour play off to compare with the plain gradient. " : ""}Emotions as pictures (or the five landing samples). Same canvas and frame model as the player; tempo and scene are overridden here. The pulse stays under the flash limit at every tempo.</p>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <label>Set <select value={set} onChange={(e) => { setSet(e.target.value as "emotions" | "samples" | "gradients"); setEpoch(Date.now()); }}><option>emotions</option><option>gradients</option><option>samples</option></select></label>
+        <label>Set <select value={set} onChange={(e) => { setSet(e.target.value as "emotions" | "samples" | "gradients"); setOnly("all"); setEpoch(Date.now()); }}><option>emotions</option><option>gradients</option><option>samples</option></select></label>
         <label><input type="checkbox" checked={own} onChange={(e) => { setOwn(e.target.checked); setEpoch(Date.now()); }} /> Mood's own tempo</label>
         <label>Tempo <input type="range" min={30} max={200} value={bpm} onChange={(e) => { setBpm(Number(e.target.value)); setEpoch(Date.now()); }} /> {bpm} BPM</label>
         <label>Scene <select value={scene} onChange={(e) => { setScene(e.target.value as Scene); setEpoch(Date.now()); }}>
           {(["own", "none", ...SCENES] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Sync <select value={sync} onChange={(e) => { setSync(e.target.value as Sync); setEpoch(Date.now()); }}>
           {(["own", "beat", "phrase", "free"] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
+        <label>Show <select value={only} onChange={(e) => { setOnly(e.target.value); setEpoch(Date.now()); }}>
+          <option value="all">all</option>{panels.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <label><input type="checkbox" checked={play} onChange={(e) => setPlay(e.target.checked)} /> Colour play</label>
         <label><input type="checkbox" checked={grey} onChange={(e) => setGrey(e.target.checked)} /> No hue (grey)</label>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${set === "gradients" ? 330 : 240}px, 1fr))`, gap: 12, filter: grey ? "grayscale(1)" : undefined }}>
-        {panels.map((p) => {
+      <div style={{ display: "grid", gridTemplateColumns: only !== "all" ? "minmax(0, 720px)" : `repeat(auto-fit, minmax(${set === "gradients" ? 330 : 240}px, 1fr))`, gap: 12, filter: grey ? "grayscale(1)" : undefined }}>
+        {panels.filter((p) => only === "all" || p.id === only).map((p) => {
           const c = p.state.colour;
           const style = {
-            height: set === "gradients" ? 380 : 280, borderRadius: 12,
+            height: only !== "all" ? 560 : set === "gradients" ? 380 : 280, borderRadius: 12,
             "--pl-h": c.h, "--pl-s": c.s, "--pl-l": c.l, "--pl-h2": c.secondary?.h ?? c.h + 25, "--pl-s2": c.secondary?.s ?? c.s, "--pl-l2": c.secondary?.l ?? Math.max(0, c.l - 0.08),
           } as CSSProperties;
           return (

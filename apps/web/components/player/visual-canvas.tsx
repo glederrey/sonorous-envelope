@@ -35,7 +35,7 @@ const SCALE_START = 0.5, SCALE_MIN = 0.3;
 
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, onFail }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const veils = useRef<Array<{ cv: HTMLCanvasElement; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
+  const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
   const live = useRef({ source, active, latency, play });
   live.current = { source, active, latency, play };
 
@@ -82,19 +82,16 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, l.hue, l.sat ?? 30)); g.addColorStop(0.3, hsla(l.dh, l.l ?? 88, l.a * 0.85, l.hue, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, l.hue, l.sat ?? 30));
           ctx.setTransform(sx, 0, 0, 1, l.x * w, l.y * h); ctx.fillStyle = g; ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.setTransform(1, 0, 0, 1, 0, 0);
         } else if (l.kind === "veil" && l.grid && l.gw && l.gh) {
-          // a low-resolution field in one colour, drawn once per field into a small canvas (the fields change a few times a second) and smoothed up over the view at the layer's opacity, every frame
-          const slot = (veils.current[vi] ??= { cv: document.createElement("canvas"), key: null as unknown });
+          // a low-resolution field in one colour, its opacity per cell (the scene blends the two time steps around now, so it changes every frame): written into a small canvas and smoothed up over the view at the layer's opacity
+          const slot = (veils.current[vi] ??= { cv: document.createElement("canvas"), img: null as ImageData | null, key: null as unknown });
           vi++;
-          const key = l.grid; // the same array for as long as the field is the same
-          if (slot.key !== key || slot.colour !== `${l.hue}|${l.sat}|${l.l}`) {
-            const cv = slot.cv; cv.width = l.gw; cv.height = l.gh;
-            const vctx = cv.getContext("2d");
-            if (vctx) {
-              const img = vctx.createImageData(l.gw, l.gh), [R, G, B] = hslToRgb(l.hue ?? 0, (l.sat ?? 10) / 100, (l.l ?? 90) / 100);
-              for (let q = 0; q < l.grid.length; q++) { img.data[4 * q] = R; img.data[4 * q + 1] = G; img.data[4 * q + 2] = B; img.data[4 * q + 3] = Math.round(255 * Math.min(1, Math.max(0, l.grid[q]))); }
-              vctx.putImageData(img, 0, 0);
-            }
-            slot.key = key; slot.colour = `${l.hue}|${l.sat}|${l.l}`;
+          const cv = slot.cv, vctx = cv.getContext("2d");
+          if (vctx) {
+            if (cv.width !== l.gw || cv.height !== l.gh || !slot.img) { cv.width = l.gw; cv.height = l.gh; slot.img = vctx.createImageData(l.gw, l.gh); slot.colour = ""; }
+            const img = slot.img, d = img.data, colour = `${l.hue}|${l.sat}|${l.l}`;
+            if (slot.colour !== colour) { const [R, G, B] = hslToRgb(l.hue ?? 0, (l.sat ?? 10) / 100, (l.l ?? 90) / 100); for (let q = 0; q < l.grid.length; q++) { d[4 * q] = R; d[4 * q + 1] = G; d[4 * q + 2] = B; } slot.colour = colour; }
+            for (let q = 0; q < l.grid.length; q++) d[4 * q + 3] = Math.round(255 * l.grid[q]);
+            vctx.putImageData(img, 0, 0);
           }
           ctx.imageSmoothingEnabled = true; ctx.globalAlpha = Math.min(1, l.a); ctx.drawImage(slot.cv, 0, 0, w, h); ctx.globalAlpha = 1;
         } else if (l.ys && l.cols && l.h) {
