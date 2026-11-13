@@ -23,7 +23,8 @@ function drifted(bases: Clock["bases"], hue: number, sat: number) {
 
 const VIGNETTES = new Map<string, Float32Array>();
 /** A static field of 0 (centre) to 1 (edges): the vignette. Cached by size and tightness; the lights' colour is applied by the painter. */
-function vignetteGrid(gw: number, gh: number, asp: number, tight: number): Float32Array {
+function vignetteGrid(gw: number, gh: number, asp0: number, tight0: number): Float32Array {
+  const asp = Math.round(asp0 * 20) / 20, tight = Math.round(tight0 * 10) / 10; // the cache key's own rounding, so the cached grid is what the key says
   const key = `${gw}x${gh}|${Math.round(asp * 20)}|${Math.round(tight * 10)}`; let g = VIGNETTES.get(key);
   if (g) return g;
   g = new Float32Array(gw * gh);

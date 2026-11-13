@@ -11,11 +11,12 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "ink" || s === "rain" || s === "embers";
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
-  const d = clamp(density), v = clamp(speed);
+  // The inputs are rounded to 0.05, and the veil caches key on the same rounding: a cached field is then exactly what that state would build, whoever drew it first.
+  const q = (x: number) => Math.round(clamp(x) * 20) / 20, d = q(density), v = q(speed);
+  feel = { depth: q(feel.depth), lift: q(feel.lift), jitter: q(feel.jitter), soft: q(feel.soft), near: q(feel.near), irreg: q(feel.irreg) };
   const out = scene === "motes" ? motes(d, v, feel, c)
     : scene === "ripples" ? ripples(d, v, feel, c)
     : scene === "rain" ? rain(d, v, feel, c)
@@ -378,7 +379,7 @@ function circuit(density: number, speed: number, feel: Feel, c: Clock): SceneOut
     items.push(pathItem(pts, 0.0022, 0.2 * fade, { l: 84, sat: 35 }));
     for (let k = 0; k <= segs; k++) items.push({ kind: "dot", x: pts[2 * k], y: pts[2 * k + 1], r: 0.0042, w: 0, soft: 0, a: 0.3 * fade, l: 88, sat: 35 }); // the pads at the corners
     // the pulse: one segment per beat, in steps (the beat index, not its fraction), with a tail of two segments behind it
-    const head = (Math.floor(c.b * (c.sync === "free" ? 1 : 1)) + i * 3) % (segs + 3);
+    const head = (Math.floor(c.b) + i * 3) % (segs + 3);
     for (let tl = 0; tl < 3; tl++) {
       const sg = head - tl; if (sg < 0 || sg >= segs) continue;
       items.push(pathItem([pts[2 * sg], pts[2 * sg + 1], pts[2 * sg + 2], pts[2 * sg + 3]], 0.0045 - 0.001 * tl, (0.5 - 0.15 * tl) * fade, { l: 92, sat: 60 }));
@@ -536,7 +537,7 @@ function stepBoids(B: Boids, seed: number, nf: number) {
 }
 function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const nf = 1 + Math.round(density * 2), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6;
-  const ep = Math.floor(c.b / EPOCH), n = Math.round(lerp(70, 120, density) * lerp(1, 1.75, hash01(ep, c.seed + 160))), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
+  const ep = Math.floor(c.b / EPOCH), n = Math.min(200, Math.round(lerp(70, 120, density) * lerp(1, 1.75, hash01(ep, c.seed + 160)))), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
   const key = `${c.seed}|${ep}|${n}|${nf}`;
   let B = SIMS.get(key);
   if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 96) SIMS.delete(SIMS.keys().next().value as string); }

@@ -40,6 +40,12 @@ describe("visual frame", () => {
     expect(a.length).toBeGreaterThan(0);
     a.forEach((x, i) => { expect(Math.abs(x.x - b[i].x)).toBeLessThan(0.02); expect(Math.abs(x.a - b[i].a)).toBeLessThan(0.02); });
   });
+  it("runs at half-time above 180 BPM: the same picture as half the tempo at half the beats", () => {
+    const c = base({ scene: "rain", density: 0.6, sync: "beat", feel: moodToFeel(mood) });
+    const f = (bpm: number, beats: number) => visualFrame({ colour: c, bpm, beats, t: 0, seed: 4, play: false }); // the gradient keeps its own phrase clock
+    expect(f(HALF_TIME_BPM + 20, 20)).toEqual(f((HALF_TIME_BPM + 20) / 2, 10));
+    expect(f(HALF_TIME_BPM - 20, 20)).not.toEqual(f((HALF_TIME_BPM - 20) / 2, 10));
+  });
   it("lets the listener turn the gradient and the visuals off, separately", () => {
     const c = base({ scene: "motes", density: 0.7, feel: moodToFeel(mood) });
     const f = (o: { play?: boolean; visuals?: boolean }) => visualFrame({ colour: c, bpm: 100, beats: 8, t: 0, seed: 2, ...o });
