@@ -260,9 +260,10 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.25, calm: 0.6, warmth: 0.4, closeness: 0.4, spontaneity: 0.3, tension: 0.35 })).toBe("smoke");       // brooding
     expect(e({ joy: 0.5, calm: 0.6, warmth: 0.2, closeness: 0.3, spontaneity: 0.15, tension: 0.1 })).toBe("circuit");   // analytical
     expect(e({ joy: 0.45, calm: 0.35, warmth: 0.2, closeness: 0.3, spontaneity: 0.4, tension: 0.5 })).toBe("digital");  // alert
-    expect(e({ joy: 0.7, calm: 0.3, warmth: 0.2, closeness: 0.3, spontaneity: 0.3, tension: 0.1 })).toBe("bars");     // driven
+    expect(e({ joy: 0.7, calm: 0.3, warmth: 0.2, closeness: 0.3, spontaneity: 0.3, tension: 0.1 })).toBe("scope");     // driven
     expect(e({ joy: 0.55, calm: 0.5, warmth: 0.4, closeness: 0.4, spontaneity: 0.2, tension: 0.4 })).toBe("vines");        // determined
-    expect(e({ joy: 0.35, calm: 0.5, warmth: 0.7, closeness: 0.15, spontaneity: 0.3, tension: 0 })).toBe("moths");         // longing
+    expect(e({ joy: 0.35, calm: 0.5, warmth: 0.7, closeness: 0.15, spontaneity: 0.3, tension: 0 })).toBe("reeds");         // longing
+    expect(e({ joy: 0.55, calm: 0.55, warmth: 0.45, closeness: 0.7, spontaneity: 0.45, tension: 0.1 })).toBe("network");   // curious
     expect(e({ joy: 0.45, calm: 0.45, warmth: 0.5, closeness: 0.4, spontaneity: 0.95, tension: 0.1 })).toBe("flock");      // restless
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.2, spontaneity: 0.2, tension: 0 })).toBe("stars");        // serene
     expect(e({ joy: 0.55, calm: 0.25, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous

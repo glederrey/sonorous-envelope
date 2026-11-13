@@ -1,6 +1,6 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "lanterns", "seeds", "tide", "smoke", "circuit", "digital", "bars", "vines", "fireworks", "moths", "flock"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "lanterns", "seeds", "tide", "smoke", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */

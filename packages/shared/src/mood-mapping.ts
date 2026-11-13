@@ -144,9 +144,10 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["smoke", (1 - ramp(j, 0.3, 0.5)) * ramp(k, 0.45, 0.7) * ramp(t, 0.2, 0.4) * (1 - ramp(t, 0.5, 0.7))],      // brooding, uneasy: wisps that rise and curl
     ["circuit", (1 - ramp(w, 0.25, 0.45)) * (1 - ramp(s2, 0.3, 0.5)) * ramp(j, 0.35, 0.5) * (1 - ramp(j, 0.6, 0.75)) * ramp(k, 0.4, 0.6) * (1 - ramp(k, 0.8, 0.95)) * notTense], // focused, exact: traces and stepped pulses
     ["digital", (1 - ramp(w, 0.25, 0.45)) * ramp(t, 0.3, 0.5) * (1 - ramp(t, 0.65, 0.85)) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.65, 0.8)) * (1 - ramp(k, 0.55, 0.8))], // alert, processing: falling blocks
-    ["bars", (1 - ramp(w, 0.25, 0.45)) * ramp(j, 0.5, 0.7) * (1 - ramp(k, 0.5, 0.75)) * (1 - ramp(s2, 0.5, 0.7)) * notTense], // driven, mechanical: an equaliser
+    ["scope", (1 - ramp(w, 0.25, 0.45)) * ramp(j, 0.5, 0.7) * (1 - ramp(k, 0.5, 0.75)) * (1 - ramp(s2, 0.5, 0.7)) * notTense], // driven, focused: the sound drawn on a scope
     ["vines", ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.65, 0.8)) * ramp(k, 0.35, 0.5) * (1 - ramp(k, 0.6, 0.75)) * ramp(t, 0.25, 0.4) * (1 - ramp(t, 0.55, 0.7)) * (1 - ramp(s2, 0.4, 0.6))], // determined: growth
-    ["moths", ramp(w, 0.5, 0.7) * (1 - ramp(c, 0.3, 0.5)) * ramp(j, 0.1, 0.25) * (1 - ramp(j, 0.5, 0.65)) * ramp(k, 0.3, 0.6) * notTense], // longing: warm, far, drawn to a light
+    ["reeds", ramp(w, 0.5, 0.7) * (1 - ramp(c, 0.3, 0.5)) * ramp(j, 0.1, 0.25) * (1 - ramp(j, 0.5, 0.65)) * ramp(k, 0.3, 0.6) * notTense], // longing: warm, far, bending in the wind
+    ["network", ramp(w, 0.25, 0.4) * (1 - ramp(w, 0.55, 0.75)) * ramp(c, 0.45, 0.65) * ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.65, 0.8)) * ramp(k, 0.35, 0.5) * (1 - ramp(k, 0.65, 0.8)) * ramp(s2, 0.25, 0.4) * (1 - ramp(s2, 0.6, 0.8)) * notTense], // curious, thinking: nodes that link up
     ["flock", ramp(s2, 0.8, 1) * ramp(k, 0.3, 0.55) * (1 - ramp(k, 0.65, 0.85)) * (1 - ramp(t, 0.2, 0.45)) * ramp(j, 0.2, 0.4) * (1 - ramp(j, 0.6, 0.8))], // swept up, restless: a flock
     ["bubbles", ramp(j, 0.6, 0.8) * ramp(s2, 0.65, 0.9) * (1 - ramp(k, 0.7, 0.9)) * (1 - ramp(t, 0.4, 0.7))], // playful: rings that rise
     ["ripples", ramp(t, 0.3, 0.55) * ramp(j, 0.35, 0.55) * (1 - ramp(k, 0.5, 0.8))],   // nervous: rings that scatter
