@@ -11,14 +11,9 @@ export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-k
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
 //
-// The flash rule (docs/safety.md): the beat pulse is designed to stay under the flash threshold by itself, at any tempo.
-//   - Large elements (the wash over the whole field, the glow, the aurora and mist layers) together swing the relative luminance by at most MAX_LARGE_SWING (0.09),
-//     at the worst pixel: the sum of their opacities, with no discount for the glow covering only part of the view.
-//     A white layer of opacity `a` over a base moves the luminance by at most `a`. WCAG 2.3.1 counts a flash from a 10% change,
-//     so nothing here is one, however fast it repeats.
-//   - Saturated red gets no pulse at all.
-//   - Small elements (motes, rings, streaks) may be faster and brighter, but together cover at most MAX_SMALL_AREA of the view.
-//   - Above HALF_TIME_BPM the beat motion runs at half-time. That is for looks: the cap above is what keeps it safe.
+// The flash rule is lifted for the large elements (Gael, 2026-11-13, docs/safety.md): MAX_LARGE_SWING (0.09) is the old target and `largeSwing` still measures it, but nothing scales the wash, the glow or the layers to it.
+// What `capFrame` still does: small elements (motes, rings, streaks) together cover at most MAX_SMALL_AREA of the view, and at most MAX_ITEMS of them.
+//   - Above HALF_TIME_BPM the beat motion runs at half-time, for looks.
 
 export const PHRASE_BEATS = 16;       // 4 bars of 4 beats (4/4 is assumed, there is no meter)
 export const MAX_LARGE_SWING = 0.09;
@@ -89,17 +84,11 @@ export function itemArea(i: Item, aspect: number, minW = 0): number {
   return area * k;
 }
 
-/** The flash budget. Idempotent. Scales the large elements down to MAX_LARGE_SWING, and drops small ones past MAX_SMALL_AREA or MAX_ITEMS. */
+/** What is left of the flash budget. Idempotent. Drops small elements past MAX_SMALL_AREA or MAX_ITEMS; the large elements are no longer capped (Gael, 2026-11-13). */
 export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   let { wash } = f, glow = f.glow ? { ...f.glow, a: Math.max(0, f.glow.a) } : null;
   let layers = f.layers.map((l) => ({ ...l, a: Math.max(0, l.a) }));
-  wash = clamp(wash, 0, MAX_LARGE_SWING);
-  const swing = largeSwing({ wash, glow, layers, items: [] }, aspect);
-  if (swing > MAX_LARGE_SWING) { // scaled to a little under the limit: the grid that finds the worst pixel can miss a peak between its points
-    const k = (MAX_LARGE_SWING * 0.96) / swing;
-    wash *= k; if (glow) glow.a *= k;
-    layers = layers.map((l) => ({ ...l, a: l.a * k }));
-  }
+  wash = Math.max(0, wash); // no ceiling on the large elements any more (Gael, 2026-11-13): `MAX_LARGE_SWING` is the old target and `largeSwing` still measures it, but nothing is scaled down to it
   const items: Item[] = [];
   let area = 0;
   for (const i of f.items) {

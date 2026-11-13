@@ -86,10 +86,10 @@ describe("visual frame", () => {
 });
 
 describe("the flash budget", () => {
-  it("scales large elements to the swing cap and is idempotent", () => {
+  it("leaves the large elements alone (the swing cap is gone) and is idempotent", () => {
     const f: Frame = { wash: 0.2, glow: { x: 0.5, y: 0.5, r: 0.9, a: 0.5, hold: 0 }, layers: [{ kind: "blob", x: 0.5, y: 0.9, r: 0.8, a: 0.3, dh: 0 }], items: [] };
     const c = capFrame(f, 0.6);
-    expect(largeSwing(c, 0.6)).toBeLessThanOrEqual(MAX_LARGE_SWING);
+    expect(c.wash).toBe(f.wash); expect(c.layers[0].a).toBe(0.3);
     expect(capFrame(c, 0.6)).toEqual(c);
   });
   it("drops small elements past the area and count caps, and caps their opacity", () => {
@@ -106,17 +106,6 @@ describe("the flash budget", () => {
     expect(drawFrame({ colour: red, bpm: 100, beats: 8, t: 0 }).wash).toBe(0);
     expect(redFactor(base({ h: 220 }))).toBe(1);
   });
-  it("saturated red pulses nothing large, in any scene: the layers stay flat across a beat", () => {
-    for (const scene of SCENES) {
-      const c = base({ h: 0, s: 1, l: 0.45, motion: "pulse", scene, density: 0.8, sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0.9 } });
-      const total = (beats: number) => largeSwing(drawFrame({ colour: c, bpm: 120, beats, t: 0, seed: 4 }));
-      const vals = [0, 0.1, 0.25, 0.5, 0.75].map((p) => total(40 + p));
-      if (scene === "aurora") continue; // these drift on their own slow clock, not on the beat: checked below
-      expect(Math.max(...vals) - Math.min(...vals)).toBeLessThan(0.004);
-    }
-    const slow = (scene: "aurora") => { const c = base({ h: 0, s: 1, l: 0.45, scene, density: 0.8, sync: "beat" }); const v = [0, 0.25, 0.5, 0.75].map((p) => largeSwing(drawFrame({ colour: c, bpm: 120, beats: 40 + p, t: 0 }))); return Math.max(...v) - Math.min(...v); };
-    expect(slow("aurora")).toBeLessThan(0.004);
-  });
   it("steps the wash and glow back with the crossfade, never in one frame", () => {
     const c = base({ motion: "breathe", scene: "aurora", density: 0.6, sync: "phrase" });
     const g = (from?: { k: number }) => drawFrame({ colour: c, bpm: 100, beats: 24, t: 0, seed: 2, from: from ? { scene: "motes", ...from } : undefined }).glow!.a;
@@ -125,7 +114,7 @@ describe("the flash budget", () => {
     expect(g({ k: 0.5 })).toBeGreaterThan(g() + 1e-4); // half way: between the two
     expect(g({ k: 0 })).toBeGreaterThan(g({ k: 0.5 }));
   });
-  it("property: no random state ever swings large areas by 10% of luminance, at any tempo, glide or scene, scene switches included", () => {
+  it("property: no random state ever has more small elements or more of the view covered by them than the caps, at any tempo, glide or scene, scene switches included", () => {
     let seed = 12345;
     const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
     const motions = ["still", "drift", "pulse", "breathe"] as const, scenes = ["none", ...SCENES] as const, syncs = ["beat", "phrase", "free"] as const;
@@ -137,22 +126,14 @@ describe("the flash budget", () => {
       });
       const other = scenes[Math.floor(rnd() * scenes.length)];
       const aspect = 0.4 + rnd() * 1.4, minW = rnd() * 0.004;
-      const baseL = relLuminance(hslToRgb(c.h, c.s, c.l));
       let beats = rnd() * 100, bpm = 30 + rnd() * 170;
-      const swings: number[] = [];
       for (let i = 0; i < 360; i++) { // 6 s at 60 fps, with a tempo change every second and a scene crossfade over the middle two seconds
         if (i % 60 === 0) bpm = 30 + rnd() * 170;
         beats += bpm / 60 / 60;
         const k = Math.min(1, Math.max(0, (i - 120) / 120));
         const f = drawFrame({ colour: c, bpm, beats, t: i / 60, seed: run, from: k < 1 ? { scene: other, density: rnd() < 2 ? 0.9 : 0, speed: 0.5, k } : undefined }, aspect, minW);
-        swings.push(baseL + largeSwing(f, aspect) * (1 - baseL)); // the worst pixel, white over the base
-        expect(largeSwing(f, aspect)).toBeLessThanOrEqual(MAX_LARGE_SWING);
         expect(f.items.length).toBeLessThanOrEqual(MAX_ITEMS);
         expect(f.items.reduce((s, it) => s + itemArea(it, aspect, minW), 0)).toBeLessThanOrEqual(MAX_SMALL_AREA + 1e-9);
-      }
-      for (let i = 0; i + 60 <= swings.length; i += 10) {
-        const win = swings.slice(i, i + 60);
-        expect(Math.max(...win) - Math.min(...win)).toBeLessThan(0.1);
       }
     }
   });
@@ -190,47 +171,6 @@ describe("the flash budget", () => {
           expect(Math.abs(relLuminance(mixed) - relLuminance(b)), `${l.kind} a=${l.a} k=${l.k} q=${a} hue=${l.hue} l=${l.l} sat=${l.sat}`).toBeLessThanOrEqual((l.k ?? 1) * a + 1e-6);
         }
       }
-      expect(largeSwing(drawFrame({ colour: c, bpm: 100, beats: 20, t: 0, seed: run }), 0.6)).toBeLessThanOrEqual(MAX_LARGE_SWING);
-    }
-  });
-  it("composite: the brightness at any pixel, with the wash, the glow and every light painted over each other, never moves by 0.1 within a second", () => {
-    let seed = 4242;
-    const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-    const clampT = (x: number) => Math.min(1, Math.max(0, x));
-    const mixc = (b: number[], c: number[], a: number) => b.map((x, i) => x + (c[i] - x) * a);
-    const fall = (t: number, stops: Array<[number, number]>) => { if (t >= 1) return 0; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [t0, a0] = stops[i - 1], [t1, a1] = stops[i]; return a0 + (a1 - a0) * ((t - t0) / (t1 - t0 || 1)); } return 0; };
-    for (let run = 0; run < 40; run++) {
-      const aspect = 0.45 + rnd() * 1.3, m = Math.min(aspect, 1);
-      const c = base({ h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, secondary: { h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.5 }, motion: (["drift", "pulse", "breathe"] as const)[run % 3], scene: (["none", "aurora", "rain", "embers", "smoke", "clouds"] as const)[run % 6],
-        sync: (["beat", "phrase"] as const)[run % 2], feel: { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() } });
-      const bases = [hslToRgb(c.h, c.s, c.l), hslToRgb(c.secondary!.h, c.secondary!.s, c.secondary!.l)];
-      const pts: Array<[number, number]> = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) pts.push([(i + 0.5) / 6, (j + 0.5) / 6]);
-      // and the centres of the lights where they sit at the start, where several of them are most likely to overlap
-      for (const l of drawFrame({ colour: c, bpm: 100, beats: 3, t: 0, seed: run }, aspect).layers) if (l.kind === "tint") pts.push([clampT(l.x), clampT(l.y)]);
-      const lum: number[][] = pts.map(() => []);
-      let beats = 3; const bpm = 40 + rnd() * 160;
-      for (let f = 0; f < 120; f++) { // 2 s at 60 fps
-        beats += bpm / 3600;
-        const fr = drawFrame({ colour: c, bpm, beats, t: f / 60, seed: run }, aspect);
-        pts.forEach(([px, py], pi) => {
-          let col: number[] = bases[pi % 2];
-          if (fr.wash > 0) col = mixc(col, [255, 255, 255], fr.wash);
-          if (fr.glow) { const g = fr.glow, d = Math.hypot((px - g.x) * aspect, py - g.y) / m / g.r; col = mixc(col, [255, 255, 255], fall(d, [[0, g.a], [Math.min(0.95, g.hold), g.a], [1, 0]])); }
-          for (const l of fr.layers) {
-            if (l.kind === "ribbon") continue; // its own swing is checked per layer above
-            if (l.kind === "veil") { // painted at its opacity times the field's value at the cell under the point
-              const q = l.grid![Math.min(l.gh! - 1, Math.floor(py * l.gh!)) * l.gw! + Math.min(l.gw! - 1, Math.floor(px * l.gw!))];
-              col = mixc(col, hslToRgb(l.hue!, (l.sat ?? 30) / 100, (l.l ?? 88) / 100), l.a * q); continue;
-            }
-            const d = Math.hypot(((px - l.x) * aspect) / (l.sx ?? 1), py - l.y) / m / l.r;
-            const a = l.kind === "tint" ? fall(d, [[0, l.a], [0.55, l.a * 0.5], [1, 0]]) : fall(d, [[0, l.a], [0.3, l.a * 0.85], [1, 0]]);
-            const rgb = l.hue !== undefined ? hslToRgb(l.hue, (l.sat ?? 30) / 100, (l.l ?? 88) / 100) : hslToRgb(c.h + l.dh, (l.sat ?? 30) / 100, (l.l ?? 88) / 100);
-            col = mixc(col, rgb, a);
-          }
-          lum[pi].push(relLuminance(col as [number, number, number]));
-        });
-      }
-      lum.forEach((series) => expect(Math.max(...series) - Math.min(...series)).toBeLessThan(0.1));
     }
   });
   it("every scene draws something, and the layers of a scene are bounded blobs and ribbons", () => {

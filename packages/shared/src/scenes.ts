@@ -168,7 +168,7 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   // on a dark sky the glow is a vivid colour lighter than it (that is what an aurora is); on a bright one nothing can be lighter, so the curtain is a deep vivid colour darker than it
   const dark = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length) < 0.3;
   const vA = dark ? { sat: 0.9, l: 0.6 } : { sat: 0.85, l: 0.3 }, vB = dark ? { sat: 0.8, l: 0.62 } : { sat: 0.8, l: 0.34 };
-  const mA = toneLayer(c.bases, hueA, dark, 0.062, vA), mB = toneLayer(c.bases, hueB, dark, 0.02, vB);
+  const mA = toneLayer(c.bases, hueA, dark, 0.4, vA), mB = toneLayer(c.bases, hueB, dark, 0.25, vB);
   const col = (x: number) => Math.min(GW - 1, Math.floor(x * GW));
   const vk = `${c.seed}|${bq}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, base = veil(`aua|${vk}`, GW, GH, (x, y) => {
     const i = col(x), up = e[i] - y, len = h * (0.25 + 0.75 * s[i]) * (0.4 + 0.6 * g[i]);
@@ -309,8 +309,8 @@ const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}
 /** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
  *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.082);
-  const bq = Math.floor(c.b * 3) / 3, P = 1 + Math.round(4 * clamp(density)), rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60), GW = 50, GH = 68;
+  const tone = bestTone(c.bases, c.h, 0.16);
+  const bq = Math.floor(c.b * 2.5) / 2.5, P = 1 + Math.round(4 * clamp(density)), rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60), GW = 44, GH = 60;
   const x0 = (p: number) => (p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P;
   const f = (x: number, y: number) => {
     const hh = 1 - y, hs = hh * 3 - rise * 3; // the noise is carried upward with time
@@ -329,7 +329,7 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 /** Clouds: banks and puffs that drift slowly across, in two scales of noise so they have bulk and a ragged edge; thinner towards the top and the bottom of the view. A veil like the smoke, light on a dark sky and dark on a bright one. */
 function clouds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.082);
+  const tone = bestTone(c.bases, c.h, 0.22);
   const bq = Math.floor(c.b * 6) / 6, drift = bq * lerp(0.004, 0.014, speed), cover = lerp(-0.12, 0.2, density) + 0.1 * (feel.near - 0.5), GW = 56, GH = 40;
   const f = (x: number, y: number) => {
     const n = fbm2(x * 2.1 - drift * 2.2, y * 3.6 + 1.7 + 0.15 * noise1(bq * 0.01, c.seed + 8), c.seed + 4, 4), m = fbm2(x * 4.6 - drift * 3.6, y * 7.2, c.seed + 5, 3);
