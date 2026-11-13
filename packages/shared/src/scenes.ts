@@ -442,6 +442,8 @@ function plant(sd: number, asp: number) {
  *  stem draws back to where it began. Another one starts somewhere else. Determination, life going on. */
 function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(2, 5, density)), items: Item[] = [], L = lerp(44, 26, speed), asp = c.aspect > 0 ? c.aspect : 0.6;
+  // the plant's colours by session, never a literal green: a pale tint of the field (most often), blossom, or autumn
+  const pal = hash01(c.seed, 160) < 0.55 ? 0 : hash01(c.seed, 160) < 0.8 ? 1 : 2;
   for (let i = 0; i < n; i++) {
     const t = c.b / L + i / n, cyc = Math.floor(t), u = t - cyc;
     const grown = u < 0.45 ? 1 - (1 - u / 0.45) ** 2 : 1, dying = u < 0.7 ? 0 : Math.min(1, (u - 0.7) / 0.28), vis = grown * (1 - dying ** 1.4);
@@ -450,12 +452,12 @@ function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
     for (const br of pl.branches) {
       const g = br.at === 0 ? vis : clamp((vis - br.at) / 0.25) * (1 - dying * 0.3);
       if (g <= 0.02) continue;
-      items.push(pathItem(partOf(br.pts, g), br.at === 0 ? 0.0045 : 0.003, (br.at === 0 ? 0.46 : 0.36) * (1 - 0.35 * dying), { l: 80, sat: 40 }));
+      items.push(pathItem(partOf(br.pts, g), br.at === 0 ? 0.0045 : 0.003, (br.at === 0 ? 0.46 : 0.36) * (1 - 0.35 * dying), pal === 2 ? { hue: 30, sat: 35, l: 52 } : { l: 80, sat: 40 }));
     }
     for (const lf of pl.leaves) {
       const born = clamp((grown - lf.at * 0.9) / 0.08); if (born <= 0) continue;
       const fall = clamp((dying - 0.1 * hash01(lf.x * 100, 5)) / 0.7), sway = Math.sin(fall * 9 + lf.x * 20) * 0.02;
-      items.push({ kind: "leaf", x: lf.x + sway, y: lf.y + fall * 0.35, r: 0.016 * born * (1 - 0.3 * dying), w: 0, ang: lf.a + fall * 4, sq: Math.max(0.25, Math.abs(Math.cos(fall * 6 + lf.x * 9))), a: 0.5 * born * (1 - fall), hue: 105 + 30 * hash01(lf.x * 77, 3) - 70 * dying, sat: 55, l: 52 });
+      items.push({ kind: "leaf", x: lf.x + sway, y: lf.y + fall * 0.35, r: 0.016 * born * (1 - 0.3 * dying), w: 0, ang: lf.a + fall * 4, sq: Math.max(0.25, Math.abs(Math.cos(fall * 6 + lf.x * 9))), a: 0.5 * born * (1 - fall), ...(pal === 0 ? { sat: 35, l: 84 } : pal === 1 ? { hue: 335 + 40 * hash01(lf.x * 77, 3), sat: 70, l: 84 } : { hue: 40 - 28 * dying, sat: 70, l: 58 }) });
     }
   }
   return { items, layers: [] };
@@ -591,16 +593,20 @@ function scope(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 
 /** Reeds: stems anchored along the bottom with a seed head each, swaying gently on their own; a gust crosses the field every few bars and bends each stem as it passes, more at the tip. Straw colours whatever the field. */
 function reeds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const n = Math.round(lerp(14, 36, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, per = lerp(16, 8, speed), gust = (c.b / per) % 1, gx = gust * 1.6 - 0.3;
+  // a kind of plant and a colour by session: reeds with seed heads, tall grass, cattails, wheat, or flowers; straw, green, silver or autumn
+  const kind = Math.floor(hash01(c.seed, 170) * 5), pi = Math.floor(hash01(c.seed, 171) * 4), col = [{ hue: 44, sat: 50, l: 60 }, { hue: 110, sat: 40, l: 52 }, { hue: 195, sat: 15, l: 74 }, { hue: 18, sat: 55, l: 52 }][pi];
+  const n = Math.round(lerp(14, 36, density) * (kind === 1 ? 1.7 : kind === 4 ? 0.7 : 1)), items: Item[] = [], per = lerp(16, 8, speed), gust = (c.b / per) % 1, gx = gust * 1.6 - 0.3;
   for (let i = 0; i < n; i++) {
-    const x0 = 0.03 + (0.94 * (i + 0.5 + 0.6 * (hash01(i, c.seed + 2) - 0.5))) / n, H = lerp(0.22, 0.58, hash01(i, c.seed + 3)) * lerp(0.85, 1.1, feel.near), ph = hash01(i, c.seed + 4);
+    const x0 = 0.03 + (0.94 * (i + 0.5 + 0.6 * (hash01(i, c.seed + 2) - 0.5))) / n, H = lerp(kind === 1 ? 0.14 : 0.22, kind === 3 ? 0.5 : 0.58, hash01(i, c.seed + 3)) * lerp(0.85, 1.1, feel.near), ph = hash01(i, c.seed + 4);
     const g = Math.exp(-(((x0 - gx) / 0.16) ** 2)) * (0.1 + 0.08 * feel.depth) * Math.sin(Math.PI * clamp(gust)), sw = 0.03 * (0.6 + feel.irreg) * Math.sin(2 * Math.PI * (c.b / (9 + 6 * ph) + ph)), D = (g + sw) * (0.6 + 0.6 * hash01(i, c.seed + 5));
     const pts: number[] = [];
     for (let k = 0; k <= 8; k++) { const s = k / 8; pts.push(x0 + (D * s ** 1.8) / 1, 1.03 - H * s * (1 - 0.25 * Math.abs(D) * 4 * s)); }
-    const tx = pts[pts.length - 2], ty = pts[pts.length - 1];
-    items.push(pathItem(pts, 0.0032, 0.42, { hue: 44, sat: 50, l: 60 }));
-    items.push({ kind: "dot", x: tx, y: ty, r: 0.0075, w: 0, soft: 0.25, a: 0.5, hue: 38, sat: 60, l: 52 });
-    void asp;
+    const tx = pts[16], ty = pts[17], dx = pts[16] - pts[14], dy = pts[17] - pts[15], dn = Math.hypot(dx, dy) || 1;
+    items.push(pathItem(pts, kind === 1 ? 0.0024 : 0.0032, 0.42, col));
+    if (kind === 0) items.push({ kind: "dot", x: tx, y: ty, r: 0.0075, w: 0, soft: 0.25, a: 0.5, hue: col.hue - 6, sat: col.sat + 10, l: col.l - 8 }); // seed heads
+    else if (kind === 2) items.push(pathItem([tx, ty, tx + (dx / dn) * 0.05, ty + (dy / dn) * 0.05], 0.011, 0.55, { hue: 25, sat: 45, l: 30 })); // a cattail's dark head
+    else if (kind === 3) { const fh = [330, 45, 275, 15][Math.floor(hash01(i, c.seed + 6) * 4)]; items.push({ kind: "dot", x: tx, y: ty, r: 0.013, w: 0, soft: 0.35, a: 0.6, hue: fh, sat: 75, l: 72 }); items.push({ kind: "dot", x: tx, y: ty, r: 0.004, w: 0, soft: 0, a: 0.7, hue: 48, sat: 80, l: 70 }); } // flowers
+    else if (kind === 4) for (let q = 0; q < 3; q++) { items.push({ kind: "streak", x: tx, y: ty + 0.012 * q, r: 0.022, w: 0.0025, ang: (q - 1) * 0.7 + 0.5, a: 0.5, hue: col.hue, sat: col.sat, l: col.l + 8 }); } // wheat ears
   }
   return { items, layers: [] };
 }
@@ -666,21 +672,23 @@ function fire(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(60, 200, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, kx = asp < 1 ? 1 : 1 / asp, ky = asp < 1 ? asp : 1;
   const vx = 0.5 + 0.08 * Math.sin(c.b / 23 + c.seed), vy = 0.5 + 0.06 * Math.cos(c.b / 31), rate = lerp(0.02, 0.08, speed), stretch = 1 + 0.35 * c.kick * feel.jitter;
-  const pal: Array<[number, number]> = [[0, 0], [0, 0], [0, 0], [210, 70], [210, 70], [310, 60], [45, 70]]; // mostly white, some blue, magenta, gold
+  // a look by session: cool white and blue, warm gold, neon, mono with many big stars, or a tunnel of rings
+  const v = Math.floor(hash01(c.seed, 150) * 5), pals: Array<Array<[number, number]>> = [[[0, 0], [0, 0], [0, 0], [210, 70], [210, 70], [190, 60]], [[0, 0], [0, 0], [45, 75], [45, 75], [20, 80], [350, 60]], [[310, 80], [180, 80], [0, 0], [270, 70], [310, 80]], [[0, 0]], [[0, 0], [0, 0], [200, 60], [200, 60]]];
+  const pal = pals[v], nebHue = [230, 20, 300, 255, 200][v], rings = v === 4 ? 4 : v === 2 ? 2 : 1, bigStars = v === 3 ? 12 : 5, nStars = Math.round(n * (v === 4 ? 0.6 : v === 3 ? 1.3 : 1));
   for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
-  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: 210 }); // the core
-  const ring = c.beatPh, bar = c.beatIdx % 4 === 0;
-  items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + (bar ? 0.9 : 0.55) * ring, w: bar ? 0.004 : 0.0025, a: (bar ? 0.3 : 0.16) * (1 - ring), l: 92, sat: 40, hue: 210, sq: 1 }); // a ring of light leaves on the beat
-  for (let i = 0; i < n; i++) {
+  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: nebHue }); // the core
+  const bar = c.beatIdx % 4 === 0;
+  for (let q = 0; q < rings; q++) { const ring = frac(c.beatPh + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + (bar || v === 4 ? 0.9 : 0.55) * ring, w: bar || v === 4 ? 0.004 : 0.0025, a: ((bar || v === 4) ? 0.3 : 0.16) * (1 - ring), l: 92, sat: 40, hue: nebHue }); } // rings of light leave on the beat
+  for (let i = 0; i < nStars; i++) {
     const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
     const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
     items.push({ kind: "streak", x: vx + dxp * rho * kx, y: vy + dyp * rho * ky, r: len, w: (near ? 0.0022 : 0.0014) + 0.0026 * ph, ang: Math.atan2(dxp, dyp), tail: true, a: 0.7 * Math.min(1, ph * 4), l: 94, sat, hue });
   }
-  for (let i = 0; i < 5; i++) { // a few big bright stars that rush up to the viewer
+  for (let i = 0; i < bigStars; i++) { // a few big bright stars that rush up to the viewer
     const th = 2 * Math.PI * hash01(i, c.seed + 109), ph = frac(hash01(i, c.seed + 110) + c.b * rate * 0.5), rho = 0.05 + 0.95 * ph ** 2.6;
     items.push({ kind: "dot", x: vx + Math.cos(th) * rho * kx, y: vy + Math.sin(th) * rho * ky, r: 0.004 + 0.02 * ph ** 2, w: 0, soft: 0.8, a: 0.8 * Math.min(1, ph * 5) * (1 - 0.5 * ph ** 3), l: 96, sat: 30, hue: 45 });
   }
-  const GW = Math.round(clamp(c.px / 8, 40, 100)), GH = Math.round(clamp(GW / asp, 40, 140)), tone = toneLayer(c.bases, 255 + 50 * hash01(c.seed, 111), true, 0.18, { sat: 0.7, l: 0.5 });
+  const GW = Math.round(clamp(c.px / 8, 40, 100)), GH = Math.round(clamp(GW / asp, 40, 140)), tone = toneLayer(c.bases, nebHue + 25 * hash01(c.seed, 111), true, v === 3 ? 0.06 : 0.18, { sat: 0.7, l: 0.5 });
   const nebula = veil(`warp|${GW}x${GH}|${c.seed}`, 4, c.b, GW, GH, (bq) => (x, y) => sstep(0.1, 0.85, 0.5 + 0.6 * fbm2(x * 2.4 + bq * 0.01, y * 2.4 - bq * 0.008, c.seed + 112, 3)) * (0.35 + 0.65 * Math.exp(-(((x - 0.5) * asp) ** 2 + (y - 0.5) ** 2) * 2.5)), tone.a, tone);
   return { items, layers: [nebula] };
 }

@@ -84,9 +84,9 @@ export function VisualsLab() {
         <label>Set <select value={set} onChange={(e) => { setSet(e.target.value as "emotions" | "samples" | "gradients"); setOnly("all"); setEpoch(Date.now()); }}><option>emotions</option><option>gradients</option><option>samples</option></select></label>
         <label><input type="checkbox" checked={own} onChange={(e) => { setOwn(e.target.checked); setEpoch(Date.now()); }} /> Mood's own tempo</label>
         <label>Tempo <input type="range" min={30} max={200} value={bpm} onChange={(e) => { setBpm(Number(e.target.value)); setEpoch(Date.now()); }} /> {bpm} BPM</label>
-        <label>Scene <select value={scene} onChange={(e) => { setScene(e.target.value as Scene); setEpoch(Date.now()); }}>
+        <label>Scene <select value={scene} onChange={(e) => setScene(e.target.value as Scene)}>
           {(["own", "none", ...SCENES] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
-        <label>Sync <select value={sync} onChange={(e) => { setSync(e.target.value as Sync); setEpoch(Date.now()); }}>
+        <label>Sync <select value={sync} onChange={(e) => setSync(e.target.value as Sync)}>
           {(["own", "beat", "phrase", "free"] as const).map((x) => <option key={x}>{x}</option>)}</select></label>
         <label>Show <select value={only} onChange={(e) => { setOnly(e.target.value); setEpoch(Date.now()); }}>
           <option value="all">all</option>{panels.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
@@ -103,8 +103,9 @@ export function VisualsLab() {
           } as CSSProperties;
           return (
             <figure key={p.id} style={{ margin: 0 }}>
-              <div className="pl-field lab-field" style={style} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
+              <div className="pl-field lab-field" style={{ ...style, position: "relative" }} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
                 <VisualCanvas source={silentAt ? { state: silentOf(p.state, epoch, silentAt), at: silentAt, seed: p.seed } : { state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} onFail={() => {}} />
+                <div aria-hidden style={{ position: "absolute", inset: 0, background: "#000", borderRadius: 12, pointerEvents: "none", zIndex: 1, opacity: silentAt ? 1 : 0, transition: silentAt ? "opacity 8s ease-in-out" : "none" }} />
               </div>
               <figcaption className="se-sm">{p.name} · {c.scene ?? "none"} · {c.sync ?? "mood"}</figcaption>
             </figure>
