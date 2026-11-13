@@ -1,11 +1,11 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "lanterns", "seeds", "tide"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "lanterns", "seeds", "tide", "smoke", "jellyfish", "vines", "fireworks", "moths", "flock"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
 export interface Item {
-  kind: "dot" | "ring" | "streak" | "wave" | "leaf" | "seed";
+  kind: "dot" | "ring" | "streak" | "wave" | "leaf" | "seed" | "path";
   /** centre, 0 to 1 of the width and height. A streak starts here (its tail); a wave's `y` is its resting line */
   x: number; y: number;
   /** radius (dot, ring), length (streak) or amplitude (wave), as a fraction of the smaller side */
@@ -25,6 +25,8 @@ export interface Item {
   sq?: number;
   /** a wave: wavelength as a fraction of the width, and phase in radians */
   k?: number; ph?: number;
+  /** a path: the points as x0, y0, x1, y1, ... (fractions of the width and height); `w` is its stroke width */
+  pts?: number[];
 }
 
 /** A large soft thing (an aurora). It counts in the luminance budget with the wash and the glow. */

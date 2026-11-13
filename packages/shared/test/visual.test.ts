@@ -191,6 +191,42 @@ describe("the flash budget", () => {
       expect(largeSwing(drawFrame({ colour: c, bpm: 100, beats: 20, t: 0, seed: run }))).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
     }
   });
+  it("composite: the brightness at any pixel, with the wash, the glow and every light painted over each other, never moves by 0.1 within a second", () => {
+    let seed = 4242;
+    const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    const clampT = (x: number) => Math.min(1, Math.max(0, x));
+    const mixc = (b: number[], c: number[], a: number) => b.map((x, i) => x + (c[i] - x) * a);
+    const fall = (t: number, stops: Array<[number, number]>) => { if (t >= 1) return 0; for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [t0, a0] = stops[i - 1], [t1, a1] = stops[i]; return a0 + (a1 - a0) * ((t - t0) / (t1 - t0 || 1)); } return 0; };
+    for (let run = 0; run < 40; run++) {
+      const aspect = 0.45 + rnd() * 1.3, m = Math.min(aspect, 1);
+      const c = base({ h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, secondary: { h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.5 }, motion: (["drift", "pulse", "breathe"] as const)[run % 3], scene: (["none", "aurora", "rain", "embers"] as const)[run % 4],
+        sync: (["beat", "phrase"] as const)[run % 2], feel: { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() } });
+      const bases = [hslToRgb(c.h, c.s, c.l), hslToRgb(c.secondary!.h, c.secondary!.s, c.secondary!.l)];
+      const pts: Array<[number, number]> = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) pts.push([(i + 0.5) / 6, (j + 0.5) / 6]);
+      // and the centres of the lights where they sit at the start, where several of them are most likely to overlap
+      for (const l of drawFrame({ colour: c, bpm: 100, beats: 3, t: 0, seed: run }, aspect).layers) if (l.kind === "tint") pts.push([clampT(l.x), clampT(l.y)]);
+      const lum: number[][] = pts.map(() => []);
+      let beats = 3; const bpm = 40 + rnd() * 160;
+      for (let f = 0; f < 120; f++) { // 2 s at 60 fps
+        beats += bpm / 3600;
+        const fr = drawFrame({ colour: c, bpm, beats, t: f / 60, seed: run }, aspect);
+        pts.forEach(([px, py], pi) => {
+          let col: number[] = bases[pi % 2];
+          if (fr.wash > 0) col = mixc(col, [255, 255, 255], fr.wash);
+          if (fr.glow) { const g = fr.glow, d = Math.hypot((px - g.x) * aspect, py - g.y) / m / g.r; col = mixc(col, [255, 255, 255], fall(d, [[0, g.a], [Math.min(0.95, g.hold), g.a], [1, 0]])); }
+          for (const l of fr.layers) {
+            if (l.kind === "ribbon") continue; // its own swing is checked per layer above
+            const d = Math.hypot(((px - l.x) * aspect) / (l.sx ?? 1), py - l.y) / m / l.r;
+            const a = l.kind === "tint" ? fall(d, [[0, l.a], [0.55, l.a * 0.5], [1, 0]]) : fall(d, [[0, l.a], [0.3, l.a * 0.85], [1, 0]]);
+            const rgb = l.hue !== undefined ? hslToRgb(l.hue, (l.sat ?? 30) / 100, (l.l ?? 88) / 100) : hslToRgb(c.h + l.dh, (l.sat ?? 30) / 100, (l.l ?? 88) / 100);
+            col = mixc(col, rgb, a);
+          }
+          lum[pi].push(relLuminance(col as [number, number, number]));
+        });
+      }
+      lum.forEach((series) => expect(Math.max(...series) - Math.min(...series)).toBeLessThan(0.1));
+    }
+  });
   it("every scene draws something, and the layers of a scene are bounded blobs and ribbons", () => {
     for (const scene of SCENES) {
       const f = visualFrame({ colour: base({ scene, density: 0.6, speed: 0.5, feel: moodToFeel(mood) }), bpm: 90, beats: 12.3, t: 1, seed: 5 });
@@ -218,6 +254,12 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.75, calm: 0.6, warmth: 0.7, closeness: 0.5, spontaneity: 0.4, tension: 0 })).toBe("lanterns");   // hopeful
     expect(e({ joy: 0.75, calm: 0.55, warmth: 0.5, closeness: 0.3, spontaneity: 0.5, tension: 0 })).toBe("seeds");      // free
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.6, spontaneity: 0.2, tension: 0 })).toBe("tide");        // peaceful
+    expect(e({ joy: 0.95, calm: 0.1, warmth: 0.8, closeness: 0.6, spontaneity: 0.8, tension: 0.1 })).toBe("fireworks");    // excited
+    expect(e({ joy: 0.25, calm: 0.6, warmth: 0.4, closeness: 0.4, spontaneity: 0.3, tension: 0.35 })).toBe("smoke");       // brooding
+    expect(e({ joy: 0.6, calm: 0.85, warmth: 0.5, closeness: 0.4, spontaneity: 0.8, tension: 0 })).toBe("jellyfish");      // dreamy
+    expect(e({ joy: 0.55, calm: 0.5, warmth: 0.4, closeness: 0.4, spontaneity: 0.2, tension: 0.4 })).toBe("vines");        // determined
+    expect(e({ joy: 0.35, calm: 0.5, warmth: 0.7, closeness: 0.15, spontaneity: 0.3, tension: 0 })).toBe("moths");         // longing
+    expect(e({ joy: 0.45, calm: 0.45, warmth: 0.5, closeness: 0.4, spontaneity: 0.95, tension: 0.1 })).toBe("flock");      // restless
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.2, spontaneity: 0.2, tension: 0 })).toBe("stars");        // serene
     expect(e({ joy: 0.55, calm: 0.25, warmth: 0.4, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
   });

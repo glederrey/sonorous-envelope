@@ -29,6 +29,12 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "lanterns" ? lanterns(d, v, feel, c)
     : scene === "seeds" ? seeds(d, v, feel, c)
     : scene === "tide" ? tide(d, v, feel, c)
+    : scene === "smoke" ? smoke(d, v, feel, c)
+    : scene === "jellyfish" ? jellyfish(d, v, feel, c)
+    : scene === "vines" ? vines(d, v, feel, c)
+    : scene === "fireworks" ? fireworks(d, v, feel, c)
+    : scene === "moths" ? moths(d, v, feel, c)
+    : scene === "flock" ? flock(d, v, feel, c)
     : scene === "stars" ? stars(d, v, feel, c)
     : scene === "bubbles" ? bubbles(d, v, feel, c)
     : leaves(d, v, feel, c);
@@ -282,6 +288,135 @@ function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   for (let j = 0; j < n; j++) {
     const gap = (j < n - 1 ? ys[j + 1] - ys[j] : ys[j] - ys[j - 1]) * (c.aspect > 0 && c.aspect < 1 ? 1 / c.aspect : 1);
     items.push({ kind: "wave", x: 0, y: ys[j], r: Math.min(0.004 + 0.004 * feel.irreg + 0.004 * j / n, gap * 0.42), w: lerp(0.004, 0.0022, Math.min(1, j / 4)), a: (j === 0 ? 0.5 : 0.28 * Math.max(0.55, 1 - j * 0.05)) * (0.85 + 0.15 * c.amp), k: 0.45 - 0.01 * j, ph: 2 * Math.PI * c.b * 0.03 + j * 0.4, soft: 1 });
+  }
+  return { items, layers: [] };
+}
+
+const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}): Item => ({ kind: "path", x: pts[0], y: pts[1], r: 0, w, a, pts, ...extra });
+
+/** Smoke: thin wisps that rise from the bottom, curl more as they climb and thin out (three strokes, each fainter and finer). Brooding, uneasy. */
+function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(2, 6, density)), items: Item[] = [], sp = lerp(0.015, 0.05, speed), curl = 0.04 + 0.06 * feel.jitter + 0.03 * feel.irreg;
+  for (let i = 0; i < n; i++) {
+    const x0 = 0.12 + 0.76 * (i + 0.5 * hash01(i, c.seed)) / n, ph = hash01(i, c.seed + 3), N = 18;
+    const pt = (s: number) => { // s: 0 at the foot, 1 at the top; the waves travel up the wisp
+      const x = x0 + curl * (0.25 + s * 1.6) * Math.sin(2 * Math.PI * (s * 1.5 - c.b * sp + ph)) + 0.05 * noise1(s * 2 + c.b * 0.01 + i * 11, c.seed + 5) * s;
+      return [x, 1.03 - s * 0.95];
+    };
+    for (const [s0, s1, a, w] of [[0, 0.4, 0.34, 0.0045], [0.4, 0.7, 0.2, 0.003], [0.7, 1, 0.1, 0.002]] as const) {
+      const pts: number[] = [];
+      for (let k = 0; k <= N; k++) pts.push(...pt(s0 + ((s1 - s0) * k) / N));
+      items.push(pathItem(pts, w, a, { l: 80 }));
+    }
+  }
+  return { items, layers: [] };
+}
+
+/** Jellyfish: a dome that contracts on each beat and hops up a little, then glides and sinks, with tentacles trailing behind. Dreamy. */
+function jellyfish(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(1, 4, density)), items: Item[] = [], pos = spread(n, c.aspect, c.seed + 80);
+  for (let i = 0; i < n; i++) {
+    const p = pos[i], ph = hash01(i, c.seed + 3), z = hash01(i, c.seed + 2);
+    const cyc = 4 * (1 + 0.15 * (ph - 0.5)), u = ((c.b / cyc + ph) % 1 + 1) % 1, pulse = Math.sin(Math.PI * Math.min(1, u * 1.6)) * (u < 0.625 ? 1 : 0); // contracts in the first part of each cycle
+    const R = lerp(0.045, 0.085, z) * lerp(0.9, 1.2, feel.near), bell = R * (1 - 0.2 * pulse);
+    const x = p.x + p.cw * 0.35 * noise1(c.b * 0.012 + i * 9, c.seed + 4), y = p.y + p.ch * 0.3 * noise1(c.b * 0.012 + i * 9 + 30, c.seed + 5) - 0.025 * pulse + 0.02 * (u - 0.5);
+    const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), px = m / asp, py = m; // small-side units to fractions of the width and the height
+    const dome: number[] = [];
+    for (let k = 0; k <= 14; k++) { const t = Math.PI * (k / 14); dome.push(x - Math.cos(t) * bell * px * (1 + 0.15 * pulse), y - Math.sin(t) * bell * py * 0.85); }
+    items.push(pathItem(dome, 0.004, 0.5, { l: 88, dh: 25 }));
+    items.push({ kind: "dot", x, y: y - bell * py * 0.3, r: bell * 0.75, w: 0, soft: 1, a: 0.16 + 0.1 * pulse, l: 85, dh: 25 });
+    for (let t = 0; t < 4; t++) {
+      const tx = x + (t - 1.5) * bell * px * 0.55, pts: number[] = [];
+      for (let k = 0; k <= 10; k++) { const s = k / 10; pts.push(tx + Math.sin(2 * Math.PI * (s * 1.1 - c.b / cyc + t * 0.25 + ph)) * bell * px * 0.22 * s, y + s * bell * py * (2.4 - 0.5 * pulse)); }
+      items.push(pathItem(pts, 0.0028, 0.3 - 0.04 * t, { l: 88, dh: 25 }));
+    }
+  }
+  return { items, layers: [] };
+}
+
+/** The branches of a vine, as a pure function of its seed: a winding stem from the foot with side branches, as lists of points (fractions of the view). */
+function vineTree(seed: number, x0: number): number[][] {
+  const stem: number[] = [], N = 20;
+  for (let k = 0; k <= N; k++) { const s = k / N; stem.push(x0 + 0.07 * noise1(s * 2.4, seed) + 0.025 * Math.sin(s * 9 + seed), 1.03 - s * (0.55 + 0.25 * hash01(seed, 5))); }
+  const out = [stem];
+  for (let b = 0; b < 3; b++) {
+    const at = Math.floor(N * (0.3 + 0.2 * b + 0.05 * hash01(seed, 10 + b))), side = (b + seed) % 2 ? 1 : -1, br: number[] = [stem[at * 2], stem[at * 2 + 1]];
+    for (let k = 1; k <= 9; k++) { const s = k / 9; br.push(br[0] + side * s * (0.09 + 0.05 * hash01(seed, 20 + b)) + 0.02 * Math.sin(s * 6 + b), br[1] - s * (0.1 + 0.05 * hash01(seed, 30 + b))); }
+    out.push(br);
+  }
+  return out;
+}
+/** The first `g` (0 to 1) of a polyline. */
+function partOf(p: number[], g: number): number[] {
+  const n = p.length / 2 - 1, t = g * n, k = Math.floor(t), out = p.slice(0, 2 * (k + 1));
+  if (k < n) { const f = t - k; out.push(p[2 * k] + (p[2 * k + 2] - p[2 * k]) * f, p[2 * k + 1] + (p[2 * k + 3] - p[2 * k + 1]) * f); }
+  return out;
+}
+
+/** Vines: branches that draw themselves upward from the bottom over a couple of bars, hold, fade, and grow again somewhere else. Determination. */
+function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(1, 4, density)), items: Item[] = [], L = lerp(40, 20, speed);
+  for (let i = 0; i < n; i++) {
+    const t = c.b / L + i / n, cyc = Math.floor(t), u = t - cyc, sd = Math.floor(hash01(i + cyc * 977, c.seed + 6) * 1000);
+    const g = u < 0.5 ? (u / 0.5) ** 0.8 : 1, fade = u < 0.75 ? 1 : Math.max(0, (1 - u) / 0.25);
+    const x0 = 0.1 + 0.8 * (i + hash01(i + cyc * 977, c.seed)) / n, tree = vineTree(sd, Math.min(0.92, x0));
+    tree.forEach((br, bi) => {
+      const gb = bi === 0 ? g : Math.min(1, Math.max(0, (g - 0.25 - 0.2 * bi) / 0.35)); // the branches start once the stem is past their fork
+      if (gb <= 0.02) return;
+      const pts = partOf(br, gb);
+      items.push(pathItem(pts, bi === 0 ? 0.0045 : 0.003, (bi === 0 ? 0.42 : 0.34) * fade, { l: 80 }));
+      if (gb > 0.95) items.push({ kind: "dot", x: br[br.length - 2], y: br[br.length - 1], r: 0.006, w: 0, soft: 0.5, a: 0.4 * fade, l: 90 });
+    });
+  }
+  return { items, layers: [] };
+}
+
+/** Fireworks: on the first beat of each bar a shell rises and bursts into small lights that fly out, slow, droop and fade. Only small items: no wash, no glow. Elation. */
+function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const items: Item[] = [], streams = density > 0.55 ? 2 : 1, N = Math.round(lerp(14, 30, density)), life = lerp(3.4, 2.2, speed);
+  for (let s = 0; s < streams; s++) {
+    const bar = (c.b - 2 * s) / 4, k = Math.floor(bar), age = (bar - k) * 4; // beats since the burst; the rocket climbs in the last beat before it
+    for (const [kk, ag] of [[k, age], [k + 1, age - 4]] as const) {
+      const cx = 0.2 + 0.6 * hash01(kk + 31 * s, c.seed), cy = 0.18 + 0.3 * hash01(kk + 31 * s, c.seed + 1), hue = (c.h + 360 * hash01(kk + 31 * s, c.seed + 2)) % 360;
+      if (ag >= -1 && ag < 0) { const u = ag + 1; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u) , r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
+      if (ag < 0 || ag > life) continue;
+      const u = ag / life, rad = lerp(0.12, 0.26, feel.near) * (0.8 + 0.4 * feel.depth);
+      for (let p = 0; p < N; p++) {
+        const a = 2 * Math.PI * (p / N + 0.05 * hash01(p, kk)), sp = rad * (0.55 + 0.45 * hash01(p, kk + 5)), e = 1 - Math.exp(-4 * u);
+        const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+        items.push({ kind: "dot", x: cx + (Math.cos(a) * sp * e * m) / asp, y: cy + Math.sin(a) * sp * e * m + 0.12 * u * u, r: 0.0045 * (1 - 0.5 * u), w: 0, soft: 0.3, a: 0.7 * (1 - u) ** 1.4, hue: (hue + 30 * hash01(p, kk + 9)) % 360, sat: 90, l: 72 });
+      }
+    }
+  }
+  return { items, layers: [] };
+}
+
+/** Moths: one small warm light, and pale specks on tilted orbits around it that now and then dart away and come back. Longing. */
+function moths(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(4, 9, density)), items: Item[] = [];
+  const lx = 0.3 + 0.4 * hash01(1, c.seed + 90), ly = 0.35 + 0.3 * hash01(2, c.seed + 90), flick = 0.8 + 0.2 * Math.sin(c.b * 1.3) + 0.1 * noise1(c.b * 0.4, c.seed + 91);
+  const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+  items.push({ kind: "dot", x: lx, y: ly, r: 0.05, w: 0, soft: 1, a: 0.4 * flick, hue: 38, sat: 95, l: 62 });
+  items.push({ kind: "dot", x: lx, y: ly, r: 0.011, w: 0, soft: 0.5, a: 0.8 * flick, hue: 44, sat: 90, l: 88 });
+  for (let i = 0; i < n; i++) {
+    const ph = hash01(i, c.seed + 3), tilt = Math.PI * hash01(i, c.seed + 4), rx = 0.07 + 0.09 * hash01(i, c.seed + 5), ry = rx * (0.35 + 0.4 * hash01(i, c.seed + 6));
+    const dart = 0.6 + 1.1 * Math.max(0, noise1(c.b * 0.05 + i * 3.7, c.seed + 7)), a = 2 * Math.PI * (c.b / lerp(9, 4, speed) * (0.7 + 0.6 * ph) + ph);
+    const ex = Math.cos(a) * rx * dart, ey = Math.sin(a) * ry * dart;
+    items.push({ kind: "dot", x: lx + ((ex * Math.cos(tilt) - ey * Math.sin(tilt)) * m) / asp, y: ly + (ex * Math.sin(tilt) + ey * Math.cos(tilt)) * m, r: 0.0042, w: 0, soft: 0.2, a: 0.35 + 0.25 * Math.sin(c.b * 3 + i * 2) ** 2, l: 90, hue: 50, sat: 40 });
+  }
+  return { items, layers: [] };
+}
+
+/** A flock: dozens of dark specks that move as one body whose shape breathes, wheeling across the view. Swept up, restless. */
+function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const n = Math.round(lerp(30, 80, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1), sp = lerp(0.012, 0.04, speed);
+  const cx = 0.5 + 0.28 * Math.sin(2 * Math.PI * c.b * sp * 0.9), cy = 0.42 + 0.2 * Math.sin(2 * Math.PI * c.b * sp * 1.3 + 1), vx = Math.cos(2 * Math.PI * c.b * sp * 0.9);
+  const R = lerp(0.1, 0.18, feel.near);
+  for (let i = 0; i < n; i++) {
+    const th = 2 * Math.PI * hash01(i, c.seed + 1) + c.b * 0.04 * (0.5 + hash01(i, c.seed + 2)), rr = Math.sqrt(hash01(i, c.seed + 3));
+    const shape = 1 + 0.45 * noise1(th * 1.3 + c.b * 0.12, c.seed + 4); // the outline breathes
+    const dx = Math.cos(th) * rr * R * shape * (1.5 + 0.4 * Math.sign(vx)), dy = Math.sin(th) * rr * R * shape * 0.8;
+    items.push({ kind: "dot", x: cx + (dx * m) / asp, y: cy + dy * m, r: 0.0034 + 0.0016 * hash01(i, c.seed + 5), w: 0, soft: 0, a: 0.55, l: 8 });
   }
   return { items, layers: [] };
 }

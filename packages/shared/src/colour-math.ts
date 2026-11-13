@@ -41,7 +41,7 @@ export function matchedLayer(bases: Rgb[], hue: number, sat: number): { hue: num
     if (k < best.k) best = { hue: qh, sat: qs, l, k };
   }
   best = { ...best, k: Math.max(0.01, best.k) };
-  if (memo.size > 600) memo.clear();
+  if (memo.size > 6000) memo.clear();
   memo.set(key, best);
   return best;
 }

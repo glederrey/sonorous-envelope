@@ -55,12 +55,17 @@ export function glowArea(r: number, aspect: number): number {
 export function largeSwing(f: Frame): number {
   return f.wash + (f.glow ? f.glow.a : 0) + f.layers.reduce((s, l) => s + l.a * (l.k ?? 1), 0);
 }
+function pathArea(i: Item, aspect: number, w: number): number {
+  const p = i.pts ?? [], X = aspect >= 1 ? aspect : 1, Y = aspect < 1 ? 1 / aspect : 1; // the view in units of its smaller side
+  let len = 0; for (let k = 2; k < p.length; k += 2) len += Math.hypot((p[k] - p[k - 2]) * X, (p[k + 1] - p[k - 1]) * Y);
+  return len * w;
+}
 /** The share of the view an item covers. `minW`: the thinnest line the painter draws, as a fraction of the smaller side (a line is never thinner than a pixel). */
 export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
   const w = Math.max(i.w, minW);
   const area = i.kind === "dot" ? Math.PI * i.r * i.r * ((i.soft ?? 0) > 0.05 ? 2.56 : 1) : // a soft dot is painted at 1.6 times its radius
-     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * w * (1 + 4 * i.r) : i.r * w;
+     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "path" ? pathArea(i, a, w) : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * w * (1 + 4 * i.r) : i.r * w;
   return area * k;
 }
 

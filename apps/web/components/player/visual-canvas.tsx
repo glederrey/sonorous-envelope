@@ -104,6 +104,11 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.beginPath();
           ctx.ellipse(i.x * w, i.y * h, Math.max(0.5, i.r * m), Math.max(0.3, i.r * m * (i.sq ?? 1)), 0, 0, Math.PI * 2); ctx.stroke();
         }
+        else if (i.kind === "path" && i.pts && i.pts.length >= 4) {
+          ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(i.pts[0] * w, i.pts[1] * h);
+          for (let k = 2; k < i.pts.length; k += 2) ctx.lineTo(i.pts[k] * w, i.pts[k + 1] * h);
+          ctx.stroke();
+        }
         else if (i.kind === "leaf") {
           // a pointed leaf with a midrib, turned over by `sq`
           const L = Math.max(2, i.r * m);
