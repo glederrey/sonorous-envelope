@@ -1,6 +1,6 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "fire", "warp", "caustics", "lightning", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "fire", "warp", "caustics", "lightning", "sunbeam", "cracks", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
@@ -66,8 +66,6 @@ export interface Clock {
   px: number;
   /** beats per second of `b` (half-time already applied): a scene that must not repeat faster than a rate in Hz (rings, flashes) divides by it */
   bps: number;
-  /** seconds of the page's clock, for things that must run at a fixed rate whatever the tempo */
-  sec: number;
   /** the field's hue and base colours (the primary and the secondary), for scenes that choose a colour that reads against it */
   h: number; s: number; bases: Array<[number, number, number]>;
 }

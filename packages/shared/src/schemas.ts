@@ -98,7 +98,7 @@ export const Colour = z.object({
   motion: z.enum(["still", "drift", "pulse", "breathe"]).optional().describe("still, drift, pulse (on the beat) or breathe"),
   shape: z.enum(["wash", "glow", "sweep"]).optional().describe("layout: wash (linear, default), glow (radial), sweep (conic)"),
   texture: z.enum(["flat", "grain", "soft_noise"]).optional(),
-  scene: z.enum(["none", "motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "fire", "warp", "caustics", "lightning", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"]).optional().describe("left out: the mood picks; none: off"),
+  scene: z.enum(["none", "motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "fire", "warp", "caustics", "lightning", "sunbeam", "cracks", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"]).optional().describe("left out: the mood picks; none: off"),
   density: unit.optional().describe("how many, for a scene"),
   speed: unit.optional().describe("how fast, for a scene"),
   sync: z.enum(["beat", "phrase", "free"]).optional().describe("what the motion follows: beat, phrase (4-bar swell) or free. Left out: the mood decides"),
@@ -139,7 +139,7 @@ export const SetSoundInput = z.object({
   voice: Voice.optional().describe("your voice: root, scale, chord, note order, octaves, wave. It stays from turn to turn; send a new one to change it, for instance when the conversation turns"),
   keep_voice: z.boolean().optional().describe("true: freeze the scale, root, note order and wave that play now as your voice. Without one, your first sound becomes your voice, and its scale mode follows joy"),
   mode: z.enum(["internal", "external"]).optional().describe("switch your face (see the guidance from start_session): external only after the listener said yes"),
-  rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns: this is how the channel says so. Leave it out to keep the value"),
+  rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns; this is how the channel says so. Leave out to keep it"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
 

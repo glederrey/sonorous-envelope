@@ -191,12 +191,12 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.15, calm: 0.85, warmth: 0.2, closeness: 0.1, spontaneity: 0.2, tension: 0 })).toBe("snow");   // lonely
     expect(e({ joy: 0.25, calm: 0.8, warmth: 0.75, closeness: 0.7, spontaneity: 0.3, tension: 0.05 })).toBe("leaves");    // melancholic
     expect(e({ joy: 0.12, calm: 0.12, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.85 })).toBe("embers"); // angry
-    expect(e({ joy: 0.12, calm: 0.12, warmth: 0.1, closeness: 0.3, spontaneity: 0.6, tension: 0.85 })).toBe("rain");   // cold anger: a storm
+    expect(e({ joy: 0.12, calm: 0.12, warmth: 0.1, closeness: 0.3, spontaneity: 0.6, tension: 0.85 })).toBe("cracks");   // cold anger: a hit and fractures
     expect(e({ joy: 0.9, calm: 0.3, warmth: 0.7, closeness: 0.6, spontaneity: 0.6, tension: 0 })).toBe("motes");       // happy
     expect(e({ joy: 0.7, calm: 0.9, warmth: 0.5, closeness: 0.1, spontaneity: 0.3, tension: 0 })).toBe("aurora");      // awe
     expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("fireflies");  // tender
     expect(e({ joy: 0.85, calm: 0.4, warmth: 0.7, closeness: 0.6, spontaneity: 0.9, tension: 0 })).toBe("bubbles");    // playful
-    expect(e({ joy: 0.4, calm: 0.5, warmth: 0.8, closeness: 0.6, spontaneity: 0.4, tension: 0 })).toBe("leaves");      // nostalgic
+    expect(e({ joy: 0.4, calm: 0.5, warmth: 0.8, closeness: 0.6, spontaneity: 0.4, tension: 0 })).toBe("sunbeam");      // nostalgic
     expect(e({ joy: 0.75, calm: 0.6, warmth: 0.7, closeness: 0.5, spontaneity: 0.4, tension: 0 })).toBe("fire");   // hopeful
     expect(e({ joy: 0.75, calm: 0.55, warmth: 0.5, closeness: 0.3, spontaneity: 0.5, tension: 0 })).toBe("seeds");      // free
     expect(e({ joy: 0.45, calm: 0.65, warmth: 0.3, closeness: 0.6, spontaneity: 0.3, tension: 0 })).toBe("clouds");     // pensive

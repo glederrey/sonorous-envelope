@@ -18,6 +18,7 @@ const EMOTIONS: Array<{ id: string; name: string; mood: Mood }> = [
   { id: "pensive", name: "Pensive", mood: { warmth: 0.3, closeness: 0.6, joy: 0.45, calm: 0.65, spontaneity: 0.3, tension: 0 } },
   { id: "dreamy", name: "Dreamy", mood: { warmth: 0.3, closeness: 0.5, joy: 0.6, calm: 0.7, spontaneity: 0.75, tension: 0 } },
   { id: "eager", name: "Eager", mood: { warmth: 0.5, closeness: 0.2, joy: 0.62, calm: 0.3, spontaneity: 0.6, tension: 0.1 } },
+  { id: "cold-anger", name: "Cold anger", mood: { warmth: 0.1, closeness: 0.3, joy: 0.12, calm: 0.12, spontaneity: 0.6, tension: 0.85 } },
   { id: "dread", name: "Dread", mood: { warmth: 0.3, closeness: 0.4, joy: 0.15, calm: 0.65, spontaneity: 0.3, tension: 0.75 } },
   { id: "serene", name: "Serene", mood: { warmth: 0.5, closeness: 0.2, joy: 0.5, calm: 0.9, spontaneity: 0.2, tension: 0 } },
   { id: "hopeful", name: "Hopeful", mood: { warmth: 0.7, closeness: 0.5, joy: 0.75, calm: 0.6, spontaneity: 0.4, tension: 0 } },

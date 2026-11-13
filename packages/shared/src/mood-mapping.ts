@@ -134,11 +134,12 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
   const anger = ramp(t, 0.35, 0.65) * (1 - ramp(j, 0.45, 0.7)) * (1 - ramp(k, 0.5, 0.75));
   const score: Array<[NonNullable<ResolvedColour["scene"]>, number]> = [
     ["snow", lowJoy * ramp(k, 0.6, 0.85) * (1 - ramp(w, 0.35, 0.55)) * (1 - ramp(c, 0.2, 0.4)) * notTense], // lonely hush: cold, distant, very calm
-    ["rain", Math.max(lowJoy * calm * (1 - ramp(t, 0.15, 0.3)) * (1 - ramp(w, 0.5, 0.75)),            // sad: cold, low, quiet, a thin rain
-                      anger * (1 - ramp(w, 0.1, 0.3)))],                               // icy anger: a storm
+    ["rain", lowJoy * calm * (1 - ramp(t, 0.15, 0.3)) * (1 - ramp(w, 0.5, 0.75))],            // sad: cold, low, quiet, a thin rain
+    ["cracks", anger * (1 - ramp(w, 0.1, 0.3))],                                          // cold anger: a hit and fractures racing out
     ["embers", anger * ramp(w, 0.05, 0.25)],                                           // anger: sparks that jerk and flicker
     ["fireflies", ramp(w, 0.55, 0.8) * ramp(c, 0.55, 0.8) * ramp(j, 0.25, 0.5) * ramp(k, 0.4, 0.7) * notTense * (1 - ramp(j, 0.7, 0.9))], // tender: soft lights that glow on and off
-    ["leaves", ramp(j, 0.05, 0.2) * (1 - ramp(j, 0.4, 0.6)) * ramp(w, 0.55, 0.75) * ramp(k, 0.25, 0.45) * ramp(c, 0.35, 0.55) * notTense], // wistful and melancholic: warm, low joy
+    ["sunbeam", ramp(w, 0.55, 0.75) * ramp(j, 0.25, 0.4) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.3, 0.45) * (1 - ramp(k, 0.65, 0.85)) * ramp(c, 0.4, 0.6) * notTense], // nostalgic: warm light through dust
+    ["leaves", ramp(j, 0.05, 0.2) * (1 - ramp(j, 0.25, 0.45)) * ramp(w, 0.55, 0.75) * ramp(k, 0.25, 0.45) * ramp(c, 0.35, 0.55) * notTense], // wistful and melancholic: warm, low joy
     ["stars", ramp(w, 0.2, 0.4) * ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
     ["fireworks", ramp(j, 0.8, 0.95) * (1 - ramp(k, 0.1, 0.3)) * notTense],                                      // elation: bursts of light
     ["smoke", (1 - ramp(j, 0.3, 0.5)) * ramp(k, 0.45, 0.7) * ramp(t, 0.2, 0.4) * (1 - ramp(t, 0.5, 0.7))],      // brooding, uneasy: wisps that rise and curl

@@ -11,9 +11,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "rain" || s === "embers";
 /** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
+export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -34,6 +34,8 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "warp" ? warp(d, v, feel, c)
     : scene === "caustics" ? caustics(d, v, feel, c)
     : scene === "lightning" ? lightning(d, v, feel, c)
+    : scene === "sunbeam" ? sunbeam(d, v, feel, c)
+    : scene === "cracks" ? cracks(d, v, feel, c)
     : scene === "circuit" ? circuit(d, v, feel, c)
     : scene === "digital" ? digital(d, v, feel, c)
     : scene === "scope" ? scope(d, v, feel, c)
@@ -679,8 +681,8 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const pal = pals[v], nebHue = [230, 20, 300, 255, 200][v], rings = v === 4 ? 3 : v === 2 ? 2 : 1, bigStars = v === 3 ? 12 : 5, nStars = Math.round(n * (v === 4 ? 0.6 : v === 3 ? 1.3 : 1));
   for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
   items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick * calmK), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: nebHue }); // the core
-  // rings of light leave the core at a fixed pace, 2.6 s from the core to the edge whatever the tempo (and at most three at once), so they can never strobe
-  for (let q = 0; q < rings; q++) { const ring = frac(c.sec / 2.6 + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
+  // rings of light leave the core on the beat: one every two beats (the tunnel look spreads three over six), each taking as long as its share of the cycle
+  for (let q = 0; q < rings; q++) { const ring = frac(c.b / (2 * rings) + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
   for (let i = 0; i < nStars; i++) {
     const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
     const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
@@ -731,4 +733,46 @@ function lightning(density: number, speed: number, feel: Feel, c: Clock): SceneO
   for (const l of cl) layers.push({ ...l, a: l.a * (0.3 + 1.7 * flash) });
   if (flash > 0.02) layers.push({ kind: "blob", x: 0.5, y: 0.25, r: 1.3, a: 0.4 * flash, dh: 0, sat: 20, l: 92 });
   return { items, layers };
+}
+
+/** Sunbeam: slanted shafts of warm light through a window or leaves, with dust turning slowly inside them. The shafts are a veil (stripes along one slanted axis, slowly drifting and breathing); the dust specks glow only where a shaft is. */
+function sunbeam(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const asp = c.aspect > 0 ? c.aspect : 0.6, lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length);
+  const tone = lum < 0.4 ? toneLayer(c.bases, 42, true, 0.2, { sat: 0.85, l: 0.78 }) : toneLayer(c.bases, 38, false, 0.2, { sat: 0.7, l: 0.35 });
+  const GW = Math.round(clamp(c.px / 6, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), slant = 0.55 + 0.25 * hash01(c.seed, 130), nb = lerp(3, 7, density), rate = lerp(0.01, 0.05, speed);
+  const shaft = (bq: number, x: number, y: number) => {
+    const u = x + y * slant, t = bq * rate;
+    const s1 = 0.5 + 0.5 * noise1(u * nb + t * 3, c.seed + 131), s2 = 0.5 + 0.5 * noise1(u * nb * 2.3 - t * 2, c.seed + 132);
+    return sstep(0.35, 0.8, s1 * 0.75 + s2 * 0.25) * (0.25 + 0.75 * (1 - y) ** 0.8) * sstep(0, 0.12, 1 - y + 0.1) * (0.9 + 0.1 * Math.sin(bq * 0.2 + u * 9));
+  };
+  const lay = veil(`sunbeam|${GW}x${GH}|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}`, 8, c.b, GW, GH, (bq) => (x, y) => shaft(bq, x, y), tone.a, tone);
+  const items: Item[] = [], n = Math.round(lerp(30, 120, density));
+  for (let i = 0; i < n; i++) { // dust: slow drift, visible only inside a shaft
+    const ph = hash01(i, c.seed + 133), x = frac(hash01(i, c.seed + 134) + 0.03 * noise1(c.b * 0.05 + ph * 9, c.seed + i) + c.b * rate * 0.1), y = frac(hash01(i, c.seed + 135) + c.b * rate * 0.2 * (0.4 + ph));
+    const inside = shaft(c.b, x, y); if (inside < 0.25) continue;
+    items.push({ kind: "dot", x, y, r: 0.002 + 0.003 * hash01(i, c.seed + 136), w: 0, soft: 0.7, a: Math.min(0.8, inside) * (0.4 + 0.6 * Math.abs(Math.sin(c.b * 0.3 + ph * 20))), l: 92, sat: 70, hue: 45 });
+  }
+  return { items, layers: [lay] };
+}
+
+/** Cracks: a hit on the beat and fractures racing out from it, branching, then lingering and fading, cold blue-white. One impact every few beats (at most one a beat, never quicker). */
+function cracks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const gap = lerp(8, 3, density) / lerp(0.8, 1.4, speed), k = Math.floor(c.b / gap), items: Item[] = [];
+  for (const e of [k - 1, k]) {
+    const tau = c.b - e * gap; if (tau < 0 || tau > 7) continue;
+    const sd = c.seed + e * 1013, ox = 0.2 + 0.6 * hash01(e, sd + 1), oy = 0.2 + 0.6 * hash01(e, sd + 2), grow = clamp(tau / 0.7), fade = tau < 0.7 ? 1 : Math.exp(-(tau - 0.7) * 0.55), rays = 5 + Math.floor(hash01(e, sd + 3) * 4);
+    const seg = (x0: number, y0: number, ang: number, len: number, depth: number, id: number) => { // a jagged line that grows with `grow`, and may fork
+      const m = Math.max(2, Math.round(len * 22)), pts: number[] = [x0, y0]; let x = x0, y = y0, a = ang;
+      const upto = Math.max(1, Math.floor(m * grow));
+      for (let q = 1; q <= upto; q++) {
+        a += (hash01(q, sd + id * 7 + 4) - 0.5) * 0.9; x += Math.cos(a) * len / m; y += Math.sin(a) * len / m;
+        pts.push(x, y);
+        if (depth < 2 && q > 2 && q < upto && hash01(q, sd + id * 11 + 5) < 0.22) seg(x, y, a + (hash01(q, sd + id + 6) < 0.5 ? -1 : 1) * (0.6 + 0.6 * hash01(q, sd + id + 7)), len * 0.45, depth + 1, id * 3 + q);
+      }
+      if (pts.length >= 4) { items.push(pathItem(pts, depth === 0 ? 0.0028 : 0.0016, 0.2 * fade, { l: 80, sat: 60, hue: 205 })); items.push(pathItem(pts, depth === 0 ? 0.0012 : 0.0008, (depth === 0 ? 0.9 : 0.7) * fade, { l: 97, sat: 20, hue: 205 })); }
+    };
+    for (let r = 0; r < rays; r++) seg(ox, oy, (r / rays) * 2 * Math.PI + hash01(r, sd + 8), 0.25 + 0.3 * hash01(r, sd + 9), 0, r + 1);
+    if (tau < 0.9) items.push({ kind: "dot", x: ox, y: oy, r: 0.03 * (1 - tau / 0.9), w: 0, soft: 1, a: 0.5 * (1 - tau / 0.9), l: 96, sat: 30, hue: 205 }); // the impact
+  }
+  return { items, layers: [] };
 }
