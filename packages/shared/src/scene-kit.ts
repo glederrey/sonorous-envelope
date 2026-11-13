@@ -62,6 +62,8 @@ export interface Clock {
   red: number;
   /** width over height of the view (the waves keep their swing under the gap between lines) */
   aspect: number;
+  /** width of the picture in pixels (the veil scenes pick the fineness of their field by it) */
+  px: number;
   /** the field's hue and base colours (the primary and the secondary), for scenes that choose a colour that reads against it */
   h: number; s: number; bases: Array<[number, number, number]>;
 }

@@ -158,7 +158,7 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
 /** Aurora: a curtain of soft light hanging from a rippling lower edge, as in the photographs: a sharp bright base that fades upward, dense vertical striations of different lengths that slide along it, and a second,
  *  fainter colour (pink or violet) high above the green base. Two veils (low-resolution fields smoothed up over the view) share the brightness budget; a few thin rays carry the shape where the colour alone cannot. */
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const GW = 96, GH = 44, items: Item[] = [];
+  const GW = Math.round(clamp(c.px / 5, 64, 160)), GH = Math.round(clamp(GW * 0.5, 32, 80)), items: Item[] = [];
   const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
   const h = lerp(0.3, 0.52, 1 - feel.jitter * 0.6), fold = lerp(0.6, 1.6, speed);
   // the curtain at the moment `b`: its lower edge (slow noise plus folds that travel along it, like cloth in the wind), the brightness along it (broad bands that slide sideways and pulse slowly)
@@ -177,7 +177,7 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const dark = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length) < 0.3;
   const vA = dark ? { sat: 0.9, l: 0.6 } : { sat: 0.85, l: 0.3 }, vB = dark ? { sat: 0.8, l: 0.62 } : { sat: 0.8, l: 0.34 };
   const mA = toneLayer(c.bases, hueA, dark, 0.4, vA), mB = toneLayer(c.bases, hueB, dark, 0.25, vB);
-  const vk = `${c.seed}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`;
+  const vk = `${GW}x${GH}|${c.seed}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`;
   const base = veil(`aua|${vk}`, 8, c.b, GW, GH, (bq) => {
     const { e, g, s } = cols(bq);
     return (x, y) => { const i = col(x), up = e[i] - y, len = h * (0.25 + 0.75 * s[i]) * (0.4 + 0.6 * g[i]); return (up < 0 ? Math.exp(up / 0.03) : Math.exp(-up / (len * 0.6))) * (0.3 + 0.7 * s[i]) * g[i] * 1.25; };
@@ -317,7 +317,7 @@ const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}
 /** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
  *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), GW = 80, GH = 108;
+  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 4.5, 48, 150)), GH = Math.round(clamp(GW / asp, 48, 220));
   const x0 = (p: number) => (p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P;
   const build = (bq: number) => {
     const rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60);
@@ -334,12 +334,12 @@ function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
       return lerp(Math.min(1, thin) * 0.9, body, sstep(0.05, 0.25, hh));
     };
   };
-  return { items: [], layers: [veil(`smoke|${c.seed}|${P}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, 10, c.b, GW, GH, build, tone.a, tone)] };
+  return { items: [], layers: [veil(`smoke|${GW}x${GH}|${c.seed}|${P}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`, 10, c.b, GW, GH, build, tone.a, tone)] };
 }
 
 /** Clouds: banks and puffs that drift slowly across, in two scales of noise so they have bulk and a ragged edge; thinner towards the top and the bottom of the view. A veil like the smoke, light on a dark sky and dark on a bright one. */
 function clouds(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.22), cover = lerp(-0.12, 0.2, density) + 0.1 * (feel.near - 0.5), GW = 80, GH = 56;
+  const tone = bestTone(c.bases, c.h, 0.22), cover = lerp(-0.12, 0.2, density) + 0.1 * (feel.near - 0.5), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 7, 40, 110)), GH = Math.round(clamp(GW / asp, 30, 160));
   const build = (bq: number) => {
     const drift = bq * lerp(0.004, 0.014, speed);
     return (x: number, y: number) => {
@@ -348,7 +348,7 @@ function clouds(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
       return body * (0.6 + 0.4 * sstep(0.15, 0.8, v)) * sstep(0, 0.14, y) * (1 - sstep(0.82, 1, y));
     };
   };
-  return { items: [], layers: [veil(`clouds|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}|${Math.round(feel.near * 20)}`, 5, c.b, GW, GH, build, tone.a, tone)] };
+  return { items: [], layers: [veil(`clouds|${GW}x${GH}|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}|${Math.round(feel.near * 20)}`, 5, c.b, GW, GH, build, tone.a, tone)] };
 }
 
 /** Circuit: right-angled traces across the view, with pulses of light that travel along them one segment on each beat, in steps, never smoothly. Cold, exact, a machine at work. */

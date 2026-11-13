@@ -31,7 +31,7 @@ interface Props {
 }
 
 interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number }
-const SCALE_START = 0.5, SCALE_MIN = 0.3;
+const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, onFail }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -202,7 +202,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         }
         const fk = fromScene ? Math.min(1, (now - fadeStart) / 1000 / fadeDur) : 1;
         if (fk >= 1) fromScene = null;
-        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
+        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
         const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl);
         const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0 && frame.layers.length === 0;
         if (!(empty && wasEmpty)) paint(frame, c.h); // a still state is not repainted 60 times a second
