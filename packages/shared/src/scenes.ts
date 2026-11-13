@@ -536,7 +536,7 @@ function stepBoids(B: Boids, seed: number, nf: number) {
 }
 function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const nf = 1 + Math.round(density * 2), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6;
-  const ep = Math.floor(c.b / EPOCH), n = Math.round(lerp(40, 80, density) * lerp(1, 1.75, hash01(ep, c.seed + 160))), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
+  const ep = Math.floor(c.b / EPOCH), n = Math.round(lerp(70, 120, density) * lerp(1, 1.75, hash01(ep, c.seed + 160))), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
   const key = `${c.seed}|${ep}|${n}|${nf}`;
   let B = SIMS.get(key);
   if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 96) SIMS.delete(SIMS.keys().next().value as string); }

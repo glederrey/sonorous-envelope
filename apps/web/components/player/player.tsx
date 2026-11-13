@@ -542,7 +542,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   return (
     <div
       className="pl-field" style={fieldStyle}
-      data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
+      data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-canvas={canvasOk && !reduced ? "on" : "off"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
       <div className="pl-dim" data-animated={dimAnimated} aria-hidden />
       {canvasOk && !reduced && (

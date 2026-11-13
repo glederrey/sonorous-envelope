@@ -106,7 +106,7 @@ export function VisualsLab() {
           } as CSSProperties;
           return (
             <figure key={p.id} style={{ margin: 0 }}>
-              <div className="pl-field lab-field" style={{ ...style, position: "relative" }} data-motion="still" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
+              <div className="pl-field lab-field" style={{ ...style, position: "relative" }} data-motion="still" data-canvas="on" data-texture={c.texture} data-shape={c.shape ?? "wash"}>
                 <VisualCanvas source={silentAt ? { state: silentOf(p.state, epoch, silentAt), at: silentAt, seed: p.seed } : { state: p.state, at: epoch, seed: p.seed }} clockOffset={clock} latency={latency} active play={play} visuals={visuals} onFail={() => {}} />
                 <div aria-hidden style={{ position: "absolute", inset: 0, background: "#000", borderRadius: 12, pointerEvents: "none", zIndex: 1, opacity: silentAt ? 1 : 0, transition: silentAt ? "opacity 8s ease-in-out" : "none" }} />
               </div>

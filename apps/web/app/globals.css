@@ -885,6 +885,10 @@ html:has(.pl-field) .se-header {
       hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)),
       hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%)));
 }
+/* with the canvas on, the base is one flat colour: the gradient and the visuals are drawn on top and the listener can turn them off */
+.pl-field[data-canvas="on"], .pl-field[data-canvas="on"][data-shape] {
+  background: hsl(calc(var(--pl-h) * 1deg) calc(var(--pl-s) * 100%) calc(var(--pl-l) * 100%));
+}
 .pl-field::before, .pl-field::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
 .pl-field[data-texture="grain"]::before, .pl-field[data-texture="soft_noise"]::before {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
