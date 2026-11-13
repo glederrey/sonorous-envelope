@@ -9,6 +9,7 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 /** Alpha of the scene when it fades in or out (visual.ts, `from`). */
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
+/** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
 export const sceneHasLayers = (s: SceneName | "none") => s === "fog" || s === "aurora" || s === "rain" || s === "embers";
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
@@ -79,9 +80,8 @@ function rain(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
       items.push({ kind: "ring", x: landX, y: landY, r: (0.006 + 0.022 * z) * (0.35 + s), w: 0.0012 + 0.0008 * z, sq: 0.32, a: 0.36 * z * (1 - s) ** 1.6 });
     }
   }
-  const layers: Layer[] = density > 0.2 ? [
-    { kind: "blob", x: 0.5 + 0.2 * noise1(c.b / 40, c.seed + 5), y: 1.02, r: lerp(0.6, 0.95, density), a: 0.035 * (0.6 + density), dh: 0 },
-  ] : [];
+  // the mist at the foot is always in the list (it grows in with the density), so the budget's step-back never switches on at once
+  const layers: Layer[] = [{ kind: "blob", x: 0.5 + 0.2 * noise1(c.b / 40, c.seed + 5), y: 1.02, r: lerp(0.6, 0.95, density), a: 0.035 * (0.6 + density) * clamp((density - 0.1) / 0.2), dh: 0 }];
   return { items, layers };
 }
 
@@ -102,7 +102,7 @@ function snow(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 /** Embers: sparks that rise from the floor and cool as they go. Tender: few, big, soft and slow. Angry: many, sharp, fast, flickering and jerking. */
 function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(8, 90, density)), items: Item[] = [];
-  const life0 = lerp(11, 4.5, speed) * lerp(1.15, 0.85, feel.jitter);
+  const life0 = lerp(11, 4.5, speed); // the rate depends on the speed only: a mood that drifts a little must not move every spark
   for (let i = 0; i < n; i++) {
     const z = hash01(i, c.seed + 2), life = life0 * (0.7 + 0.6 * z), t = c.b / life + hash01(i, c.seed + 3), cyc = Math.floor(t), u = t - cyc;
     const top = 0.1 + 0.5 * hash01(i + cyc * 977, c.seed + 4), x0 = hash01(i + cyc * 977, c.seed);
@@ -113,7 +113,7 @@ function embers(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     items.push({ kind: "dot", x: x0 + wob, y, r: lerp(0.005, 0.0135, feel.near) * (0.55 + 0.7 * z) * (1 - 0.5 * u) * (1 + 0.45 * c.hit), w: 0, soft: clamp(feel.soft * 1.1),
       a: 0.8 * (1 - u) ** lerp(1.1, 0.6, feel.jitter) * flick * Math.min(1, (1.03 - y) * 14), hue: 18 + 28 * (1 - u) * (0.6 + 0.4 * z), sat: 95, l: 58 + 22 * (1 - u) });
   }
-  const layers: Layer[] = [{ kind: "blob", x: 0.5 + 0.1 * noise1(c.b / 16, c.seed + 12), y: 1.12, r: lerp(0.55, 0.85, feel.near), a: 0.03 + 0.018 * c.hit * (0.5 + feel.jitter), dh: -8 }];
+  const layers: Layer[] = [{ kind: "blob", x: 0.5 + 0.1 * noise1(c.b / 16, c.seed + 12), y: 1.12, r: lerp(0.55, 0.85, feel.near), a: 0.03 + 0.018 * c.hit * c.red * (0.5 + feel.jitter), dh: -8 }]; // a large element: it pulses on the beat unless the field is saturated red
   return { items, layers };
 }
 

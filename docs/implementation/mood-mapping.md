@@ -73,12 +73,13 @@ A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). 
 - If the bass layer and the drone sound muddy together, drop the mapped drone (it stays available through the override). Check by ear.
 
 ## Colour (follow mode)
-`ResolvedColour = { h, s, l, secondary?, motion, shape?, texture, pulseHz, scene?, density?, speed?, sync?, feel? }`
-- **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue.
+`ResolvedColour = { h, s, l, secondary?, motion, shape?, texture, pulseHz, scene?, sceneAuto?, density?, speed?, sync?, feel? }`
+- **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue. One exception (2026-11-13, a decision for Gael): anger (tension above 0.35 with low joy and low calm) pulls the hue the short way round to red (356°) and adds up to 0.35 saturation. Saturated red gets no brightness pulse (safety.md), so the anger shows in the form of its scene.
 - **Saturation:** `lerp(0.15, 0.6, 0.5·j + 0.5·(1−k))`.
 - **Lightness:** `lerp(0.12, 0.45, 0.6·j + 0.4·(cutoff normalised))`. The page stays dark overall; never above 0.6.
 - **Secondary:** hue + 25°, lightness − 0.08, for a slow gradient.
 - **Motion:** `k > 0.7 → "breathe"`, `k > 0.45 → "drift"`, else `"pulse"` (changed 2026-11-11: the motion is safe at any tempo, so no mood is still; `"still"` only when the model sends it). The motion follows the beat clock, not the LFO (visuals.md); `pulseHz = min(LFO1.rate, 1.0)` is kept for the legacy CSS pulse, still capped at 3 Hz by `hardCaps`. An `amp` LFO at audio-like rates (20 to 80 Hz, planned) is sound only and never drives the colour.
+- **Scene (`moodToScene`, 2026-11-13):** when the model sets none, the strongest emotion region of the axes picks one (sad: rain, melancholy: fog, lonely: snow, angry: embers or a storm of rain, tender: embers, happy: motes, content: waves, awe: aurora, nervous: ripples; nothing for a neutral mood). `density` and `speed` come in steps of 0.25, because a scene's motion is a rate times the beat count and a small drift of the mood must not move every item. The scene is flagged `sceneAuto` and is not reported in `playing.picture`. The table of forms is in visuals.md, "Emotions in the picture". To turn all of it off, drop the `...(pick ? ...)` line in `moodToColour`.
 - **Feel (`moodToFeel`, how the mood shapes the motion):** `depth = 1 − 0.75·k`, `lift = j`, `jitter = tension`, `soft = w`, `near = c`, `irreg = s`. What each does is in visuals.md. Starting values, tune by eye on `/dev/visuals`.
 - **Texture:** `"grain"` if `w < 0.3`, else `"soft_noise"` if `s > 0.6`, else `"flat"`.
 

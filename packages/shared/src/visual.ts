@@ -69,7 +69,8 @@ export function largeSwing(f: Frame): number {
 export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
   const w = Math.max(i.w, minW);
-  const area = i.kind === "dot" ? Math.PI * i.r * i.r : i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
+  const area = i.kind === "dot" ? Math.PI * i.r * i.r * ((i.soft ?? 0) > 0.05 ? 2.56 : 1) : // a soft dot is painted at 1.6 times its radius
+     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
   return area * k;
 }
 
@@ -161,10 +162,13 @@ export function visualFrame({ colour, bpm, beats, t, seed = 1, from }: FrameInpu
     }
   }
 
-  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed };
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
-  // a scene made of large soft layers (fog, an aurora, the mist and the hearth light) shares the luminance budget: the motion's own wash and glow step back
-  if (now.layers.length > 0 || (from && from.k < 0.999 && sceneHasLayers(from.scene))) { wash *= 0.25; if (glow) glow = { ...glow, a: glow.a * 0.25 }; }
+  // A scene made of large soft layers (fog, an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
+  // motion's own wash and glow step back, by a factor that follows the crossfade, never a switch.
+  const layered = from && from.k < 0.999 ? clamp(from.k) * (sceneHasLayers(scene) ? 1 : 0) + (1 - clamp(from.k)) * (sceneHasLayers(from.scene) ? 1 : 0) : sceneHasLayers(scene) ? 1 : 0;
+  const back = lerp(1, 0.25, layered);
+  wash *= back; if (glow) glow = { ...glow, a: glow.a * back };
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
   return { wash, glow, layers: old ? [...now.layers, ...old.layers] : now.layers, items: old ? [...now.items, ...old.items] : now.items };
 }

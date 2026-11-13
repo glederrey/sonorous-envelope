@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
   capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
-  moodToColour, moodToFeel, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
+  moodToColour, moodToFeel, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
 const base = (o: Partial<ResolvedColour> = {}): ResolvedColour => ({ h: 220, s: 0.4, l: 0.3, motion: "pulse", texture: "flat", pulseHz: 0, ...o });
@@ -104,6 +104,25 @@ describe("the flash budget", () => {
     expect(drawFrame({ colour: red, bpm: 100, beats: 8, t: 0 }).wash).toBe(0);
     expect(redFactor(base({ h: 220 }))).toBe(1);
   });
+  it("saturated red pulses nothing large, in any scene: the layers stay flat across a beat", () => {
+    for (const scene of SCENES) {
+      const c = base({ h: 0, s: 1, l: 0.45, motion: "pulse", scene, density: 0.8, sync: "beat", feel: { ...moodToFeel(mood), depth: 1, jitter: 0.9 } });
+      const total = (beats: number) => largeSwing(drawFrame({ colour: c, bpm: 120, beats, t: 0, seed: 4 }));
+      const vals = [0, 0.1, 0.25, 0.5, 0.75].map((p) => total(40 + p));
+      if (scene === "aurora" || scene === "fog") continue; // these drift on their own slow clock, not on the beat: checked below
+      expect(Math.max(...vals) - Math.min(...vals)).toBeLessThan(0.004);
+    }
+    const slow = (scene: "aurora" | "fog") => { const c = base({ h: 0, s: 1, l: 0.45, scene, density: 0.8, sync: "beat" }); const v = [0, 0.25, 0.5, 0.75].map((p) => largeSwing(drawFrame({ colour: c, bpm: 120, beats: 40 + p, t: 0 }))); return Math.max(...v) - Math.min(...v); };
+    expect(slow("aurora")).toBeLessThan(0.004); expect(slow("fog")).toBeLessThan(0.004);
+  });
+  it("steps the wash and glow back with the crossfade, never in one frame", () => {
+    const c = base({ motion: "breathe", scene: "fog", density: 0.6, sync: "phrase" });
+    const g = (from?: { k: number }) => drawFrame({ colour: c, bpm: 100, beats: 24, t: 0, seed: 2, from: from ? { scene: "motes", ...from } : undefined }).glow!.a;
+    expect(g()).toBeCloseTo(g({ k: 0.9995 }), 3);
+    expect(g({ k: 0.998 })).toBeCloseTo(g(), 3);
+    expect(g({ k: 0.5 })).toBeGreaterThan(g() + 1e-4); // half way: between the two
+    expect(g({ k: 0 })).toBeGreaterThan(g({ k: 0.5 }));
+  });
   it("property: no random state ever swings large areas by 10% of luminance, at any tempo, glide or scene, scene switches included", () => {
     let seed = 12345;
     const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -155,7 +174,8 @@ describe("the flash budget", () => {
 });
 
 describe("emotions in the picture", () => {
-  const e = (o: Partial<typeof mood> & { tension?: number }) => moodToScene({ ...mood, ...o })?.scene ?? "none";
+  // the player stretches the axes before the mapping (stretchMood), so the test does too
+  const e = (o: Partial<typeof mood> & { tension?: number }) => moodToScene(stretchMood({ ...mood, ...o }))?.scene ?? "none";
   it("gives each emotion its own kind of scene, and nothing for a neutral mood", () => {
     expect(e({})).toBe("none");
     expect(e({ joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 })).toBe("rain");     // sad
@@ -173,8 +193,16 @@ describe("emotions in the picture", () => {
     const lean = (jitter: number) => rain(jitter).reduce((s, i) => s + (i.ang ?? 0), 0) / rain(jitter).length;
     expect(lean(0.9)).toBeGreaterThan(lean(0) + 0.2);
   });
+  it("keeps the same auto scene and the same positions for moods a little apart", () => {
+    const a = { joy: 0.12, calm: 0.75, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }, b = { ...a, joy: 0.14, calm: 0.78, tension: 0.08 };
+    expect(moodToScene(a)).toEqual(moodToScene(b));
+    const frame = (m: typeof a) => { const c = moodToColour(m, 1500, 0.3); return visualFrame({ colour: c, bpm: 80, beats: 3000.5, t: 0, seed: 9 }).items.map(({ x, y }) => [x, y]); };
+    const fa = frame(a), fb = frame(b);
+    expect(fa.length).toBeGreaterThan(20); expect(fb.length).toBe(fa.length);
+    fa.forEach(([x, y], i) => expect(Math.hypot(x - fb[i][0], y - fb[i][1])).toBeLessThan(0.03));
+  });
   it("marks a scene the mood picked, and the model's own scene replaces it", () => {
-    const c = moodToColour({ ...mood, joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }, 1500, 0.3);
+    const c = moodToColour(stretchMood({ ...mood, joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }), 1500, 0.3);
     expect(c.scene).toBe("rain"); expect(c.sceneAuto).toBe(true);
     const own = applyColour(c, { scene: "snow" });
     expect(own.scene).toBe("snow"); expect(own.sceneAuto).toBeUndefined();

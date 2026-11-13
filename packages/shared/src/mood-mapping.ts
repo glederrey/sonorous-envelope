@@ -133,7 +133,7 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
   const lowJoy = 1 - ramp(j, 0.2, 0.45), calm = ramp(k, 0.35, 0.65), notTense = 1 - ramp(t, 0.3, 0.6);
   const anger = ramp(t, 0.35, 0.65) * (1 - ramp(j, 0.45, 0.7)) * (1 - ramp(k, 0.5, 0.75));
   const score: Array<[NonNullable<ResolvedColour["scene"]>, number]> = [
-    ["snow", lowJoy * ramp(k, 0.6, 0.85) * (1 - ramp(w, 0.35, 0.55)) * (1 - ramp(c, 0.4, 0.7)) * notTense], // lonely hush: cold, distant, very calm
+    ["snow", lowJoy * ramp(k, 0.6, 0.85) * (1 - ramp(w, 0.35, 0.55)) * (1 - ramp(c, 0.2, 0.4)) * notTense], // lonely hush: cold, distant, very calm
     ["rain", Math.max(lowJoy * calm * notTense * (1 - ramp(w, 0.5, 0.75)),            // sad: cold, low, quiet, a thin rain
                       anger * (1 - ramp(w, 0.1, 0.3)))],                               // icy anger: a storm
     ["fog", lowJoy * calm * notTense * ramp(w, 0.4, 0.65)],                            // melancholy: warm, low, quiet, a slow fog
@@ -147,7 +147,9 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
   let best = score[0];
   for (const x of score) if (x[1] > best[1]) best = x;
   if (best[1] < 0.3) return null;
-  return { scene: best[0], density: clamp(0.2 + 0.55 * best[1]), speed: clamp(lerp(0.8, 0.12, k) + 0.15 * t) };
+  // Coarse steps: a scene's motion is a rate times the beat count, so a small drift of the mood between two messages must not move every item.
+  const q = (x: number) => clamp(Math.round(x * 4) / 4, 0.25, 0.9);
+  return { scene: best[0], density: q(0.2 + 0.55 * best[1]), speed: q(lerp(0.8, 0.12, k) + 0.15 * t) };
 }
 
 export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): ResolvedColour {

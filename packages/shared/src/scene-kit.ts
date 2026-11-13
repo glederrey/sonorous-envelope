@@ -50,6 +50,8 @@ export interface Clock {
   /** a short bump right after each beat, and the bump weighted by the bar and the depth */
   kick: number; hit: number; amp: number; lift2: number;
   sync: "beat" | "phrase" | "free"; seed: number;
+  /** 0 when the colours are saturated red: no large element may pulse then (the beat shows in the small ones) */
+  red: number;
 }
 export type Feel = { depth: number; lift: number; jitter: number; soft: number; near: number; irreg: number };
 

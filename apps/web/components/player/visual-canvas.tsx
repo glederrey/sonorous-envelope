@@ -79,8 +79,9 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
           ctx.fillStyle = g;
           for (let i = 0; i < n; i++) {
             const k = l.cols[i]; if (k <= 0.02) continue;
-            ctx.save(); ctx.translate(0, l.ys[i] * h); ctx.globalAlpha = k; ctx.fillRect(i * cw, -H, cw + 1, H * 1.1); ctx.restore();
+            ctx.setTransform(1, 0, 0, 1, 0, l.ys[i] * h); ctx.globalAlpha = k; ctx.fillRect(i * cw, -H, cw + 1, H * 1.1);
           }
+          ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
         }
       }
       for (const i of f.items) {
