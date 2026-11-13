@@ -1,11 +1,11 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
-export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves"] as const;
+export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "lanterns", "seeds", "tide"] as const;
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
 export interface Item {
-  kind: "dot" | "ring" | "streak" | "wave";
+  kind: "dot" | "ring" | "streak" | "wave" | "leaf" | "seed";
   /** centre, 0 to 1 of the width and height. A streak starts here (its tail); a wave's `y` is its resting line */
   x: number; y: number;
   /** radius (dot, ring), length (streak) or amplitude (wave), as a fraction of the smaller side */
@@ -21,7 +21,7 @@ export interface Item {
   hue?: number; sat?: number;
   /** a streak: angle from the vertical in radians (positive leans right), and a tail that fades out behind it */
   ang?: number; tail?: boolean;
-  /** a ring: vertical squash (1 a circle, 0.3 a puddle seen from the side) */
+  /** a ring: vertical squash; a leaf: how far it has turned away (1 face on, 0.2 nearly edge on) (1 a circle, 0.3 a puddle seen from the side) */
   sq?: number;
   /** a wave: wavelength as a fraction of the width, and phase in radians */
   k?: number; ph?: number;
@@ -29,7 +29,7 @@ export interface Item {
 
 /** A large soft thing (an aurora). It counts in the luminance budget with the wash and the glow. */
 export interface Layer {
-  kind: "blob" | "ribbon";
+  kind: "blob" | "ribbon" | "tint";
   /** blob: centre and radius (fraction of the smaller side). Ribbon: `y` is unused, see `ys` */
   x: number; y: number; r: number;
   /** blob: stretch along x */
@@ -39,6 +39,8 @@ export interface Layer {
   dh: number;
   /** saturation and lightness in percent (default 30 and 88: a pale mist). A vivid colour reads at the same opacity where white does not */
   sat?: number; l?: number;
+  /** an absolute hue (tint layers, a vivid aurora) and the luminance swing per unit of opacity of this colour over the field (default 1, the white bound); see colour-math.ts */
+  hue?: number; k?: number;
   /** ribbon: the lower edge of the curtain per column (0 to 1 of the height), its height, and a 0 to 1 strength per column */
   ys?: number[]; h?: number; cols?: number[];
 }
@@ -56,6 +58,8 @@ export interface Clock {
   red: number;
   /** width over height of the view (the waves keep their swing under the gap between lines) */
   aspect: number;
+  /** the field's hue and base colours (the primary and the secondary), for scenes that choose a colour that reads against it */
+  h: number; s: number; bases: Array<[number, number, number]>;
 }
 export type Feel = { depth: number; lift: number; jitter: number; soft: number; near: number; irreg: number };
 

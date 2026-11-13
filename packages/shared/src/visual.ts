@@ -1,6 +1,10 @@
 import type { ResolvedColour } from "@sonorous/engine";
 import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
 import { sceneBack, sceneParts } from "./scenes";
+import { hslToRgb, isSaturatedRed, relLuminance, type Rgb } from "./colour-math";
+import { colourPlay } from "./gradients";
+
+export { hslToRgb, isSaturatedRed, relLuminance } from "./colour-math";
 
 export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
 
@@ -36,20 +40,6 @@ export interface Frame {
 export const EMPTY_FRAME: Frame = { wash: 0, glow: null, layers: [], items: [] };
 const NEUTRAL_FEEL = { depth: 0.5, lift: 0.5, jitter: 0, soft: 0.5, near: 0.5, irreg: 0.3 };
 
-export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  const a = s * Math.min(l, 1 - l), f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
-  return [f(0) * 255, f(8) * 255, f(4) * 255];
-}
-/** WCAG relative luminance of an sRGB colour given as 0 to 255 channels. */
-export function relLuminance([r, g, b]: [number, number, number]): number {
-  const lin = (c: number) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-}
-/** WCAG's saturated red: R/(R+G+B) at least 0.8 and (R-G-B)*320 above 20. */
-export function isSaturatedRed([r, g, b]: [number, number, number]): boolean {
-  const sum = r + g + b;
-  return sum > 0 && r / sum >= 0.8 && (r - g - b) * 320 > 20;
-}
 /** 0 when the base colours are saturated red (no pulse), else 1. */
 export function redFactor(c: Pick<ResolvedColour, "h" | "s" | "l" | "secondary">): number {
   const reds = [hslToRgb(c.h, c.s, c.l), ...(c.secondary ? [hslToRgb(c.secondary.h, c.secondary.s, c.secondary.l)] : [])];
@@ -63,14 +53,14 @@ export function glowArea(r: number, aspect: number): number {
 }
 /** What the large elements add to the luminance swing at the worst pixel: an upper bound on the change of relative luminance. */
 export function largeSwing(f: Frame): number {
-  return f.wash + (f.glow ? f.glow.a : 0) + f.layers.reduce((s, l) => s + l.a, 0);
+  return f.wash + (f.glow ? f.glow.a : 0) + f.layers.reduce((s, l) => s + l.a * (l.k ?? 1), 0);
 }
 /** The share of the view an item covers. `minW`: the thinnest line the painter draws, as a fraction of the smaller side (a line is never thinner than a pixel). */
 export function itemArea(i: Item, aspect: number, minW = 0): number {
   const a = aspect > 0 ? aspect : 1, k = a <= 1 ? a : 1 / a; // the smaller side over the area
   const w = Math.max(i.w, minW);
   const area = i.kind === "dot" ? Math.PI * i.r * i.r * ((i.soft ?? 0) > 0.05 ? 2.56 : 1) : // a soft dot is painted at 1.6 times its radius
-     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
+     i.kind === "ring" ? 2 * Math.PI * i.r * w * (i.sq ?? 1) ** 0.5 : i.kind === "leaf" ? i.r * i.r : i.kind === "seed" ? Math.PI * i.r * i.r : i.kind === "wave" ? Math.max(1, a) * (w + 2 * i.r * 0.15) : i.r * w;
   return area * k;
 }
 
@@ -79,7 +69,7 @@ export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   let { wash } = f, glow = f.glow ? { ...f.glow, a: Math.max(0, f.glow.a) } : null;
   let layers = f.layers.map((l) => ({ ...l, a: Math.max(0, l.a) }));
   wash = clamp(wash, 0, MAX_LARGE_SWING);
-  const swing = wash + (glow ? glow.a : 0) + layers.reduce((s, l) => s + l.a, 0);
+  const swing = wash + (glow ? glow.a : 0) + layers.reduce((s, l) => s + l.a * (l.k ?? 1), 0);
   if (swing > MAX_LARGE_SWING + 1e-9) { // the tolerance keeps the function idempotent in floating point
     const k = MAX_LARGE_SWING / swing;
     wash *= k; if (glow) glow.a *= k;
@@ -165,7 +155,8 @@ export function visualFrame(input: FrameInput): Frame {
     }
   }
 
-  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6 };
+  const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, h: colour.h, s: colour.s, bases };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
   // A scene made of large soft layers (an aurora, the mist under the rain, the hearth light of the embers) shares the luminance budget: the
   // motion's own wash and glow step back, by a factor that follows the crossfade, never a switch.
@@ -173,7 +164,8 @@ export function visualFrame(input: FrameInput): Frame {
   const back = kk * sceneBack(scene) + (1 - kk) * (from && kk < 1 ? sceneBack(from.scene) : 1);
   wash *= back; if (glow) glow = { ...glow, a: glow.a * back };
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
-  return { wash, glow, layers: old ? [...now.layers, ...old.layers] : now.layers, items: old ? [...now.items, ...old.items] : now.items };
+  const play = motion === "still" ? [] : colourPlay(colour, feel, clock);
+  return { wash, glow, layers: [...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
 }
 
 /** The frame to paint: the motion, then the flash budget. */

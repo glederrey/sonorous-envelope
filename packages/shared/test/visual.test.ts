@@ -172,6 +172,25 @@ describe("the flash budget", () => {
       for (let x = 0; x <= 1; x += 0.01) for (let j = 1; j < ws.length; j++) expect(px(ws[j], x)).toBeGreaterThan(px(ws[j - 1], x));
     }
   });
+  it("colour play: the swing it declares is the real luminance change of its colour over the field, and it stays in the budget", () => {
+    let seed = 99;
+    const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let run = 0; run < 60; run++) {
+      const c = base({ h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, secondary: { h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55 }, scene: run % 2 ? "aurora" : "none", feel: { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() } });
+      const bases = [hslToRgb(c.h, c.s, c.l), hslToRgb(c.secondary!.h, c.secondary!.s, c.secondary!.l)];
+      const f = visualFrame({ colour: c, bpm: 100, beats: 10 + rnd() * 50, t: 0, seed: run });
+      const painted = f.layers.filter((l) => l.hue !== undefined);
+      expect(painted.length).toBeGreaterThanOrEqual(3);
+      for (const l of painted) {
+        const col = hslToRgb(l.hue!, (l.sat ?? 50) / 100, (l.l ?? 50) / 100);
+        for (const b of bases) for (let a = 0.05; a <= 1; a += 0.05) {
+          const mixed: [number, number, number] = [0, 1, 2].map((i) => b[i] + (col[i] - b[i]) * a) as [number, number, number];
+          expect(Math.abs(relLuminance(mixed) - relLuminance(b))).toBeLessThanOrEqual((l.k ?? 1) * a + 1e-6);
+        }
+      }
+      expect(largeSwing(drawFrame({ colour: c, bpm: 100, beats: 20, t: 0, seed: run }))).toBeLessThanOrEqual(MAX_LARGE_SWING + 1e-9);
+    }
+  });
   it("every scene draws something, and the layers of a scene are bounded blobs and ribbons", () => {
     for (const scene of SCENES) {
       const f = visualFrame({ colour: base({ scene, density: 0.6, speed: 0.5, feel: moodToFeel(mood) }), bpm: 90, beats: 12.3, t: 1, seed: 5 });
@@ -196,6 +215,9 @@ describe("emotions in the picture", () => {
     expect(e({ joy: 0.6, calm: 0.75, warmth: 0.9, closeness: 0.9, spontaneity: 0.3, tension: 0 })).toBe("fireflies");  // tender
     expect(e({ joy: 0.85, calm: 0.4, warmth: 0.7, closeness: 0.6, spontaneity: 0.9, tension: 0 })).toBe("bubbles");    // playful
     expect(e({ joy: 0.4, calm: 0.5, warmth: 0.8, closeness: 0.6, spontaneity: 0.4, tension: 0 })).toBe("leaves");      // nostalgic
+    expect(e({ joy: 0.75, calm: 0.6, warmth: 0.7, closeness: 0.5, spontaneity: 0.4, tension: 0 })).toBe("lanterns");   // hopeful
+    expect(e({ joy: 0.75, calm: 0.55, warmth: 0.5, closeness: 0.3, spontaneity: 0.5, tension: 0 })).toBe("seeds");      // free
+    expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.6, spontaneity: 0.2, tension: 0 })).toBe("tide");        // peaceful
     expect(e({ joy: 0.5, calm: 0.9, warmth: 0.5, closeness: 0.2, spontaneity: 0.2, tension: 0 })).toBe("stars");        // serene
     expect(e({ joy: 0.55, calm: 0.25, warmth: 0.4, closeness: 0.4, spontaneity: 0.6, tension: 0.5 })).toBe("ripples");   // nervous
   });

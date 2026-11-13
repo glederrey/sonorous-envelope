@@ -2,7 +2,7 @@
 
 Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
 
-Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Eleven scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
+Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Fourteen scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `lanterns`, `seeds`, `tide`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
 
 ### Emotions in the picture
 **Libraries (decision 2026-11-13).** None draws the picture. Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the flash budget (`capFrame`) and the tests cannot see what they draw, and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth; Canvas 2D paints it. The noise the scenes use is a 6-line smooth value noise on the engine's own `hash01` (`scene-kit.ts`), seeded, so nothing was added to the dependencies. A library would be worth it only for a per-pixel scene (a fluid or a real shader), which the budget also makes pointless at 0.09 opacity.
@@ -14,10 +14,13 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | sad | rain | thin, straight, slow drops; a mist at the foot |
 | angry (icy) | rain | the same drops slanted by the tension, fast |
 | angry | embers | many sharp sparks, flickering and jerking, orange whatever the hue; the hue itself is pulled to red |
-| melancholic, nostalgic | leaves | small autumn-coloured shapes tumbling down, slow and warm |
+| melancholic, nostalgic | leaves | pointed leaves with a midrib, turning over as they fall, autumn colours |
 | lonely | snow | slow flakes, nearly straight; a flurry when joy or spontaneity rise |
 | tender | fireflies | soft lights wandering and glowing on and off |
 | playful, excited | bubbles | thin rings rising and wobbling |
+| hopeful | lanterns | warm lights rising very slowly, each with a bright core |
+| free, light | seeds | dandelion tufts drifting across and bobbing |
+| peaceful | tide | a line of foam that comes up and slides back, fainter lines behind it |
 | serene | stars | a twinkling sky, now and then a shooting star |
 | happy | motes | bright lights that rise |
 | content, relief | waves | parallel lines in perspective, all running one way at one pace, swing held under the gap so they never cross |
@@ -26,6 +29,8 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | neutral | none | nothing (a quiet sound is the honest answer) |
 
 `moodToScene` scores each region of the axes and takes the strongest; below 0.3 it returns nothing. The scene is marked `sceneAuto` and is not reported back to the model in `playing.picture` (only what it set). The model's own `scene` replaces it, `none` turns it off. Density follows how strongly the mood fits, speed follows calm and tension.
+
+**Colour play (2026-11-13).** Under every scene (unless the motion is `still`) two or three large lights of other hues drift on slow orbits and swell, with their hue leaning a few degrees, on the beat (slowly over four bars in phrase sync). A calm mood keeps them near the field's own hue; a tense one pushes them towards the complement; joy widens them. They give the multi-colour, moving gradient. **Why this is not a flash:** a flash is a change of brightness. Each light is painted at the lightness that changes the field's relative luminance least (`matchedLayer`, `colour-math.ts`), and its real worst-case swing per unit of opacity (`Layer.k`, typically 0.01 to 0.09) is what counts in the 0.09 budget, instead of the white bound of 1. So the colour can be strong and can pulse with the music while the brightness stays still. A test checks the declared swing against the real luminance change of the blend over random fields. A light that is or would pass through saturated red does not pulse. The aurora's curtain works the same way (that is why it can be strongly coloured now). What cannot be done under the rule: a brightness flash, however the colours are mixed.
 
 **Budget.** The aurora's curtain, the mist under the rain and the hearth light under the embers are large elements: they count in the 0.09 luminance swing with the wash and the glow (the motion's own wash and glow step back to a quarter when a scene has layers). The aurora gets the whole budget (the motion's own glow steps back to 8%) and adds its rays as small items, which have their own budget; that is what makes it visible. A fog scene was tried (flat banks) and removed: at 0.09 it was invisible, and with small elements it was only motes with fewer motes. It could come back if the bound changes. If they are too faint to carry the emotion, that is a decision for Gael (a different bound, or the layer colour counted by its real luminance), not something to tune around. A change of scene is a crossfade of at least 1.5 s (the state's transition time, up to 8 s), so the swap itself is never a step.
 

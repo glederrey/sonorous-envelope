@@ -142,7 +142,10 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
     ["stars", ramp(j, 0.3, 0.5) * (1 - ramp(j, 0.55, 0.75)) * ramp(k, 0.7, 0.9) * (1 - ramp(c, 0.3, 0.5)) * notTense], // serene, far: an open night
     ["bubbles", ramp(j, 0.6, 0.8) * ramp(s2, 0.65, 0.9) * (1 - ramp(k, 0.7, 0.9)) * (1 - ramp(t, 0.4, 0.7))], // playful: rings that rise
     ["ripples", ramp(t, 0.3, 0.55) * ramp(j, 0.35, 0.55) * (1 - ramp(k, 0.5, 0.8))],   // nervous: rings that scatter
-    ["motes", ramp(j, 0.55, 0.8) * (1 - ramp(k, 0.7, 0.95)) * (1 - ramp(t, 0.4, 0.7))], // happy: bright lights that rise
+    ["motes", ramp(j, 0.55, 0.8) * (1 - ramp(k, 0.45, 0.65)) * (1 - ramp(t, 0.4, 0.7))], // happy: bright lights that rise
+    ["lanterns", ramp(w, 0.5, 0.75) * ramp(j, 0.5, 0.7) * (1 - ramp(j, 0.85, 1)) * ramp(k, 0.45, 0.7) * (1 - ramp(c, 0.7, 0.95)) * notTense], // hope: warm lights that rise
+    ["seeds", ramp(j, 0.55, 0.75) * ramp(k, 0.4, 0.65) * (1 - ramp(k, 0.85, 1)) * ramp(s2, 0.3, 0.5) * (1 - ramp(s2, 0.7, 0.9)) * (1 - ramp(c, 0.5, 0.75)) * notTense], // light and free: seeds on the air
+    ["tide", ramp(k, 0.7, 0.9) * ramp(j, 0.4, 0.55) * (1 - ramp(j, 0.6, 0.75)) * ramp(c, 0.4, 0.6) * notTense], // peaceful, accepting: a line of foam
     ["aurora", ramp(j, 0.55, 0.8) * ramp(k, 0.65, 0.9) * (1 - ramp(c, 0.35, 0.6)) * notTense], // awe: open, high and slow
     ["waves", ramp(j, 0.6, 0.8) * ramp(k, 0.65, 0.9) * ramp(c, 0.3, 0.55) * notTense], // content, relief: an even swell
   ];

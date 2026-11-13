@@ -68,14 +68,19 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
       }
       for (const l of f.layers) {
         if (l.a <= 0.0005) continue;
-        if (l.kind === "blob") {
+        if (l.kind === "tint") {
+          // a light of another hue, at the lightness that leaves the brightness alone: a wide soft radial gradient
+          const r = Math.max(1, l.r * m), g = ctx.createRadialGradient(l.x * w, l.y * h, 0, l.x * w, l.y * h, r);
+          g.addColorStop(0, hsla(0, l.l ?? 50, l.a, l.hue, l.sat ?? 60)); g.addColorStop(0.55, hsla(0, l.l ?? 50, l.a * 0.5, l.hue, l.sat ?? 60)); g.addColorStop(1, hsla(0, l.l ?? 50, 0, l.hue, l.sat ?? 60));
+          ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+        } else if (l.kind === "blob") {
           const r = Math.max(1, l.r * m), sx = l.sx ?? 1, g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-          g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, undefined, l.sat ?? 30)); g.addColorStop(0.3, hsla(l.dh, l.l ?? 88, l.a * 0.85, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, undefined, l.sat ?? 30));
+          g.addColorStop(0, hsla(l.dh, l.l ?? 88, l.a, l.hue, l.sat ?? 30)); g.addColorStop(0.3, hsla(l.dh, l.l ?? 88, l.a * 0.85, l.hue, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 88, 0, l.hue, l.sat ?? 30));
           ctx.setTransform(sx, 0, 0, 1, l.x * w, l.y * h); ctx.fillStyle = g; ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.setTransform(1, 0, 0, 1, 0, 0);
         } else if (l.ys && l.cols && l.h) {
           // a curtain: one gradient in local coordinates (bright at the lower edge, fading upwards), moved to each column's edge
           const H = l.h * h, n = l.ys.length, cw = w / n, g = ctx.createLinearGradient(0, -H, 0, H * 0.1);
-          g.addColorStop(0, hsla(l.dh, l.l ?? 80, 0, undefined, l.sat ?? 30)); g.addColorStop(0.9, hsla(l.dh, l.l ?? 80, l.a, undefined, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 80, 0, undefined, l.sat ?? 30));
+          g.addColorStop(0, hsla(l.dh, l.l ?? 80, 0, l.hue, l.sat ?? 30)); g.addColorStop(0.9, hsla(l.dh, l.l ?? 80, l.a, l.hue, l.sat ?? 30)); g.addColorStop(1, hsla(l.dh, l.l ?? 80, 0, l.hue, l.sat ?? 30));
           ctx.fillStyle = g;
           for (let i = 0; i < n; i++) {
             const k = l.cols[i]; if (k <= 0.02) continue;
@@ -96,6 +101,22 @@ export function VisualCanvas({ source, clockOffset, latency, active, onFail }: P
         else if (i.kind === "ring") {
           ctx.lineWidth = Math.max(MIN_LINE, i.w * m); ctx.beginPath();
           ctx.ellipse(i.x * w, i.y * h, Math.max(0.5, i.r * m), Math.max(0.3, i.r * m * (i.sq ?? 1)), 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        else if (i.kind === "leaf") {
+          // a pointed leaf with a midrib, turned over by `sq`
+          const L = Math.max(2, i.r * m);
+          ctx.save(); ctx.translate(i.x * w, i.y * h); ctx.rotate(i.ang ?? 0); ctx.scale(Math.max(0.2, i.sq ?? 1), 1);
+          ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(L * 0.8, -L * 0.1, 0, L); ctx.quadraticCurveTo(-L * 0.8, -L * 0.1, 0, -L); ctx.fill();
+          ctx.strokeStyle = hsla(0, Math.max(10, (i.l ?? 50) - 22), i.a, i.hue, i.sat); ctx.lineWidth = Math.max(MIN_LINE, L * 0.07);
+          ctx.beginPath(); ctx.moveTo(0, -L); ctx.lineTo(0, L * 1.12); ctx.stroke();
+          ctx.restore();
+        }
+        else if (i.kind === "seed") {
+          // a dandelion seed: a tiny body and a tuft of fine hairs
+          const R = Math.max(3, i.r * m), x = i.x * w, y = i.y * h, a0 = i.ang ?? 0;
+          ctx.lineWidth = MIN_LINE; ctx.beginPath();
+          for (let k = 0; k < 9; k++) { const a = a0 + (k / 9) * Math.PI * 2; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); }
+          ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, Math.max(1, R * 0.12), 0, Math.PI * 2); ctx.fill();
         }
         else if (i.kind === "wave") {
           // a line across the view: a sine (soft 1) or a zigzag (soft 0)
