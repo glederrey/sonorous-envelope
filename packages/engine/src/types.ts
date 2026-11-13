@@ -17,7 +17,7 @@ export interface ResolvedColour {
   pulseHz: number;
   /** What moves on top of the colours (visuals.md). Settable by the model: `scene` a small set of moving things, `density` and `speed` 0 to 1,
    *  `sync` what the motion follows: the beat, the phrase (4 bars), or nothing (free). */
-  scene?: "none" | "motes" | "ripples" | "rain" | "snow" | "embers" | "aurora" | "waves" | "fireflies" | "stars" | "bubbles" | "leaves" | "seeds" | "tide" | "smoke" | "clouds" | "fire" | "warp" | "caustics" | "lightning" | "sunbeam" | "cracks" | "circuit" | "digital" | "scope" | "vines" | "fireworks" | "reeds" | "network" | "flock";
+  scene?: "none" | "motes" | "ripples" | "rain" | "snow" | "embers" | "aurora" | "waves" | "fireflies" | "stars" | "bubbles" | "leaves" | "seeds" | "tide" | "smoke" | "clouds" | "fire" | "warp" | "caustics" | "lightning" | "sunbeam" | "cracks" | "ink" | "circuit" | "digital" | "scope" | "vines" | "fireworks" | "reeds" | "network" | "flock";
   /** The scene came from the mood, not from the model (never sent): it is not reported back as something the model set. */
   sceneAuto?: boolean;
   density?: number;

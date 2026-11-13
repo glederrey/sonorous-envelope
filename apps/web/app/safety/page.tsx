@@ -30,7 +30,6 @@ export default function SafetyPage() {
           <section className="doc-row">
             <h2 className="se-heading">Rules that never change</h2>
             <ul className="doc-list">
-              <li>The colour never flashes faster than 3 per second.</li>
               <li>The sound never goes above a fixed maximum level, whatever the volume you set.</li>
             </ul>
           </section>

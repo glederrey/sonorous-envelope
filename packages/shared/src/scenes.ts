@@ -11,9 +11,9 @@ const EMPTY: SceneOut = { items: [], layers: [] };
 const fade = (o: SceneOut, k: number): SceneOut => k >= 0.999 ? o : { items: o.items.map((i) => ({ ...i, a: i.a * k })), layers: o.layers.map((l) => ({ ...l, a: l.a * k })) };
 
 /** Scenes made partly of large layers: the motion's own wash and glow step back for them (visual.ts). One rule for the old and the new scene of a crossfade. */
-export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "rain" || s === "embers";
+export const sceneHasLayers = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "ink" || s === "rain" || s === "embers";
 /** How much of the motion's own wash and glow is left under a scene: 1 with none, a quarter under layers, almost nothing under an aurora (it needs the whole budget). */
-export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
+export const sceneBack = (s: SceneName | "none") => s === "aurora" || s === "smoke" || s === "clouds" || s === "fire" || s === "caustics" || s === "lightning" || s === "sunbeam" || s === "ink" ? 0.08 : sceneHasLayers(s) ? 0.25 : 1;
 
 export function sceneParts(scene: SceneName | "none", density: number, speed: number, feel: Feel, c: Clock, k = 1): SceneOut {
   if (scene === "none" || k <= 0.001) return EMPTY;
@@ -36,6 +36,7 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "lightning" ? lightning(d, v, feel, c)
     : scene === "sunbeam" ? sunbeam(d, v, feel, c)
     : scene === "cracks" ? cracks(d, v, feel, c)
+    : scene === "ink" ? ink(d, v, feel, c)
     : scene === "circuit" ? circuit(d, v, feel, c)
     : scene === "digital" ? digital(d, v, feel, c)
     : scene === "scope" ? scope(d, v, feel, c)
@@ -735,13 +736,13 @@ function lightning(density: number, speed: number, feel: Feel, c: Clock): SceneO
   return { items, layers };
 }
 
-/** Sunbeam: slanted shafts of warm light through a window or leaves, with dust turning slowly inside them. The shafts are a veil (stripes along one slanted axis, slowly drifting and breathing); the dust specks glow only where a shaft is. */
+/** Sunbeam: slanted shafts of warm light (the lean is seeded, at most 50 degrees from the vertical either way) through a window or leaves, with dust turning slowly inside them. The shafts are a veil (stripes along one slanted axis, slowly drifting and breathing); the dust specks glow only where a shaft is. */
 function sunbeam(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const asp = c.aspect > 0 ? c.aspect : 0.6, lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length);
   const tone = lum < 0.4 ? toneLayer(c.bases, 42, true, 0.2, { sat: 0.85, l: 0.78 }) : toneLayer(c.bases, 38, false, 0.2, { sat: 0.7, l: 0.35 });
-  const GW = Math.round(clamp(c.px / 6, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), slant = 0.55 + 0.25 * hash01(c.seed, 130), nb = lerp(3, 7, density), rate = lerp(0.01, 0.05, speed);
+  const GW = Math.round(clamp(c.px / 6, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), lean = (hash01(c.seed, 130) - 0.5) * (100 * Math.PI) / 180, nb = lerp(3, 7, density), rate = lerp(0.01, 0.05, speed);
   const shaft = (bq: number, x: number, y: number) => {
-    const u = x + y * slant, t = bq * rate;
+    const u = (x * asp * Math.cos(lean) - y * Math.sin(lean)) / asp, t = bq * rate;
     const s1 = 0.5 + 0.5 * noise1(u * nb + t * 3, c.seed + 131), s2 = 0.5 + 0.5 * noise1(u * nb * 2.3 - t * 2, c.seed + 132);
     return sstep(0.35, 0.8, s1 * 0.75 + s2 * 0.25) * (0.25 + 0.75 * (1 - y) ** 0.8) * sstep(0, 0.12, 1 - y + 0.1) * (0.9 + 0.1 * Math.sin(bq * 0.2 + u * 9));
   };
@@ -775,4 +776,26 @@ function cracks(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     if (tau < 0.9) items.push({ kind: "dot", x: ox, y: oy, r: 0.03 * (1 - tau / 0.9), w: 0, soft: 1, a: 0.5 * (1 - tau / 0.9), l: 96, sat: 30, hue: 205 }); // the impact
   }
   return { items, layers: [] };
+}
+
+/** Ink: drops of ink that bloom in still water, unfurl into tendrils, spread and thin out as the next one lands. One veil; the blooms are warped discs, a few overlapping at any time. */
+function ink(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
+  const asp = c.aspect > 0 ? c.aspect : 0.6, lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length);
+  const tone = lum < 0.4 ? toneLayer(c.bases, 255, true, 0.22, { sat: 0.6, l: 0.8 }) : toneLayer(c.bases, 250, false, 0.22, { sat: 0.6, l: 0.15 });
+  const GW = Math.round(clamp(c.px / 4, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), gap = lerp(14, 6, density) / lerp(0.8, 1.3, speed);
+  const build = (bq: number) => {
+    const k = Math.floor(bq / gap), drops: Array<[number, number, number, number]> = [];
+    for (let e = k - 2; e <= k; e++) { const age = bq - e * gap; if (age >= 0) drops.push([0.15 + 0.7 * hash01(e, c.seed + 140), 0.15 + 0.7 * hash01(e, c.seed + 141), age, e]); }
+    return (x: number, y: number) => {
+      let v = 0;
+      for (const [dx, dy, age, e] of drops) {
+        const g = Math.min(1, age / (gap * 0.8)), R = 0.06 + 0.34 * Math.sqrt(age / gap), w = 0.3 * g;
+        const wx = x + w * fbm2(x * 4.5 + e * 5, y * 4.5 + age * 0.02, c.seed + 142, 3), wy = y + w * fbm2(x * 4.5 - 9, y * 4.5 + e * 7 - age * 0.02, c.seed + 143, 3);
+        const d = Math.hypot((wx - dx) * asp, wy - dy) / R, tendril = 0.3 + 0.7 * (1 - Math.abs(fbm2(wx * 5, wy * 5, c.seed + 144 + e, 2))) ** 3;
+        v = Math.max(v, (1 - sstep(0.5, 1.05, d)) * tendril * 1.5 * Math.exp(-age / (gap * 1.6)) * (1.1 - 0.4 * g));
+      }
+      return v;
+    };
+  };
+  return { items: [], layers: [veil(`ink|${GW}x${GH}|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}`, 6, c.b, GW, GH, build, tone.a, tone)] };
 }
