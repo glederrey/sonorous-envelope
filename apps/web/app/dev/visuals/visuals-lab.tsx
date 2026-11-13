@@ -62,7 +62,7 @@ export function VisualsLab() {
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px", display: "grid", gap: 16 }}>
       {/* in the player the canvas fills the visible field; here the field is a card, so the canvas takes the card's height */}
-      <style>{".lab-field > .pl-motion { height: 100%; position: static; }"}</style>
+      <style>{".lab-field { overflow: hidden !important; scrollbar-width: none; } .lab-field::-webkit-scrollbar { display: none; } .lab-field > .pl-motion { height: 100%; position: static; }"}</style>
       <h1 style={{ margin: 0 }}>Visuals lab</h1>
       <p className="se-sm" style={{ margin: 0 }}>{set === "gradients" ? "Gradients: each emotion's moving colours with no scene. The lights take one to two minutes for an orbit at 100 BPM, so raise Tempo (the tempo slider applies automatically here) to see them move. Tick Colour play off to compare with the plain gradient. " : ""}Emotions as pictures (or the five landing samples). Same canvas and frame model as the player; tempo and scene are overridden here. The pulse stays under the flash limit at every tempo.</p>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
