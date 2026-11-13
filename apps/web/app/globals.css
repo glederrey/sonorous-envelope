@@ -713,18 +713,18 @@ html:has(.pl-field) .se-header {
   margin-top: 24px;
 }
 .gd-know {
-  columns: 2;
-  column-gap: 40px;
-  display: block;
-}
-.gd-know li {
-  break-inside: avoid;
-  margin-bottom: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 40px;
+  line-height: 1.6;
 }
 @media (max-width: 760px) {
   .gd-cards { grid-template-columns: 1fr; }
   .gd-card { padding: 20px; }
-  .gd-know { columns: 1; }
+  .gd-know { grid-template-columns: 1fr; }
 }
 .gd-tool-name {
   display: flex;
@@ -1176,3 +1176,8 @@ html:has(.pl-field) .se-header {
 .pl-code-pre { margin: 10px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 8%, transparent); color: var(--on-scrim); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pl-code .pl-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .pl-code .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; padding: 8px 6px; font-size: 13px; line-height: 1.2; gap: 6px; }
+
+/* the add page: numbered steps and lists inside cards */
+.add-steps { margin-top: 20px; }
+.add-list { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 10px; line-height: 1.55; }
+.add-list li::marker { font-family: var(--font-mono); color: var(--ink-muted); }

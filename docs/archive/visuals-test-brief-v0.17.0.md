@@ -70,8 +70,10 @@ For each test record pass or fail, plus what the user saw. For any failure give 
 22. Cracks: do the fractures grow on the beat and fade?
 
 ### F. The site
-23. The landing page: the hero shows chips (A synthesizer, A colour field, 30 visuals, Strudel). The section "Two ways to make sound" shows two cards. The section for the connector is called "Add to your AI", like the player button.
-24. `/safety` returns a 404 and nothing links to it.
+23. The landing page: the hero shows chips (A synthesizer, A colour field, 30 visuals, Strudel). Below it only three sections: "Two ways to make sound" (two cards), "Hear what to expect" and "Keep the player open".
+24. The header has Add to your AI, Connector and Two faces. "Add to your AI" opens a page with the connector URL, Claude steps, and outlines for ChatGPT, GitHub Copilot in VS Code and Microsoft Copilot Studio (only Claude is tested). The "Add to your AI" button in a player opened by a guest goes there, and so does "Step by step" in the hero.
+25. The Connector page has "The tools" and "How it works" as two separate sections.
+26. `/safety` returns a 404 and nothing links to it.
 
 ## Report
 

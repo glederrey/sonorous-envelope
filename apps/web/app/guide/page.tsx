@@ -49,7 +49,7 @@ export default function GuidePage() {
         <div className="doc-head">
           <h1 className="doc-title">Using the connector</h1>
           <p>
-            Once the connector is added (see <a href="/#add">Add to your AI</a>), the model calls these tools itself.
+            Once the connector is added (see <a href="/add">Add to your AI</a>), the model calls these tools itself.
             You do not type commands: you ask in plain words, and you can name a tool if you want to be exact.
           </p>
           <p className="se-sm se-muted">
@@ -114,12 +114,11 @@ export default function GuidePage() {
 
           <article className="gd-card gd-wide">
           <h3 className="se-heading">Good to know</h3>
-          <ul className="doc-list gd-know">
-            <li>Turn the connector on at the start of a conversation. Each conversation gets its own session.</li>
-            <li>The sound plays in the player page, not in the chat app. Keep that page open; closing it stops the sound. On a phone it keeps playing when you switch to the chat.</li>
-            <li>The model is not there between messages. After 15 minutes without an update the sound fades to silence, unless the model turned that off. A session with no sound for 30 minutes shows as inactive and wakes up when you come back to the same conversation; after a week it ends.</li>
-            <li>Anyone with the player link can listen, with no account, on any number of devices. Only the owner can end the session, lock a face, or press the reaction buttons (external face only).</li>
-            <li>You control the volume and the mute. The model decides the rest. Two buttons in the player, &ldquo;Gradient&rdquo; and &ldquo;Visuals&rdquo;, turn the moving colours and the scene off.</li>
+          <ul className="gd-know">
+            <li><strong>One session per conversation.</strong> Turn the connector on at the start of a conversation.</li>
+            <li><strong>Keep the player open.</strong> The sound plays in the player page, not in the chat app. Closing it stops the sound. On a phone it keeps playing when you switch to the chat.</li>
+            <li><strong>The model is not there between messages.</strong> After 15 minutes without an update the sound fades to silence, unless the model turned that off. After 30 minutes the session shows as inactive and wakes up when you come back to the same conversation; after a week it ends.</li>
+            <li><strong>You and the player link.</strong> Anyone with the link can listen, with no account, on any number of devices. Only the owner can end the session, lock a face or press reactions. You control the volume and mute, and the &ldquo;Gradient&rdquo; and &ldquo;Visuals&rdquo; buttons turn the moving colours and the scene off.</li>
           </ul>
           </article>
         </section>
