@@ -159,6 +159,7 @@ describe("emotions in the picture", () => {
   it("gives each emotion its own kind of scene, and nothing for a neutral mood", () => {
     expect(e({})).toBe("none");
     expect(e({ joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 })).toBe("rain");     // sad
+    expect(e({ joy: 0.15, calm: 0.85, warmth: 0.2, closeness: 0.1, spontaneity: 0.2, tension: 0 })).toBe("snow");   // lonely
     expect(e({ joy: 0.25, calm: 0.8, warmth: 0.75, closeness: 0.7, spontaneity: 0.3, tension: 0.05 })).toBe("fog");    // melancholic
     expect(e({ joy: 0.12, calm: 0.12, warmth: 0.5, closeness: 0.4, spontaneity: 0.6, tension: 0.85 })).toBe("embers"); // angry
     expect(e({ joy: 0.12, calm: 0.12, warmth: 0.1, closeness: 0.3, spontaneity: 0.6, tension: 0.85 })).toBe("rain");   // cold anger: a storm
