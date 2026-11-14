@@ -33,13 +33,13 @@ export interface Frame {
 }
 
 /** Scenes made of light: on a bright base colour they vanish (nothing is lighter than a bright yellow). A darker veil goes under them, as dark as the base is bright. */
-const LIGHT_SCENES = new Set<string>(["aurora", "sunbeam", "stars", "fireflies", "fireworks", "embers", "warp", "motes", "lightning", "cracks"]);
+const LIGHT_SCENES = new Set<string>(["aurora", "sunbeam", "stars", "fireflies", "fireworks", "embers", "warp", "motes", "lightning", "cracks", "smoke", "clouds"]);
 const ONE = new Float32Array([1]);
-/** How much darker the base goes under a light scene, 0 to 0.65: from a relative luminance of 0.25 (0.12 for the aurora, which needs a dark sky) up to the full 0.65 at about 0.7. */
+/** How much darker the base goes under a light scene, 0 to 0.8: from a relative luminance of 0.25 (0.12 for the aurora, which needs a dark sky) up to the full 0.8 at about 0.8. */
 export function lightSceneDim(scene: string, bases: Rgb[]): number {
   if (!LIGHT_SCENES.has(scene) || !bases.length) return 0;
   const lum = bases.reduce((q, b) => q + relLuminance(b), 0) / bases.length;
-  return clamp((lum - (scene === "aurora" ? 0.12 : 0.25)) * 1.5, 0, 0.65);
+  return clamp((lum - (scene === "aurora" ? 0.12 : 0.25)) * 1.8, 0, 0.8);
 }
 const DARK = (colour: Pick<ResolvedColour, "h">): Rgb => hslToRgb(colour.h, 0.3, 0.05);
 const arc = (a: number, b: number, p: number) => (((a + ((((b - a) % 360) + 540) % 360 - 180) * p) % 360) + 360) % 360;

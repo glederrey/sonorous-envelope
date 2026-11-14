@@ -194,7 +194,8 @@ describe("v0.17.1 picture fixes", () => {
     const layers = (l: number, scene: "aurora" | "smoke") => visualFrame({ colour: base({ l, s: 0.9, h: 55, scene, feel, motion: "still" }), bpm: 100, beats: 5, t: 0, seed: 3 }).layers.filter((x) => x.kind === "veil" && x.gw === 1);
     expect(layers(0.75, "aurora")).toHaveLength(1);
     expect(layers(0.1, "aurora")).toHaveLength(0);
-    expect(layers(0.75, "smoke")).toHaveLength(0);
+    expect(layers(0.75, "smoke")).toHaveLength(1);   // smoke and clouds are painted lighter than the base, so they need it dark too
+    expect(layers(0.1, "smoke")).toHaveLength(0);
   });
   it("spreads fireflies and motes: no two closer than a few radii", () => {
     for (const scene of ["motes", "fireflies"] as const) {
@@ -225,7 +226,7 @@ describe("v0.17.2 picture fixes", () => {
     const f = (scene: "aurora" | "smoke") => visualFrame({ colour: base({ h: 55, s: 0.9, l: 0.75, scene, feel, motion: "drift" }), bpm: 100, beats: 5, t: 0, seed: 3, aspect: 1 });
     expect(f("aurora").layers[0]).toMatchObject({ kind: "veil", gw: 1 });          // the dark veil comes first, before the lights
     expect(f("aurora").layers[0].a).toBeGreaterThan(0.4);
-    expect(f("smoke").layers.some((l) => l.gw === 1)).toBe(false);
+    expect(f("smoke").layers[0]).toMatchObject({ kind: "veil", gw: 1 });
   });
   it("glides the colour: halfway between two colours, the short way round the hue wheel", () => {
     const a = base({ h: 350, s: 0.2, l: 0.2, feel: { ...feel, near: 0 } }), b = base({ h: 30, s: 0.8, l: 0.4, feel: { ...feel, near: 1 } });
@@ -236,6 +237,18 @@ describe("v0.17.2 picture fixes", () => {
   it("covers the whole width with digital rain, not only the left", () => {
     const f = drawFrame({ colour: base({ scene: "digital", density: 1, feel }), bpm: 100, beats: 11.4, t: 0, seed: 4 }, 0.5);
     expect(Math.max(...f.items.map((i) => i.x))).toBeGreaterThan(0.85);
+  });
+  it("v0.17.2 round 3: aurora has no thin rays, digital rain fills the width of a phone, rockets climb slower at low speed, warp breathes over the phrase", () => {
+    const fr = (scene: "aurora" | "digital" | "fireworks" | "warp", o: Record<string, unknown> = {}, beats = 9.3, aspect = 0.46) => visualFrame({ colour: base({ scene, density: 1, feel, ...o }), bpm: 100, beats, t: 0, seed: 4, aspect });
+    expect(fr("aurora").items.filter((i) => i.kind === "streak")).toHaveLength(0);
+    const xs = capFrame(fr("digital"), 0.46).items.map((i) => i.x);
+    expect(Math.max(...xs)).toBeGreaterThan(0.85);
+    expect(Math.min(...xs)).toBeLessThan(0.15);
+    const rocket = (speed: number) => fr("fireworks", { density: 0, speed }, 7, 1).items.filter((i) => i.kind === "streak" && i.r === 0.05).length;
+    expect(rocket(0.1)).toBe(1);  // one beat before the next burst: a slow rocket is already climbing
+    expect(rocket(1)).toBe(0);    // a fast one has not left yet
+    const core = (beats: number) => fr("warp", { sync: "phrase" }, beats, 1).items.find((i) => i.kind === "dot" && i.soft === 1 && i.r >= 0.05)!.r;
+    expect(core(8)).toBeGreaterThan(core(0) * 2);  // the middle of four bars is the swell's peak
   });
   it("makes the fireworks speed show: three beats after a burst a slow one still lights the sky and a fast one is gone", () => {
     const sparks = (speed: number) => visualFrame({ colour: base({ scene: "fireworks", density: 0, speed, feel }), bpm: 100, beats: 7.1, t: 0, seed: 6, aspect: 1 }).items.filter((i) => i.kind === "streak" && i.tail && i.a > 0.05).length;
