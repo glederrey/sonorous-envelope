@@ -143,23 +143,19 @@ body {
   border-top: 1px solid var(--line);
 }
 .se-footer a { color: inherit; text-decoration: none; }
-.se-footer-in { width: 100%; max-width: 1040px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 20px; }
-.se-footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
-.se-footer-links a { text-underline-offset: 3px; }
-.se-footer-links > :last-child { opacity: 0.6; font-variant-numeric: tabular-nums; }
-.se-credit { color: var(--ink-muted); }
-.se-credit a { opacity: 0.75; transition: opacity 0.15s ease, color 0.15s ease; }
-@media (hover: hover) { .se-footer-links a:hover { color: var(--ink); text-decoration: underline; } .se-credit a:hover { opacity: 1; color: var(--ink); } }
-.se-credit { display: inline-flex; align-items: center; gap: 4px 8px; }
-.se-credit a { display: inline-flex; align-items: center; }
-.se-gael-mark { width: 21px; height: 26px; }
-.se-claude-mark { width: 30px; height: 30px; margin: -4px 0; }
+.se-footer-in { width: 100%; max-width: 1040px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 28px; }
+.se-footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 0; }
+.se-footer-links > * + *::before { content: "·"; margin: 0 10px; opacity: 0.5; text-decoration: none; display: inline-block; }
+.se-footer-links > :last-child { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.se-credit { margin: 0; display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px 7px; }
+.se-credit a { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+.se-gael-mark { width: 17px; height: 21px; flex: none; }
+.se-claude-mark { width: 24px; height: 24px; margin: -3px 0; flex: none; }
+@media (hover: hover) { .se-footer-links a:hover, .se-credit a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
 /* On a phone the credit gets its own row, so the footer is two rows tall: the player's height sum uses this variable. */
 @media (max-width: 640px) {
   :root { --se-footer-h: calc(68px + env(safe-area-inset-bottom, 0px)); }
-  .se-footer-in { justify-content: center; }
-  .se-footer-links { justify-content: center; gap: 4px 16px; }
-  .se-credit { flex-basis: 100%; justify-content: center; }
+  .se-credit, .se-footer-links { flex-basis: 100%; }
 }
 
 :focus-visible {

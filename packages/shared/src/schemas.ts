@@ -91,7 +91,7 @@ export const Voice = z.object({
 export type Voice = z.infer<typeof Voice>;
 
 export const Colour = z.object({
-  mode: z.enum(["follow", "own"]).optional().describe("leave it out: any hue, saturation, lightness or secondary you send is used. \"follow\" ignores them and also resets the scene, density, speed and sync, so do not send a scene in the same call"),
+  mode: z.enum(["follow", "own"]).optional().describe("leave it out: any hue, saturation, lightness or secondary you send is used. \"follow\" ignores them"),
   hue: z.number().min(0).max(360).optional().describe("the full colour wheel: 0 red, 30 orange, 60 yellow, 120 green, 180 cyan, 240 blue, 280 violet, 320 magenta"),
   saturation: unit.optional(),
   lightness: unit.optional(),
