@@ -16,10 +16,10 @@ Same as before: reconnect, start_session, give the player link, the user taps "S
    - (b) The owner turns "Allow Strudel" off: same.
    - (c) Start Strudel from silence: the picture is dark until the music's first bar, then the code and the music come in together. No bright field first.
    - (d) `strudel_mode` on false, back to the synth: the code view fades out and the scenes are there at once, with no long black gap.
-5. **Long code on the phone.** Send about 5000 characters (40+ lines) plus one very wide line. Pass, in portrait, landscape and on the laptop: the whole code is smaller on the phone, little empty space above the first line, and when it does not fit the view follows the lit part up and down. The page itself never scrolls and nothing covers the controls.
+5. **Long code on the phone.** Send about 5000 characters (40+ lines) plus one very wide line. Pass, in portrait, landscape and on the laptop: the whole code is smaller on the phone, little empty space above the first line, and when it does not fit the view sweeps slowly over it, top to bottom and back (a stack lights every line at once, so it does not follow one line). The page itself never scrolls and nothing covers the controls.
 6. **The new limit.** Send exactly 5000 characters, then 5001. Pass: 5000 plays, 5001 is refused with an error that says the limit.
 7. **Labels on the phone.** `.pianoroll({ labels: 1 })`, `.punchcard({ labels: 1 })` and `.wordfall()` with real notes, including very short ones. Pass: a label is either readable or left off, never a tiny smudge, and no label runs outside its bar.
-8. **Fullscreen.** A "Fullscreen" button sits next to "Allow Strudel" and "Strudel visuals" (on a phone it takes its own row). Pass, on laptop and phone: it hides the header, the controls and the footer and the picture fills the screen; a button to leave shows for a few seconds and again when you touch the picture; Esc, that button, and a tap on it all leave; the layout comes back as it was. Also try it with the scenes (a synth session).
+8. **Fullscreen.** The Fullscreen icon is in the top row of the controls, left of the Hide controls icon (both are flush right; the turn text now sits under the Internal/External chip). Pass, on laptop and phone: it hides the header, the controls and the footer and the picture fills the screen; a button to leave shows for a few seconds and again when you touch the picture; Esc and that button both leave; the layout comes back as it was. Also try it with the scenes (a synth session).
 
 ## Still open, not for this round
 

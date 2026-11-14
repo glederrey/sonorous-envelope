@@ -78,7 +78,7 @@ export function StrudelLab() {
             ))}
           </div>
           <textarea value={code} onChange={(e) => setCode(e.target.value)} rows={6} spellCheck={false} aria-label="Strudel code" style={{ fontFamily: "var(--font-mono)", fontSize: 13, width: "100%" }} />
-          <StrudelToggles allow={{ on: allow, set: setAllow }} visuals={{ on: visuals, set: setVisuals }} fullscreen={() => void document.documentElement.requestFullscreen?.()} />
+          <StrudelToggles allow={{ on: allow, set: setAllow }} visuals={{ on: visuals, set: setVisuals }} />
           <label className="pl-slider"><span>Tempo</span><input type="range" min={60} max={180} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} /><output>{bpm}</output></label>
           <label className="pl-slider"><span>Hue</span><input type="range" min={0} max={360} value={hue} onChange={(e) => setHue(Number(e.target.value))} /><output>{hue}</output></label>
           <button type="button" className="se-btn se-btn-primary pl-mute" onClick={() => void play()}>{started ? "Play this code" : "Start and play"}</button>

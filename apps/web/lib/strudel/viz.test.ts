@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampOpt, isSafeColour, validateDrawHap, validateHap, validateLoc, validateViz } from "./protocol";
-import { fitFont, hideTinyLabels, scrollFor, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
+import { fitFont, hideTinyLabels, sweepOffset, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
 
 describe("code spans", () => {
   it("keeps whole, in-range spans only", () => {
@@ -101,11 +101,17 @@ describe("the code view", () => {
     const shortLines = Array(40).fill("note('c3')").join("\n");
     expect(fitFont(shortLines + "\n" + "x".repeat(900), 390, 700)).toBeLessThanOrEqual(fitFont(shortLines, 390, 700));
   });
-  it("scrolls only when the code is taller than its box, and keeps the lit line near the top third", () => {
-    expect(scrollFor(500, 600, 500)).toBe(0);
-    expect(scrollFor(10, 300, 1000)).toBe(0);
-    expect(scrollFor(500, 300, 1000)).toBe(401);
-    expect(scrollFor(990, 300, 1000)).toBe(700);
+  it("sweeps over code taller than the view: waits at the top, drifts to the bottom, waits, drifts back", () => {
+    expect(sweepOffset(5, 0)).toBe(0);
+    expect(sweepOffset(0, 280)).toBe(0);
+    expect(sweepOffset(1.9, 280)).toBe(0);
+    expect(sweepOffset(2 + 5, 280)).toBeCloseTo(140, 5); // half way down after 5 of the 10 s
+    expect(sweepOffset(2 + 10 + 1, 280)).toBe(280);
+    expect(sweepOffset(2 + 10 + 2 + 5, 280)).toBeCloseTo(140, 5); // half way back
+    expect(sweepOffset(24, 280)).toBe(0); // one period is 24 s
+    // it reaches the bottom: the last lines are shown too
+    const seen = Array.from({ length: 280 }, (_, i) => sweepOffset(i / 10, 280));
+    expect(Math.max(...seen)).toBe(280);
   });
 });
 
@@ -148,6 +154,11 @@ describe("hostile options stay bounded", () => {
 describe("labels on a roll", () => {
   const hap = (c: number, l: number, v: Record<string, string | number>) => ({ c, l, v, loc: [], viz: [0] });
   const roll = { vertical: false, fold: true, minMidi: 10, maxMidi: 90, timeExtent: 4 };
+  it("keeps a label that Strudel can squeeze into its bar", () => {
+    // 4 rows on a 800x200 lane: font 37; "bb4" is 67 px wide in a 40 px bar: squeezed less than twice, so it stays
+    const haps = [hap(0, 0.2, { note: "bb4" }), hap(1, 1, { note: "c3" }), hap(2, 1, { note: "d3" }), hap(3, 1, { note: "e3" })];
+    expect(hideTinyLabels(haps, roll, 800, 200, 11)[0].v.label).toBeUndefined();
+  });
   it("keeps a label that is readable and fits its bar", () => {
     const h = [hap(0, 1, { note: "c3" }), hap(1, 1, { note: "e3" })];
     expect(hideTinyLabels(h, roll, 800, 200, 11).map((x) => x.v.label)).toEqual([undefined, undefined]);

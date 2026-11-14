@@ -1171,7 +1171,10 @@ html:has(.pl-field) .se-header {
 
 /* player: the face label and the owner's face control */
 .pl-face { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
-.pl-when { min-width: 0; }
+.pl-bar-btns { display: flex; gap: 8px; margin-left: auto; flex: none; }
+.pl-bar-main { display: grid; gap: 4px; min-width: 0; }
+/* under the face chip, lined up with the chip (the dot and its gap are 16px) */
+.pl-when { min-width: 0; margin: 0; padding-left: 16px; color: var(--on-scrim-muted); }
 .pl-seg { display: flex; gap: 6px; }
 .pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
@@ -1251,12 +1254,6 @@ html:has(.pl-field) .se-header {
 /* In the same grid cell as the visual canvas, pinned to the visible part of the field. The base is a deep dark in the model's hue. */
 .pl-strudel { position: sticky; top: 0; grid-area: 1 / 1; align-self: start; width: 100%; height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); pointer-events: none; z-index: 0; overflow: hidden;
   background: radial-gradient(120% 90% at 50% 30%, hsl(calc(var(--pl-h) * 1deg) 32% calc(9% * var(--sv-k, 1))), hsl(calc(var(--pl-h) * 1deg) 36% calc(4% * var(--sv-k, 1)))); }
-/* three buttons in a row where there is room; on a phone the last one takes a row of its own */
-.pl-toggles-strudel[data-count="3"] { grid-template-columns: repeat(3, 1fr); }
-.pl-toggles-strudel[data-count="1"] { grid-template-columns: 1fr; }
-.pl-panel .pl-toggles-strudel .pl-toggle { padding-inline: 8px; font-size: 14px; }
-.pl-full-btn { gap: 6px; }
-@media (max-width: 520px) { .pl-toggles-strudel[data-count="3"] { grid-template-columns: 1fr 1fr; } .pl-toggles-strudel[data-count="3"] .pl-full-btn { grid-column: 1 / -1; } }
 /* fullscreen: only the picture. The header and footer go, the field takes the window. */
 html[data-pl-full] { --se-footer-h: 0px; --se-header-h: 0px; }
 html[data-pl-full] .se-header, html[data-pl-full] .se-footer { display: none; }

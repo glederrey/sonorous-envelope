@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Face, Policy } from "../../lib/mcp/modes";
-import { Maximize2 } from "lucide-react";
 import { REACTION_KINDS, REACTION_LABELS, type ReactionKind } from "@sonorous/shared";
 
 const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null }> = [
@@ -17,23 +16,18 @@ const REACTION_PAIRS: ReactionKind[][] = [["slower", "faster"], ["darker", "brig
 
 /** The Strudel buttons, in the style of Gradient and Scenes. "Allow Strudel" is the owner's (it is saved on the session); "Strudel visuals" is
  *  each listener's own (saved on the device): the code and its drawings instead of the scenes, while Strudel plays. */
-export function StrudelToggles({ allow, visuals, fullscreen }: { allow?: { on: boolean; set: (v: boolean) => void }; visuals?: { on: boolean; set: (v: boolean) => void }; fullscreen: () => void }) {
+export function StrudelToggles({ allow, visuals }: { allow?: { on: boolean; set: (v: boolean) => void }; visuals: { on: boolean; set: (v: boolean) => void } }) {
   return (
-    <div className="pl-toggles pl-toggles-strudel" data-count={(allow ? 1 : 0) + (visuals ? 1 : 0) + 1}>
+    <div className="pl-toggles" style={allow ? undefined : { gridTemplateColumns: "1fr" }}>
       {allow && (
         <button type="button" className="se-btn pl-toggle" aria-pressed={allow.on} onClick={() => allow.set(!allow.on)}
           title="Strudel is live-coded music the model writes. It runs in a sandbox in your browser, on the external face only.">
           <span className="pl-check" aria-hidden />Allow Strudel
         </button>
       )}
-      {visuals && (
-        <button type="button" className="se-btn pl-toggle" aria-pressed={visuals.on} onClick={() => visuals.set(!visuals.on)}
-          title="While Strudel plays: the code and what it draws, instead of the scenes.">
-          <span className="pl-check" aria-hidden />Strudel visuals
-        </button>
-      )}
-      <button type="button" className="se-btn pl-toggle pl-full-btn" onClick={fullscreen} title="Only the picture: no header, controls or footer. Esc or a tap on the picture brings them back.">
-        <Maximize2 size={16} aria-hidden />Fullscreen
+      <button type="button" className="se-btn pl-toggle" aria-pressed={visuals.on} onClick={() => visuals.set(!visuals.on)}
+        title="While Strudel plays: the code and what it draws, instead of the scenes.">
+        <span className="pl-check" aria-hidden />Strudel visuals
       </button>
     </div>
   );
@@ -49,7 +43,7 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the external face only (the internal face is how the model feels, and
  * nobody steers that), and the "fade after" setting (the external face never fades, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, patternPlays, onFullscreen }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean; onFullscreen: () => void }) {
+export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, patternPlays }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
@@ -79,7 +73,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     const timer = setInterval(() => void loadPending(), 15_000); // a reaction disappears from the list once the model has read it
     return () => { cancelled = true; clearInterval(timer); };
   }, [supabase, sessionId, loadPending]);
-  if (!owner) return <><StrudelToggles visuals={patternPlays ? { on: strudelVisuals, set: onStrudelVisuals } : undefined} fullscreen={onFullscreen} />{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
+  if (!owner) return <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />}{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
   const external = face === "external";
   const choose = async (value: Policy) => {
@@ -122,7 +116,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
       </div>
-      <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} fullscreen={onFullscreen} />
+      <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />
       <p className="pl-local se-sm">Allow Strudel lets the model play live code. Strudel visuals shows its code and drawings instead of the scenes.</p>
       {afterFace}
       {external && (

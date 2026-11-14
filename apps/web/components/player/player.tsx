@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { Eye, EyeOff, Lock, Minimize2, Play, Volume2, VolumeX } from "lucide-react";
+import { Eye, Minimize2 } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
-import { QrLink } from "../qr-link";
 import { sliderToGain } from "../../lib/volume";
 import { restedState } from "../../lib/rested-state";
 import { isSounding } from "../../lib/sounding";
@@ -15,8 +14,8 @@ import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
-import { OwnerControls, StrudelToggles } from "./owner-controls";
-import { StrudelPanel } from "./strudel-panel";
+import { ControlsMiddle } from "./controls-middle";
+import { ControlsPanel } from "./controls-panel";
 import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
 import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
@@ -556,6 +555,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     else if (soundingNow) setStShown(false);
   }, [patternShows, soundingNow, playing?.at]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
+  // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
+  useEffect(() => {
+    if (started && face === "external" && allowCode) { void import("./strudel-view"); void import("../../lib/strudel/output"); }
+  }, [started, face, allowCode]);
 
   const colour = playing?.state.colour;
   // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
@@ -625,76 +628,39 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
           </button>
         )}
         {phase === "ready" && started && !hidden && !full && (
-          <section className="pl-panel" aria-label="Listening controls">
-            {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}{strudel.current ? `\n${strudel.current.statsLine()}` : ""}</p>}
-            {debug && <p className="pl-local se-sm pl-debug" role="status">
-              {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}, session type ${audio.current?.audioSessionType ?? "n/a"}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
-            </p>}
-            <div className="pl-bar">
-              <p className="pl-status se-sm">
-                <span className={midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-                <span className="pl-face" title={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}>{face === "internal" ? "Internal" : "External"}{face === "external" && allowCode && blockedAt !== playing?.at && playing?.state.engine === "strudel" && playing.state.pattern ? " · Strudel" : ""}{policy !== "auto" && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
-                <span className="pl-when">
-                {playing
-                    ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
-                    : "Waiting for the first sound"}
-                </span>
+          <ControlsPanel
+            debug={debug ? <>
+              <p className="pl-local se-sm pl-debug" role="status">{dbgText}{strudel.current ? `\n${strudel.current.statsLine()}` : ""}</p>
+              <p className="pl-local se-sm pl-debug" role="status">
+                {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}, session type ${audio.current?.audioSessionType ?? "n/a"}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
               </p>
-              <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={() => setHidden(true)} aria-label="Hide controls" title="Hide controls">
-                <EyeOff size={18} aria-hidden />
-              </button>
-            </div>
-
-            {audioState !== "running" && !muted ? (
-              <button type="button" className="se-btn se-btn-primary pl-mute" onClick={() => void audio.current?.resume()}>
-                <Play size={22} aria-hidden />
-                Sound stopped. Tap to resume
-              </button>
-            ) : (
-              <button type="button" className="se-btn pl-mute" aria-pressed={muted} onClick={() => setMuted((m) => !m)}>
-                {muted ? <VolumeX size={22} aria-hidden /> : <Volume2 size={22} aria-hidden />}
-                {muted ? "Muted. Tap to unmute" : "Mute"}
-              </button>
-            )}
-
-            <div className="pl-sliders">
-              <label className="pl-slider">
-                <span>Volume</span>
-                <input type="range" min={0} max={1} step={0.01} value={volume} style={{ "--fill": `${volume * 100}%` } as CSSProperties}
-                  onChange={(e) => setVolume(Number(e.target.value))} />
-                <output>{Math.round(volume * 100)}</output>
-              </label>
-            </div>
-
-            {canvasOk && !reduced && (
-              <div className="pl-toggles">
-                <button type="button" className="se-btn pl-toggle" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn); }}>
-                  <span className="pl-check" aria-hidden />Gradient
-                </button>
-                <button type="button" className="se-btn pl-toggle" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn); }}>
-                  <span className="pl-check" aria-hidden />Scenes
-                </button>
-              </div>
-            )}
-
-            {(() => {
-              const code = playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at
-                ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} />
-                : null;
-              // the code sits right under the Face block for the owner, and on its own for a listener
-              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} patternPlays={patternShows} onFullscreen={enterFull} /> : <><StrudelToggles visuals={patternShows ? { on: strudelVisuals, set: chooseStrudelVisuals } : undefined} fullscreen={enterFull} />{code}</>;
-            })()}
-
-            {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}
-
-            <div className="pl-share se-sm">
-              <p>{shareText}</p>
-              <div className="pl-actions">
-                {shareAction}
-                <div className="pl-hide-phone"><QrLink path={`/s/${sessionId}`} /></div>
-              </div>
-            </div>
-          </section>
+            </> : null}
+            midTurn={midTurn}
+            faceLabel={face === "internal" ? "Internal" : "External"}
+            faceTitle={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}
+            strudelTag={face === "external" && allowCode && blockedAt !== playing?.at && playing?.state.engine === "strudel" && Boolean(playing.state.pattern)}
+            locked={policy !== "auto"}
+            when={playing
+              ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
+              : "Waiting for the first sound"}
+            onHide={() => setHidden(true)}
+            onFullscreen={enterFull}
+            audioState={audioState} muted={muted}
+            onResume={() => void audio.current?.resume()} onToggleMute={() => setMuted((m) => !m)}
+            volume={volume} onVolume={setVolume}
+            picture={canvasOk && !reduced ? {
+              gradientOn, visualsOn,
+              onGradient: () => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn); },
+              onVisuals: () => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn); },
+            } : null}
+            middle={<ControlsMiddle
+              supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
+              pattern={playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
+              patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals}
+            />}
+            extra={signedIn ? <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /> : null}
+            shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}
+          />
         )}
         {phase === "ready" && !started && <aside className="pl-aside se-sm"><p style={{ margin: 0 }}>{shareText}</p><div className="pl-actions">{shareAction}</div></aside>}
       </main>

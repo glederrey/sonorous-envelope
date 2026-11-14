@@ -131,10 +131,16 @@ export function fitFont(code: string, width: number, height: number): number {
   return floor;
 }
 
-/** Where to scroll a box of `box` px (content `content` px) so the lit line at `lineTop` sits about a third from the top; 0 when it all fits. */
-export function scrollFor(lineTop: number, box: number, content: number): number {
-  if (content <= box) return 0;
-  return Math.min(content - box, Math.max(0, lineTop - box * 0.33));
+/** Where a box whose content is `over` px taller than the box is scrolled at time `t` (seconds): it waits at the top, drifts down at `speed`
+ *  px a second, waits at the bottom, drifts back. Code taller than the view is shown by sweeping over it (a stack lights every line at
+ *  once, so there is no one lit line to follow), and the page itself never scrolls. 0 when it all fits. */
+export function sweepOffset(t: number, over: number, speed = 28, pause = 2): number {
+  if (over <= 0) return 0;
+  const travel = over / speed, period = 2 * (travel + pause), u = ((t % period) + period) % period;
+  if (u < pause) return 0;
+  if (u < pause + travel) return (u - pause) * speed;
+  if (u < 2 * pause + travel) return over;
+  return over - (u - 2 * pause - travel) * speed;
 }
 
 /** Rectangles of the drawings in a canvas of w by h: the plain calls (`.pianoroll()`) fill the whole view behind the code; the `_` calls
@@ -153,7 +159,7 @@ const defaultLabel = (v: DrawHap["v"]): string => String(v.label ?? v.note ?? (v
 
 /** Labels on a roll are drawn at a size set by the bar (its thickness on a horizontal roll, its length on a vertical one), so on a small
  *  screen or for a short event they come out tiny, or spill out of the bar. This blanks the label of an event whose label would be smaller
- *  than `minPx` or wider than its bar, instead of drawing it unreadable. `w` and `h` are the lane in canvas pixels. */
+ *  than `minPx` or more than twice as wide as its bar (Strudel squeezes it into the bar), instead of drawing it unreadable. `w` and `h` are the lane in canvas pixels. */
 export function hideTinyLabels(haps: DrawHap[], o: { vertical: boolean; fold: boolean; minMidi: number; maxMidi: number; timeExtent: number }, w: number, h: number, minPx: number): DrawHap[] {
   const rowKey = (v: DrawHap["v"]) => (typeof v.freq === "number" ? `f${v.freq}` : String(v.note ?? v.n ?? (v.s !== undefined ? `_${v.s}` : "")));
   const rows = o.fold ? Math.max(1, new Set(haps.map((d) => rowKey(d.v))).size) : o.maxMidi - o.minMidi + 1;
@@ -165,7 +171,8 @@ export function hideTinyLabels(haps: DrawHap[], o: { vertical: boolean; fold: bo
     const lengthPx = (d.l / o.timeExtent) * timeAxis;
     // horizontal: the font is 0.75 of the bar's thickness and the text runs along the bar; vertical: the font is the bar's length and the text runs across it
     const font = o.vertical ? lengthPx : thickness * 0.75;
-    const fits = o.vertical ? text.length * 0.6 * font <= thickness : text.length * 0.6 * font <= lengthPx;
-    return font >= minPx && fits ? d : { ...d, v: { ...d.v, label: "", activeLabel: "" } };
+    // Strudel squeezes a label into its bar (fillText has a max width), so a little too wide still reads; hide it when the squeeze is extreme
+    const natural = text.length * 0.6 * font, room = o.vertical ? thickness : lengthPx;
+    return font >= minPx && natural <= room * 2 ? d : { ...d, v: { ...d.v, label: "", activeLabel: "" } };
   });
 }

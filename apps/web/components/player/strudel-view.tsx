@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { Painter, type Env } from "../../lib/strudel/draw";
-import { fitFont, scrollFor, lanes, litKey, litSpans, runs, tokenize, type VizStore } from "../../lib/strudel/viz";
+import { fitFont, sweepOffset, lanes, litKey, litSpans, runs, tokenize, type VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
 
 // The picture of a Strudel state (docs/implementation/strudel.md, "The picture"): the model's code fills the background, the parts that
@@ -78,12 +78,8 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
         seenCode = st.code; cls = tokenize(st.code); key = "\u0000";
         code.style.fontSize = `${fitFont(st.code, cssW, cssH)}px`;
       }
-      // code taller than the view: follow the lit part (the page itself never scrolls)
-      if (code.scrollHeight > code.clientHeight + 1) {
-        const hot = code.querySelector<HTMLElement>(".svh");
-        const want = hot ? scrollFor(hot.offsetTop, code.clientHeight, code.scrollHeight) : code.scrollTop;
-        code.scrollTop += (want - code.scrollTop) * Math.min(1, dt * 6);
-      } else if (code.scrollTop) code.scrollTop = 0;
+      // code taller than the view: sweep slowly over it, top to bottom and back (the page itself never scrolls)
+      code.scrollTop = sweepOffset(now / 1000, code.scrollHeight - code.clientHeight);
       const lit = litSpans(st.marks, cycle, TAIL_S * cps);
       const k = litKey(lit);
       if (k !== key) {
