@@ -340,7 +340,7 @@ const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}
 /** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
  *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 3, 48, 220)), GH = Math.round(clamp(GW / asp, 48, 400));
+  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 3.5, 48, 180)), GH = Math.round(clamp(GW / asp, 48, 340));
   const x0 = (p: number) => 0.5 + ((p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P - 0.5) * Math.min(1, asp); // the plumes stand in the part of the view that shows
   const build = (bq: number) => {
     const rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60);
@@ -724,7 +724,7 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 function caustics(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), asp = c.aspect > 0 ? c.aspect : 0.6;
   const tone = lum < 0.4 ? toneLayer(c.bases, 185, true, 0.2, { sat: 0.5, l: 0.86 }) : toneLayer(c.bases, 200, false, 0.2, { sat: 0.5, l: 0.2 });
-  const GW = Math.round(clamp(c.px / 3, 48, 220)), GH = Math.round(clamp(GW / asp, 48, 400)), sc = lerp(5, 10, density);
+  const GW = Math.round(clamp(c.px / 3.5, 48, 180)), GH = Math.round(clamp(GW / asp, 48, 340)), sc = lerp(5, 10, density);
   const build = (bq: number) => {
     const t = bq * lerp(0.02, 0.07, speed);
     return (x: number, y: number) => {

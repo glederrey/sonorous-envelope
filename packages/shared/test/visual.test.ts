@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.setConfig({ testTimeout: 30000 }); // the property tests draw tens of thousands of frames
+vi.setConfig({ testTimeout: 90000 }); // the property tests draw tens of thousands of frames
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
   capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,

@@ -136,7 +136,7 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 - **Vignette** is measured in screen space (an ellipse of the view), so all four edges darken on a phone.
 - **Light scenes on a bright base.** Aurora, sunbeam, stars, fireflies, fireworks, embers, warp, motes, lightning and cracks get a uniform dark veil under them (`lightSceneDim`, up to 0.6 opacity, from a relative luminance of 0.42). It is not reported in `clamped`.
 - **Warp** has no wash of its own: the nebula is the field's own hue and only glows round the core.
-- **Caustics and smoke** are built at up to 220 cells across (was 150), and the painter smooths them at high quality.
+- **Caustics and smoke** are built at up to 180 cells across (was 150), and the painter smooths them at high quality.
 - **Fireflies and motes** sit on an evenly spread sequence (R2), so none overlap. Flock birds are small beating wings, and its `speed` scales the simulation rate. Fireworks have trails and a burst flash, up to 8 at once, and a slow speed is much slower. Cracks hit exactly on a beat (every beat at density 1, every 4th at 0) and each lasts under 3 beats. Digital rain draws half-width katakana and digits. Leaves vary from narrow to broad. Aurora rays are softer.
 - **Mood to scene.** `MOOD_PROTOTYPES` (`mood-mapping.ts`) holds the axes that give each of the 14 test emotions its scene; a test pins all of them and the table is below. A tester should send these values. Cold anger and dread no longer take the red of plain anger.
 - **Picture buttons** are "Gradient" and "Scenes", side by side, outlined in teal with a check when on.
