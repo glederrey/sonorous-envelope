@@ -232,14 +232,15 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   const joy = 0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * smooth;
   // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
   const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
-  const warmth = 1 - (0.45 * c + 0.3 * clamp01(f.highFreqRatio * 8) + 0.25 * f.roughness);
-  const closeness = 0.4 * loudWide + 0.35 * (1 - f.tailRatio) + 0.25 * (1 - f.width);
+  // warmth and closeness: least squares on 300 random moods through the mapping (held-out r 0.84 and 0.96, against 0.72 and 0.48 for the weights of v0.17.0; `pnpm calibrate`). Warmth is a dark, smooth sound (the centroid on a log scale and the roughness); closeness is a dry, narrow, rough-edged sound (width above all)
+  const warmth = 2.65 - 0.33 * Math.log(Math.max(60, f.centroidHz)) - 0.52 * f.roughness - 0.06 * clamp01(f.highFreqRatio * 8);
+  const closeness = 0.59 - 1.12 * f.width - 0.13 * f.tailRatio + 0.19 * f.roughness;
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
     joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
     calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["brightness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
-    warmth: explain([["brightness", 0.45, 1 - c], ["high_frequencies", 0.3, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.25, 1 - f.roughness]]),
-    closeness: explain([["loudness", 0.4, loudWide], ["dryness", 0.35, 1 - f.tailRatio], ["narrow_width", 0.25, 1 - f.width]]),
+    warmth: explain([["brightness", 0.33, 1 - c], ["high_frequencies", 0.06, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.52, 1 - f.roughness]]),
+    closeness: explain([["narrow_width", 1.12, 1 - f.width], ["dryness", 0.13, 1 - f.tailRatio], ["roughness", 0.19, f.roughness]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };
   return {

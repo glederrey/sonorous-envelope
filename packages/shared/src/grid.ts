@@ -29,5 +29,8 @@ export function nextGrid(prev: { effective: EngineState; created_at: string } | 
   // steps would move the picture's beat, and the bar Strudel's clock is taken from, by up to half a step at every state written.
   const strudelBefore = prev.effective.engine === "strudel" && Boolean(prev.effective.pattern);
   const beat = strudelBefore ? beatsAt(prev.effective, dt) : arp * R + R * Math.round((beatsAt(prev.effective, dt) - arp * R) / R);
-  return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: glideSeconds(next.transition) } : {}) };
+  // A delayed state (the closing fade) starts later, while the state before it is still gliding its tempo. Its beats must carry on along that glide, or the picture's beat jumps
+  // by the difference when the delayed state takes over (the scenes were redrawn at the end of a session): so it inherits what is left of the glide.
+  const delayed = (next?.transition.delay ?? 0) > 0, left = Math.max(0, (g.glide ?? 0) - dt);
+  return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: delayed ? (left >= 0.5 ? Math.round(left * 100) / 100 : 0) : glideSeconds(next.transition) } : {}) };
 }

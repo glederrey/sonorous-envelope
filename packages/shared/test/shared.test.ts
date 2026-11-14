@@ -469,6 +469,16 @@ describe("the shared timeline", () => {
     const g2 = nextGrid({ effective: b, created_at: new Date(13_000).toISOString() }, 13_000 + 2_000);
     expect(g2.arp).toBeCloseTo(14, 9); // 1 s steps now
   });
+  it("keeps the beat continuous when a delayed closing state takes over a tempo glide (the picture was redrawn at the end of a session)", () => {
+    const a = st(120); a.grid = { arp: 0, bass: 0, beat: 0 };
+    const closing = st(60); closing.transition = { time: 8, curve: "smooth" };
+    closing.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000, closing); // written at 10 s, glides 120 to 60 BPM over 8 s
+    const end = JSON.parse(JSON.stringify(closing)) as typeof closing; end.volume = 0; end.transition = { time: 15, curve: "smooth", delay: 7 };
+    end.grid = nextGrid({ effective: closing, created_at: new Date(10_000).toISOString() }, 11_000, end); // written 1 s later, starts 7 s after that
+    // when it takes over (18 s) the beat must be where the closing state's own glide has it
+    expect(beatsAt(end, 7)).toBeCloseTo(beatsAt(closing, 8), 0);
+    expect(Math.abs(beatsAt(end, 7) - beatsAt(closing, 8))).toBeLessThan(0.3);
+  });
   it("keeps Strudel's beat as it is: no snapping to the paused synth's steps", () => {
     const a = st(120); a.engine = "strudel"; a.pattern = { code: "s('bd')", bpm: 100 }; a.grid = { arp: 0.37, bass: 0, beat: 8.3 };
     const g = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 3_000);
