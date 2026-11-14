@@ -6,7 +6,7 @@
 // of a work under the same licence (docs/licensing.md). The colours of the model's code go only into canvas colour properties.
 import { __pianoroll } from "@strudel/draw";
 import type { DrawHap, Prim } from "./protocol";
-import type { Lane } from "./viz";
+import { hideTinyLabels, type Lane } from "./viz";
 
 /** What a drawing needs to know about the moment: where the music is, the events, the sound, and the colours of this session. */
 export interface Env {
@@ -53,14 +53,15 @@ export class Painter {
           if (!c) break;
           const cycles = num(o, "cycles", 4), playhead = num(o, "playhead", 0.5), hideNegative = flag(o, "hideNegative", false);
           const from = -cycles * playhead, to = cycles * (1 - playhead), t = env.cycle;
-          const haps = env.draws
-            .filter((d) => d.viz.includes(lane.spec.id) && d.c < t + to && d.c + d.l > t + from && (!hideNegative || d.c >= 0))
-            .map(asHap);
+          let events = env.draws.filter((d) => d.viz.includes(lane.spec.id) && d.c < t + to && d.c + d.l > t + from && (!hideNegative || d.c >= 0));
           // punchcard folds the rows, wordfall is a vertical roll with labels (the same presets as Strudel's)
           const preset = lane.spec.name === "wordfall" ? { fold: 1, vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "#ffffff" } : lane.spec.name === "punchcard" ? { fold: 1 } : {};
+          const merged = { ...preset, ...o } as Record<string, Prim>;
+          // a label that would come out tiny or wider than its bar is left off (readable on a phone, instead of a smudge)
+          if (merged.labels) events = hideTinyLabels(events, { vertical: Boolean(merged.vertical), fold: merged.fold === undefined ? true : Boolean(merged.fold), minMidi: num(merged, "minMidi", 10), maxMidi: num(merged, "maxMidi", 90), timeExtent: cycles }, w, h, 11 * env.dpr);
           __pianoroll({
             active: env.accent.active, inactive: env.accent.inactive, playheadColor: env.accent.head,
-            ...preset, ...o, cycles, playhead, time: t, haps, ctx: c, id: undefined,
+            ...merged, cycles, playhead, time: t, haps: events.map(asHap), ctx: c, id: undefined,
           });
           ctx.globalAlpha = lane.spec.inline ? 0.92 : 0.7; ctx.drawImage(c.canvas, x, y); ctx.globalAlpha = 1; // behind the code, a little softer so the code reads
           break;

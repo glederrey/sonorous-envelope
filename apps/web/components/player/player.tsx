@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { Eye, EyeOff, Lock, Play, Volume2, VolumeX } from "lucide-react";
+import { Eye, EyeOff, Lock, Minimize2, Play, Volume2, VolumeX } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
 import { createClient } from "../../lib/supabase/browser";
@@ -71,9 +71,30 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [audioState, setAudioState] = useState<string>("running");
   const [rested, setRested] = useState(false); // the sound has faded because the model has not updated for rest_after
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
+  // Fullscreen: only the picture (no header, panels or footer). The browser's own fullscreen where it has one (not on iPhone), the layout either way.
+  const [full, setFull] = useState(false);
+  const [exitShown, setExitShown] = useState(false); // the exit button shows for a few seconds, and again when the picture is touched
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nudgeExit = useCallback(() => { setExitShown(true); if (exitTimer.current) clearTimeout(exitTimer.current); exitTimer.current = setTimeout(() => setExitShown(false), 3000); }, []);
+  const enterFull = useCallback(() => {
+    setFull(true); nudgeExit();
+    try { void document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* no fullscreen API: the layout alone */ }
+  }, [nudgeExit]);
+  const exitFull = useCallback(() => {
+    setFull(false); setExitShown(false);
+    try { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); } catch { /* already out */ }
+  }, []);
+  useEffect(() => {
+    if (!full) { delete document.documentElement.dataset.plFull; return; }
+    document.documentElement.dataset.plFull = "1";
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") exitFull(); };
+    const change = () => { if (!document.fullscreenElement) exitFull(); }; // the browser's own Esc
+    window.addEventListener("keydown", key); document.addEventListener("fullscreenchange", change);
+    return () => { window.removeEventListener("keydown", key); document.removeEventListener("fullscreenchange", change); delete document.documentElement.dataset.plFull; };
+  }, [full, exitFull]);
   const [face, setFace] = useState<Face>("internal"); // the face playing now (the model switches it, or the owner locks it)
   const [policy, setPolicy] = useState<Policy>("auto");
-  // the moving picture (canvas): the listener can turn it off, nudge its timing for devices that cannot report their delay, and
+  // the moving picture (canvas): the listener can turn it off, and
   // ?field=css brings back the old CSS motion
   const [gradientOn, setGradientOn] = useState(true);
   const [visualsOn, setVisualsOn] = useState(true);
@@ -84,10 +105,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [stSeen, setStSeen] = useState(false); // a Strudel state has shown: the view is loaded
   const [stShown, setStShown] = useState(false); // the Strudel picture is the one showing (it stays through a silence, and fades with the level)
   const vizStore = useMemo(() => new VizStore(), []);
-  const vizLevel = useRef(0), vizBeats = useRef(0); // written by the visual canvas, read by the Strudel picture
-  const [nudgeMs, setNudgeMs] = useState(0);
+  const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
   const [canvasOk, setCanvasOk] = useState(true);
-  const nudge = useRef(0);
   // Strudel (roadmap #18): the model's code plays in a sandbox on the external face, if the owner allows it. The listener may stop it here.
   const [allowCode, setAllowCode] = useState(true);
   const strudel = useRef<StrudelOutput | null>(null);
@@ -127,15 +146,15 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // the picture's own settings, per device: ?field=css keeps the old CSS motion
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; nudge?: number; strudel?: boolean };
+      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; strudel?: boolean };
       setStrudelVisuals(v.strudel !== false); strudelPref.current = v.strudel !== false;
-      setGradientOn(v.still ? false : v.gradient !== false); setVisualsOn(v.still ? false : v.visuals !== false); const n = Number.isFinite(v.nudge) ? Math.min(400, Math.max(0, Number(v.nudge))) : 0; setNudgeMs(n); nudge.current = n;
+      setGradientOn(v.still ? false : v.gradient !== false); setVisualsOn(v.still ? false : v.visuals !== false);
     } catch { /* private window */ }
     if (new URLSearchParams(window.location.search).get("field") === "css") setCanvasOk(false);
   }, []);
-  const rememberPicture = (gradient: boolean, visuals: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, nudge: n, strudel: strudelPref.current })); } catch { /* private window */ } };
-  const chooseStrudelVisuals = (on: boolean) => { setStrudelVisuals(on); strudelPref.current = on; rememberPicture(gradientOn, visualsOn, nudgeMs); };
-  const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
+  const rememberPicture = (gradient: boolean, visuals: boolean) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, strudel: strudelPref.current })); } catch { /* private window */ } };
+  const chooseStrudelVisuals = (on: boolean) => { setStrudelVisuals(on); strudelPref.current = on; rememberPicture(gradientOn, visualsOn); };
+  const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0), []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
   /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code. */
@@ -565,7 +584,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
 
   return (
     <div
-      className="pl-field" style={fieldStyle}
+      className="pl-field" style={fieldStyle} onPointerDown={full ? nudgeExit : undefined} onPointerMove={full && !exitShown ? nudgeExit : undefined}
       data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-canvas={canvasOk && !reduced ? "on" : "off"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
       <div className="pl-dim" data-animated={dimAnimated} aria-hidden />
@@ -573,11 +592,11 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
           clockOffset={clockOffset} latency={pictureLatency} active={started && (!stillPicture || strudelOn)} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
-          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats}
+          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats} viewOpacity={vizOpacity}
         />
       )}
       {canvasOk && !reduced && stSeen && (
-        <StrudelView store={vizStore} output={() => strudel.current} level={vizLevel} beats={vizBeats} shown={strudelOn} hue={colour?.h ?? 220} />
+        <StrudelView store={vizStore} output={() => strudel.current} level={vizLevel} beats={vizBeats} shown={strudelOn} opacity={vizOpacity} hue={colour?.h ?? 220} />
       )}
       <main className="pl-stage">
         {phase === "joining" && <p className="pl-note" role="status">Opening the player…</p>}
@@ -596,13 +615,16 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             {message && <p className="pl-note" role="alert">{message}</p>}
           </div>
         )}
-        {phase === "ready" && started && hidden && (
+        {phase === "ready" && started && full && (
+          <button type="button" className="se-btn pl-exit" data-shown={exitShown} onClick={exitFull} aria-label="Exit fullscreen" title="Exit fullscreen"><Minimize2 size={18} aria-hidden />Exit fullscreen</button>
+        )}
+        {phase === "ready" && started && hidden && !full && (
           <button type="button" className="se-btn pl-reveal" onClick={() => setHidden(false)}>
             <Eye size={18} aria-hidden />
             Show controls
           </button>
         )}
-        {phase === "ready" && started && !hidden && (
+        {phase === "ready" && started && !hidden && !full && (
           <section className="pl-panel" aria-label="Listening controls">
             {debug && <p className="pl-local se-sm pl-debug" role="status">{dbgText}{strudel.current ? `\n${strudel.current.statsLine()}` : ""}</p>}
             {debug && <p className="pl-local se-sm pl-debug" role="status">
@@ -642,22 +664,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                   onChange={(e) => setVolume(Number(e.target.value))} />
                 <output>{Math.round(volume * 100)}</output>
               </label>
-              {canvasOk && !reduced && (
-                <label className="pl-slider" title="Delay the picture so it matches the sound, for example on Bluetooth headphones. Leave it at 0 if they already match.">
-                  <span>Picture delay</span>
-                  <input type="range" min={0} max={400} step={10} value={nudgeMs} style={{ "--fill": `${(nudgeMs / 400) * 100}%` } as CSSProperties}
-                    onChange={(e) => { const n = Number(e.target.value); setNudgeMs(n); nudge.current = n; rememberPicture(gradientOn, visualsOn, n); }} />
-                  <output>{nudgeMs} ms</output>
-                </label>
-              )}
             </div>
 
             {canvasOk && !reduced && (
               <div className="pl-toggles">
-                <button type="button" className="se-btn pl-toggle" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn, nudgeMs); }}>
+                <button type="button" className="se-btn pl-toggle" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn); }}>
                   <span className="pl-check" aria-hidden />Gradient
                 </button>
-                <button type="button" className="se-btn pl-toggle" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn, nudgeMs); }}>
+                <button type="button" className="se-btn pl-toggle" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn); }}>
                   <span className="pl-check" aria-hidden />Scenes
                 </button>
               </div>
@@ -668,7 +682,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} />
                 : null;
               // the code sits right under the Face block for the owner, and on its own for a listener
-              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} patternPlays={patternShows} /> : <>{patternShows ? <StrudelToggles visuals={{ on: strudelVisuals, set: chooseStrudelVisuals }} /> : null}{code}</>;
+              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} patternPlays={patternShows} onFullscreen={enterFull} /> : <><StrudelToggles visuals={patternShows ? { on: strudelVisuals, set: chooseStrudelVisuals } : undefined} fullscreen={enterFull} />{code}</>;
             })()}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}

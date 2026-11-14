@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampOpt, isSafeColour, validateDrawHap, validateHap, validateLoc, validateViz } from "./protocol";
-import { fitFont, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
+import { fitFont, hideTinyLabels, scrollFor, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
 
 describe("code spans", () => {
   it("keeps whole, in-range spans only", () => {
@@ -91,12 +91,21 @@ describe("the code view", () => {
   it("ignores spans outside the code", () => {
     expect(runs("ab", tokenize("ab"), [{ start: 5, end: 9, level: 1 }]).every((r) => r.lit === -1)).toBe(true);
   });
-  it("sets the font between 11 and 24 px", () => {
+  it("sets the biggest font that fits, down to a floor that is lower on a phone", () => {
     expect(fitFont("s('bd')", 1200, 800)).toBe(24);
-    expect(fitFont("x".repeat(300), 400, 800)).toBe(11);
-    expect(fitFont(Array(60).fill("a").join("\n"), 1200, 400)).toBe(11);
-    const mid = fitFont("x".repeat(60), 600, 800);
-    expect(mid).toBeGreaterThan(11); expect(mid).toBeLessThan(24);
+    expect(fitFont("x".repeat(5000), 400, 600)).toBe(8); // phone portrait: the floor, then the view scrolls
+    expect(fitFont("x".repeat(5000), 900, 300)).toBe(10); // wide and short: the other floor
+    const mid = fitFont("x".repeat(400), 600, 300);
+    expect(mid).toBeGreaterThan(10); expect(mid).toBeLessThan(24);
+    // a long line wraps, so it counts as several rows: 40 short lines plus one very wide one is smaller than 40 short lines
+    const shortLines = Array(40).fill("note('c3')").join("\n");
+    expect(fitFont(shortLines + "\n" + "x".repeat(900), 390, 700)).toBeLessThanOrEqual(fitFont(shortLines, 390, 700));
+  });
+  it("scrolls only when the code is taller than its box, and keeps the lit line near the top third", () => {
+    expect(scrollFor(500, 600, 500)).toBe(0);
+    expect(scrollFor(10, 300, 1000)).toBe(0);
+    expect(scrollFor(500, 300, 1000)).toBe(401);
+    expect(scrollFor(990, 300, 1000)).toBe(700);
   });
 });
 
@@ -133,5 +142,27 @@ describe("hostile options stay bounded", () => {
   });
   it("no longer knows the spiral or the spectrum", () => {
     expect(validateViz([{ id: 0, name: "spiral", opts: {} }, { id: 1, name: "spectrum", opts: {} }])).toEqual([]);
+  });
+});
+
+describe("labels on a roll", () => {
+  const hap = (c: number, l: number, v: Record<string, string | number>) => ({ c, l, v, loc: [], viz: [0] });
+  const roll = { vertical: false, fold: true, minMidi: 10, maxMidi: 90, timeExtent: 4 };
+  it("keeps a label that is readable and fits its bar", () => {
+    const h = [hap(0, 1, { note: "c3" }), hap(1, 1, { note: "e3" })];
+    expect(hideTinyLabels(h, roll, 800, 200, 11).map((x) => x.v.label)).toEqual([undefined, undefined]);
+  });
+  it("blanks every label when the bars are too thin to read", () => {
+    const h = Array.from({ length: 30 }, (_, i) => hap(0, 1, { note: `n${i}` }));
+    expect(hideTinyLabels(h, roll, 800, 200, 11).every((x) => x.v.label === "")).toBe(true);
+  });
+  it("blanks the label of a short event that cannot hold its text", () => {
+    const [a, b] = hideTinyLabels([hap(0, 2, { note: "c3" }), hap(2, 0.05, { note: "e3" })], roll, 800, 200, 11);
+    expect(a.v.label).toBeUndefined(); expect(b.v.label).toBe("");
+  });
+  it("on a vertical roll, blanks the label of an event shorter than a readable line", () => {
+    const o = { ...roll, vertical: true };
+    const [long, short] = hideTinyLabels([hap(0, 0.2, { note: "c3" }), hap(1, 0.02, { note: "d3" })], o, 400, 800, 11);
+    expect(long.v.label).toBeUndefined(); expect(short.v.label).toBe("");
   });
 });

@@ -37,8 +37,8 @@ export function StrudelLab() {
   const [allow, setAllow] = useState(true), [visuals, setVisuals] = useState(true); // the two buttons of the player, here only to look at
   const [report, setReport] = useState("");
   const store = useMemo(() => new VizStore(), []);
-  useEffect(() => { (window as unknown as { __viz: VizStore }).__viz = store; }, [store]); // for the headless check
-  const level = useRef(1), beats = useRef(0);
+  useEffect(() => { (window as unknown as { __viz: VizStore; __op: { current: number }; __lv: { current: number } }).__viz = store; (window as unknown as { __op: unknown }).__op = opacity; (window as unknown as { __lv: unknown }).__lv = level; }, [store]); // for the headless check
+  const level = useRef(1), beats = useRef(0), opacity = useRef(0);
   const audio = useRef<AudioOutput | null>(null), out = useRef<StrudelOutput | null>(null);
   const t0 = useRef(0), bpmRef = useRef(bpm);
   bpmRef.current = bpm;
@@ -69,7 +69,7 @@ export function StrudelLab() {
 
   return (
     <div className="pl-field" style={{ "--pl-h": hue, "--pl-t": "1s" } as React.CSSProperties}>
-      {started && <StrudelView store={store} output={() => out.current} level={level} beats={beats} shown={visuals} hue={hue} />}
+      {started && <StrudelView store={store} output={() => out.current} level={level} beats={beats} shown={visuals} opacity={opacity} hue={hue} />}
       <main className="pl-stage">
         <section className="pl-panel" aria-label="Strudel lab">
           <div className="pl-toggles" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
@@ -78,7 +78,7 @@ export function StrudelLab() {
             ))}
           </div>
           <textarea value={code} onChange={(e) => setCode(e.target.value)} rows={6} spellCheck={false} aria-label="Strudel code" style={{ fontFamily: "var(--font-mono)", fontSize: 13, width: "100%" }} />
-          <StrudelToggles allow={{ on: allow, set: setAllow }} visuals={{ on: visuals, set: setVisuals }} />
+          <StrudelToggles allow={{ on: allow, set: setAllow }} visuals={{ on: visuals, set: setVisuals }} fullscreen={() => void document.documentElement.requestFullscreen?.()} />
           <label className="pl-slider"><span>Tempo</span><input type="range" min={60} max={180} value={bpm} onChange={(e) => setBpm(Number(e.target.value))} /><output>{bpm}</output></label>
           <label className="pl-slider"><span>Hue</span><input type="range" min={0} max={360} value={hue} onChange={(e) => setHue(Number(e.target.value))} /><output>{hue}</output></label>
           <button type="button" className="se-btn se-btn-primary pl-mute" onClick={() => void play()}>{started ? "Play this code" : "Start and play"}</button>

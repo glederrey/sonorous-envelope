@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { Painter, type Env } from "../../lib/strudel/draw";
-import { fitFont, lanes, litKey, litSpans, runs, tokenize, type VizStore } from "../../lib/strudel/viz";
+import { fitFont, scrollFor, lanes, litKey, litSpans, runs, tokenize, type VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
 
 // The picture of a Strudel state (docs/implementation/strudel.md, "The picture"): the model's code fills the background, the parts that
@@ -19,6 +19,8 @@ interface Props {
   beats: MutableRefObject<number>;
   /** false: fade out (a synth sound took over, or the listener turned the visuals off) */
   shown: boolean;
+  /** written every frame: how opaque the whole view is (0 to 1). The visual canvas keeps painting the scenes under it until it is opaque, so the scenes and this view cross-fade */
+  opacity: MutableRefObject<number>;
   /** the model's colour: the highlights, the drawings and the code take their hue from it */
   hue: number;
 }
@@ -26,7 +28,7 @@ interface Props {
 const DPR_MAX = 1.5; // the drawings are soft; a lower resolution keeps a phone smooth
 const TAIL_S = 0.18; // seconds a lit part stays after its note ends
 
-export function StrudelView({ store, output, level, beats, shown, hue }: Props) {
+export function StrudelView({ store, output, level, beats, shown, opacity, hue }: Props) {
   const root = useRef<HTMLDivElement>(null), cv = useRef<HTMLCanvasElement>(null), pre = useRef<HTMLPreElement>(null);
   const live = useRef({ shown, hue, output, store });
   live.current = { shown, hue, output, store };
@@ -35,7 +37,7 @@ export function StrudelView({ store, output, level, beats, shown, hue }: Props) 
     const el = root.current, canvas = cv.current, code = pre.current, ctx = canvas?.getContext("2d");
     if (!el || !canvas || !code || !ctx) return;
     const painter = new Painter();
-    let raf = 0, vis = 0, last = 0, w = 1, h = 1, dpr = 1, cssW = 1, cssH = 1;
+    let raf = 0, vis = 0, op = 0, wasOn = false, last = 0, w = 1, h = 1, dpr = 1, cssW = 1, cssH = 1;
     let seenVersion = -1, seenCode = "", cls: Uint8Array = new Uint8Array(0), key = "", cleared = true, time: Float32Array | null = null, freq: Float32Array | null = null;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
@@ -52,10 +54,20 @@ export function StrudelView({ store, output, level, beats, shown, hue }: Props) 
       raf = requestAnimationFrame(loop);
       const { shown: on, hue: hu, output, store: st } = live.current;
       const dt = last ? Math.min(0.25, (now - last) / 1000) : 0.016; last = now;
-      // follows the canvas's level while it is shown; fades out by itself otherwise
-      vis = on ? level.current : vis * Math.exp(-dt / 0.45);
-      if (vis < 0.004) { vis = 0; if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } el.style.visibility = "hidden"; return; }
-      el.style.visibility = "visible"; el.style.opacity = String(vis);
+      // The whole view (`op`) is opaque while it is shown, even in a silence, so the colour field never shows through a fade: the content fades
+      // to black inside it. It fades in over the scenes when the listener switches it on (the canvas paints them until it is opaque), and out
+      // over them when a synth sound takes over or it is switched off. Coming in from nothing it is there at once.
+      if (on) { if (!wasOn && level.current < 0.05) op = 1; op += (1 - op) * (1 - Math.exp(-dt / 0.35)); if (op > 0.995) op = 1; }
+      else op *= Math.exp(-dt / 0.45);
+      wasOn = on;
+      if (op < 0.004) op = 0;
+      opacity.current = op;
+      // the content follows the canvas's level (the fades of the sound, the first bar) and the view's own opacity
+      vis = Math.min(level.current, op);
+      if (op === 0) { if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } el.style.visibility = "hidden"; return; }
+      el.style.visibility = "visible"; el.style.opacity = String(op); el.style.setProperty("--sv-k", String(vis));
+      canvas.style.opacity = code.style.opacity = String(vis);
+      if (vis < 0.004) { if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } return; }
       cleared = false;
 
       const cycle = beats.current / 4, cps = st.bpm / 240;
@@ -66,6 +78,12 @@ export function StrudelView({ store, output, level, beats, shown, hue }: Props) 
         seenCode = st.code; cls = tokenize(st.code); key = "\u0000";
         code.style.fontSize = `${fitFont(st.code, cssW, cssH)}px`;
       }
+      // code taller than the view: follow the lit part (the page itself never scrolls)
+      if (code.scrollHeight > code.clientHeight + 1) {
+        const hot = code.querySelector<HTMLElement>(".svh");
+        const want = hot ? scrollFor(hot.offsetTop, code.clientHeight, code.scrollHeight) : code.scrollTop;
+        code.scrollTop += (want - code.scrollTop) * Math.min(1, dt * 6);
+      } else if (code.scrollTop) code.scrollTop = 0;
       const lit = litSpans(st.marks, cycle, TAIL_S * cps);
       const k = litKey(lit);
       if (k !== key) {
@@ -104,7 +122,7 @@ export function StrudelView({ store, output, level, beats, shown, hue }: Props) 
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [level, beats]);
+  }, [level, beats, opacity]);
 
   return (
     <div ref={root} className="pl-strudel" aria-hidden style={{ visibility: "hidden", opacity: 0 }}>
