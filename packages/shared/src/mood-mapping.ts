@@ -192,7 +192,7 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
   return {
     h, s: sat, l,
     secondary: { h: (h + 25) % 360, s: sat, l: Math.max(0, l - 0.08) },
-    motion, shape,
+    motion, shape, ...(shape === "glow" ? { shapeAuto: true } : {}),
     texture: w < 0.3 ? "grain" : s > 0.6 ? "soft_noise" : "flat",
     pulseHz: motion === "pulse" ? Math.min(lfo1Rate, 1) : 0,
     ...(pick ? { ...pick, sceneAuto: true } : {}),
@@ -388,6 +388,6 @@ export function applyColour(mapped: ResolvedColour, input: Colour | undefined): 
   if (input.secondary) out.secondary = { h: input.secondary.hue, s: input.secondary.saturation, l: input.secondary.lightness };
   if (input.motion) { out.motion = input.motion; out.pulseHz = input.motion === "pulse" ? (mapped.pulseHz || 0.3) : 0; }
   if (input.texture) out.texture = input.texture;
-  if (input.shape) out.shape = input.shape;
+  if (input.shape) { out.shape = input.shape; delete out.shapeAuto; }
   return out;
 }

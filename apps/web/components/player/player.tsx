@@ -625,14 +625,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
             </div>
 
             {canvasOk && !reduced && (
-              <>
-                <button type="button" className="se-btn pl-mute" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn, nudgeMs); }}>
-                  {gradientOn ? "Gradient: on" : "Gradient: off"}
+              <div className="pl-toggles">
+                <button type="button" className="se-btn pl-toggle" aria-pressed={gradientOn} onClick={() => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn, nudgeMs); }}>
+                  <span className="pl-check" aria-hidden />Gradient
                 </button>
-                <button type="button" className="se-btn pl-mute" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn, nudgeMs); }}>
-                  {visualsOn ? "Visuals: on" : "Visuals: off"}
+                <button type="button" className="se-btn pl-toggle" aria-pressed={visualsOn} onClick={() => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn, nudgeMs); }}>
+                  <span className="pl-check" aria-hidden />Scenes
                 </button>
-              </>
+              </div>
             )}
 
             {(() => {

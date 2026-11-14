@@ -63,7 +63,7 @@ export function buildFeedback(i: FeedbackInput) {
     playing: playingOf(e),
   };
   if (i.clamps.length) out.clamped = i.clamps;
-  out.colour = { h: Math.round(e.colour.h), s: r2(e.colour.s), l: r2(e.colour.l), motion: e.colour.motion, ...(e.colour.shape && e.colour.shape !== "wash" ? { shape: e.colour.shape } : {}) };
+  out.colour = { h: Math.round(e.colour.h), s: r2(e.colour.s), l: r2(e.colour.l), motion: e.colour.motion, ...(e.colour.shape && e.colour.shape !== "wash" && !e.colour.shapeAuto ? { shape: e.colour.shape } : {}) };
   if (i.controls) out.controls = { volume: r2(i.controls.volume) };
   if (i.analysis) {
     out.sound = i.analysis.sound; out.reads_as = i.analysis.reads_as;

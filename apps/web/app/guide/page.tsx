@@ -118,7 +118,7 @@ export default function GuidePage() {
             <li><strong>One session per conversation.</strong> Turn the connector on at the start of a conversation.</li>
             <li><strong>Keep the player open.</strong> The sound plays in the player page, not in the chat app. Closing it stops the sound. On a phone it keeps playing when you switch to the chat.</li>
             <li><strong>The model is not there between messages.</strong> After 15 minutes without an update the sound fades to silence, unless the model turned that off. After 30 minutes the session shows as inactive and wakes up when you come back to the same conversation; after a week it ends.</li>
-            <li><strong>You and the player link.</strong> Anyone with the link can listen, with no account, on any number of devices. Only the owner can end the session, lock a face or press reactions. You control the volume and mute, and the &ldquo;Gradient&rdquo; and &ldquo;Visuals&rdquo; buttons turn the moving colours and the scene off.</li>
+            <li><strong>You and the player link.</strong> Anyone with the link can listen, with no account, on any number of devices. Only the owner can end the session, lock a face or press reactions. You control the volume and mute, and the &ldquo;Gradient&rdquo; and &ldquo;Scenes&rdquo; buttons turn the moving colours and the scene off.</li>
           </ul>
           </article>
         </section>

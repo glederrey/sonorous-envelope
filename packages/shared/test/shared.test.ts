@@ -374,6 +374,14 @@ describe("colour shapes and breathe", () => {
     const f = (shape?: "wash" | "glow") => buildFeedback({ turn: 1, intent: neutral, effective: { ...s, colour: { ...s.colour, shape } }, clamps: [], players: 1 }).colour as Record<string, unknown>;
     expect(f("glow").shape).toBe("glow"); expect(f("wash")).not.toHaveProperty("shape");
   });
+  it("does not report a shape the mood picked, only one the model set", () => {
+    const picked = moodToEngineState(stretchMood(m({ closeness: 0.9, warmth: 0.9 })), neutral, 1);
+    expect(picked.colour.shapeAuto).toBe(true);
+    expect(buildFeedback({ turn: 1, intent: neutral, effective: picked, clamps: [], players: 1 }).colour).not.toHaveProperty("shape");
+    const set = applyColour(picked.colour, { shape: "glow" });
+    expect(set.shapeAuto).toBeUndefined();
+    expect(buildFeedback({ turn: 1, intent: neutral, effective: { ...picked, colour: set }, clamps: [], players: 1 }).colour).toHaveProperty("shape", "glow");
+  });
 });
 
 describe("reactions", () => {

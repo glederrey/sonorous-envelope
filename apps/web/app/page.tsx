@@ -60,7 +60,7 @@ export default async function Home() {
           <ul className="lp-chips" aria-label="What it has">
             <li>A synthesizer</li>
             <li>A colour field</li>
-            <li>30 visuals</li>
+            <li>30 scenes</li>
             <li>Strudel</li>
           </ul>
           <div className="lp-connect">
