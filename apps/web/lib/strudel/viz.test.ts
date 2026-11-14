@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampOpt, isSafeColour, validateDrawHap, validateHap, validateLoc, validateViz } from "./protocol";
-import { SPIRAL_MAX_EVENTS, fitFont, spiralSpan, spiralSteps, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
+import { fitFont, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
 
 describe("code spans", () => {
   it("keeps whole, in-range spans only", () => {
@@ -125,19 +125,13 @@ describe("the store", () => {
   });
 });
 
-describe("hostile options stay bounded (they drive loops on the page's thread)", () => {
+describe("hostile options stay bounded", () => {
   it("pulls numeric options into range", () => {
-    const [s] = validateViz([{ id: 0, name: "spiral", opts: { stretch: 1e9, playheadLength: 1e9, cycles: -5, size: 1e12, speed: 1e6, unknownKey: 1e30 } }]);
-    expect(s.opts.stretch).toBe(8); expect(s.opts.playheadLength).toBe(1); expect(s.opts.cycles).toBe(0.25);
-    expect(s.opts.size).toBe(400); expect(s.opts.speed).toBe(16); expect(s.opts.unknownKey).toBe(1e4);
+    const [s] = validateViz([{ id: 0, name: "scope", opts: { cycles: -5, thickness: 1e12, scale: 1e9, unknownKey: 1e30 } }]);
+    expect(s.opts.cycles).toBe(0.25); expect(s.opts.thickness).toBe(100); expect(s.opts.scale).toBe(2); expect(s.opts.unknownKey).toBe(1e4);
     expect(clampOpt("minMidi", -50)).toBe(0);
   });
-  it("cuts a spiral event to what shows and caps its pieces", () => {
-    expect(spiralSpan(0, 600, 10)).toEqual([-2.5, 2.5]);
-    expect(spiralSpan(100, 1, 10)).toBeNull();
-    expect(spiralSteps(600, 8)).toBe(240);
-    expect(spiralSteps(0, 1)).toBe(2);
-    // the worst a frame can cost: capped events times capped pieces
-    expect(SPIRAL_MAX_EVENTS * spiralSteps(5, 8)).toBeLessThanOrEqual(400 * 240);
+  it("no longer knows the spiral or the spectrum", () => {
+    expect(validateViz([{ id: 0, name: "spiral", opts: {} }, { id: 1, name: "spectrum", opts: {} }])).toEqual([]);
   });
 });

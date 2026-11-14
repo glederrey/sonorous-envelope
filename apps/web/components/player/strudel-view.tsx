@@ -89,7 +89,7 @@ export function StrudelView({ store, output, level, beats, shown, hue }: Props) 
       // the drawings behind the code
       ctx.clearRect(0, 0, w, h);
       if (st.specs.length) {
-        const needsSound = st.specs.some((s) => s.name === "scope" || s.name === "tscope" || s.name === "fscope" || s.name === "spectrum");
+        const needsSound = st.specs.some((s) => s.name === "scope" || s.name === "tscope" || s.name === "fscope");
         const out = needsSound ? output() : null;
         if (needsSound && out) {
           if (!time || time.length !== out.soundSamples) { time = new Float32Array(out.soundSamples); freq = new Float32Array(out.soundBins); }

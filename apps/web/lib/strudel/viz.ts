@@ -137,14 +137,3 @@ export function lanes(specs: VizSpec[], w: number, h: number): Lane[] {
   inline.forEach((spec, i) => out.push({ spec, x: 0, y: h - band + i * laneH, w, h: laneH }));
   return out;
 }
-
-/** The part of an event (c to c + l, in cycles) that a spiral shows at `time`: it looks two cycles behind and ahead, so a long event is
- *  cut to that. Null when none of it shows. */
-export function spiralSpan(c: number, l: number, time: number, reach = 2.5): [number, number] | null {
-  const a = Math.max(c - time, -reach), b = Math.min(c + l - time, reach);
-  return b > a ? [a, b] : null;
-}
-/** How many line segments a spiral piece of `span` cycles gets: 60 a turn, at least 2, at most 240, whatever `stretch` says. */
-export const spiralSteps = (span: number, stretch: number): number => Math.min(240, Math.max(2, Math.ceil(span * stretch * 60)));
-/** Most events one spiral draws a frame. */
-export const SPIRAL_MAX_EVENTS = 400;

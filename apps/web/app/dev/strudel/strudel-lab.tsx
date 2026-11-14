@@ -22,8 +22,6 @@ $: note("<c2 g2>*2").s("sawtooth").lpf(400).color("magenta")`,
   note("c3 e3 g3 b3").s("sawtooth").lpf(900).gain(0.5),
   s("bd*2, hh*8").bank("RolandTR909")
 ).scope({ thickness: 4 })`,
-  "Spiral + spectrum": `note("<c3 eb3 g3 bb3>*4").s("triangle").room(0.5).color("orange").spiral({ steady: 0.96 })
-  .fscope()`,
   "Inline lanes": `stack(
   s("bd sd, hh*4").bank("RolandTR909"),
   note("<c3 g3>*2").s("sine")
