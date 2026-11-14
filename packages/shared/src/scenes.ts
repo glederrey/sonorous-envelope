@@ -300,6 +300,7 @@ function leaves(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3), y = frac(hash01(i, c.seed + 1) + c.b * lerp(0.02, 0.06, speed) * (0.6 + 0.8 * z));
     items.push({ kind: "leaf", x: hash01(i, c.seed) + (0.03 + 0.05 * feel.irreg) * Math.sin(2 * Math.PI * (c.b / (10 + 10 * ph) + ph)), y,
       r: lerp(0.022, 0.05, z), w: 0, ang: 0.9 * Math.sin(2 * Math.PI * (c.b / (7 + 6 * ph) + ph)) + 6.283 * ph, sq: Math.max(0.2, Math.abs(Math.cos(2 * Math.PI * (c.b / (6 + 6 * ph) + ph)))),
+      k: hash01(i, c.seed + 8), // the shape of this leaf: 0 a long narrow willow leaf, 1 a broad round one
       a: 0.55 * Math.min(1, Math.sin(Math.PI * y) * 3), hue: 8 + 42 * hash01(i, c.seed + 5), sat: 78, l: 46 + 14 * z });
   }
   return { items, layers: [] };

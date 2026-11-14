@@ -598,7 +598,7 @@ html:has(.pl-field) .se-header {
   color: var(--ink-muted);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 901px) {
   .lp-hero-body {
     /* Just wide enough for "Let the model hum" (about 7.93em) on one line. */
     grid-template-columns: minmax(0, calc(var(--lp-h) * 8.1)) minmax(0, 1fr);
@@ -617,8 +617,8 @@ html:has(.pl-field) .se-header {
   }
 }
 
-/* On a phone the waves are 300px of decoration under the status card: hide them */
-@media (max-width: 640px) {
+/* Phone layout (900px and below): the waves are 300px of decoration under the status card, hide them */
+@media (max-width: 900px) {
   .lp-hero-body > .lp-envelope { display: none; }
   .lp-hero-body { padding-bottom: 20px; }
   .lp-hero::after { height: 48px; }
