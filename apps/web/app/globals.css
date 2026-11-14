@@ -143,6 +143,15 @@ body {
   border-top: 1px solid var(--line);
 }
 .se-footer a { color: inherit; }
+.se-credit { display: inline-flex; align-items: center; gap: 4px 8px; }
+.se-credit a { display: inline-flex; align-items: center; }
+.se-gael-mark { width: 21px; height: 26px; }
+.se-claude-mark { width: 30px; height: 30px; margin: -4px 0; }
+/* On a phone the credit gets its own row, so the footer is two rows tall: the player's height sum uses this variable. */
+@media (max-width: 640px) {
+  :root { --se-footer-h: calc(68px + env(safe-area-inset-bottom, 0px)); }
+  .se-credit { flex-basis: 100%; justify-content: center; }
+}
 
 :focus-visible {
   outline: 2px solid var(--focus);
