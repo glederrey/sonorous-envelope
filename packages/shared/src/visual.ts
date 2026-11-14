@@ -39,6 +39,7 @@ const ONE = new Float32Array([1]);
 export function lightSceneDim(scene: string, bases: Rgb[]): number {
   if (!LIGHT_SCENES.has(scene) || !bases.length) return 0;
   const lum = bases.reduce((q, b) => q + relLuminance(b), 0) / bases.length;
+  if (scene === "smoke") return clamp((lum - 0.25) * 2.4, 0, 0.95); // many plumes of light: as dark a base as under a dark colour, or the whole scene goes bright
   return clamp((lum - (scene === "aurora" ? 0.12 : 0.25)) * 1.8, 0, 0.8);
 }
 const DARK = (colour: Pick<ResolvedColour, "h">): Rgb => hslToRgb(colour.h, 0.3, 0.05);

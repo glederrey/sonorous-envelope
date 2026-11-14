@@ -250,6 +250,15 @@ describe("v0.17.2 picture fixes", () => {
     const core = (beats: number) => fr("warp", { sync: "phrase" }, beats, 1).items.find((i) => i.kind === "dot" && i.soft === 1 && i.r >= 0.05)!.r;
     expect(core(8)).toBeGreaterThan(core(0) * 2);  // the middle of four bars is the swell's peak
   });
+  it("v0.17.3 round 4: the aurora grid has the view's shape (not squeezed on a phone), smoke gets a full dark base on yellow, warp rings keep their pace under phrase sync", () => {
+    const fr = (scene: "aurora" | "smoke" | "warp", o: Record<string, unknown>, beats: number, aspect: number) => visualFrame({ colour: base({ scene, feel, motion: "drift", ...o }), bpm: 100, beats, t: 0, seed: 4, aspect });
+    const g = fr("aurora", {}, 5, 0.46).layers.find((l) => l.kind === "veil" && (l.gw ?? 0) > 1)!;
+    expect(Math.abs(g.gw! / g.gh! - 0.46)).toBeLessThan(0.12);
+    const yellow = [hslToRgb(55, 0.9, 0.75)];
+    expect(lightSceneDim("smoke", yellow)).toBeGreaterThan(0.9);
+    const rings = (sync: "beat" | "phrase") => fr("warp", { sync }, 1.5, 1).items.filter((i) => i.kind === "ring").map((i) => i.r);
+    expect(rings("phrase")).toEqual(rings("beat"));
+  });
   it("makes the fireworks speed show: three beats after a burst a slow one still lights the sky and a fast one is gone", () => {
     const sparks = (speed: number) => visualFrame({ colour: base({ scene: "fireworks", density: 0, speed, feel }), bpm: 100, beats: 7.1, t: 0, seed: 6, aspect: 1 }).items.filter((i) => i.kind === "streak" && i.tail && i.a > 0.05).length;
     expect(sparks(0.1)).toBeGreaterThan(sparks(1));
