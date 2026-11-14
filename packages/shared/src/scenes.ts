@@ -177,7 +177,7 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
 /** Aurora: a curtain of soft light hanging from a rippling lower edge, as in the photographs: a sharp bright base that fades upward, soft vertical striations of different lengths that slide along it, and a second,
  *  fainter colour (pink or violet) high above the green base. Two veils (low-resolution fields smoothed up over the view) share the brightness budget; no thin rays (they read as hard lines). */
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const GW = Math.round(clamp(c.px / 5, 64, 160)), GH = Math.round(clamp(GW * 0.5, 32, 80)), items: Item[] = [];
+  const GW = Math.round(clamp(c.px / 5, 64, 160)), GH = Math.round(clamp(GW / (c.aspect > 0 ? c.aspect : 0.6), 32, 320)), items: Item[] = []; // the grid has the view's shape: the veil crops the sides of a tall view (a 2:1 grid squeezed the whole curtain into a phone)
   const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
   const h = lerp(0.3, 0.52, 1 - feel.jitter * 0.6), fold = lerp(0.6, 1.6, speed);
   // the curtain at the moment `b`: its lower edge (slow noise plus folds that travel along it, like cloth in the wind), the brightness along it (broad bands that slide sideways and pulse slowly)
@@ -704,7 +704,7 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
   items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (phrase ? 1 + 1.6 * swell : 1 + 0.5 * c.kick * calmK), w: 0, soft: 1, a: phrase ? 0.2 + 0.2 * swell : 0.3, l: 95, sat: 40, hue: nebHue }); // the core
   // rings of light leave the core on the beat: one every two beats (the tunnel look spreads three over six), each taking as long as its share of the cycle
-  for (let q = 0; q < rings; q++) { const ring = frac(c.b / ((phrase ? 16 : 2) * rings) + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
+  for (let q = 0; q < rings; q++) { const ring = frac(c.b / (2 * rings) + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
   for (let i = 0; i < nStars; i++) {
     const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
     const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
