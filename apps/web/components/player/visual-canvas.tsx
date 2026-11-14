@@ -30,16 +30,21 @@ interface Props {
   visuals?: boolean;
   /** the canvas could not be used: the parent falls back to the CSS field */
   onFail: () => void;
+  /** Strudel's own picture is shown (strudel-view.tsx): this canvas paints nothing, and only keeps the level and the beat, which that view reads */
+  strudelView?: boolean;
+  /** written every frame: how much of the picture shows (0 to 1, with the fades and the first-bar wait) and the beat the ear is at */
+  levelOut?: MutableRefObject<number>;
+  beatsOut?: MutableRefObject<number>;
 }
 
 interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number; epoch: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
-export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail }: Props) {
+export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
-  const live = useRef({ source, active, latency, play, visuals, onFail });
-  live.current = { source, active, latency, play, visuals, onFail }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
+  const live = useRef({ source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut });
+  live.current = { source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
 
   useEffect(() => {
     const cv = ref.current;
@@ -185,7 +190,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
       raf = requestAnimationFrame(loop);
       try {
         const { source: s, active: on, latency: lat, play: playOn, visuals: visualsOn } = live.current;
-        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; shown = null; colAt = 0; } return; }
+        if (!on || !s) { if (live.current.levelOut) live.current.levelOut.current = 0; if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; shown = null; colAt = 0; } return; }
         // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
         const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
         const target = beatsAt(s.state, Math.max(0, tau));
@@ -214,6 +219,13 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         const p = hold !== null ? (rampStart === null ? 0 : Math.min(1, Math.max(0, (tau - rampStart) / span))) : Math.min(1, Math.max(0, (tau - ramp0 - delay) / span));
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
         if (lvl < 0.003) lvl = 0;
+        const { levelOut: lo, beatsOut: bo, strudelView: sv } = live.current;
+        if (lo) lo.current = lvl;
+        if (bo) bo.current = beats;
+        if (sv) { // Strudel's picture is on top: nothing to paint here
+          if (!wasEmpty) { ctx.clearRect(0, 0, w, h); wasEmpty = true; }
+          last = now; return;
+        }
         // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.
         const sig = `${c.scene ?? "none"}|${c.density ?? 0.4}|${c.speed ?? 0.4}`;
         if (sig !== curSig) {
