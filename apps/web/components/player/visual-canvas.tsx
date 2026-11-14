@@ -95,7 +95,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
             for (let q = 0; q < l.grid.length; q++) d[4 * q + 3] = Math.round(255 * l.grid[q]);
             vctx.putImageData(img, 0, 0);
           }
-          ctx.imageSmoothingEnabled = true; ctx.globalAlpha = Math.min(1, l.a); ctx.drawImage(slot.cv, 0, 0, w, h); ctx.globalAlpha = 1;
+          ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.globalAlpha = Math.min(1, l.a); ctx.drawImage(slot.cv, 0, 0, w, h); ctx.globalAlpha = 1;
         } else if (l.ys && l.cols && l.h) {
           // a curtain: one gradient in local coordinates (bright at the lower edge, fading upwards), moved to each column's edge
           const H = l.h * h, n = l.ys.length, cw = w / n, g = ctx.createLinearGradient(0, -H, 0, H * 0.1);

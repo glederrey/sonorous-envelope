@@ -47,7 +47,19 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
     : scene === "stars" ? stars(d, v, feel, c)
     : scene === "bubbles" ? bubbles(d, v, feel, c)
     : leaves(d, v, feel, c);
-  return fade(out, k);
+  return fade(COVER.has(scene) ? cover(out, c.aspect > 0 ? c.aspect : 0.6) : out, k);
+}
+
+/** Scenes drawn on a design square (positions in 0 to 1 of the height, shapes isotropic). On a view narrower than tall the square is cropped at the sides, like `object-fit: cover`: x is spread by 1/aspect about the middle,
+ *  so lines and flames keep their proportions, and what falls off the sides is simply not seen (fewer of them on a phone). Flock, circuit, network and scope work in real pixels and are not in this set. */
+const COVER = new Set<string>(["aurora", "fire", "cracks", "lightning"]);
+function cover(o: SceneOut, asp: number): SceneOut {
+  if (asp >= 1) return o;
+  const X = (x: number) => 0.5 + (x - 0.5) / asp;
+  return {
+    items: o.items.filter((i) => i.kind === "path" || (X(i.x) > -0.15 && X(i.x) < 1.15)).map((i) => ({ ...i, x: X(i.x), ...(i.pts ? { pts: i.pts.map((v, q) => (q % 2 === 0 ? X(v) : v)) } : {}) })),
+    layers: o.layers.map((l) => (l.kind === "blob" || l.kind === "tint" ? { ...l, x: X(l.x) } : l)),
+  };
 }
 
 function motes(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
@@ -149,8 +161,8 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
   const at = (idx: number) => {
     const k = `${key}|${idx}`; let g = VEILS.get(k);
     if (!g) {
-      const f = build(idx / steps); g = new Float32Array(gw * gh);
-      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) g[j * gw + i] = clamp(f((i + 0.5) / gw, (j + 0.5) / gh));
+      const f = build(idx / steps), vis = Math.min(1, gw / gh); g = new Float32Array(gw * gh); // a view narrower than tall shows the middle `vis` of the design square: the field is cropped at the sides, never squeezed
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) g[j * gw + i] = clamp(f(0.5 + ((i + 0.5) / gw - 0.5) * vis, (j + 0.5) / gh));
       VEILS.set(k, g); if (VEILS.size > 120) VEILS.delete(VEILS.keys().next().value as string);
     }
     return g;
@@ -324,8 +336,8 @@ const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}
 /** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
  *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 4.5, 48, 150)), GH = Math.round(clamp(GW / asp, 48, 220));
-  const x0 = (p: number) => (p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P;
+  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 3, 48, 220)), GH = Math.round(clamp(GW / asp, 48, 400));
+  const x0 = (p: number) => 0.5 + ((p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P - 0.5) * Math.min(1, asp); // the plumes stand in the part of the view that shows
   const build = (bq: number) => {
     const rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60);
     return (x: number, y: number) => {
@@ -692,8 +704,8 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
     const th = 2 * Math.PI * hash01(i, c.seed + 109), ph = frac(hash01(i, c.seed + 110) + c.b * rate * 0.5), rho = 0.05 + 0.95 * ph ** 2.6;
     items.push({ kind: "dot", x: vx + Math.cos(th) * rho * kx, y: vy + Math.sin(th) * rho * ky, r: 0.004 + 0.02 * ph ** 2, w: 0, soft: 0.8, a: 0.8 * Math.min(1, ph * 5) * (1 - 0.5 * ph ** 3), l: 96, sat: 30, hue: 45 });
   }
-  const GW = Math.round(clamp(c.px / 8, 40, 100)), GH = Math.round(clamp(GW / asp, 40, 140)), tone = toneLayer(c.bases, nebHue + 25 * hash01(c.seed, 111), true, v === 3 ? 0.06 : 0.18, { sat: 0.7, l: 0.5 });
-  const nebula = veil(`warp|${GW}x${GH}|${c.seed}`, 4, c.b, GW, GH, (bq) => (x, y) => sstep(0.1, 0.85, 0.5 + 0.6 * fbm2(x * 2.4 + bq * 0.01, y * 2.4 - bq * 0.008, c.seed + 112, 3)) * (0.35 + 0.65 * Math.exp(-(((x - 0.5) * asp) ** 2 + (y - 0.5) ** 2) * 2.5)), tone.a, tone);
+  const GW = Math.round(clamp(c.px / 8, 40, 100)), GH = Math.round(clamp(GW / asp, 40, 140)), tone = toneLayer(c.bases, c.h + 25 * hash01(c.seed, 111), true, v === 3 ? 0.06 : 0.18, { sat: 0.6, l: 0.5 }); // the nebula is the field's own hue, never a colour of its own
+  const nebula = veil(`warp|${GW}x${GH}|${c.seed}`, 4, c.b, GW, GH, (bq) => (x, y) => sstep(0.1, 0.85, 0.5 + 0.6 * fbm2(x * 2.4 + bq * 0.01, y * 2.4 - bq * 0.008, c.seed + 112, 3)) * Math.exp(-(((x - 0.5) * Math.max(asp, 1)) ** 2 + (y - 0.5) ** 2) * 3.5), tone.a, tone); // a glow round the core only, nothing over the rest of the view
   return { items, layers: [nebula] };
 }
 
@@ -701,7 +713,7 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 function caustics(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), asp = c.aspect > 0 ? c.aspect : 0.6;
   const tone = lum < 0.4 ? toneLayer(c.bases, 185, true, 0.2, { sat: 0.5, l: 0.86 }) : toneLayer(c.bases, 200, false, 0.2, { sat: 0.5, l: 0.2 });
-  const GW = Math.round(clamp(c.px / 4.5, 48, 150)), GH = Math.round(clamp(GW / asp, 48, 220)), sc = lerp(5, 10, density);
+  const GW = Math.round(clamp(c.px / 3, 48, 220)), GH = Math.round(clamp(GW / asp, 48, 400)), sc = lerp(5, 10, density);
   const build = (bq: number) => {
     const t = bq * lerp(0.02, 0.07, speed);
     return (x: number, y: number) => {
@@ -724,10 +736,10 @@ function lightning(density: number, speed: number, feel: Feel, c: Clock): SceneO
     const f = tau < 1 ? Math.exp(-tau * 6) : tau < 1.6 ? 0.4 * Math.exp(-(tau - 1) * 5) : 0; // the flash, and a softer one a beat later
     flash = Math.max(flash, f);
     if (tau < 0.9) { // the bolt: a jagged line from the top, with branches, visible a short while
-      const sd = c.seed + e * 977, al = Math.exp(-tau * 5), pts: number[] = []; let x = 0.15 + 0.7 * hash01(e, sd + 1);
-      for (let q = 0; q <= 14; q++) { pts.push(x, (q / 14) * (0.55 + 0.25 * hash01(e, sd + 2))); x = clamp(x + 0.07 * (hash01(q, sd + 3) - 0.5) * 2, 0.04, 0.96); }
+      const sd = c.seed + e * 977, al = Math.exp(-tau * 5), pts: number[] = [], vis = Math.min(1, c.aspect > 0 ? c.aspect : 0.6), lo = 0.5 - 0.46 * vis, hi = 0.5 + 0.46 * vis; let x = 0.5 + (hash01(e, sd + 1) - 0.5) * 0.7 * vis; // inside the part of the design square a narrow view shows
+      for (let q = 0; q <= 14; q++) { pts.push(x, (q / 14) * (0.55 + 0.25 * hash01(e, sd + 2))); x = clamp(x + 0.07 * (hash01(q, sd + 3) - 0.5) * 2, lo, hi); }
       items.push(pathItem(pts, 0.014, 0.25 * al, { l: 80, sat: 50, hue: 220 })); items.push(pathItem(pts, 0.0045, 0.85 * al, { l: 98, sat: 10, hue: 220 }));
-      for (let b = 0; b < 2; b++) { const q0 = 3 + Math.floor(hash01(b, sd + 4) * 7), bp: number[] = [pts[2 * q0], pts[2 * q0 + 1]]; let bx = bp[0], by = bp[1]; const dir = hash01(b, sd + 5) < 0.5 ? -1 : 1; for (let q = 0; q < 5; q++) { bx = clamp(bx + dir * 0.04 * hash01(q, sd + 6 + b), 0.02, 0.98); by += 0.05; bp.push(bx, by); } items.push(pathItem(bp, 0.003, 0.6 * al, { l: 96, sat: 15, hue: 220 })); }
+      for (let b = 0; b < 2; b++) { const q0 = 3 + Math.floor(hash01(b, sd + 4) * 7), bp: number[] = [pts[2 * q0], pts[2 * q0 + 1]]; let bx = bp[0], by = bp[1]; const dir = hash01(b, sd + 5) < 0.5 ? -1 : 1; for (let q = 0; q < 5; q++) { bx = clamp(bx + dir * 0.04 * hash01(q, sd + 6 + b), lo - 0.02, hi + 0.02); by += 0.05; bp.push(bx, by); } items.push(pathItem(bp, 0.003, 0.6 * al, { l: 96, sat: 15, hue: 220 })); }
     }
   }
   for (const l of cl) layers.push({ ...l, a: l.a * (0.3 + 1.7 * flash) });
@@ -760,7 +772,7 @@ function cracks(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const gap = lerp(8, 3, density) / lerp(0.8, 1.4, speed), k = Math.floor(c.b / gap), items: Item[] = [];
   for (const e of [k - 1, k]) {
     const tau = c.b - e * gap; if (tau < 0 || tau > 7) continue;
-    const sd = c.seed + e * 1013, ox = 0.2 + 0.6 * hash01(e, sd + 1), oy = 0.2 + 0.6 * hash01(e, sd + 2), grow = clamp(tau / 0.7), fade = tau < 0.7 ? 1 : Math.exp(-(tau - 0.7) * 0.55), rays = 5 + Math.floor(hash01(e, sd + 3) * 4);
+    const sd = c.seed + e * 1013, ox = 0.5 + (hash01(e, sd + 1) - 0.5) * 0.6 * Math.min(1, c.aspect > 0 ? c.aspect : 0.6), oy = 0.2 + 0.6 * hash01(e, sd + 2), grow = clamp(tau / 0.7), fade = tau < 0.7 ? 1 : Math.exp(-(tau - 0.7) * 0.55), rays = 5 + Math.floor(hash01(e, sd + 3) * 4);
     const seg = (x0: number, y0: number, ang: number, len: number, depth: number, id: number) => { // a jagged line that grows with `grow`, and may fork
       const m = Math.max(2, Math.round(len * 22)), pts: number[] = [x0, y0]; let x = x0, y = y0, a = ang;
       const upto = Math.max(1, Math.floor(m * grow));

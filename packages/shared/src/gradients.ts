@@ -30,7 +30,7 @@ function vignetteGrid(gw: number, gh: number, asp0: number, tight0: number): Flo
   g = new Float32Array(gw * gh);
   const lo = lerp(0.75, 0.2, tight), hi = lerp(1.35, 0.7, tight); // near: the dark starts close to the middle and closes in; far: only the corners
   for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
-    const d = Math.hypot(((i + 0.5) / gw - 0.5) * Math.max(asp, 0.5) * 2, ((j + 0.5) / gh - 0.5) * 2) / 1.4, u = clamp((d - lo) / (hi - lo));
+    const d = Math.hypot(((i + 0.5) / gw - 0.5) * 2, ((j + 0.5) / gh - 0.5) * 2) / 1.4, u = clamp((d - lo) / (hi - lo));
     g[j * gw + i] = u * u * (3 - 2 * u);
   }
   VIGNETTES.set(key, g); if (VIGNETTES.size > 40) VIGNETTES.delete(VIGNETTES.keys().next().value as string);
