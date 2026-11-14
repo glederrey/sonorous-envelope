@@ -142,7 +142,21 @@ body {
   color: var(--ink-muted);
   border-top: 1px solid var(--line);
 }
-.se-footer a { color: inherit; }
+.se-footer a { color: inherit; text-decoration: none; }
+.se-footer-in { width: 100%; max-width: 1040px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 28px; }
+.se-footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 0; }
+.se-footer-links > * + *::before { content: "·"; margin: 0 10px; opacity: 0.5; text-decoration: none; display: inline-block; }
+.se-footer-links > :last-child { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.se-credit { margin: 0; display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px 7px; }
+.se-credit a { display: inline-flex; align-items: center; color: var(--ink-muted); transition: color 0.15s ease; }
+.se-gael-mark { width: 17px; height: 21px; flex: none; }
+.se-claude-mark { width: 24px; height: 24px; margin: -3px 0; flex: none; }
+@media (hover: hover) { .se-footer-links a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } .se-credit a:hover { color: var(--ink); } }
+/* On a phone the credit gets its own row, so the footer is two rows tall: the player's height sum uses this variable. */
+@media (max-width: 640px) {
+  :root { --se-footer-h: calc(68px + env(safe-area-inset-bottom, 0px)); }
+  .se-credit, .se-footer-links { flex-basis: 100%; }
+}
 
 :focus-visible {
   outline: 2px solid var(--focus);
@@ -380,7 +394,7 @@ html:has(.pl-field) .se-header {
   content: "";
   position: absolute;
   inset: auto 0 0 0;
-  height: clamp(90px, 16vw, 160px);
+  height: clamp(60px, 9vw, 100px);
   background: linear-gradient(to bottom, transparent, var(--bg));
   pointer-events: none;
 }
@@ -515,6 +529,7 @@ html:has(.pl-field) .se-header {
 }
 .lp-main section:first-child {
   border-top: 0;
+  padding-top: 32px;
 }
 .lp-loop-list {
   list-style: none;
@@ -579,13 +594,13 @@ html:has(.pl-field) .se-header {
   color: var(--ink-muted);
 }
 
-@media (min-width: 900px) {
+@media (min-width: 901px) {
   .lp-hero-body {
     /* Just wide enough for "Let the model hum" (about 7.93em) on one line. */
     grid-template-columns: minmax(0, calc(var(--lp-h) * 8.1)) minmax(0, 1fr);
     column-gap: 56px;
     padding-top: 96px;
-    padding-bottom: 96px;
+    padding-bottom: 56px;
     align-items: center;
   }
   .lp-hero-body > .lp-envelope {
@@ -596,6 +611,14 @@ html:has(.pl-field) .se-header {
     max-height: none;
     margin-top: 0;
   }
+}
+
+/* Phone layout (900px and below): the waves are 300px of decoration under the status card, hide them */
+@media (max-width: 900px) {
+  .lp-hero-body > .lp-envelope { display: none; }
+  .lp-hero-body { padding-bottom: 20px; }
+  .lp-hero::after { height: 48px; }
+  .lp-main section:first-child { padding-top: 12px; }
 }
 
 @media (max-width: 760px) {
@@ -786,7 +809,7 @@ html:has(.pl-field) .se-header {
 .se-theme-label {
   display: none; /* only shown inside the phone menu, where the icon needs a name */
 }
-@media (max-width: 730px) {
+@media (max-width: 900px) {
   /* Phone header: the title and a burger. The menu opens as a panel under the header. */
   .se-header {
     position: relative;
@@ -1069,6 +1092,13 @@ html:has(.pl-field) .se-header {
 .pl-panel .pl-icon-btn { width: 44px; min-height: 44px; padding: 0; flex: none; }
 .pl-panel .pl-mute { min-height: 56px; width: 100%; font-size: 16px; font-weight: 500; gap: 10px; border-radius: 12px; }
 .pl-panel .pl-mute[aria-pressed="true"] { background: var(--glow); border-color: var(--glow); color: var(--on-glow); }
+/* Gradient and Scenes: two buttons side by side; the state shows in the outline, the tint and a check, not in the orange of the primary buttons */
+.pl-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pl-panel .pl-toggle { min-height: 48px; width: 100%; justify-content: center; gap: 8px; font-size: 15px; font-weight: 500; border-radius: 12px; }
+.pl-panel .pl-toggle[aria-pressed="true"] { border-color: var(--tide); background: color-mix(in srgb, var(--tide) 18%, transparent); font-weight: 600; }
+.pl-check { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0.6; position: relative; }
+.pl-toggle[aria-pressed="true"] .pl-check { background: var(--tide); border-color: var(--tide); opacity: 1; }
+.pl-toggle[aria-pressed="true"] .pl-check::after { content: ""; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--on-glow); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 .pl-sliders { display: grid; gap: 6px; }
 .pl-slider { display: grid; grid-template-columns: 96px 1fr 44px; align-items: center; gap: 12px; min-height: 44px; }
 .pl-slider span { color: var(--on-scrim-muted); font-size: 14px; }

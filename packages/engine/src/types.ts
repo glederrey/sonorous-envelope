@@ -13,6 +13,8 @@ export interface ResolvedColour {
   motion: "still" | "drift" | "pulse" | "breathe";
   /** How the colours are laid out (visuals.md): `wash` a linear gradient, `glow` a radial one, `sweep` a conic one. Absent: wash. */
   shape?: "wash" | "glow" | "sweep";
+  /** The shape came from the mood, not from the model (never sent): it is not reported back as something the model set. */
+  shapeAuto?: boolean;
   texture: "flat" | "grain" | "soft_noise";
   pulseHz: number;
   /** What moves on top of the colours (visuals.md). Settable by the model: `scene` a small set of moving things, `density` and `speed` 0 to 1,

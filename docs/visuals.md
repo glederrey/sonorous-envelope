@@ -2,7 +2,7 @@
 
 Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
 
-Status, 2026-11-13 (later): **three parts.** The picture is the base colour (always on), a slow gradient (colour play: the moving lights, never faster than about 6 s an orbit, off the beat, swelling over the phrase) and the visuals (the scene, where the beat shows). The motion's own wash and glow are gone. The gradient has four more parts, all slow and off the beat: a vignette (closeness: a close mood darkens the edges and closes in, a distant one only the corners), a vertical lean (joy lifts the lights and sorrow lets them sink, with a slow rise and settle over the phrase), the shape (`colour.shape`: `glow` gathers the lights round the middle, `sweep` rides them round a ring that turns slowly, `wash` leaves them spread), and a hue that wanders about 18° over three phrases (the matched lightness is blended between 5° steps so it never flickers). With the canvas on, the CSS under it is one flat colour (the primary); the two-colour linear, radial or conic field is only the fallback when the canvas is off. The listener has "Gradient" and "Visuals" buttons in the player, saved per device; both off leaves the base colour.
+Status, 2026-11-13 (later): **three parts.** The picture is the base colour (always on), a slow gradient (colour play: the moving lights, never faster than about 6 s an orbit, off the beat, swelling over the phrase) and the visuals (the scene, where the beat shows). The motion's own wash and glow are gone. The gradient has four more parts, all slow and off the beat: a vignette (closeness: a close mood darkens the edges and closes in, a distant one only the corners), a vertical lean (joy lifts the lights and sorrow lets them sink, with a slow rise and settle over the phrase), the shape (`colour.shape`: `glow` gathers the lights round the middle, `sweep` rides them round a ring that turns slowly, `wash` leaves them spread), and a hue that wanders about 18° over three phrases (the matched lightness is blended between 5° steps so it never flickers). With the canvas on, the CSS under it is one flat colour (the primary); the two-colour linear, radial or conic field is only the fallback when the canvas is off. The listener has "Gradient" and "Scenes" buttons in the player, saved per device; both off leaves the base colour.
 
 Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Thirty scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `seeds`, `tide`, `smoke`, `clouds`, `fire`, `warp`, `caustics`, `lightning`, `sunbeam`, `cracks`, `ink`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
 
@@ -25,7 +25,7 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | pensive | clouds | banks and puffs of two scales of noise drifting slowly across, thinner towards the top and bottom; a `veil` like the smoke |
 | eager | warp | a starfield rush with depth: far stars crawl, near ones streak, a few big stars rush up; white, blue, magenta and gold; a nebula behind, a core at the drifting vanishing point, a ring of light on each beat |
 | dreamy | caustics | the net of light on a pool floor: two ridged noises on rotated axes sliding past each other; a veil |
-| nostalgic | sunbeam | slanted shafts of warm light (one `veil` layer, stripes along a slanted axis, leaning up to 50° from the vertical either way by seed, that drift and breathe) with dust specks that glow only inside a shaft |
+| nostalgic | sunbeam | slanted shafts of warm light (one `veil` layer, stripes along a slanted axis, leaning 30° to 50° from the vertical either way, rolled again each time the scene starts on a device, that drift and breathe) with dust specks that glow only inside a shaft |
 | cold anger | cracks | a hit on the beat and jagged fractures racing out and forking, cold blue-white, lingering and fading; one impact every 3 to 8 beats |
 | (set by the model only) | ink | drops of ink bloom in still water, unfurl into tendrils and thin out as the next lands; one `veil` layer |
 | dread | lightning | dark storm cloud and now and then a jagged bolt with a flash of the sky, then a softer one a beat later (never more than about twice a second) |
@@ -130,3 +130,31 @@ Keep the current rule that colour follows the sound by default, and add an optio
 Add radial and conic gradients and a "breathe" and "orbit" motion to the existing field, driven by the mood in `follow` mode, with the owner's visual-intensity limit. See what it feels like before adding model-chosen scenes.
 
 **Veil layers (2026-11-13).** A `veil` layer is a field of 0 to 1 over the view in one colour, as fine as the picture is wide (up to about 150 cells across), built ten steps per beat for smoke (fewer for clouds and aurora) and blended between the two steps around now, so the motion is smooth; the painter smooths it up. `toneLayer` (`colour-math.ts`) gives its colour and the most opaque it may be. Since the flash cap was lifted (2026-11-13) the budgets given to it are artistic, not a limit.
+
+### v0.17.1 (2026-11-14): fixes from the v0.17.0 test
+- **Narrow views crop, they do not squeeze.** Veil scenes sample the middle part of the design square when the view is narrower than tall (`veil()` in `scenes.ts`), and aurora, fire, cracks, lightning and sunbeam spread their items by 1/aspect about the middle (`cover()`), so a phone shows fewer bands and flames of the same shape. Flock, circuit, network and scope work in real pixels and are unchanged.
+- **Vignette** is measured in screen space (an ellipse of the view), so all four edges darken on a phone.
+- **Light scenes on a bright base.** Aurora, sunbeam, stars, fireflies, fireworks, embers, warp, motes, lightning and cracks get a uniform dark veil under them (`lightSceneDim`, up to 0.6 opacity, from a relative luminance of 0.42). It is not reported in `clamped`.
+- **Warp** has no wash of its own: the nebula is the field's own hue and only glows round the core.
+- **Caustics and smoke** are built at up to 180 cells across (was 150), and the painter smooths them at high quality.
+- **Fireflies and motes** sit on an evenly spread sequence (R2), so none overlap. Flock birds are small beating wings, and its `speed` scales the simulation rate. Fireworks have trails and a burst flash, up to 8 at once, and a slow speed is much slower. Cracks hit exactly on a beat (every beat at density 1, every 4th at 0) and each lasts under 3 beats. Digital rain draws half-width katakana and digits. Leaves vary from narrow to broad. Aurora rays are softer.
+- **Mood to scene.** `MOOD_PROTOTYPES` (`mood-mapping.ts`) holds the axes that give each of the 14 test emotions its scene; a test pins all of them and the table is below. A tester should send these values. Cold anger and dread no longer take the red of plain anger.
+- **Picture buttons** are "Gradient" and "Scenes", side by side, outlined in teal with a check when on.
+- **Fade.** The picture's opacity follows the level to the power 1.7, so it keeps up with the sound.
+
+| Mood | Scene | warmth | closeness | joy | calm | spontaneity | tension |
+|---|---|---|---|---|---|---|---|
+| sad | rain | 0.3 | 0.4 | 0.1 | 0.8 | 0.2 | 0.05 |
+| lonely | snow | 0.2 | 0.1 | 0.15 | 0.85 | 0.2 | 0 |
+| melancholic | leaves | 0.75 | 0.7 | 0.25 | 0.8 | 0.3 | 0.05 |
+| nostalgic | sunbeam | 0.8 | 0.6 | 0.4 | 0.5 | 0.4 | 0 |
+| angry | embers | 0.5 | 0.4 | 0.12 | 0.12 | 0.6 | 0.85 |
+| cold anger | cracks | 0.1 | 0.3 | 0.12 | 0.12 | 0.6 | 0.85 |
+| tender | fireflies | 0.9 | 0.9 | 0.6 | 0.75 | 0.3 | 0 |
+| hopeful | fire | 0.7 | 0.5 | 0.75 | 0.6 | 0.4 | 0 |
+| eager | warp | 0.5 | 0.2 | 0.62 | 0.3 | 0.6 | 0.1 |
+| dreamy | caustics | 0.3 | 0.5 | 0.6 | 0.7 | 0.75 | 0 |
+| dread | lightning | 0.3 | 0.4 | 0.15 | 0.65 | 0.3 | 0.75 |
+| awe | aurora | 0.5 | 0.1 | 0.7 | 0.9 | 0.3 | 0 |
+| serene | stars | 0.5 | 0.2 | 0.5 | 0.9 | 0.2 | 0 |
+| restless | flock | 0.5 | 0.4 | 0.45 | 0.45 | 0.95 | 0.1 |

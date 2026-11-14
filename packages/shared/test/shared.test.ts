@@ -374,6 +374,14 @@ describe("colour shapes and breathe", () => {
     const f = (shape?: "wash" | "glow") => buildFeedback({ turn: 1, intent: neutral, effective: { ...s, colour: { ...s.colour, shape } }, clamps: [], players: 1 }).colour as Record<string, unknown>;
     expect(f("glow").shape).toBe("glow"); expect(f("wash")).not.toHaveProperty("shape");
   });
+  it("does not report a shape the mood picked, only one the model set", () => {
+    const picked = moodToEngineState(stretchMood(m({ closeness: 0.9, warmth: 0.9 })), neutral, 1);
+    expect(picked.colour.shapeAuto).toBe(true);
+    expect(buildFeedback({ turn: 1, intent: neutral, effective: picked, clamps: [], players: 1 }).colour).not.toHaveProperty("shape");
+    const set = applyColour(picked.colour, { shape: "glow" });
+    expect(set.shapeAuto).toBeUndefined();
+    expect(buildFeedback({ turn: 1, intent: neutral, effective: { ...picked, colour: set }, clamps: [], players: 1 }).colour).toHaveProperty("shape", "glow");
+  });
 });
 
 describe("reactions", () => {
@@ -460,6 +468,16 @@ describe("the shared timeline", () => {
     const b = st(60, "1/4"); b.grid = g; b.transition = { time: 0, curve: "sudden" };
     const g2 = nextGrid({ effective: b, created_at: new Date(13_000).toISOString() }, 13_000 + 2_000);
     expect(g2.arp).toBeCloseTo(14, 9); // 1 s steps now
+  });
+  it("keeps the beat continuous when a delayed closing state takes over a tempo glide (the picture was redrawn at the end of a session)", () => {
+    const a = st(120); a.grid = { arp: 0, bass: 0, beat: 0 };
+    const closing = st(60); closing.transition = { time: 8, curve: "smooth" };
+    closing.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 10_000, closing); // written at 10 s, glides 120 to 60 BPM over 8 s
+    const end = JSON.parse(JSON.stringify(closing)) as typeof closing; end.volume = 0; end.transition = { time: 15, curve: "smooth", delay: 7 };
+    end.grid = nextGrid({ effective: closing, created_at: new Date(10_000).toISOString() }, 11_000, end); // written 1 s later, starts 7 s after that
+    // when it takes over (18 s) the beat must be where the closing state's own glide has it
+    expect(beatsAt(end, 7)).toBeCloseTo(beatsAt(closing, 8), 0);
+    expect(Math.abs(beatsAt(end, 7) - beatsAt(closing, 8))).toBeLessThan(0.3);
   });
   it("keeps Strudel's beat as it is: no snapping to the paused synth's steps", () => {
     const a = st(120); a.engine = "strudel"; a.pattern = { code: "s('bd')", bpm: 100 }; a.grid = { arp: 0.37, bass: 0, beat: 8.3 };

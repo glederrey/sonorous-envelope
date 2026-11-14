@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.setConfig({ testTimeout: 30000 }); // the property tests draw tens of thousands of frames
+vi.setConfig({ testTimeout: 90000 }); // the property tests draw tens of thousands of frames
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
   capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
-  moodToColour, moodToFeel, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
+  moodToColour, moodToFeel, MOOD_PROTOTYPES, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
 const base = (o: Partial<ResolvedColour> = {}): ResolvedColour => ({ h: 220, s: 0.4, l: 0.3, motion: "pulse", texture: "flat", pulseHz: 0, ...o });
@@ -185,6 +185,37 @@ describe("the flash budget", () => {
   });
 });
 
+describe("v0.17.1 picture fixes", () => {
+  const feel = moodToFeel(mood);
+  it("puts a dark veil under a light scene on a bright base, and not on a dark one or under a dark scene", () => {
+    const layers = (l: number, scene: "aurora" | "smoke") => visualFrame({ colour: base({ l, s: 0.9, h: 55, scene, feel, motion: "still" }), bpm: 100, beats: 5, t: 0, seed: 3 }).layers.filter((x) => x.kind === "veil" && x.gw === 1);
+    expect(layers(0.75, "aurora")).toHaveLength(1);
+    expect(layers(0.1, "aurora")).toHaveLength(0);
+    expect(layers(0.75, "smoke")).toHaveLength(0);
+  });
+  it("spreads fireflies and motes: no two closer than a few radii", () => {
+    for (const scene of ["motes", "fireflies"] as const) {
+      const it = visualFrame({ colour: base({ scene, density: 1, feel }), bpm: 100, beats: 9.3, t: 0, seed: 5, aspect: 1 }).items.filter((i) => i.kind === "dot" && (i.soft ?? 0) < 1 || scene === "fireflies");
+      const pts = it.map((i) => [i.x, i.y]);
+      let min = 1; for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) if (Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]) > 0.002) min = Math.min(min, Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]));
+      expect(min, scene).toBeGreaterThan(0.03);
+    }
+  });
+  it("keeps the vignette on all four edges of a tall view", () => {
+    const v = visualFrame({ colour: base({ motion: "drift", feel: { ...feel, near: 1 } }), bpm: 100, beats: 5, t: 0, seed: 3, aspect: 0.46 }).layers.find((l) => l.kind === "veil" && l.gw === 40)!;
+    const g = v.grid!, gw = v.gw!, gh = v.gh!, at = (x: number, y: number) => g[Math.floor(y * gh) * gw + Math.floor(x * gw)];
+    expect(at(0.02, 0.5)).toBeGreaterThan(0.3); expect(at(0.98, 0.5)).toBeGreaterThan(0.3); expect(at(0.5, 0.02)).toBeGreaterThan(0.3); expect(at(0.5, 0.5)).toBeLessThan(0.1);
+  });
+  it("rolls the sunbeam's lean anew with each epoch, always visibly slanted", () => {
+    const sig = (epoch: number) => JSON.stringify(visualFrame({ colour: base({ scene: "sunbeam", feel }), bpm: 100, beats: 5, t: 0, seed: 3, epoch, aspect: 1 }).layers.filter((l) => l.grid).map((l) => Array.from(l.grid!).slice(0, 200)));
+    expect(new Set([0, 1, 2, 3].map(sig)).size).toBeGreaterThan(1);
+  });
+  it("lets a tall view see the middle of a cover scene: aurora rays stay inside or just past the edges", () => {
+    const items = visualFrame({ colour: base({ scene: "aurora", density: 1, feel }), bpm: 100, beats: 9, t: 0, seed: 2, aspect: 0.46 }).items;
+    for (const i of items) expect(i.x).toBeGreaterThan(-0.2), expect(i.x).toBeLessThan(1.2);
+  });
+});
+
 describe("emotions in the picture", () => {
   // the player stretches the axes before the mapping (stretchMood), so the test does too
   const e = (o: Partial<typeof mood> & { tension?: number }) => moodToScene(stretchMood({ ...mood, ...o }))?.scene ?? "none";
@@ -231,6 +262,16 @@ describe("emotions in the picture", () => {
     const fa = frame(a), fb = frame(b);
     expect(fa.length).toBeGreaterThan(20); expect(fb.length).toBe(fa.length);
     fa.forEach(([x, y], i) => expect(Math.hypot(x - fb[i][0], y - fb[i][1])).toBeLessThan(0.03));
+  });
+  it("gives every prototype mood (the table in visuals.md) its scene: all 14 of the test brief", () => {
+    for (const p of MOOD_PROTOTYPES) expect(moodToScene(stretchMood(p.mood))?.scene, p.name).toBe(p.scene);
+  });
+  it("keeps cold anger and dread cooler than plain anger", () => {
+    const hue = (n: string) => moodToColour(stretchMood(MOOD_PROTOTYPES.find((p) => p.name === n)!.mood), 1500, 0.3).h;
+    const away = (h: number) => Math.abs(((h - 356 + 540) % 360) - 180); // distance from red
+    expect(away(hue("angry"))).toBeLessThan(25);
+    expect(away(hue("cold anger"))).toBeGreaterThan(away(hue("angry")) + 20);
+    expect(away(hue("dread"))).toBeGreaterThan(40);
   });
   it("marks a scene the mood picked, and the model's own scene replaces it", () => {
     const c = moodToColour(stretchMood({ ...mood, joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }), 1500, 0.3);

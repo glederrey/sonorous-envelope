@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { beatsAt, tempoAt, type EngineState } from "@sonorous/engine";
-import { drawFrame, EMPTY_FRAME, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
+import { drawFrame, EMPTY_FRAME, GLYPHS, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
 import { isSounding } from "../../lib/sounding";
 
@@ -32,7 +32,7 @@ interface Props {
   onFail: () => void;
 }
 
-interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number }
+interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number; epoch: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail }: Props) {
@@ -46,8 +46,11 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     const ctx = cv?.getContext("2d");
     if (!cv || !ctx) { live.current.onFail(); return; }
     const clock = new BeatClock();
+    // Dev only: what the picture sees when a session ends (docs/archive/visuals-test-brief-v0.17.1.md, D17): a mount, a new state and a jump of the beat show here
+    const dbg = process.env.NODE_ENV !== "production" ? (...a: unknown[]) => console.debug("[picture]", ...a) : () => {};
+    let dbgAt = 0, dbgBeats = 0; dbg("mount");
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
-    let curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
+    let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -95,7 +98,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
             for (let q = 0; q < l.grid.length; q++) d[4 * q + 3] = Math.round(255 * l.grid[q]);
             vctx.putImageData(img, 0, 0);
           }
-          ctx.imageSmoothingEnabled = true; ctx.globalAlpha = Math.min(1, l.a); ctx.drawImage(slot.cv, 0, 0, w, h); ctx.globalAlpha = 1;
+          ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.globalAlpha = Math.min(1, l.a); ctx.drawImage(slot.cv, 0, 0, w, h); ctx.globalAlpha = 1;
         } else if (l.ys && l.cols && l.h) {
           // a curtain: one gradient in local coordinates (bright at the lower edge, fading upwards), moved to each column's edge
           const H = l.h * h, n = l.ys.length, cw = w / n, g = ctx.createLinearGradient(0, -H, 0, H * 0.1);
@@ -130,10 +133,16 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           // a pointed leaf with a midrib, turned over by `sq`
           const L = Math.max(2, i.r * m);
           ctx.save(); ctx.translate(i.x * w, i.y * h); ctx.rotate(i.ang ?? 0); ctx.scale(Math.max(0.2, i.sq ?? 1), 1);
-          ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(L * 0.8, -L * 0.1, 0, L); ctx.quadraticCurveTo(-L * 0.8, -L * 0.1, 0, -L); ctx.fill();
+          const kk = i.k ?? 0.5, wid = 0.4 + 0.7 * kk, cy = -L * (0.5 - 0.6 * kk); // a long narrow leaf to a broad round one, the belly lower on the broad ones
+          ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(L * wid, cy, 0, L); ctx.quadraticCurveTo(-L * wid, cy, 0, -L); ctx.fill();
           ctx.strokeStyle = hsla(0, Math.max(10, (i.l ?? 50) - 22), i.a, i.hue, i.sat); ctx.lineWidth = Math.max(MIN_LINE, L * 0.07);
           ctx.beginPath(); ctx.moveTo(0, -L); ctx.lineTo(0, L * 1.12); ctx.stroke();
           ctx.restore();
+        }
+        else if (i.kind === "glyph") {
+          // a character of the digital rain
+          const size = Math.max(6, i.r * m); ctx.font = `${size}px ui-monospace, "Noto Sans Mono CJK JP", monospace`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+          ctx.fillText(GLYPHS[(i.g ?? 0) % GLYPHS.length], i.x * w, i.y * h);
         }
         else if (i.kind === "seed") {
           // a dandelion seed: a tiny body and a tuft of fine hairs
@@ -174,6 +183,9 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
         const target = beatsAt(s.state, Math.max(0, tau));
         const beats = clock.update(target, now);
+        if (s.at !== dbgAt) { dbg("state", { at: s.at, tau: +tau.toFixed(2), vol: s.state.volume, delay: s.state.transition.delay ?? 0, scene: s.state.colour.scene }); dbgAt = s.at; }
+        if (dbgBeats && Math.abs(beats - dbgBeats) > 0.5) dbg("beat jump", { from: +dbgBeats.toFixed(2), to: +beats.toFixed(2) });
+        dbgBeats = beats;
         const c = s.state.colour;
         // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
         // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
@@ -200,12 +212,13 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
             if (!fading) fromScene = curScene;
             fadeStart = now; fadeDur = Math.min(8, Math.max(1.5, tr.time));
           }
-          curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed };
+          if (curScene?.scene !== (c.scene ?? "none")) epochs++; // a scene that starts is a new epoch: the sunbeam rolls a new lean
+          curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed, epoch: epochs };
         }
         const fk = fromScene ? Math.min(1, (now - fadeStart) / 1000 / fadeDur) : 1;
         if (fk >= 1) fromScene = null;
-        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, visuals: visualsOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
-        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl);
+        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, epoch: curScene?.epoch ?? 0, play: playOn, visuals: visualsOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
+        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl ** 1.7); // the ear hears the level on a log scale, so the picture falls a little faster than the gain to keep up with the sound
         const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0 && frame.layers.length === 0;
         if (!(empty && wasEmpty)) paint(frame, c.h); // a still state is not repainted 60 times a second
         wasEmpty = empty;
@@ -218,7 +231,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
       }
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => { dbg("unmount"); cancelAnimationFrame(raf); ro.disconnect(); };
   }, [clockOffset]);
 
   return <canvas ref={ref} className="pl-motion" aria-hidden />;

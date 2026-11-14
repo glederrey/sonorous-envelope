@@ -1,12 +1,12 @@
 import type { ResolvedColour } from "@sonorous/engine";
 import { clamp, frac, hash01, lerp, type Clock, type Item, type Layer, type SceneName } from "./scene-kit";
 import { sceneParts } from "./scenes";
-import { hslToRgb, isSaturatedRed, relLuminance, type Rgb } from "./colour-math";
+import { hslToRgb, isSaturatedRed, luminanceSwingPerAlpha, relLuminance, type Rgb } from "./colour-math";
 import { colourPlay } from "./gradients";
 
 export { hslToRgb, isSaturatedRed, relLuminance } from "./colour-math";
 
-export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
+export { hash01, SCENES, GLYPHS, type Item, type Layer, type SceneName } from "./scene-kit";
 
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
@@ -32,6 +32,15 @@ export interface Frame {
   items: Item[];
 }
 
+/** Scenes made of light: on a bright base colour they vanish (nothing is lighter than a bright yellow). A darker veil goes under them, as dark as the base is bright. */
+const LIGHT_SCENES = new Set<string>(["aurora", "sunbeam", "stars", "fireflies", "fireworks", "embers", "warp", "motes", "lightning", "cracks"]);
+const ONE = new Float32Array([1]);
+/** How much darker the base goes under a light scene, 0 to 0.6: nothing below a relative luminance of 0.42, the full 0.6 at 0.82 and above. */
+export function lightSceneDim(scene: string, bases: Rgb[]): number {
+  if (!LIGHT_SCENES.has(scene) || !bases.length) return 0;
+  const lum = bases.reduce((q, b) => q + relLuminance(b), 0) / bases.length;
+  return clamp((lum - 0.42) * 1.5, 0, 0.6);
+}
 export const EMPTY_FRAME: Frame = { wash: 0, glow: null, layers: [], items: [] };
 const NEUTRAL_FEEL = { depth: 0.5, lift: 0.5, jitter: 0, soft: 0.5, near: 0.5, irreg: 0.3 };
 
@@ -114,6 +123,8 @@ export interface FrameInput {
   /** seconds, for the `free` sync */
   t: number;
   seed?: number;
+  /** how many times the scene has started on this device (the player counts), for scenes that roll a look at their start */
+  epoch?: number;
   /** false: no gradient (colour play, the slow moving colours). The listener can turn it off */
   play?: boolean;
   /** false: no scene. The listener can turn it off; the base colour stays */
@@ -123,7 +134,7 @@ export interface FrameInput {
   /** width of the picture in pixels, when known: the veil scenes use it to pick how fine their field is */
   px?: number;
   /** A scene that is fading out while the colour's own fades in: the picture never swaps a scene at once. `k` is the progress of the new one, 0 to 1. */
-  from?: { scene: SceneName | "none"; density?: number; speed?: number; k: number };
+  from?: { scene: SceneName | "none"; density?: number; speed?: number; epoch?: number; k: number };
 }
 
 /** One frame of the motion, before the flash budget. Use `drawFrame` for the capped one. */
@@ -156,11 +167,12 @@ export function visualFrame(input: FrameInput): Frame {
   const wash = 0, glow: Frame["glow"] = null;
 
   const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
-  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, h: colour.h, s: colour.s, bases };
+  const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, epoch: input.epoch ?? 0, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, h: colour.h, s: colour.s, bases };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
-  const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, clock, 1 - clamp(from.k)) : null;
+  const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, { ...clock, epoch: from.epoch ?? 0 }, 1 - clamp(from.k)) : null;
   const play = motion === "still" || input.play === false ? [] : colourPlay(colour, feel, clock);
-  return { wash, glow, layers: [...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
+  const dim = lightSceneDim(scene, bases), under: Layer[] = dim > 0.01 ? [{ kind: "veil", x: 0.5, y: 0.5, r: 1, a: dim, dh: 0, hue: colour.h, sat: 30, l: 5, k: Math.max(0.01, ...bases.map((b) => luminanceSwingPerAlpha(b, hslToRgb(colour.h, 0.3, 0.05)))), gw: 1, gh: 1, grid: ONE }] : [];
+  return { wash, glow, layers: [...under, ...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
 }
 
 /** The frame to paint: the motion, then the flash budget. */
