@@ -6,6 +6,9 @@ import { DEFAULT_BANKS, resolveBankRequest, safeSampleMap } from "./banks";
 // class plays them with superdough into the player's own audio graph, loads samples from the allowed banks, and watches the frame.
 // Nothing here limits how loud or harsh the music is: Strudel on sonorous has no sound limits besides the listener's own volume.
 
+/** Minifiers drop licence comments from page chunks, a string they keep: said once in the console when Strudel starts, and in /strudel/NOTICE.txt. */
+export const STRUDEL_NOTICE = "Sonorous Envelope runs Strudel (@strudel/core, @strudel/draw, superdough), Copyright (C) Strudel contributors, AGPL-3.0-or-later, unmodified: https://codeberg.org/uzu/strudel . This site is AGPL-3.0-or-later too; its source is linked in the footer and in /strudel/NOTICE.txt. It is not affiliated with Strudel.";
+
 export interface PatternSource { id: string | null; code: string; bpm: number; seed: number }
 export interface StrudelHooks {
   /** what the code did when it ran (an error, events per cycle, sounds): for the model, through the owner's player */
@@ -67,6 +70,7 @@ export class StrudelOutput {
   /** Load superdough once and route its output into the player's graph (the listener's volume node). */
   private async init() {
     if (!this.ready) this.ready = (async () => {
+      console.info(STRUDEL_NOTICE);
       const sd = (this.sd = await import("superdough"));
       sd.setAudioContext(this.ctx);
       const ctrl = sd.getSuperdoughAudioController();
