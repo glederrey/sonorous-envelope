@@ -138,3 +138,7 @@ Every listener sees a small "Internal" or "External" label in the status bar (wi
 
 ### Settings block (owner)
 A collapsed "Settings" in the owner panel, on the internal face only, holds "Fade to silence after". (It also held "Little sounds from the model" until gestures were removed in v0.12.)
+
+
+## Strudel visuals
+Two buttons side by side under the Gradient and Scenes row, in the same style: **Allow Strudel** (owner only, saved on the session; it replaced the checkbox "Let the model play Strudel code") and **Strudel visuals** (every listener, saved on the device in `se:picture`, on by default). While Strudel plays with the visuals on, the picture is the code and its drawings instead of the scenes ([strudel.md](strudel.md), "The picture"). A listener who is not the owner sees only "Strudel visuals", and only while a pattern plays.

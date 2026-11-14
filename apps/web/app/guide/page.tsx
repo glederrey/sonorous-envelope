@@ -18,7 +18,7 @@ const tools = [
   {
     name: "strudel_mode",
     live: true,
-    text: "Switches the model between its built-in synth and Strudel, live-coded music as on strudel.cc, on the external face only and only after you said yes. With on set to true it sends Strudel code and a tempo and your browser plays it, with drums and samples; sending new code changes the music on the next bar. With on set to false it goes back to the synth. While Strudel is on, set_sound only changes the picture. The model cannot hear the music: it reads what the owner's player reports back, such as an error.",
+    text: "Switches the model between its built-in synth and Strudel, live-coded music as on strudel.cc, on the external face only and only after you said yes. With on set to true it sends Strudel code and a tempo and your browser plays it, with drums and samples; sending new code changes the music on the next bar, and the picture becomes the code with the parts that sound lit up, plus any drawing the code asks for (a piano roll, a scope, a spiral). With on set to false it goes back to the synth. While Strudel is on, set_sound only changes the picture. The model cannot hear the music: it reads what the owner's player reports back, such as an error.",
     example: "Play me a slow techno groove in Strudel, around 120 BPM.",
   },
   {
@@ -107,7 +107,10 @@ export default function GuidePage() {
           </p>
           <p>
             Strudel has no volume limit of its own, so a pattern can be much louder than the synth: start with the slider low. The owner can
-            switch Strudel off for the session (&ldquo;Let the model play Strudel code&rdquo;).
+            switch Strudel off for the session (&ldquo;Allow Strudel&rdquo;). While it plays, the picture is the model&apos;s code with the parts that sound lit up, and the drawings the code asks for (a piano roll, a scope, a spiral); &ldquo;Strudel visuals&rdquo; turns that off, on your device, and brings back the scenes.
+          </p>
+          <p>
+            Strudel is free software by the <a href="https://codeberg.org/uzu/strudel" target="_blank" rel="noopener noreferrer">Strudel contributors</a>, under the AGPL-3.0, and so is this site (see the source link in the footer). Sonorous Envelope is an independent project and is not affiliated with Strudel.
           </p>
             </article>
           </div>
