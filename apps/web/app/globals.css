@@ -18,7 +18,7 @@
   --field-a: #22343a;
   --field-b: #3a2c24;
   --scrim: rgba(8, 10, 14, 0.72);
-  --scrim-panel: rgba(8, 10, 14, 0.86);
+  --scrim-panel: rgba(8, 10, 14, 0.9);
   --scrim-line: rgba(255, 255, 255, 0.14);
   --on-scrim: #f2f4f7;
   --on-scrim-muted: #c8ced6;
@@ -45,7 +45,7 @@
   --field-a: #e4edef;
   --field-b: #f0e8e1;
   --scrim: rgba(255, 255, 255, 0.82);
-  --scrim-panel: rgba(255, 255, 255, 0.92);
+  --scrim-panel: rgba(255, 255, 255, 0.93);
   --scrim-line: rgba(18, 21, 26, 0.14);
   --on-scrim: #12151a;
   --on-scrim-muted: #3f4753;
@@ -70,7 +70,7 @@
     --field-a: #e4edef;
     --field-b: #f0e8e1;
     --scrim: rgba(255, 255, 255, 0.82);
-    --scrim-panel: rgba(255, 255, 255, 0.92);
+    --scrim-panel: rgba(255, 255, 255, 0.93);
     --scrim-line: rgba(18, 21, 26, 0.14);
     --on-scrim: #12151a;
     --on-scrim-muted: #3f4753;
@@ -1079,11 +1079,11 @@ html:has(.pl-field) .se-header {
 /* the buttons under the sentence (before listening, and in the player): one row, the full width, labels on one line */
 .pl-aside .pl-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .pl-aside .pl-actions .se-btn, .pl-share .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; white-space: nowrap; padding-left: 10px; padding-right: 10px; font-size: 14px; }
-.pl-reveal { margin-top: auto; background: var(--scrim); color: var(--on-scrim); border-color: var(--scrim-line); backdrop-filter: blur(8px); }
+.pl-reveal { margin-top: auto; background: color-mix(in srgb, var(--scrim) 83%, transparent); color: var(--on-scrim); border-color: color-mix(in srgb, var(--on-scrim) 35%, transparent); backdrop-filter: blur(8px); } /* about 60% opaque, with a firmer border so it is still easy to find */
 .pl-panel {
   width: min(480px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
   background: var(--scrim-panel); color: var(--on-scrim); border: 1px solid var(--scrim-line); /* more opaque than the other scrims: long code behind it must not make the buttons hard to read */
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .pl-panel .se-btn {
   background: color-mix(in srgb, var(--on-scrim) 8%, transparent); border-color: var(--scrim-line); color: var(--on-scrim);
