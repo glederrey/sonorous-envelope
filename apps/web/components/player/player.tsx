@@ -102,6 +102,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [strudelVisuals, setStrudelVisuals] = useState(true);
   const strudelPref = useRef(true);
   const [stSeen, setStSeen] = useState(false); // a Strudel state has shown: the view is loaded
+  const sceneHold = useRef({ until: 0, at: 0 }); // the scenes wait after the Strudel picture hands over to the synth
   const [stShown, setStShown] = useState(false); // the Strudel picture is the one showing (it stays through a silence, and fades with the level)
   const vizStore = useMemo(() => new VizStore(), []);
   const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
@@ -557,8 +558,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     // the picture stays and fades to black instead of letting the scenes flash in. A new pattern that arrives while blocked is not stripped,
     // so it still hides the picture as before.
     const stripped = Boolean(playing?.state.pattern && latest.current && latest.current.at === playing.at && !latest.current.state.pattern);
-    if (soundingNow && !stripped) setStShown(false);
-  }, [patternShows, soundingNow, playing]);
+    if (soundingNow && !stripped) {
+      // the picture was the Strudel one and a synth sound takes over: the scenes wait (see `sceneHold` in the canvas)
+      if (stShown && playing) sceneHold.current = { until: Date.now() + 4000, at: playing.at };
+      setStShown(false);
+    }
+  }, [patternShows, soundingNow, playing, stShown]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
   // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
   useEffect(() => {
@@ -600,7 +605,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
           clockOffset={clockOffset} latency={pictureLatency} active={started && (!stillPicture || strudelOn)} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
-          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats} viewOpacity={vizOpacity}
+          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats} viewOpacity={vizOpacity} sceneHold={sceneHold}
         />
       )}
       {canvasOk && !reduced && stSeen && (

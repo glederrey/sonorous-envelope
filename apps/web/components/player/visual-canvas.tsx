@@ -37,21 +37,21 @@ interface Props {
   beatsOut?: MutableRefObject<number>;
   /** how opaque the Strudel view is: until it is, the scenes keep painting under it, so they cross-fade */
   viewOpacity?: MutableRefObject<number>;
+  /** set by the player when the Strudel picture hands over to the synth: the scenes wait until `until` (ms), unless a state newer than `at` arrives */
+  sceneHold?: MutableRefObject<{ until: number; at: number }>;
 }
 
 interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number; epoch: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
-/** Seconds the scenes wait after the Strudel picture hands over to the synth. */
-const SCENE_HOLD = 4;
 /** Seconds a scene takes at least to come in from nothing (the model's own transition counts when it is longer). */
 const SCENE_FADE_IN = 2;
 
-export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut, viewOpacity }: Props) {
+export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut, viewOpacity, sceneHold }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
-  const live = useRef({ source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity });
-  live.current = { source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
+  const live = useRef({ source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity, sceneHold });
+  live.current = { source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity, sceneHold }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
 
   useEffect(() => {
     const cv = ref.current;
@@ -65,7 +65,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
     let shown: ResolvedColour | null = null, fromC: ResolvedColour | null = null, colAt = 0; // the colour the picture is drawn from: it glides from the colour before to the state's own over its transition
     let fadeMin = 1; // the shortest fade for the state now playing
-    let wasView = false; // the Strudel picture was showing on the last frame
+    let fromNow = false; // the fade starts now, not at the time the state was written (after the hold)
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -216,19 +216,24 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(fadeMin, tr.time), delay = tr.delay ?? 0;
         // A new state, or the same state turned silent on this device (the owner stopped Strudel: same `at`, a silent copy): the fade starts
         // from the level shown now. For the same `at` it starts now, not at the time the state was written (that was long ago: no fade at all).
+        // The Strudel picture just handed over to the synth (the player says so): the state that came with it is the synth's last, often with a scene
+        // the model is about to replace. Nothing shows until the hold is over or a newer state arrives; then the scene fades in from black.
+        const sh = live.current.sceneHold?.current;
+        if (sh && sh.until > Date.now() && s.at === sh.at) {
+          lvl = 0; lvlKey = ""; fromNow = true; curSig = null; curScene = null; fromScene = null;
+          if (live.current.levelOut) live.current.levelOut.current = 0;
+          if (!wasEmpty) { ctx.clearRect(0, 0, w, h); wasEmpty = true; }
+          last = now; return;
+        }
         const key = `${s.at}|${target01}`;
         if (lvlKey !== key) {
-          ramp0 = lvlAt === s.at ? tau : 0;
+          ramp0 = lvlAt === s.at || fromNow ? tau : 0; fromNow = false;
           lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; lvlKey = key; rampStart = null;
-          // Back to the synth from the Strudel picture: the state that comes first is the synth's last one, often with a scene the model is about to
-          // replace. Start the scenes from nothing and wait a second, so a set_sound that follows replaces it before it shows (no stale scene).
-          if (wasView && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern)) { lvlFrom = 0; lvl = 0; ramp0 += SCENE_HOLD; }
           fadeMin = lvlFrom < 0.05 && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern) ? SCENE_FADE_IN : 1;
           // Strudel comes in on the next bar: when the picture fades in from silence it waits for that bar, so it starts with the music
           const fromQuiet = lvlFrom < 0.5 && target01 === 1 && s.state.engine === "strudel" && Boolean(s.state.pattern);
           hold = fromQuiet ? Math.ceil(beatsAt(s.state, Math.max(0, (Date.now() + clockOffset.current - s.at) / 1000)) / 4 + 0.05) * 4 : null;
         }
-        wasView = live.current.strudelView;
         if (hold !== null && rampStart === null) { if (target >= hold) rampStart = tau; }
         const p = hold !== null ? (rampStart === null ? 0 : Math.min(1, Math.max(0, (tau - rampStart) / span))) : Math.min(1, Math.max(0, (tau - ramp0 - delay) / span));
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
