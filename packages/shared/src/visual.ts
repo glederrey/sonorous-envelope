@@ -35,11 +35,23 @@ export interface Frame {
 /** Scenes made of light: on a bright base colour they vanish (nothing is lighter than a bright yellow). A darker veil goes under them, as dark as the base is bright. */
 const LIGHT_SCENES = new Set<string>(["aurora", "sunbeam", "stars", "fireflies", "fireworks", "embers", "warp", "motes", "lightning", "cracks"]);
 const ONE = new Float32Array([1]);
-/** How much darker the base goes under a light scene, 0 to 0.6: nothing below a relative luminance of 0.42, the full 0.6 at 0.82 and above. */
+/** How much darker the base goes under a light scene, 0 to 0.65: from a relative luminance of 0.25 (0.12 for the aurora, which needs a dark sky) up to the full 0.65 at about 0.7. */
 export function lightSceneDim(scene: string, bases: Rgb[]): number {
   if (!LIGHT_SCENES.has(scene) || !bases.length) return 0;
   const lum = bases.reduce((q, b) => q + relLuminance(b), 0) / bases.length;
-  return clamp((lum - 0.42) * 1.5, 0, 0.6);
+  return clamp((lum - (scene === "aurora" ? 0.12 : 0.25)) * 1.5, 0, 0.65);
+}
+const DARK = (colour: Pick<ResolvedColour, "h">): Rgb => hslToRgb(colour.h, 0.3, 0.05);
+const arc = (a: number, b: number, p: number) => (((a + ((((b - a) % 360) + 540) % 360 - 180) * p) % 360) + 360) % 360;
+/** The colour a fraction `p` of the way from `a` to `b`: hue along the short arc, saturation, lightness, the second colour and the feel by line, everything else (scene, motion, shape...) from `b`.
+ *  The player glides the colour that the scene and the lights are drawn from over the state's transition, so a new mood never makes the picture jump while the CSS base colour glides. */
+export function blendColour(a: ResolvedColour, b: ResolvedColour, p: number): ResolvedColour {
+  if (p >= 0.999) return b;
+  if (p <= 0.001) return { ...b, h: a.h, s: a.s, l: a.l, ...(a.secondary && b.secondary ? { secondary: a.secondary } : {}), ...(a.feel && b.feel ? { feel: a.feel } : {}), pulseHz: a.pulseHz };
+  const out: ResolvedColour = { ...b, h: arc(a.h, b.h, p), s: lerp(a.s, b.s, p), l: lerp(a.l, b.l, p), pulseHz: lerp(a.pulseHz, b.pulseHz, p) };
+  if (a.secondary && b.secondary) out.secondary = { h: arc(a.secondary.h, b.secondary.h, p), s: lerp(a.secondary.s, b.secondary.s, p), l: lerp(a.secondary.l, b.secondary.l, p) };
+  if (a.feel && b.feel) out.feel = { depth: lerp(a.feel.depth, b.feel.depth, p), lift: lerp(a.feel.lift, b.feel.lift, p), jitter: lerp(a.feel.jitter, b.feel.jitter, p), soft: lerp(a.feel.soft, b.feel.soft, p), near: lerp(a.feel.near, b.feel.near, p), irreg: lerp(a.feel.irreg, b.feel.irreg, p) };
+  return out;
 }
 export const EMPTY_FRAME: Frame = { wash: 0, glow: null, layers: [], items: [] };
 const NEUTRAL_FEEL = { depth: 0.5, lift: 0.5, jitter: 0, soft: 0.5, near: 0.5, irreg: 0.3 };
@@ -166,12 +178,15 @@ export function visualFrame(input: FrameInput): Frame {
   // No wash and no glow any more (Gael, 2026-11-13): the picture is a base colour, a slow gradient (colour play) and the scene. The beat shows in the scene.
   const wash = 0, glow: Frame["glow"] = null;
 
-  const bases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
+  const shownBases: Rgb[] = [hslToRgb(colour.h, colour.s, colour.l), ...(colour.secondary ? [hslToRgb(colour.secondary.h, colour.secondary.s, colour.secondary.l)] : [])];
+  // Under a light scene on a bright base a dark veil is painted over the base colour (first layer), so every scene and the gradient work against the darkened colour: `bases` is what the eye then sees.
+  const dim = Math.max(lightSceneDim(scene, shownBases), from ? lightSceneDim(from.scene, shownBases) : 0), dk = DARK(colour);
+  const bases: Rgb[] = dim > 0.01 ? shownBases.map((b) => [b[0] + (dk[0] - b[0]) * dim, b[1] + (dk[1] - b[1]) * dim, b[2] + (dk[2] - b[2]) * dim] as Rgb) : shownBases;
   const clock: Clock = { b, beatPh, beatIdx, beats, kick, hit, amp, lift2, sync, seed, epoch: input.epoch ?? 0, red, aspect: input.aspect ?? 0.6, px: input.px ?? 600, bps: sync === "free" ? 1.5 : (bpm * half) / 60, h: colour.h, s: colour.s, bases };
   const now = sceneParts(scene, colour.density ?? 0.4, colour.speed ?? 0.4, feel, clock, from ? clamp(from.k) : 1);
   const old = from && from.k < 0.999 ? sceneParts(from.scene, from.density ?? 0.4, from.speed ?? 0.4, feel, { ...clock, epoch: from.epoch ?? 0 }, 1 - clamp(from.k)) : null;
   const play = motion === "still" || input.play === false ? [] : colourPlay(colour, feel, clock);
-  const dim = lightSceneDim(scene, bases), under: Layer[] = dim > 0.01 ? [{ kind: "veil", x: 0.5, y: 0.5, r: 1, a: dim, dh: 0, hue: colour.h, sat: 30, l: 5, k: Math.max(0.01, ...bases.map((b) => luminanceSwingPerAlpha(b, hslToRgb(colour.h, 0.3, 0.05)))), gw: 1, gh: 1, grid: ONE }] : [];
+  const under: Layer[] = dim > 0.01 ? [{ kind: "veil", x: 0.5, y: 0.5, r: 1, a: dim, dh: 0, hue: colour.h, sat: 30, l: 5, k: Math.max(0.01, ...shownBases.map((b) => luminanceSwingPerAlpha(b, dk))), gw: 1, gh: 1, grid: ONE }] : [];
   return { wash, glow, layers: [...under, ...play, ...(old ? [...now.layers, ...old.layers] : now.layers)], items: old ? [...now.items, ...old.items] : now.items };
 }
 

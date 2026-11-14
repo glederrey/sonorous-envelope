@@ -396,12 +396,13 @@ export function applyOverride(mapped: EngineState, synth: SynthOverride | undefi
 /** In `own` mode the model's HSL values replace the mapped ones; limits still apply afterwards. */
 export function applyColour(mapped: ResolvedColour, input: Colour | undefined): ResolvedColour {
   // Anything sent is used, unless the call says mode "follow". Fields left out keep the mapped value.
-  if (!input || input.mode === "follow") return mapped;
+  if (!input) return mapped;
   const out: ResolvedColour = { ...mapped };
   if (input.scene) { out.scene = input.scene; delete out.sceneAuto; }
   if (input.density !== undefined) out.density = input.density;
   if (input.speed !== undefined) out.speed = input.speed;
   if (input.sync) out.sync = input.sync;
+  if (input.mode === "follow") return out; // the mood keeps the colours, the motion and the shape; only the scene fields above are applied
   if (input.hue !== undefined) out.h = input.hue;
   if (input.saturation !== undefined) out.s = input.saturation;
   if (input.lightness !== undefined) out.l = input.lightness;

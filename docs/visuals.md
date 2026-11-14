@@ -136,7 +136,7 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 - **Vignette** is measured in screen space (an ellipse of the view), so all four edges darken on a phone.
 - **Light scenes on a bright base.** Aurora, sunbeam, stars, fireflies, fireworks, embers, warp, motes, lightning and cracks get a uniform dark veil under them (`lightSceneDim`, up to 0.6 opacity, from a relative luminance of 0.42). It is not reported in `clamped`.
 - **Warp** has no wash of its own: the nebula is the field's own hue and only glows round the core.
-- **Caustics and smoke** are built at up to 180 cells across (was 150), and the painter smooths them at high quality.
+- **Caustics and smoke** are built at up to 260 cells across (v0.17.2; was 150), and the painter smooths them at high quality.
 - **Fireflies and motes** sit on an evenly spread sequence (R2), so none overlap. Flock birds are small beating wings, and its `speed` scales the simulation rate. Fireworks have trails and a burst flash, up to 8 at once, and a slow speed is much slower. Cracks hit exactly on a beat (every beat at density 1, every 4th at 0) and each lasts under 3 beats. Digital rain draws half-width katakana and digits. Leaves vary from narrow to broad. Aurora rays are softer.
 - **Mood to scene.** `MOOD_PROTOTYPES` (`mood-mapping.ts`) holds the axes that give each of the 14 test emotions its scene; a test pins all of them and the table is below. A tester should send these values. Cold anger and dread no longer take the red of plain anger.
 - **Picture buttons** are "Gradient" and "Scenes", side by side, outlined in teal with a check when on.
@@ -158,3 +158,11 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 | awe | aurora | 0.5 | 0.1 | 0.7 | 0.9 | 0.3 | 0 |
 | serene | stars | 0.5 | 0.2 | 0.5 | 0.9 | 0.2 | 0 |
 | restless | flock | 0.5 | 0.4 | 0.45 | 0.45 | 0.95 | 0.1 |
+
+### v0.17.2 (2026-11-14): fixes from the v0.17.1 test
+- **Bright base under a light scene.** The dark veil of v0.17.1 was drawn first, then the gradient's lights (matched to the bright base) painted over it and washed it out. Now `visualFrame` darkens the base the scenes and the lights are computed against (`bases`), and the veil is the first layer, so the aurora, sunbeam, stars, fireflies, fireworks and warp all pick their light variants. The dim starts at a relative luminance of 0.25 (0.12 for the aurora) and reaches 0.65 at about 0.7.
+- **The colour glides in the canvas too.** The CSS base colour glided over a state's transition but the scene and the lights were drawn from the new colour at once (`feel` included), so a mood change redrew the scene and jumped the gradient. `blendColour` (`visual.ts`) glides hue (short arc), saturation, lightness, the second colour and the feel from the previous colour to the state's own over its transition, by the server's clock (`visual-canvas.tsx`). A scene change keeps its crossfade. This is the second candidate cause of the end-of-session redraw (a closing sound that changes the mood), next to the tempo glide fixed in v0.17.1.
+- **Aurora:** the curtain's columns are interpolated (no column shows as a bar), the striations are gentler, the lower edge is softer and the rays are fainter.
+- **Resolution:** caustics and smoke up to 260 cells across, fire 200.
+- **Digital rain** has 14 to 34 columns: more columns than the 400-item budget allows lost the whole right side. **Fireworks** speed also sets how fast the sparks fly out. **Motes** are never hard-edged. **Leaves** go from narrow to broad, and a fifth are lobed maple leaves.
+- **`mode: "follow"`** keeps a scene, density, speed or sync sent in the same call.

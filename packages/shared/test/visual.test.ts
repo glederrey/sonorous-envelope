@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 90000 }); // the property tests draw tens of thousands of frames
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
-  capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
+  capFrame, drawFrame, hash01, lightSceneDim, blendColour, mergeSticky, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
   moodToColour, moodToFeel, MOOD_PROTOTYPES, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
@@ -163,9 +163,12 @@ describe("the flash budget", () => {
     const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
     for (let run = 0; run < 60; run++) {
       const c = base({ h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55, secondary: { h: rnd() * 360, s: rnd(), l: 0.05 + rnd() * 0.55 }, scene: run % 2 ? "aurora" : "none", feel: { depth: rnd(), lift: rnd(), jitter: rnd(), soft: rnd(), near: rnd(), irreg: rnd() } });
-      const bases = [hslToRgb(c.h, c.s, c.l), hslToRgb(c.secondary!.h, c.secondary!.s, c.secondary!.l)];
+      const shown = [hslToRgb(c.h, c.s, c.l), hslToRgb(c.secondary!.h, c.secondary!.s, c.secondary!.l)];
+      // under a light scene on a bright base the player paints a dark veil first, and the lights are matched to the darkened colour
+      const dim = lightSceneDim(c.scene ?? "none", shown), dk = hslToRgb(c.h, 0.3, 0.05);
+      const bases = shown.map((x) => [0, 1, 2].map((i) => x[i] + (dk[i] - x[i]) * dim) as [number, number, number]);
       const f = visualFrame({ colour: c, bpm: 100, beats: 10 + rnd() * 50, t: 0, seed: run });
-      const painted = f.layers.filter((l) => l.hue !== undefined);
+      const painted = f.layers.filter((l) => l.hue !== undefined && l.gw !== 1);
       expect(painted.length).toBeGreaterThanOrEqual(3);
       for (const l of painted) {
         const col = hslToRgb(l.hue!, (l.sat ?? 50) / 100, (l.l ?? 50) / 100);
@@ -213,6 +216,37 @@ describe("v0.17.1 picture fixes", () => {
   it("lets a tall view see the middle of a cover scene: aurora rays stay inside or just past the edges", () => {
     const items = visualFrame({ colour: base({ scene: "aurora", density: 1, feel }), bpm: 100, beats: 9, t: 0, seed: 2, aspect: 0.46 }).items;
     for (const i of items) expect(i.x).toBeGreaterThan(-0.2), expect(i.x).toBeLessThan(1.2);
+  });
+});
+
+describe("v0.17.2 picture fixes", () => {
+  const feel = moodToFeel(mood);
+  it("works against the darkened base under a light scene: a bright yellow sky gives the aurora a dark base to read on", () => {
+    const f = (scene: "aurora" | "smoke") => visualFrame({ colour: base({ h: 55, s: 0.9, l: 0.75, scene, feel, motion: "drift" }), bpm: 100, beats: 5, t: 0, seed: 3, aspect: 1 });
+    expect(f("aurora").layers[0]).toMatchObject({ kind: "veil", gw: 1 });          // the dark veil comes first, before the lights
+    expect(f("aurora").layers[0].a).toBeGreaterThan(0.4);
+    expect(f("smoke").layers.some((l) => l.gw === 1)).toBe(false);
+  });
+  it("glides the colour: halfway between two colours, the short way round the hue wheel", () => {
+    const a = base({ h: 350, s: 0.2, l: 0.2, feel: { ...feel, near: 0 } }), b = base({ h: 30, s: 0.8, l: 0.4, feel: { ...feel, near: 1 } });
+    const m = blendColour(a, b, 0.5);
+    expect(m.h).toBeCloseTo(10, 5); expect(m.s).toBeCloseTo(0.5, 5); expect(m.l).toBeCloseTo(0.3, 5); expect(m.feel!.near).toBeCloseTo(0.5, 5);
+    expect(blendColour(a, b, 1)).toBe(b); expect(blendColour(a, b, 0).h).toBe(350);
+  });
+  it("covers the whole width with digital rain, not only the left", () => {
+    const f = drawFrame({ colour: base({ scene: "digital", density: 1, feel }), bpm: 100, beats: 11.4, t: 0, seed: 4 }, 0.5);
+    expect(Math.max(...f.items.map((i) => i.x))).toBeGreaterThan(0.85);
+  });
+  it("makes the fireworks speed show: three beats after a burst a slow one still lights the sky and a fast one is gone", () => {
+    const sparks = (speed: number) => visualFrame({ colour: base({ scene: "fireworks", density: 0, speed, feel }), bpm: 100, beats: 7.1, t: 0, seed: 6, aspect: 1 }).items.filter((i) => i.kind === "streak" && i.tail && i.a > 0.05).length;
+    expect(sparks(0.1)).toBeGreaterThan(sparks(1));
+  });
+  it("keeps a scene sent with mode follow: the mood gets the colour back, the scene stays", () => {
+    const kept = mergeSticky(null, { colour: { mode: "follow", scene: "fire", density: 0.7 } });
+    expect(kept.colour).toEqual({ scene: "fire", density: 0.7 });
+    expect(mergeSticky(kept, { colour: { mode: "follow" } }).colour).toBeUndefined();
+    const mapped = moodToColour(stretchMood(mood), 1500, 0.3), out = applyColour(mapped, { mode: "follow", hue: 10, scene: "fire" });
+    expect(out.scene).toBe("fire"); expect(out.h).toBe(mapped.h);
   });
 });
 
