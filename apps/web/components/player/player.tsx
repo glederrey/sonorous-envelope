@@ -550,13 +550,15 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // (it fades out); a silence keeps it, and it fades with the level like the scenes do.
   const patternShows = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at);
   const soundingNow = Boolean(playing && isSounding(playing.state));
-  // A pattern the owner just blocked (Allow Strudel off, the face locked) still counts as sounding for one render, until its silent copy is set:
-  // that is not a synth sound taking over, so the picture stays and fades to black instead of letting the scenes flash in.
-  const patternBlocked = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && !patternShows);
   useEffect(() => {
-    if (patternShows) { setStShown(true); setStSeen(true); }
-    else if (soundingNow && !patternBlocked) setStShown(false);
-  }, [patternShows, soundingNow, patternBlocked, playing?.at]);
+    if (patternShows) { setStShown(true); setStSeen(true); return; }
+    // The owner just blocked the pattern (Allow Strudel off, the face locked): the block effect above has already put its silent copy into
+    // `latest`, but `playing` still holds the pattern for this one render and reads as sounding. That is not a synth sound taking over, so
+    // the picture stays and fades to black instead of letting the scenes flash in. A new pattern that arrives while blocked is not stripped,
+    // so it still hides the picture as before.
+    const stripped = Boolean(playing?.state.pattern && latest.current && latest.current.at === playing.at && !latest.current.state.pattern);
+    if (soundingNow && !stripped) setStShown(false);
+  }, [patternShows, soundingNow, playing]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
   // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
   useEffect(() => {
