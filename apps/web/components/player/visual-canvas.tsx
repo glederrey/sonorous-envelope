@@ -43,7 +43,9 @@ interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: numbe
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
 /** Seconds the scenes wait after the Strudel picture hands over to the synth. */
-const SCENE_HOLD = 1;
+const SCENE_HOLD = 4;
+/** Seconds a scene takes at least to come in from nothing (the model's own transition counts when it is longer). */
+const SCENE_FADE_IN = 2;
 
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut, viewOpacity }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -62,6 +64,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
     let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
     let shown: ResolvedColour | null = null, fromC: ResolvedColour | null = null, colAt = 0; // the colour the picture is drawn from: it glides from the colour before to the state's own over its transition
+    let fadeMin = 1; // the shortest fade for the state now playing
     let wasView = false; // the Strudel picture was showing on the last frame
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
@@ -210,7 +213,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         const c = shown = fromC && trc.curve !== "sudden" ? blendColour(fromC, toC, pc * pc * (3 - 2 * pc)) : toC; // the server's clock again, so every device glides together
         // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
         // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
-        const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;
+        const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(fadeMin, tr.time), delay = tr.delay ?? 0;
         // A new state, or the same state turned silent on this device (the owner stopped Strudel: same `at`, a silent copy): the fade starts
         // from the level shown now. For the same `at` it starts now, not at the time the state was written (that was long ago: no fade at all).
         const key = `${s.at}|${target01}`;
@@ -220,6 +223,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           // Back to the synth from the Strudel picture: the state that comes first is the synth's last one, often with a scene the model is about to
           // replace. Start the scenes from nothing and wait a second, so a set_sound that follows replaces it before it shows (no stale scene).
           if (wasView && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern)) { lvlFrom = 0; lvl = 0; ramp0 += SCENE_HOLD; }
+          fadeMin = lvlFrom < 0.05 && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern) ? SCENE_FADE_IN : 1;
           // Strudel comes in on the next bar: when the picture fades in from silence it waits for that bar, so it starts with the music
           const fromQuiet = lvlFrom < 0.5 && target01 === 1 && s.state.engine === "strudel" && Boolean(s.state.pattern);
           hold = fromQuiet ? Math.ceil(beatsAt(s.state, Math.max(0, (Date.now() + clockOffset.current - s.at) / 1000)) / 4 + 0.05) * 4 : null;
@@ -240,6 +244,8 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           curSig = null; curScene = null; fromScene = null;
           last = now; return;
         }
+        // Nothing shows: forget the scene that was showing, so a scene that comes in later fades in from nothing and never cross-fades from the old one.
+        if (lvl === 0) { curSig = null; curScene = null; fromScene = null; }
         // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.
         const sig = `${c.scene ?? "none"}|${c.density ?? 0.4}|${c.speed ?? 0.4}`;
         if (sig !== curSig) {
