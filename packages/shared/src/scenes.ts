@@ -174,8 +174,8 @@ function veil(key: string, steps: number, b: number, gw: number, gh: number, bui
   return { kind: "veil", x: 0.5, y: 0.5, r: 1, a, dh: 0, hue: tone.hue, sat: tone.sat, l: tone.l, k: tone.k, gw, gh, grid };
 }
 
-/** Aurora: a curtain of soft light hanging from a rippling lower edge, as in the photographs: a sharp bright base that fades upward, dense vertical striations of different lengths that slide along it, and a second,
- *  fainter colour (pink or violet) high above the green base. Two veils (low-resolution fields smoothed up over the view) share the brightness budget; a few thin rays carry the shape where the colour alone cannot. */
+/** Aurora: a curtain of soft light hanging from a rippling lower edge, as in the photographs: a sharp bright base that fades upward, soft vertical striations of different lengths that slide along it, and a second,
+ *  fainter colour (pink or violet) high above the green base. Two veils (low-resolution fields smoothed up over the view) share the brightness budget; no thin rays (they read as hard lines). */
 function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const GW = Math.round(clamp(c.px / 5, 64, 160)), GH = Math.round(clamp(GW * 0.5, 32, 80)), items: Item[] = [];
   const drift = lerp(0.012, 0.06, speed), swell = c.sync === "free" ? 0.85 : 0.75 + 0.25 * (0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)));
@@ -205,15 +205,6 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     const { e, g, s } = cols(bq);
     return (x, y) => { const up = lin(e, x) - y; if (up <= 0) return 0; return sstep(0.04, 0.45 * h, up) * Math.exp(-up / (h * 1.15)) * (0.55 + 0.45 * lin(s, x)) * lin(g, x) * 0.95; };
   }, mB.a * swell, mB);
-  const rays = Math.round(lerp(14, 28, density));
-  for (let r = 0; r < rays; r++) {
-    // the rays sit on an even grid along the curtain and all slide together at one slow pace, so they never cross
-    const u = frac((r + 0.5 + 0.5 * (hash01(r, c.seed + 40) - 0.5)) / rays + c.b * 0.004 * lerp(0.5, 1.5, speed) + 8), k = glow(u);
-    if (k < 0.25) continue;
-    const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
-    const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
-    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.14 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
-  }
   return { items, layers: [top, base] };
 }
 
@@ -420,6 +411,12 @@ function digital(density: number, speed: number, feel: Feel, c: Clock): SceneOut
       }
     }
   }
+  // the view takes at most 10% of its area in small items (capFrame drops the rest in order, which lost the right side): thin the tails evenly, by cell, until it fits
+  const per = (items[0] ? (items[0].r * items[0].w) : 0) * Math.min(asp, 1 / asp), maxN = Math.min(380, Math.floor(0.09 / Math.max(per, 1e-9)));
+  if (items.length > maxN) {
+    const heads = items.filter((i) => i.l === 96), tails = items.length - heads.length, keep = Math.max(0, maxN - heads.length) / Math.max(1, tails);
+    return { items: items.filter((i) => i.l === 96 || hash01(Math.round(i.y * 1000) + Math.round(i.x * 1000) * 977, c.seed + 77) < keep), layers: [] };
+  }
   return { items, layers: [] };
 }
 
@@ -486,13 +483,13 @@ function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 /** Fireworks: on the first beat of a bar a shell rises and bursts into small lights that fly out, slow, droop and fade. Several shells run at once, staggered across the bar, and the more
  *  the mood is elated the more there are. Only small items: no wash, no glow. */
 function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const items: Item[] = [], streams = 1 + Math.round(density * 7), N = Math.round(lerp(14, 22, density)), life = lerp(6.5, 1.8, speed);
+  const items: Item[] = [], streams = 1 + Math.round(density * 7), N = Math.round(lerp(14, 22, density)), life = lerp(6.5, 1.8, speed), climb = lerp(2.4, 0.8, speed); // the rocket climbs longer at a low speed
   const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
   for (let s = 0; s < streams; s++) {
     const bar = (c.b - (4 * s) / streams) / 4, k = Math.floor(bar), age = (bar - k) * 4; // beats since the burst; the rocket climbs in the last beat before it
     for (const [kk, ag] of [[k - 1, age + 4], [k, age], [k + 1, age - 4]] as const) {
       const id = kk * 17 + s * 101, cx = 0.15 + 0.7 * hash01(id, c.seed), cy = 0.15 + 0.35 * hash01(id, c.seed + 1), hue = (c.h + 360 * hash01(id, c.seed + 2)) % 360, size = 0.7 + 0.6 * hash01(id, c.seed + 3);
-      if (ag >= -1 && ag < 0) { const u = ag + 1; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u), r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
+      if (ag >= -climb && ag < 0) { const u = (ag + climb) / climb; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u), r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
       if (ag < 0 || ag > life) continue;
       const u = ag / life, rad = lerp(0.1, 0.22, feel.near) * (0.8 + 0.4 * feel.depth) * size;
       if (ag < 0.5) items.push({ kind: "dot", x: cx, y: cy, r: 0.07 * size * (1 - ag / 0.5) + 0.01, w: 0, soft: 1, a: 0.6 * (1 - ag / 0.5), l: 97, sat: 30, hue }); // the flash of the burst
@@ -699,14 +696,15 @@ function fire(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
  *  burns at the vanishing point (which drifts), and a ring of light leaves it on each beat (a wider one on the bar). Dust twinkles in the gaps. */
 function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const n = Math.round(lerp(60, 200, density)), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6, kx = asp < 1 ? 1 : 1 / asp, ky = asp < 1 ? asp : 1;
+  const phrase = c.sync === "phrase", swell = 0.5 - 0.5 * Math.cos(2 * Math.PI * frac(c.beats / 16)); // under phrase sync the whole thing breathes once over four bars, not on the beat
   const vx = 0.5 + 0.08 * Math.sin(c.b / 23 + c.seed), vy = 0.5 + 0.06 * Math.cos(c.b / 31), rate = lerp(0.02, 0.08, speed), calmK = Math.min(1, 1.2 / Math.max(0.5, c.bps)), stretch = 1 + 0.35 * c.kick * feel.jitter * calmK;
   // a look by session: cool white and blue, warm gold, neon, mono with many big stars, or a tunnel of rings
   const v = Math.floor(hash01(c.seed, 150) * 5), pals: Array<Array<[number, number]>> = [[[0, 0], [0, 0], [0, 0], [210, 70], [210, 70], [190, 60]], [[0, 0], [0, 0], [45, 75], [45, 75], [20, 80], [350, 60]], [[310, 80], [180, 80], [0, 0], [270, 70], [310, 80]], [[0, 0]], [[0, 0], [0, 0], [200, 60], [200, 60]]];
   const pal = pals[v], nebHue = [230, 20, 300, 255, 200][v], rings = v === 4 ? 3 : v === 2 ? 2 : 1, bigStars = v === 3 ? 12 : 5, nStars = Math.round(n * (v === 4 ? 0.6 : v === 3 ? 1.3 : 1));
   for (let i = 0; i < 60; i++) { const tw = 0.5 + 0.5 * Math.sin(c.b * 0.7 + hash01(i, c.seed + 104) * 9); items.push({ kind: "dot", x: hash01(i, c.seed + 105), y: hash01(i, c.seed + 106), r: 0.0018 + 0.0015 * hash01(i, c.seed + 107), w: 0, soft: 0, a: 0.15 + 0.25 * tw, l: 92, sat: 20 }); } // dust
-  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (1 + 0.5 * c.kick * calmK), w: 0, soft: 1, a: 0.3, l: 95, sat: 40, hue: nebHue }); // the core
+  items.push({ kind: "dot", x: vx, y: vy, r: 0.05 * (phrase ? 1 + 1.6 * swell : 1 + 0.5 * c.kick * calmK), w: 0, soft: 1, a: phrase ? 0.2 + 0.2 * swell : 0.3, l: 95, sat: 40, hue: nebHue }); // the core
   // rings of light leave the core on the beat: one every two beats (the tunnel look spreads three over six), each taking as long as its share of the cycle
-  for (let q = 0; q < rings; q++) { const ring = frac(c.b / (2 * rings) + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
+  for (let q = 0; q < rings; q++) { const ring = frac(c.b / ((phrase ? 16 : 2) * rings) + q / rings); items.push({ kind: "ring", x: vx, y: vy, r: 0.05 + 0.9 * ring, w: v === 4 ? 0.004 : 0.003, a: 0.26 * (1 - ring), l: 92, sat: 40, hue: nebHue }); }
   for (let i = 0; i < nStars; i++) {
     const near = hash01(i, c.seed + 108) < 0.4, th = 2 * Math.PI * hash01(i, c.seed + 100), sp = near ? 1 : 0.55, ph = frac(hash01(i, c.seed + 101) + c.b * rate * sp * (0.7 + 0.6 * hash01(i, c.seed + 102))), rho = 0.02 + 1.1 * ph ** 2.2;
     const len = (near ? 0.02 + 0.3 * ph ** 2 : 0.008 + 0.1 * ph ** 2) * stretch, dxp = Math.cos(th), dyp = Math.sin(th), [hue, sat] = pal[Math.floor(hash01(i, c.seed + 103) * pal.length)];
@@ -725,13 +723,13 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 function caustics(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), asp = c.aspect > 0 ? c.aspect : 0.6;
   const tone = lum < 0.4 ? toneLayer(c.bases, 185, true, 0.2, { sat: 0.5, l: 0.86 }) : toneLayer(c.bases, 200, false, 0.2, { sat: 0.5, l: 0.2 });
-  const GW = Math.round(clamp(c.px / 3, 48, 260)), GH = Math.round(clamp(GW / asp, 48, 460)), sc = lerp(5, 10, density);
+  const GW = Math.round(clamp(c.px / 2.2, 48, 380)), GH = Math.round(clamp(GW / asp, 48, 600)), sc = lerp(5, 10, density);
   const build = (bq: number) => {
     const t = bq * lerp(0.02, 0.07, speed);
     return (x: number, y: number) => {
       const u1 = x * 0.825 - y * 0.565, v1 = x * 0.565 + y * 0.825, u2 = x * 0.88 + y * 0.48, v2 = -x * 0.48 + y * 0.88; // the two noises on rotated axes, so the net has no square grain
       const a = 1 - Math.abs(noise2(u1 * sc + t * 1.1, v1 * sc * 1.3 - t * 0.8, c.seed + 110)), b = 1 - Math.abs(noise2(u2 * sc * 1.2 - t * 0.9, v2 * sc * 1.4 + t * 0.7 + 7, c.seed + 111));
-      return Math.min(1, (a ** 14 + b ** 14) * 1.3 + (a * b) ** 9 * 0.5);
+      return Math.min(1, (a ** 10 + b ** 10) * 1.3 + (a * b) ** 7 * 0.5);
     };
   };
   return { items: [], layers: [veil(`caustics|${GW}x${GH}|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}`, 10, c.b, GW, GH, build, tone.a, tone)] };

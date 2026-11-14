@@ -166,3 +166,13 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 - **Resolution:** caustics and smoke up to 260 cells across, fire 200.
 - **Digital rain** has 14 to 34 columns: more columns than the 400-item budget allows lost the whole right side. **Fireworks** speed also sets how fast the sparks fly out. **Motes** are never hard-edged. **Leaves** go from narrow to broad, and a fifth are lobed maple leaves.
 - **`mode: "follow"`** keeps a scene, density, speed or sync sent in the same call.
+
+### v0.17.3 (2026-11-14): fixes from the v0.17.2 test
+- **Aurora:** the thin rays are gone (they read as hard lines); only the two veils remain, with soft striations.
+- **Smoke and clouds on a bright base** now count as light scenes: the base goes dark under them (the tone they pick is then the lighter one). The dim also reaches further (up to 0.8, from 0.65, slope 1.8), so pale fireflies and fireworks show on yellow.
+- **Caustics** up to 380 cells across and softer lines (exponent 10, was 14), so the lines do not step.
+- **Digital rain:** the 10% area budget of `capFrame` drops items in order, which cut the right side on a phone (bigger glyphs per view). The scene now thins its tails evenly, by cell, until it fits.
+- **Fireworks:** the rocket's climb takes 2.4 beats at speed 0 and 0.8 at speed 1 (it was one beat).
+- **Warp under `sync: "phrase"`:** the core swells once over four bars, the ring takes four bars (one per phrase), instead of the per-beat pulse and a ring every two beats.
+- Not changed: the old animation coming back first after a plain `silence`; `reads_as` joy.
+
