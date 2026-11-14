@@ -21,7 +21,11 @@ export function mergeSticky(prev: Sticky | null | undefined, input: { colour?: C
   const s: Sticky = { ...(prev ?? {}) };
   const c = input.colour;
   if (c) {
-    if (c.mode === "follow") delete s.colour;
+    if (c.mode === "follow") {
+      // "follow" gives the colour back to the mood, but a scene sent in the same call is applied after the reset and kept
+      const keep = defined({ scene: c.scene, density: c.density, speed: c.speed, sync: c.sync });
+      if (Object.keys(keep).length) s.colour = keep; else delete s.colour;
+    }
     else s.colour = { ...(s.colour ?? {}), ...defined(c) };
   }
   const stack = input.synth?.osc?.stack;

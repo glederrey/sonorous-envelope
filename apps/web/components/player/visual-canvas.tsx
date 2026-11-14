@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, type MutableRefObject } from "react";
-import { beatsAt, tempoAt, type EngineState } from "@sonorous/engine";
-import { drawFrame, EMPTY_FRAME, GLYPHS, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
+import { beatsAt, tempoAt, type EngineState, type ResolvedColour } from "@sonorous/engine";
+import { blendColour, drawFrame, EMPTY_FRAME, GLYPHS, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
 import { isSounding } from "../../lib/sounding";
 
@@ -51,6 +51,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     let dbgAt = 0, dbgBeats = 0; dbg("mount");
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
     let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
+    let shown: ResolvedColour | null = null, fromC: ResolvedColour | null = null, colAt = 0; // the colour the picture is drawn from: it glides from the colour before to the state's own over its transition
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -133,8 +134,14 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           // a pointed leaf with a midrib, turned over by `sq`
           const L = Math.max(2, i.r * m);
           ctx.save(); ctx.translate(i.x * w, i.y * h); ctx.rotate(i.ang ?? 0); ctx.scale(Math.max(0.2, i.sq ?? 1), 1);
-          const kk = i.k ?? 0.5, wid = 0.4 + 0.7 * kk, cy = -L * (0.5 - 0.6 * kk); // a long narrow leaf to a broad round one, the belly lower on the broad ones
-          ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(L * wid, cy, 0, L); ctx.quadraticCurveTo(-L * wid, cy, 0, -L); ctx.fill();
+          const kk = i.k ?? 0.5;
+          ctx.beginPath();
+          if (kk > 0.8) { // a lobed maple leaf: five points round a middle, notches between them
+            for (let q = 0; q < 10; q++) { const a = (q / 10) * Math.PI * 2 - Math.PI / 2, rr = q % 2 === 0 ? L * (q === 0 ? 1.05 : 0.85) : L * 0.42; q ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+            ctx.closePath();
+          } else { const wid = 0.25 + 1.05 * kk, cy = -L * (0.55 - 0.7 * kk); // a long narrow leaf to a broad round one, the belly lower on the broad ones
+            ctx.moveTo(0, -L); ctx.quadraticCurveTo(L * wid, cy, 0, L); ctx.quadraticCurveTo(-L * wid, cy, 0, -L); }
+          ctx.fill();
           ctx.strokeStyle = hsla(0, Math.max(10, (i.l ?? 50) - 22), i.a, i.hue, i.sat); ctx.lineWidth = Math.max(MIN_LINE, L * 0.07);
           ctx.beginPath(); ctx.moveTo(0, -L); ctx.lineTo(0, L * 1.12); ctx.stroke();
           ctx.restore();
@@ -178,7 +185,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
       raf = requestAnimationFrame(loop);
       try {
         const { source: s, active: on, latency: lat, play: playOn, visuals: visualsOn } = live.current;
-        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; } return; }
+        if (!on || !s) { if (last) { ctx.clearRect(0, 0, w, h); last = 0; wasEmpty = true; clock.reset(); curSig = null; fromScene = null; shown = null; colAt = 0; } return; }
         // the beat the ear is hearing now: the server's clock, minus the delay between the audio being scheduled and heard
         const tau = (Date.now() + clockOffset.current - s.at) / 1000 - lat();
         const target = beatsAt(s.state, Math.max(0, tau));
@@ -186,7 +193,10 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         if (s.at !== dbgAt) { dbg("state", { at: s.at, tau: +tau.toFixed(2), vol: s.state.volume, delay: s.state.transition.delay ?? 0, scene: s.state.colour.scene }); dbgAt = s.at; }
         if (dbgBeats && Math.abs(beats - dbgBeats) > 0.5) dbg("beat jump", { from: +dbgBeats.toFixed(2), to: +beats.toFixed(2) });
         dbgBeats = beats;
-        const c = s.state.colour;
+        const toC = s.state.colour;
+        if (colAt !== s.at) { fromC = shown ?? toC; colAt = s.at; }
+        const trc = s.state.transition, pc = Math.min(1, Math.max(0, (tau - (trc.delay ?? 0)) / Math.max(1, trc.time)));
+        const c = shown = fromC && trc.curve !== "sudden" ? blendColour(fromC, toC, pc * pc * (3 - 2 * pc)) : toC; // the server's clock again, so every device glides together
         // A silent state (silence, the end of a session) fades the picture out over its transition, like the sound; a sounding state after it
         // fades it back in. The level follows the server's clock (tau), so every device fades together, and starts from where it was.
         const tr = s.state.transition, target01 = isSounding(s.state) ? 1 : 0, span = Math.max(1, tr.time), delay = tr.delay ?? 0;

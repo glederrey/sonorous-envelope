@@ -71,7 +71,7 @@ function motes(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
     // three kinds, so the field is not a sheet of identical discs: a few large soft lights, small sharp points (more with tension), the rest in between
     const big = cls > 0.85, tiny = cls < sharpShare * 0.6;
     const sz = big ? 2.2 + 0.8 * hash01(i, c.seed + 2) : tiny ? 0.45 : 0.7 + 0.6 * hash01(i, c.seed + 2);
-    const soft = big ? 1 : tiny ? 0 : clamp(feel.soft * (0.4 + 0.8 * hash01(i, c.seed + 6)));
+    const soft = big ? 1 : tiny ? 0.35 : clamp(feel.soft * (0.4 + 0.8 * hash01(i, c.seed + 6)), 0.35, 1); // never a hard-edged disc
     const y = frac(y0 + dir * travel * (big ? 0.6 : 1)), x = x0 + 0.03 * Math.sin(2 * Math.PI * (c.b / 32 + ph));
     const twinkle = c.sync === "free" ? 0 : (1 - frac(c.b + ph * feel.irreg)) ** 2;
     items.push({ kind: "dot", x, y: y - 0.01 * dir * c.hit, r: rs * sz * (1 + 0.4 * c.hit), w: 0, soft,
@@ -185,11 +185,11 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const curtain = (b: number) => ({
     edge: (u: number) => 0.52 + 0.07 * noise1(u * 5.5 + b * drift, c.seed) + 0.05 * Math.sin(u * 9 - b * drift * 5 * fold) + 0.035 * Math.sin(u * 17 + b * drift * 7 * fold + 1.7) + 0.03 * Math.sin(u * 4 + b * drift * 3),
     glow: (u: number) => clamp(0.55 + 0.9 * noise1(u * 14 - b * drift * 4 * fold, c.seed + 20) + feel.jitter * 0.4 * noise1(u * 40 + b * 0.7, c.seed + 30)) * (0.78 + 0.22 * Math.sin(2 * Math.PI * (b / 11 + u * 2.3))),
-    stri: (u: number) => clamp(0.5 + 0.55 * noise1(u * 58 - b * drift * 2.4 * fold, c.seed + 5) + 0.3 * noise1(u * 21 + b * drift * 1.4, c.seed + 6)),
+    stri: (u: number) => clamp(0.55 + 0.3 * noise1(u * 40 - b * drift * 2.4 * fold, c.seed + 5) + 0.2 * noise1(u * 21 + b * drift * 1.4, c.seed + 6)), // gentle striations: no hard bars
   });
   const now = curtain(c.b), edge = now.edge, glow = now.glow;
   const cols = (bq: number) => { const cu = curtain(bq), e: number[] = [], g: number[] = [], s: number[] = []; for (let i = 0; i < GW; i++) { const u = (i + 0.5) / GW; e.push(cu.edge(u)); g.push(cu.glow(u)); s.push(cu.stri(u)); } return { e, g, s }; };
-  const col = (x: number) => Math.min(GW - 1, Math.floor(x * GW));
+  const lin = (a: number[], x: number) => { const q = clamp(x * GW - 0.5, 0, GW - 1), i = Math.floor(q), f = q - i; return a[i] + (a[Math.min(GW - 1, i + 1)] - a[i]) * f; }; // between two columns, so no column shows as a bar
   // two colours that read against the field and against each other: the field's hue turned by a third and by two thirds of the wheel
   const hueA = (c.h + 120) % 360, hueB = (c.h + 240) % 360;
   // on a dark sky the glow is a vivid colour lighter than it (that is what an aurora is); on a bright one nothing can be lighter, so the curtain is a deep vivid colour darker than it
@@ -199,11 +199,11 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
   const vk = `${GW}x${GH}|${c.seed}|${Math.round(speed * 20)}|${Math.round(feel.jitter * 20)}`;
   const base = veil(`aua|${vk}`, 8, c.b, GW, GH, (bq) => {
     const { e, g, s } = cols(bq);
-    return (x, y) => { const i = col(x), up = e[i] - y, len = h * (0.25 + 0.75 * s[i]) * (0.4 + 0.6 * g[i]); return (up < 0 ? Math.exp(up / 0.03) : Math.exp(-up / (len * 0.6))) * (0.3 + 0.7 * s[i]) * g[i] * 1.25; };
+    return (x, y) => { const ex = lin(e, x), sx = lin(s, x), gx = lin(g, x), up = ex - y, len = h * (0.25 + 0.75 * sx) * (0.4 + 0.6 * gx); return (up < 0 ? Math.exp(up / 0.07) : Math.exp(-up / (len * 0.6))) * (0.5 + 0.5 * sx) * gx * 1.2; };
   }, mA.a * swell, mA);
   const top = veil(`aub|${vk}`, 8, c.b, GW, GH, (bq) => {
     const { e, g, s } = cols(bq);
-    return (x, y) => { const i = col(x), up = e[i] - y; if (up <= 0) return 0; return sstep(0.04, 0.45 * h, up) * Math.exp(-up / (h * 1.15)) * (0.45 + 0.55 * s[i]) * g[i] * 0.95; };
+    return (x, y) => { const up = lin(e, x) - y; if (up <= 0) return 0; return sstep(0.04, 0.45 * h, up) * Math.exp(-up / (h * 1.15)) * (0.55 + 0.45 * lin(s, x)) * lin(g, x) * 0.95; };
   }, mB.a * swell, mB);
   const rays = Math.round(lerp(14, 28, density));
   for (let r = 0; r < rays; r++) {
@@ -212,7 +212,7 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     if (k < 0.25) continue;
     const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
     const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
-    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.28 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
+    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.14 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
   return { items, layers: [top, base] };
 }
@@ -300,7 +300,7 @@ function leaves(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     const z = hash01(i, c.seed + 2), ph = hash01(i, c.seed + 3), y = frac(hash01(i, c.seed + 1) + c.b * lerp(0.02, 0.06, speed) * (0.6 + 0.8 * z));
     items.push({ kind: "leaf", x: hash01(i, c.seed) + (0.03 + 0.05 * feel.irreg) * Math.sin(2 * Math.PI * (c.b / (10 + 10 * ph) + ph)), y,
       r: lerp(0.022, 0.05, z), w: 0, ang: 0.9 * Math.sin(2 * Math.PI * (c.b / (7 + 6 * ph) + ph)) + 6.283 * ph, sq: Math.max(0.2, Math.abs(Math.cos(2 * Math.PI * (c.b / (6 + 6 * ph) + ph)))),
-      k: hash01(i, c.seed + 8), // the shape of this leaf: 0 a long narrow willow leaf, 1 a broad round one
+      k: hash01(i, c.seed + 8), // the shape of this leaf: 0 a long narrow willow leaf, then oval, broad and round, and above 0.8 a lobed maple leaf
       a: 0.55 * Math.min(1, Math.sin(Math.PI * y) * 3), hue: 8 + 42 * hash01(i, c.seed + 5), sat: 78, l: 46 + 14 * z });
   }
   return { items, layers: [] };
@@ -340,7 +340,7 @@ const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}
 /** Smoke: a thin thread leaves the source at the bottom, then folds into soft translucent sheets that curl and billow as the air turns it over, spreading and thinning as it rises (as in a photograph of incense smoke).
  *  One veil in a tone lighter than a dark field or darker than a bright one: a density field made of a plume mask times the creases of a domain-warped noise, which is what makes the wisps. Brooding, uneasy. */
 function smoke(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 3.5, 48, 180)), GH = Math.round(clamp(GW / asp, 48, 340));
+  const tone = bestTone(c.bases, c.h, 0.16), P = 1 + Math.round(4 * clamp(density)), asp = c.aspect > 0 ? c.aspect : 0.6, GW = Math.round(clamp(c.px / 3, 48, 260)), GH = Math.round(clamp(GW / asp, 48, 460));
   const x0 = (p: number) => 0.5 + ((p + 0.5 + 0.4 * (hash01(p, c.seed + 61) - 0.5)) / P - 0.5) * Math.min(1, asp); // the plumes stand in the part of the view that shows
   const build = (bq: number) => {
     const rise = bq * lerp(0.015, 0.04, speed), wind = 0.2 * noise1(bq / 45, c.seed + 60);
@@ -405,8 +405,9 @@ function circuit(density: number, speed: number, feel: Feel, c: Clock): SceneOut
 }
 
 /** Digital: columns of small blocks that fall one cell per tick, with a bright head and a fading tail: stepwise, like a machine drawing text. Alert, processing. */
+// few enough columns that all of them fit in the 400 items the budget allows (more columns lost the right side of the view)
 function digital(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const cols = Math.round(lerp(16, 48, density)), items: Item[] = [], rows = 26, tail = 7, cell = 1 / rows, asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
+  const cols = Math.round(lerp(14, 34, density)), items: Item[] = [], rows = 26, tail = 6, cell = 1 / rows, asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
   for (let i = 0; i < cols; i++) {
     const heads = 1 + (hash01(i, c.seed + 9) > 0.45 ? 1 : 0), rate = (1 + Math.floor(hash01(i, c.seed + 2) * 3)) * 0.5 * lerp(0.7, 2, speed), x = (i + 0.5) / cols;
     for (let h = 0; h < heads; h++) {
@@ -498,7 +499,7 @@ function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneO
       for (let p = 0; p < N; p++) {
         // each spark flies out fast and slows (drag), then droops and fades; it is drawn as a short streak along its path, a trail that fades behind the head
         const a = 2 * Math.PI * (p / N + 0.08 * hash01(p, id)), sp = rad * (0.5 + 0.5 * hash01(p, id + 5));
-        const at = (uu: number): [number, number] => { const e = 1 - Math.exp(-4 * uu); return [cx + (Math.cos(a) * sp * e * m) / asp, cy + Math.sin(a) * sp * e * m + 0.12 * uu * uu]; };
+        const at = (uu: number): [number, number] => { const e = 1 - Math.exp(-lerp(0.9, 3.5, speed) * uu * life); return [cx + (Math.cos(a) * sp * e * m) / asp, cy + Math.sin(a) * sp * e * m + 0.12 * uu * uu]; };
         const [hx, hy] = at(u), [tx, ty] = at(Math.max(0, u - 0.09)), ux = ((hx - tx) * asp) / m, uy = (hy - ty) / m, len = Math.hypot(ux, uy);
         if (len < 0.002) continue;
         items.push({ kind: "streak", x: tx, y: ty, r: len, w: 0.0026 * (1 - 0.5 * u), ang: Math.atan2(ux, uy), tail: true, a: 0.8 * (1 - u) ** 1.2, hue: (hue + 30 * hash01(p, id + 9)) % 360, sat: 90, l: 74 });
@@ -667,7 +668,7 @@ function network(density: number, speed: number, feel: Feel, c: Clock): SceneOut
 /** Fire: tongues of flame with a turbulent, eroded edge, flickering fast, in three layers from one field: a wide red-orange body, an orange middle and a hot yellow-white core, with sparks rising off it.
  *  The palette varies by session: a campfire (red, orange, yellow) most often, a blue gas flame, or a green copper one. */
 function fire(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const asp = c.aspect > 0 ? c.aspect : 0.6, T = 3 + Math.round(4 * clamp(density)), GW = Math.round(clamp(c.px / 5, 48, 140)), GH = Math.round(clamp(GW / asp, 48, 190));
+  const asp = c.aspect > 0 ? c.aspect : 0.6, T = 3 + Math.round(4 * clamp(density)), GW = Math.round(clamp(c.px / 3.5, 48, 200)), GH = Math.round(clamp(GW / asp, 48, 300));
   const pick = hash01(c.seed, 130), pal = pick < 0.6 ? [[8, 0.95, 0.5], [28, 0.97, 0.56], [50, 0.95, 0.8]] : pick < 0.88 ? [[228, 0.9, 0.55], [196, 0.9, 0.62], [185, 0.7, 0.9]] : [[130, 0.85, 0.45], [150, 0.85, 0.55], [75, 0.8, 0.82]];
   const fl = lerp(1.4, 3, speed);
   const build = (bq: number) => {
@@ -724,7 +725,7 @@ function warp(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 function caustics(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length), asp = c.aspect > 0 ? c.aspect : 0.6;
   const tone = lum < 0.4 ? toneLayer(c.bases, 185, true, 0.2, { sat: 0.5, l: 0.86 }) : toneLayer(c.bases, 200, false, 0.2, { sat: 0.5, l: 0.2 });
-  const GW = Math.round(clamp(c.px / 3.5, 48, 180)), GH = Math.round(clamp(GW / asp, 48, 340)), sc = lerp(5, 10, density);
+  const GW = Math.round(clamp(c.px / 3, 48, 260)), GH = Math.round(clamp(GW / asp, 48, 460)), sc = lerp(5, 10, density);
   const build = (bq: number) => {
     const t = bq * lerp(0.02, 0.07, speed);
     return (x: number, y: number) => {

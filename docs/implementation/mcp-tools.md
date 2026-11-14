@@ -80,7 +80,7 @@ export const Gesture = z.object({
 });
 
 export const Colour = z.object({
-  mode: z.enum(["follow","own"]).default("follow"),   // "follow" returns the whole colour to the mood: scene, density, speed and sync too, so a scene sent in the same call is lost
+  mode: z.enum(["follow","own"]).default("follow"),   // "follow" gives the colours, motion and shape back to the mood and ignores hue, saturation, lightness, secondary, motion, texture and shape; a scene, density, speed or sync sent in the same call is applied after the reset and kept (v0.17.2)
   hue: z.number().min(0).max(360).optional(),
   saturation: unit.optional(),
   lightness: unit.optional(),
