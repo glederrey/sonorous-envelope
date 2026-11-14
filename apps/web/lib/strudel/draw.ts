@@ -161,16 +161,31 @@ function spiral(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
   const fade = flag(o, "fade", true), colourIdle = flag(o, "colorizeInactive", false);
   const active = str(o, "activeColor", env.accent.active), inactive = str(o, "inactiveColor", env.accent.inactive), head = str(o, "playheadColor", env.accent.head);
   const cx = x0 + w / 2, cy = y0 + h / 2, time = env.cycle, rotate = steady * time, min = -2;
+  // A band is never thicker than the gap between two turns (0.9 of it), so a large `stretch` still shows a spiral and not a flat disc.
+  const maxThick = (size / stretch) * 0.9;
   const segment = (from: number, to: number, colour: string, thick: number, opacity: number, rot: number, linecap: CanvasLineCap) => {
     from *= stretch; to *= stretch; rot *= stretch;
-    ctx.lineWidth = thick; ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
-    const [sx, sy] = onSpiral(from, size / stretch, cx, cy, rot); ctx.moveTo(sx, sy);
+    thick = Math.min(thick, maxThick);
     const steps = spiralSteps((to - from) / stretch, stretch); // a bounded number of pieces, whatever the code's options say
-    for (let i = 1; i <= steps; i++) {
-      const a = from + ((to - from) * i) / steps, [px, py] = onSpiral(a, size / stretch, cx, cy, rot);
-      ctx.globalAlpha = (i / steps) * opacity; ctx.lineTo(px, py);
+    const margin = size / stretch;
+    if (linecap === "butt") {
+      // A band with square ends is filled as one shape, its ends on the radius through its first and last point. A stroked band is cut square
+      // to its own chord, so two neighbours leave a thin wedge open on the outside of the turn (and run on, they double up where translucent);
+      // filled, they share the radius exactly.
+      const edge = (a: number, off: number) => fromPolar((a + rot) * 360, margin * a + off, cx, cy);
+      ctx.beginPath();
+      for (let i = 0; i <= steps; i++) { const [px, py] = edge(from + ((to - from) * i) / steps, thick / 2); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+      for (let i = steps; i >= 0; i--) { const [px, py] = edge(from + ((to - from) * i) / steps, -thick / 2); ctx.lineTo(px, py); }
+      ctx.closePath(); ctx.globalAlpha = opacity; ctx.fillStyle = colour; ctx.fill();
+      return;
     }
-    ctx.stroke();
+    ctx.lineWidth = thick; ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
+    const [sx, sy] = onSpiral(from, margin, cx, cy, rot); ctx.moveTo(sx, sy);
+    for (let i = 1; i <= steps; i++) {
+      const a = from + ((to - from) * i) / steps, [px, py] = onSpiral(a, margin, cx, cy, rot);
+      ctx.lineTo(px, py);
+    }
+    ctx.globalAlpha = opacity; ctx.stroke();
   };
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
   let drawn = 0;

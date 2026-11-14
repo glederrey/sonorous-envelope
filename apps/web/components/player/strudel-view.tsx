@@ -58,12 +58,13 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       // to black inside it. It fades in over the scenes when the listener switches it on (the canvas paints them until it is opaque), and out
       // over them when a synth sound takes over or it is switched off. Coming in from nothing it is there at once.
       if (on) { if (!wasOn && level.current < 0.05) op = 1; op += (1 - op) * (1 - Math.exp(-dt / 0.35)); if (op > 0.995) op = 1; }
-      else op *= Math.exp(-dt / 0.45);
+      else op *= Math.exp(-dt / 0.3);
       wasOn = on;
-      if (op < 0.004) op = 0;
+      if (op < (on ? 0.004 : 0.03)) op = 0;
       opacity.current = op;
       // the content follows the canvas's level (the fades of the sound, the first bar) and the view's own opacity
-      vis = Math.min(level.current, op);
+      // while it fades out the content only ever dims: a synth sound rising behind it (its level) must not bring the code back
+      vis = on ? Math.min(level.current, op) : Math.min(vis, level.current, op);
       if (op === 0) { if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } el.style.visibility = "hidden"; return; }
       el.style.visibility = "visible"; el.style.opacity = String(op); el.style.setProperty("--sv-k", String(vis));
       canvas.style.opacity = code.style.opacity = String(vis);

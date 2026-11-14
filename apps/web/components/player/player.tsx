@@ -551,9 +551,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const patternShows = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at);
   const soundingNow = Boolean(playing && isSounding(playing.state));
   useEffect(() => {
-    if (patternShows) { setStShown(true); setStSeen(true); }
-    else if (soundingNow) setStShown(false);
-  }, [patternShows, soundingNow, playing?.at]);
+    if (patternShows) { setStShown(true); setStSeen(true); return; }
+    // The owner just blocked the pattern (Allow Strudel off, the face locked): the block effect above has already put its silent copy into
+    // `latest`, but `playing` still holds the pattern for this one render and reads as sounding. That is not a synth sound taking over, so
+    // the picture stays and fades to black instead of letting the scenes flash in. A new pattern that arrives while blocked is not stripped,
+    // so it still hides the picture as before.
+    const stripped = Boolean(playing?.state.pattern && latest.current && latest.current.at === playing.at && !latest.current.state.pattern);
+    if (soundingNow && !stripped) setStShown(false);
+  }, [patternShows, soundingNow, playing]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
   // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
   useEffect(() => {

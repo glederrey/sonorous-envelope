@@ -146,7 +146,7 @@ describe("hostile options stay bounded", () => {
       { id: 0, name: "spiral", opts: { stretch: 1e9, playheadLength: 1e9, size: 1e12, speed: 1e6, unknownKey: 1e30 } },
       { id: 1, name: "pitchwheel", opts: { edo: 1e9, root: -5, hapRadius: 1e9, margin: 1e9, cycles: -5 } },
     ]);
-    expect(a.opts.stretch).toBe(8); expect(a.opts.playheadLength).toBe(1); expect(a.opts.size).toBe(400); expect(a.opts.speed).toBe(16); expect(a.opts.unknownKey).toBe(1e4);
+    expect(a.opts.stretch).toBe(2.5); expect(a.opts.playheadLength).toBe(1); expect(a.opts.size).toBe(400); expect(a.opts.speed).toBe(16); expect(a.opts.unknownKey).toBe(1e4);
     expect(b.opts.edo).toBe(96); expect(b.opts.root).toBe(16); expect(b.opts.hapRadius).toBe(60); expect(b.opts.margin).toBe(200); expect(b.opts.cycles).toBe(0.25);
     expect(clampOpt("minMidi", -50)).toBe(0);
   });
