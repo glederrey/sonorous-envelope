@@ -32,7 +32,7 @@ interface Props {
   onFail: () => void;
 }
 
-interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number }
+interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number; epoch: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
 export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail }: Props) {
@@ -47,7 +47,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     if (!cv || !ctx) { live.current.onFail(); return; }
     const clock = new BeatClock();
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
-    let curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
+    let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5; // the scene being replaced fades out while the new one fades in
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -200,12 +200,13 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
             if (!fading) fromScene = curScene;
             fadeStart = now; fadeDur = Math.min(8, Math.max(1.5, tr.time));
           }
-          curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed };
+          if (curScene?.scene !== (c.scene ?? "none")) epochs++; // a scene that starts is a new epoch: the sunbeam rolls a new lean
+          curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed, epoch: epochs };
         }
         const fk = fromScene ? Math.min(1, (now - fadeStart) / 1000 / fadeDur) : 1;
         if (fk >= 1) fromScene = null;
-        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, play: playOn, visuals: visualsOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
-        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl);
+        const raw = lvl === 0 ? EMPTY_FRAME : drawFrame({ colour: c, bpm: tempoAt(s.state, Math.max(0, tau)), beats, t: now / 1000, seed: s.seed & 0xffff, epoch: curScene?.epoch ?? 0, play: playOn, visuals: visualsOn, px: w, from: fromScene ? { ...fromScene, k: fk } : undefined }, w / h, MIN_LINE / Math.min(w, h));
+        const frame: Frame = lvl >= 0.999 || lvl === 0 ? raw : scaleFrame(raw, lvl ** 1.7); // the ear hears the level on a log scale, so the picture falls a little faster than the gain to keep up with the sound
         const empty = frame.wash === 0 && !frame.glow && frame.items.length === 0 && frame.layers.length === 0;
         if (!(empty && wasEmpty)) paint(frame, c.h); // a still state is not repainted 60 times a second
         wasEmpty = empty;

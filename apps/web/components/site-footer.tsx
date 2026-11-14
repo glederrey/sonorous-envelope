@@ -6,10 +6,13 @@ export function SiteFooter() {
   const links = sourceLinks(version);
   return (
     <footer className="se-footer">
+      <div className="se-footer-in">
+      <nav className="se-footer-links" aria-label="Legal and source">
       <a href="/privacy">Privacy</a>
       <a href={links.license} rel="noopener">AGPL-3.0</a>
       <a href={links.source} rel="noopener">Source code</a>
       {links.release ? <a href={links.release} rel="noopener">{version}</a> : <span>{version}</span>}
+      </nav>
       <span className="se-credit">
         Made by
         <a href="https://github.com/glederrey" target="_blank" rel="noopener" aria-label="Gael Lederrey" title="Gael Lederrey">
@@ -23,6 +26,7 @@ export function SiteFooter() {
           </svg>
         </a>
       </span>
+      </div>
     </footer>
   );
 }

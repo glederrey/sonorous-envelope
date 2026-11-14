@@ -58,6 +58,8 @@ export interface Clock {
   /** a short bump right after each beat, and the bump weighted by the bar and the depth */
   kick: number; hit: number; amp: number; lift2: number;
   sync: "beat" | "phrase" | "free"; seed: number;
+  /** how many times the scene has started on this device: a scene that rolls a look at its start (the sunbeam's lean) rolls it again with a new epoch */
+  epoch: number;
   /** 0 when the colours are saturated red: no large element may pulse then (the beat shows in the small ones) */
   red: number;
   /** width over height of the view (the waves keep their swing under the gap between lines) */

@@ -52,7 +52,7 @@ export function sceneParts(scene: SceneName | "none", density: number, speed: nu
 
 /** Scenes drawn on a design square (positions in 0 to 1 of the height, shapes isotropic). On a view narrower than tall the square is cropped at the sides, like `object-fit: cover`: x is spread by 1/aspect about the middle,
  *  so lines and flames keep their proportions, and what falls off the sides is simply not seen (fewer of them on a phone). Flock, circuit, network and scope work in real pixels and are not in this set. */
-const COVER = new Set<string>(["aurora", "fire", "cracks", "lightning"]);
+const COVER = new Set<string>(["aurora", "fire", "cracks", "lightning", "sunbeam"]);
 function cover(o: SceneOut, asp: number): SceneOut {
   if (asp >= 1) return o;
   const X = (x: number) => 0.5 + (x - 0.5) / asp;
@@ -67,7 +67,7 @@ function motes(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const rs = lerp(0.008, 0.026, feel.near), sharpShare = 0.25 + 0.3 * feel.jitter;
   const items: Item[] = [];
   for (let i = 0; i < n; i++) {
-    const x0 = hash01(i, c.seed), y0 = hash01(i, c.seed + 1), ph = hash01(i, c.seed + 3), cls = hash01(i, c.seed + 4);
+    const [x0, y0] = spread(i, c.seed), ph = hash01(i, c.seed + 3), cls = hash01(i, c.seed + 4);
     // three kinds, so the field is not a sheet of identical discs: a few large soft lights, small sharp points (more with tension), the rest in between
     const big = cls > 0.85, tiny = cls < sharpShare * 0.6;
     const sz = big ? 2.2 + 0.8 * hash01(i, c.seed + 2) : tiny ? 0.45 : 0.7 + 0.6 * hash01(i, c.seed + 2);
@@ -212,7 +212,7 @@ function aurora(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
     if (k < 0.25) continue;
     const len = h * (0.55 + 0.6 * hash01(r, c.seed + 41)) * k * (0.75 + 0.25 * Math.sin(2 * Math.PI * (c.b / (9 + 7 * hash01(r, c.seed + 46)) + hash01(r, c.seed + 47))));
     const flick = 0.65 + 0.35 * Math.sin(2 * Math.PI * (c.b / (5 + 6 * hash01(r, c.seed + 42)) + hash01(r, c.seed + 43))), edgeFade = Math.min(1, u * 8, (1 - u) * 8);
-    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.004 + 0.004 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.5 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
+    items.push({ kind: "streak", x: u, y: edge(u) - len, r: len, w: 0.006 + 0.006 * hash01(r, c.seed + 44), tail: true, ang: 0, a: 0.28 * k * flick * swell * edgeFade, hue: r % 3 ? hueA : hueB, sat: 95, l: 74 });
   }
   return { items, layers: [top, base] };
 }
@@ -256,7 +256,7 @@ function fireflies(density: number, speed: number, feel: Feel, c: Clock): SceneO
   for (let i = 0; i < n; i++) {
     const ph = hash01(i, c.seed + 3), per = lerp(11, 5, feel.jitter) * (0.7 + 0.6 * hash01(i, c.seed + 4));
     const glow = Math.max(0, Math.sin(2 * Math.PI * (c.b / per + ph))) ** 3;
-    const x = 0.1 + 0.8 * hash01(i, c.seed) + 0.07 * noise1(c.b * wander + i * 9, c.seed + 5), y = 0.1 + 0.8 * hash01(i, c.seed + 1) + 0.07 * noise1(c.b * wander + i * 9 + 50, c.seed + 6);
+    const [sx, sy] = spread(i, c.seed), x = 0.1 + 0.8 * sx + 0.035 * noise1(c.b * wander + i * 9, c.seed + 5), y = 0.1 + 0.8 * sy + 0.035 * noise1(c.b * wander + i * 9 + 50, c.seed + 6);
     const r = lerp(0.009, 0.02, feel.near) * (0.7 + 0.6 * hash01(i, c.seed + 2)) * (0.85 + 0.35 * glow);
     items.push({ kind: "dot", x, y, r: r * 2.2, w: 0, soft: 1, a: 0.1 + 0.45 * glow * (1 + 0.3 * c.hit), hue: hueF, sat: 95, l: 60 });  // the halo
     items.push({ kind: "dot", x, y, r: r * 0.7, w: 0, soft: 0.3, a: 0.2 + 0.7 * glow, hue: hueF, sat: 80, l: 90 });                     // the bright body
@@ -330,6 +330,9 @@ function tide(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   }
   return { items, layers: [] };
 }
+
+/** The i-th of an evenly spread set of points in the unit square (the R2 sequence, shifted by the seed): no two come close, however many there are. Fireflies and motes use it so they never overlap or clump. */
+const spread = (i: number, seed: number): [number, number] => [frac(hash01(seed, 7) + (i + 1) * 0.7548776662466927), frac(hash01(seed, 8) + (i + 1) * 0.5698402909980532)];
 
 const pathItem = (pts: number[], w: number, a: number, extra: Partial<Item> = {}): Item => ({ kind: "path", x: pts[0], y: pts[1], r: 0, w, a, pts, ...extra });
 
@@ -480,18 +483,23 @@ function vines(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
 /** Fireworks: on the first beat of a bar a shell rises and bursts into small lights that fly out, slow, droop and fade. Several shells run at once, staggered across the bar, and the more
  *  the mood is elated the more there are. Only small items: no wash, no glow. */
 function fireworks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const items: Item[] = [], streams = 1 + Math.round(density * 4), N = Math.round(lerp(12, 24, density)), life = lerp(3.4, 2.2, speed);
+  const items: Item[] = [], streams = 1 + Math.round(density * 7), N = Math.round(lerp(14, 22, density)), life = lerp(6.5, 1.8, speed);
   const asp = c.aspect > 0 ? c.aspect : 0.6, m = Math.min(asp, 1);
   for (let s = 0; s < streams; s++) {
     const bar = (c.b - (4 * s) / streams) / 4, k = Math.floor(bar), age = (bar - k) * 4; // beats since the burst; the rocket climbs in the last beat before it
-    for (const [kk, ag] of [[k, age], [k + 1, age - 4]] as const) {
+    for (const [kk, ag] of [[k - 1, age + 4], [k, age], [k + 1, age - 4]] as const) {
       const id = kk * 17 + s * 101, cx = 0.15 + 0.7 * hash01(id, c.seed), cy = 0.15 + 0.35 * hash01(id, c.seed + 1), hue = (c.h + 360 * hash01(id, c.seed + 2)) % 360, size = 0.7 + 0.6 * hash01(id, c.seed + 3);
       if (ag >= -1 && ag < 0) { const u = ag + 1; items.push({ kind: "streak", x: cx, y: lerp(1.02, cy, u * u), r: 0.05, w: 0.0025, ang: Math.PI, tail: true, a: 0.5 * (1 - u * 0.3), l: 92 }); continue; }
       if (ag < 0 || ag > life) continue;
       const u = ag / life, rad = lerp(0.1, 0.22, feel.near) * (0.8 + 0.4 * feel.depth) * size;
+      if (ag < 0.5) items.push({ kind: "dot", x: cx, y: cy, r: 0.07 * size * (1 - ag / 0.5) + 0.01, w: 0, soft: 1, a: 0.6 * (1 - ag / 0.5), l: 97, sat: 30, hue }); // the flash of the burst
       for (let p = 0; p < N; p++) {
-        const a = 2 * Math.PI * (p / N + 0.08 * hash01(p, id)), sp = rad * (0.5 + 0.5 * hash01(p, id + 5)), e = 1 - Math.exp(-4 * u);
-        items.push({ kind: "dot", x: cx + (Math.cos(a) * sp * e * m) / asp, y: cy + Math.sin(a) * sp * e * m + 0.12 * u * u, r: 0.0045 * (1 - 0.5 * u), w: 0, soft: 0.3, a: 0.7 * (1 - u) ** 1.4, hue: (hue + 30 * hash01(p, id + 9)) % 360, sat: 90, l: 72 });
+        // each spark flies out fast and slows (drag), then droops and fades; it is drawn as a short streak along its path, a trail that fades behind the head
+        const a = 2 * Math.PI * (p / N + 0.08 * hash01(p, id)), sp = rad * (0.5 + 0.5 * hash01(p, id + 5));
+        const at = (uu: number): [number, number] => { const e = 1 - Math.exp(-4 * uu); return [cx + (Math.cos(a) * sp * e * m) / asp, cy + Math.sin(a) * sp * e * m + 0.12 * uu * uu]; };
+        const [hx, hy] = at(u), [tx, ty] = at(Math.max(0, u - 0.09)), ux = ((hx - tx) * asp) / m, uy = (hy - ty) / m, len = Math.hypot(ux, uy);
+        if (len < 0.002) continue;
+        items.push({ kind: "streak", x: tx, y: ty, r: len, w: 0.0026 * (1 - 0.5 * u), ang: Math.atan2(ux, uy), tail: true, a: 0.8 * (1 - u) ** 1.2, hue: (hue + 30 * hash01(p, id + 9)) % 360, sat: 90, l: 74 });
       }
     }
   }
@@ -549,21 +557,22 @@ function stepBoids(B: Boids, seed: number, nf: number) {
 }
 function flock(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const nf = 1 + Math.round(density * 2), items: Item[] = [], asp = c.aspect > 0 ? c.aspect : 0.6;
-  const ep = Math.floor(c.b / EPOCH), n = Math.min(200, Math.round(lerp(70, 120, density) * lerp(1, 1.75, hash01(ep, c.seed + 160)))), u = c.b - ep * EPOCH, target = Math.floor(u * STEPS_PER_BEAT), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
-  const key = `${c.seed}|${ep}|${n}|${nf}`;
+  const ep = Math.floor(c.b / EPOCH), n = Math.min(200, Math.round(lerp(70, 120, density) * lerp(1, 1.75, hash01(ep, c.seed + 160)))), u = c.b - ep * EPOCH, rate = 0.3 + 2 * speed, target = Math.floor(u * STEPS_PER_BEAT * rate), fade = Math.min(1, u / 3, (EPOCH - u) / 3);
+  const key = `${c.seed}|${ep}|${n}|${nf}|${Math.round(speed * 20)}`;
   let B = SIMS.get(key);
   if (!B || B.step > target) { B = newBoids(c.seed + ep * 7919, n, nf, key); SIMS.set(key, B); if (SIMS.size > 96) SIMS.delete(SIMS.keys().next().value as string); }
   while (B.step < target) stepBoids(B, c.seed + ep * 7919, nf);
-  const fs = clamp(u * STEPS_PER_BEAT - target); // the simulation moves in steps; the picture glides between the last two (else it moves at the step rate, a stutter)
+  const fs = clamp(u * STEPS_PER_BEAT * rate - target); // the simulation moves in steps; the picture glides between the last two (else it moves at the step rate, a stutter)
   const lum = c.bases.reduce((a, b) => a + relLuminance(b), 0) / Math.max(1, c.bases.length), light = lum < 0.3, m = Math.min(asp, 1);
   for (let i = 0; i < n; i++) {
-    const sp = Math.hypot(B.vx[i], B.vy[i]) || 1e-6, len = 0.014;
-    // a short tail along the heading (the direction in pixels, so a wide view and a tall one agree)
-    const dxp = B.vx[i] * asp, dyp = B.vy[i], dn = Math.hypot(dxp, dyp) || 1e-6;
+    // a small bird seen from far away: two wings in a shallow V that beat, in the direction of travel (pixel space, so a wide view and a tall one agree). Size varies with distance.
+    const dxp = B.vx[i] * asp, dyp = B.vy[i], dn = Math.hypot(dxp, dyp) || 1e-6, ux = dxp / dn, uy = dyp / dn;
     const bx = lerp(B.px[i], B.x[i], fs), by = lerp(B.py[i], B.y[i], fs);
-    items.push({ kind: "dot", x: bx, y: by, r: 0.0066, w: 0, soft: 0, a: 0.5 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
-    items.push({ kind: "streak", x: bx - ((dxp / dn) * len * m) / asp, y: by - (dyp / dn) * len * m, r: len, w: 0.0016, ang: Math.atan2(dxp / dn, dyp / dn), tail: true, a: 0.3 * fade, l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 });
-    void sp;
+    const far = hash01(i, c.seed + 161), span = 0.005 + 0.007 * far, flap = Math.sin(2 * Math.PI * (c.b * (0.5 + 0.5 * far) + hash01(i, c.seed + 162))), back = span * (0.55 + 0.25 * flap), side = span * (0.85 - 0.45 * flap * flap + 0.2 * flap);
+    const fx = (u: number) => (u * m) / asp, fy = (u: number) => u * m; // pixel-space offsets in units of the smaller side, as fractions of the width and the height
+    const tip = (sgn: number) => [bx + fx(-ux * back + sgn * -uy * side), by + fy(-uy * back + sgn * ux * side)];
+    const [ax, ay] = tip(1), [cx, cy] = tip(-1);
+    items.push(pathItem([ax, ay, bx, by, cx, cy], 0.0022 - 0.0008 * (1 - far), (0.35 + 0.3 * far) * fade, { l: light ? 97 : 7, sat: light ? 10 : 20, dh: (B.grp[i] - (nf - 1) / 2) * 22 }));
   }
   return { items, layers: [] };
 }
@@ -747,17 +756,17 @@ function lightning(density: number, speed: number, feel: Feel, c: Clock): SceneO
   return { items, layers };
 }
 
-/** Sunbeam: slanted shafts of warm light (the lean is seeded, at most 50 degrees from the vertical either way) through a window or leaves, with dust turning slowly inside them. The shafts are a veil (stripes along one slanted axis, slowly drifting and breathing); the dust specks glow only where a shaft is. */
+/** Sunbeam: slanted shafts of warm light (the lean is rolled each time the scene starts on a device: 30 to 50 degrees from the vertical, either way) through a window or leaves, with dust turning slowly inside them. The shafts are a veil (stripes along one slanted axis, slowly drifting and breathing); the dust specks glow only where a shaft is. */
 function sunbeam(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
   const asp = c.aspect > 0 ? c.aspect : 0.6, lum = c.bases.reduce((q, b) => q + relLuminance(b), 0) / Math.max(1, c.bases.length);
   const tone = lum < 0.4 ? toneLayer(c.bases, 42, true, 0.2, { sat: 0.85, l: 0.78 }) : toneLayer(c.bases, 38, false, 0.2, { sat: 0.7, l: 0.35 });
-  const GW = Math.round(clamp(c.px / 6, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), lean = (hash01(c.seed, 130) - 0.5) * (100 * Math.PI) / 180, nb = lerp(3, 7, density), rate = lerp(0.01, 0.05, speed);
+  const GW = Math.round(clamp(c.px / 6, 48, 120)), GH = Math.round(clamp(GW / asp, 48, 200)), lean = (hash01(c.seed + 53 * c.epoch, 130) < 0.5 ? -1 : 1) * (30 + 20 * hash01(c.seed + 53 * c.epoch, 137)) * Math.PI / 180, ax = Math.max(asp, 1), nb = lerp(3, 7, density), rate = lerp(0.01, 0.05, speed);
   const shaft = (bq: number, x: number, y: number) => {
-    const u = (x * asp * Math.cos(lean) - y * Math.sin(lean)) / asp, t = bq * rate;
+    const u = (x * ax * Math.cos(lean) - y * Math.sin(lean)) / ax, t = bq * rate;
     const s1 = 0.5 + 0.5 * noise1(u * nb + t * 3, c.seed + 131), s2 = 0.5 + 0.5 * noise1(u * nb * 2.3 - t * 2, c.seed + 132);
     return sstep(0.35, 0.8, s1 * 0.75 + s2 * 0.25) * (0.25 + 0.75 * (1 - y) ** 0.8) * sstep(0, 0.12, 1 - y + 0.1) * (0.9 + 0.1 * Math.sin(bq * 0.2 + u * 9));
   };
-  const lay = veil(`sunbeam|${GW}x${GH}|${c.seed}|${Math.round(density * 20)}|${Math.round(speed * 20)}`, 8, c.b, GW, GH, (bq) => (x, y) => shaft(bq, x, y), tone.a, tone);
+  const lay = veil(`sunbeam|${GW}x${GH}|${c.seed}|${c.epoch}|${Math.round(density * 20)}|${Math.round(speed * 20)}`, 8, c.b, GW, GH, (bq) => (x, y) => shaft(bq, x, y), tone.a, tone);
   const items: Item[] = [], n = Math.round(lerp(30, 120, density));
   for (let i = 0; i < n; i++) { // dust: slow drift, visible only inside a shaft
     const ph = hash01(i, c.seed + 133), x = frac(hash01(i, c.seed + 134) + 0.03 * noise1(c.b * 0.05 + ph * 9, c.seed + i) + c.b * rate * 0.1), y = frac(hash01(i, c.seed + 135) + c.b * rate * 0.2 * (0.4 + ph));

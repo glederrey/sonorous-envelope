@@ -55,7 +55,7 @@ export function colourPlay(colour: ResolvedColour, feel: Feel, c: Clock): Layer[
     const swell = pulses ? 0.5 - 0.5 * Math.cos(2 * Math.PI * ((c.beats / 16 + i / n) % 1)) : 0;
     let cx = 0.5 + (hs(4) - 0.5) * 0.3 + A * Math.sin((2 * Math.PI * c.b * dir) / P + phi) + 0.17 * noise1(c.b / 16 + i * 5, c.seed + 80);
     let cy = 0.5 + (hs(5) - 0.5) * 0.3 + A * 0.9 * Math.cos((2 * Math.PI * c.b * dir) / (P * 1.27) + phi * 1.7) + 0.17 * noise1(c.b / 19 + i * 7, c.seed + 90)
-      - 0.1 * c.lift2 + 0.05 * c.lift2 * Math.sin((2 * Math.PI * c.beats) / 32 + phi); // joy lifts the lights, sorrow lets them sink, and over the phrase they rise and settle a little
+      - (c.lift2 < 0 ? 0.2 : 0.1) * c.lift2 + 0.05 * c.lift2 * Math.sin((2 * Math.PI * c.beats) / 32 + phi); // joy lifts the lights, sorrow lets them sink, and over the phrase they rise and settle a little
     if (shape === "glow") { cx = 0.5 + (cx - 0.5) * 0.45; cy = 0.58 + (cy - 0.58) * 0.45; } // a radial light: the lights gather round the middle
     else if (shape === "sweep") { const ang = (2 * Math.PI * c.b * dir) / (P * 2) + (i * 2 * Math.PI) / n; cx = 0.5 + 0.3 * Math.cos(ang) + 0.05 * (cx - 0.5); cy = 0.6 + 0.27 * Math.sin(ang) + 0.05 * (cy - 0.5); } // a conic turn: the lights ride a ring that turns slowly
     const breathe = 1 + 0.3 * Math.sin((2 * Math.PI * c.beats) / 16 + phi);
