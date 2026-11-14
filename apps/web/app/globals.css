@@ -813,7 +813,7 @@ html:has(.pl-field) .se-header {
 .se-theme-label {
   display: none; /* only shown inside the phone menu, where the icon needs a name */
 }
-@media (max-width: 730px) {
+@media (max-width: 900px) {
   /* Phone header: the title and a burger. The menu opens as a panel under the header. */
   .se-header {
     position: relative;

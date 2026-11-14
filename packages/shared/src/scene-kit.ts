@@ -1,11 +1,13 @@
 // Shared types and helpers of the picture's frame model (visual.ts, scenes.ts). Pure: no canvas, no clock.
 
 export const SCENES = ["motes", "ripples", "rain", "snow", "embers", "aurora", "waves", "fireflies", "stars", "bubbles", "leaves", "seeds", "tide", "smoke", "clouds", "fire", "warp", "caustics", "lightning", "sunbeam", "cracks", "ink", "circuit", "digital", "scope", "vines", "fireworks", "reeds", "network", "flock"] as const;
+/** The characters of the digital rain: half-width katakana and digits, as in the film. */
+export const GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜ0123456789";
 export type SceneName = (typeof SCENES)[number];
 
 /** A small thing, drawn on top. Together they may cover at most 10% of the view (visual.ts, `capFrame`). */
 export interface Item {
-  kind: "dot" | "ring" | "streak" | "wave" | "leaf" | "seed" | "path";
+  kind: "dot" | "ring" | "streak" | "wave" | "leaf" | "seed" | "path" | "glyph";
   /** centre, 0 to 1 of the width and height. A streak starts here (its tail); a wave's `y` is its resting line */
   x: number; y: number;
   /** radius (dot, ring), length (streak) or amplitude (wave), as a fraction of the smaller side */
@@ -25,6 +27,8 @@ export interface Item {
   sq?: number;
   /** a wave: wavelength as a fraction of the width, and phase in radians */
   k?: number; ph?: number;
+  /** a glyph: `r` is the font size, `w` its width (for the area), `g` an index into GLYPHS; it is drawn centred on `x`, hanging from `y` */
+  g?: number;
   /** a path: the points as x0, y0, x1, y1, ... (fractions of the width and height); `w` is its stroke width */
   pts?: number[];
 }

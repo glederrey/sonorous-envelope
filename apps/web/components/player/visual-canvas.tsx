@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { beatsAt, tempoAt, type EngineState } from "@sonorous/engine";
-import { drawFrame, EMPTY_FRAME, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
+import { drawFrame, EMPTY_FRAME, GLYPHS, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
 import { isSounding } from "../../lib/sounding";
 
@@ -134,6 +134,11 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           ctx.strokeStyle = hsla(0, Math.max(10, (i.l ?? 50) - 22), i.a, i.hue, i.sat); ctx.lineWidth = Math.max(MIN_LINE, L * 0.07);
           ctx.beginPath(); ctx.moveTo(0, -L); ctx.lineTo(0, L * 1.12); ctx.stroke();
           ctx.restore();
+        }
+        else if (i.kind === "glyph") {
+          // a character of the digital rain
+          const size = Math.max(6, i.r * m); ctx.font = `${size}px ui-monospace, "Noto Sans Mono CJK JP", monospace`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+          ctx.fillText(GLYPHS[(i.g ?? 0) % GLYPHS.length], i.x * w, i.y * h);
         }
         else if (i.kind === "seed") {
           // a dandelion seed: a tiny body and a tuft of fine hairs

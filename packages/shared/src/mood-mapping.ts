@@ -171,6 +171,24 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
   return { scene: best[0], density: q(0.2 + 0.55 * best[1]), speed: q(lerp(0.8, 0.12, k) + 0.15 * t) };
 }
 
+/** The axes (as the model sends them, before `stretchMood`) that give each emotion its scene. A test pins every row, and docs/visuals.md prints the table, so a tester can send these values instead of guessing them. */
+export const MOOD_PROTOTYPES: ReadonlyArray<{ name: string; scene: NonNullable<ResolvedColour["scene"]>; mood: Mood }> = [
+  { name: "sad", scene: "rain", mood: { warmth: 0.3, closeness: 0.4, joy: 0.1, calm: 0.8, spontaneity: 0.2, tension: 0.05 } },
+  { name: "lonely", scene: "snow", mood: { warmth: 0.2, closeness: 0.1, joy: 0.15, calm: 0.85, spontaneity: 0.2, tension: 0 } },
+  { name: "melancholic", scene: "leaves", mood: { warmth: 0.75, closeness: 0.7, joy: 0.25, calm: 0.8, spontaneity: 0.3, tension: 0.05 } },
+  { name: "nostalgic", scene: "sunbeam", mood: { warmth: 0.8, closeness: 0.6, joy: 0.4, calm: 0.5, spontaneity: 0.4, tension: 0 } },
+  { name: "angry", scene: "embers", mood: { warmth: 0.5, closeness: 0.4, joy: 0.12, calm: 0.12, spontaneity: 0.6, tension: 0.85 } },
+  { name: "cold anger", scene: "cracks", mood: { warmth: 0.1, closeness: 0.3, joy: 0.12, calm: 0.12, spontaneity: 0.6, tension: 0.85 } },
+  { name: "tender", scene: "fireflies", mood: { warmth: 0.9, closeness: 0.9, joy: 0.6, calm: 0.75, spontaneity: 0.3, tension: 0 } },
+  { name: "hopeful", scene: "fire", mood: { warmth: 0.7, closeness: 0.5, joy: 0.75, calm: 0.6, spontaneity: 0.4, tension: 0 } },
+  { name: "eager", scene: "warp", mood: { warmth: 0.5, closeness: 0.2, joy: 0.62, calm: 0.3, spontaneity: 0.6, tension: 0.1 } },
+  { name: "dreamy", scene: "caustics", mood: { warmth: 0.3, closeness: 0.5, joy: 0.6, calm: 0.7, spontaneity: 0.75, tension: 0 } },
+  { name: "dread", scene: "lightning", mood: { warmth: 0.3, closeness: 0.4, joy: 0.15, calm: 0.65, spontaneity: 0.3, tension: 0.75 } },
+  { name: "awe", scene: "aurora", mood: { warmth: 0.5, closeness: 0.1, joy: 0.7, calm: 0.9, spontaneity: 0.3, tension: 0 } },
+  { name: "serene", scene: "stars", mood: { warmth: 0.5, closeness: 0.2, joy: 0.5, calm: 0.9, spontaneity: 0.2, tension: 0 } },
+  { name: "restless", scene: "flock", mood: { warmth: 0.5, closeness: 0.4, joy: 0.45, calm: 0.45, spontaneity: 0.95, tension: 0.1 } },
+];
+
 export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): ResolvedColour {
   const { warmth: w, joy: j, calm: k, spontaneity: s } = m;
   const cutNorm = clamp((Math.log2(cutoff) - Math.log2(400)) / (Math.log2(6000) - Math.log2(400)));
@@ -180,7 +198,9 @@ export function moodToColour(m: Mood, cutoff: number, lfo1Rate: number): Resolve
   const h0 = (((250 - 300 * t) % 360) + 360) % 360;
   // anger is red whatever the rest says: tension with no joy and no calm pulls the hue round the short way to red
   const anger = clamp(((m.tension ?? 0) - 0.35) / 0.3) * (1 - clamp((j - 0.45) / 0.25)) * (1 - clamp((k - 0.5) / 0.25));
-  const h = (360 + h0 + ((((356 - h0) % 360) + 540) % 360 - 180) * anger) % 360;
+  // hot anger goes red; cold anger (low warmth) and dread (tense but calm) keep the cooler hue the other axes give
+  const pull = anger * clamp((w - 0.1) / 0.3) * (1 - clamp((k - 0.4) / 0.2));
+  const h = (360 + h0 + ((((356 - h0) % 360) + 540) % 360 - 180) * pull) % 360;
   const sat = Math.min(0.85, lerp(0.15, 0.6, 0.5 * j + 0.5 * (1 - k)) * lerp(0.6, 1, j) + 0.35 * anger);
   const l = Math.min(0.6, lerp(0.12, 0.45, 0.6 * j + 0.4 * cutNorm));
   // Motion is safe at any tempo now (visual.ts), so every mood moves: calm breathes over the phrase, the middle drifts, the agitated pulses on the beat.

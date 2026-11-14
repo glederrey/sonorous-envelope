@@ -1,5 +1,5 @@
 import { bestTone, relLuminance, toneLayer } from "./colour-math";
-import { clamp, fbm2, frac, hash01, lerp, noise1, noise2, type Clock, type Feel, type Item, type Layer, type SceneName, type SceneOut } from "./scene-kit";
+import { GLYPHS, clamp, fbm2, frac, hash01, lerp, noise1, noise2, type Clock, type Feel, type Item, type Layer, type SceneName, type SceneOut } from "./scene-kit";
 
 // The scenes (docs/visuals.md): what moves over the colours. Each is a pure function of the clock, the mood's feel and the seed.
 // The mood shapes the form, not only the hue (a sad rain is thin, straight and slow; an angry one is slanted, fast and ragged),
@@ -413,7 +413,8 @@ function digital(density: number, speed: number, feel: Feel, c: Clock): SceneOut
       for (let k = 0; k < tail; k++) {
         const row = pos - k; if (row < 0 || row >= rows) continue;
         if (k > 0 && hash01(row + i * 31 + h * 7, Math.floor(c.b * 2) + c.seed) < 0.12) continue; // a cell dropped out now and then
-        items.push({ kind: "streak", x, y: row * cell, r: (cell * 0.7) / m, w: Math.min(0.0058, ((0.5 / cols) * asp) / m), ang: 0, a: k === 0 ? 0.5 : 0.4 * (1 - k / tail) ** 1.4, l: k === 0 ? 96 : 80, sat: 75 });
+        const size = Math.min(cell / m, ((1 / cols) * asp / m) / 0.62); // a character of the film: the head flickers, the tail holds its characters
+        items.push({ kind: "glyph", x, y: row * cell, r: size, w: size * 0.6, g: Math.floor(hash01(row * 13 + i * 7 + h, k === 0 ? Math.floor(c.b * 3) + c.seed : Math.floor(c.b * 0.4) + c.seed) * GLYPHS.length), a: k === 0 ? 0.75 : 0.5 * (1 - k / tail) ** 1.4, l: k === 0 ? 96 : 76, sat: k === 0 ? 40 : 75 });
       }
     }
   }
@@ -778,10 +779,10 @@ function sunbeam(density: number, speed: number, feel: Feel, c: Clock): SceneOut
 
 /** Cracks: a hit on the beat and fractures racing out from it, branching, then lingering and fading, cold blue-white. One impact every few beats (at most one a beat, never quicker). */
 function cracks(density: number, speed: number, feel: Feel, c: Clock): SceneOut {
-  const gap = lerp(8, 3, density) / lerp(0.8, 1.4, speed), k = Math.floor(c.b / gap), items: Item[] = [];
-  for (const e of [k - 1, k]) {
-    const tau = c.b - e * gap; if (tau < 0 || tau > 7) continue;
-    const sd = c.seed + e * 1013, ox = 0.5 + (hash01(e, sd + 1) - 0.5) * 0.6 * Math.min(1, c.aspect > 0 ? c.aspect : 0.6), oy = 0.2 + 0.6 * hash01(e, sd + 2), grow = clamp(tau / 0.7), fade = tau < 0.7 ? 1 : Math.exp(-(tau - 0.7) * 0.55), rays = 5 + Math.floor(hash01(e, sd + 3) * 4);
+  const gap = Math.max(1, Math.round(lerp(4, 1, density))), k = Math.floor(c.b / gap), items: Item[] = []; // a hit exactly on a beat: every beat at the top density, every 4th at the bottom
+  for (const e of [k - 2, k - 1, k]) { // a hit lasts under 3 beats, so a few overlap and none waits for the one before
+    const tau = c.b - e * gap; if (tau < 0 || tau > 3) continue;
+    const sd = c.seed + e * 1013, ox = 0.5 + (hash01(e, sd + 1) - 0.5) * 0.6 * Math.min(1, c.aspect > 0 ? c.aspect : 0.6), oy = 0.2 + 0.6 * hash01(e, sd + 2), grow = clamp(tau / 0.35), fade = tau < 0.35 ? 1 : Math.exp(-(tau - 0.35) * 1.5), rays = 5 + Math.floor(hash01(e, sd + 3) * 4);
     const seg = (x0: number, y0: number, ang: number, len: number, depth: number, id: number) => { // a jagged line that grows with `grow`, and may fork
       const m = Math.max(2, Math.round(len * 22)), pts: number[] = [x0, y0]; let x = x0, y = y0, a = ang;
       const upto = Math.max(1, Math.floor(m * grow));
@@ -792,8 +793,8 @@ function cracks(density: number, speed: number, feel: Feel, c: Clock): SceneOut 
       }
       if (pts.length >= 4) { items.push(pathItem(pts, depth === 0 ? 0.0028 : 0.0016, 0.2 * fade, { l: 80, sat: 60, hue: 205 })); items.push(pathItem(pts, depth === 0 ? 0.0012 : 0.0008, (depth === 0 ? 0.9 : 0.7) * fade, { l: 97, sat: 20, hue: 205 })); }
     };
-    for (let r = 0; r < rays; r++) seg(ox, oy, (r / rays) * 2 * Math.PI + hash01(r, sd + 8), 0.25 + 0.3 * hash01(r, sd + 9), 0, r + 1);
-    if (tau < 0.9) items.push({ kind: "dot", x: ox, y: oy, r: 0.03 * (1 - tau / 0.9), w: 0, soft: 1, a: 0.5 * (1 - tau / 0.9), l: 96, sat: 30, hue: 205 }); // the impact
+    for (let r = 0; r < rays; r++) seg(ox, oy, (r / rays) * 2 * Math.PI + hash01(r, sd + 8), 0.2 + 0.08 * hash01(r, sd + 9), 0, r + 1); // all about the same length
+    if (tau < 0.6) items.push({ kind: "dot", x: ox, y: oy, r: 0.03 * (1 - tau / 0.6), w: 0, soft: 1, a: 0.5 * (1 - tau / 0.6), l: 96, sat: 30, hue: 205 }); // the impact
   }
   return { items, layers: [] };
 }

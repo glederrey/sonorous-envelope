@@ -6,7 +6,7 @@ import { colourPlay } from "./gradients";
 
 export { hslToRgb, isSaturatedRed, relLuminance } from "./colour-math";
 
-export { hash01, SCENES, type Item, type Layer, type SceneName } from "./scene-kit";
+export { hash01, SCENES, GLYPHS, type Item, type Layer, type SceneName } from "./scene-kit";
 
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.

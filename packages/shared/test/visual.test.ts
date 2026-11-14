@@ -4,7 +4,7 @@ vi.setConfig({ testTimeout: 30000 }); // the property tests draw tens of thousan
 import { neutralState, type ResolvedColour } from "@sonorous/engine";
 import {
   capFrame, drawFrame, hash01, itemArea, applyColour, SCENES, moodToScene, hslToRgb, isSaturatedRed, largeSwing, redFactor, relLuminance, visualFrame, applyLimits,
-  moodToColour, moodToFeel, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
+  moodToColour, moodToFeel, MOOD_PROTOTYPES, stretchMood, HALF_TIME_BPM, MAX_ITEMS, MAX_LARGE_SWING, MAX_SMALL_AREA, EMPTY_FRAME, type Frame,
 } from "../src";
 
 const base = (o: Partial<ResolvedColour> = {}): ResolvedColour => ({ h: 220, s: 0.4, l: 0.3, motion: "pulse", texture: "flat", pulseHz: 0, ...o });
@@ -231,6 +231,16 @@ describe("emotions in the picture", () => {
     const fa = frame(a), fb = frame(b);
     expect(fa.length).toBeGreaterThan(20); expect(fb.length).toBe(fa.length);
     fa.forEach(([x, y], i) => expect(Math.hypot(x - fb[i][0], y - fb[i][1])).toBeLessThan(0.03));
+  });
+  it("gives every prototype mood (the table in visuals.md) its scene: all 14 of the test brief", () => {
+    for (const p of MOOD_PROTOTYPES) expect(moodToScene(stretchMood(p.mood))?.scene, p.name).toBe(p.scene);
+  });
+  it("keeps cold anger and dread cooler than plain anger", () => {
+    const hue = (n: string) => moodToColour(stretchMood(MOOD_PROTOTYPES.find((p) => p.name === n)!.mood), 1500, 0.3).h;
+    const away = (h: number) => Math.abs(((h - 356 + 540) % 360) - 180); // distance from red
+    expect(away(hue("angry"))).toBeLessThan(25);
+    expect(away(hue("cold anger"))).toBeGreaterThan(away(hue("angry")) + 20);
+    expect(away(hue("dread"))).toBeGreaterThan(40);
   });
   it("marks a scene the mood picked, and the model's own scene replaces it", () => {
     const c = moodToColour(stretchMood({ ...mood, joy: 0.1, calm: 0.8, warmth: 0.3, closeness: 0.4, spontaneity: 0.2, tension: 0.05 }), 1500, 0.3);
