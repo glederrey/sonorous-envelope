@@ -92,7 +92,7 @@ export function validateHap(raw: unknown, codeLength = 0): Hap | null {
  *  thread (the watchdog only covers the worker), so nothing is taken as it comes: out-of-range numbers are pulled into range. */
 const OPT_RANGE: Record<string, [number, number]> = {
   cycles: [0.25, 16], playhead: [0, 1], overscan: [0, 4], minMidi: [0, 127], maxMidi: [0, 127],
-  stretch: [0.1, 8], size: [10, 400], thickness: [0.5, 100], inset: [0, 8], padding: [0, 4], playheadLength: [0, 1], playheadThickness: [0.5, 100], steady: [0, 2],
+  stretch: [0.25, 2.5], size: [10, 400], thickness: [0.5, 100], inset: [0, 8], padding: [0, 4], playheadLength: [0, 1], playheadThickness: [0.5, 100], steady: [0, 2],
   speed: [1, 16], edo: [1, 96], root: [16, 4000], hapRadius: [1, 60], margin: [0, 200], scale: [-2, 2], pos: [-1, 2], lean: [0, 1], min: [-200, 100], max: [-200, 100], trigger: [-1, 1],
 };
 export const clampOpt = (key: string, x: number): number => { const [a, b] = OPT_RANGE[key] ?? [-1e4, 1e4]; return Math.min(b, Math.max(a, x)); };

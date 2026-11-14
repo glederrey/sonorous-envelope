@@ -161,9 +161,11 @@ function spiral(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
   const fade = flag(o, "fade", true), colourIdle = flag(o, "colorizeInactive", false);
   const active = str(o, "activeColor", env.accent.active), inactive = str(o, "inactiveColor", env.accent.inactive), head = str(o, "playheadColor", env.accent.head);
   const cx = x0 + w / 2, cy = y0 + h / 2, time = env.cycle, rotate = steady * time, min = -2;
+  // A band is never thicker than the gap between two turns (0.9 of it), so a large `stretch` still shows a spiral and not a flat disc.
+  const maxThick = (size / stretch) * 0.9;
   const segment = (from: number, to: number, colour: string, thick: number, opacity: number, rot: number, linecap: CanvasLineCap) => {
     from *= stretch; to *= stretch; rot *= stretch;
-    ctx.lineWidth = thick; ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
+    ctx.lineWidth = Math.min(thick, maxThick); ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
     const [sx, sy] = onSpiral(from, size / stretch, cx, cy, rot); ctx.moveTo(sx, sy);
     const steps = spiralSteps((to - from) / stretch, stretch); // a bounded number of pieces, whatever the code's options say
     for (let i = 1; i <= steps; i++) {
@@ -181,7 +183,10 @@ function spiral(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
     if (++drawn > SPIRAL_MAX_EVENTS) break;
     const isActive = d.c <= time && d.c + d.l > time;
     const colour = typeof d.v.color === "string" ? d.v.color : active;
-    segment(span[0] + inset, span[1] + inset - padding, colourIdle || isActive ? colour : inactive, thickness, fade ? 1 - Math.abs((d.c - time) / min) : 1, rotate, cap);
+    // Each end is cut square to its own chord, so two neighbours leave a thin wedge open on the outside of the turn. Run each one on by half a
+    // step (its end only: the head and the start stay put) and the wedge is covered.
+    const run = padding > 0 ? 0 : 0.5 / (60 * stretch);
+    segment(span[0] + inset, span[1] + inset - padding + run, colourIdle || isActive ? colour : inactive, thickness, fade ? 1 - Math.abs((d.c - time) / min) : 1, rotate, cap);
   }
   segment(inset - headLen, inset, head, headThick, 1, rotate, cap);
   ctx.restore(); ctx.globalAlpha = 1;

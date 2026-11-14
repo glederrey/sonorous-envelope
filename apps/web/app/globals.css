@@ -18,6 +18,7 @@
   --field-a: #22343a;
   --field-b: #3a2c24;
   --scrim: rgba(8, 10, 14, 0.72);
+  --scrim-panel: rgba(8, 10, 14, 0.86);
   --scrim-line: rgba(255, 255, 255, 0.14);
   --on-scrim: #f2f4f7;
   --on-scrim-muted: #c8ced6;
@@ -44,6 +45,7 @@
   --field-a: #e4edef;
   --field-b: #f0e8e1;
   --scrim: rgba(255, 255, 255, 0.82);
+  --scrim-panel: rgba(255, 255, 255, 0.92);
   --scrim-line: rgba(18, 21, 26, 0.14);
   --on-scrim: #12151a;
   --on-scrim-muted: #3f4753;
@@ -68,6 +70,7 @@
     --field-a: #e4edef;
     --field-b: #f0e8e1;
     --scrim: rgba(255, 255, 255, 0.82);
+    --scrim-panel: rgba(255, 255, 255, 0.92);
     --scrim-line: rgba(18, 21, 26, 0.14);
     --on-scrim: #12151a;
     --on-scrim-muted: #3f4753;
@@ -1079,15 +1082,16 @@ html:has(.pl-field) .se-header {
 .pl-reveal { margin-top: auto; background: var(--scrim); color: var(--on-scrim); border-color: var(--scrim-line); backdrop-filter: blur(8px); }
 .pl-panel {
   width: min(480px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
-  background: var(--scrim); color: var(--on-scrim); border: 1px solid var(--scrim-line);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: var(--scrim-panel); color: var(--on-scrim); border: 1px solid var(--scrim-line); /* more opaque than the other scrims: long code behind it must not make the buttons hard to read */
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 }
 .pl-panel .se-btn {
   background: color-mix(in srgb, var(--on-scrim) 8%, transparent); border-color: var(--scrim-line); color: var(--on-scrim);
   min-height: 40px; padding: 0 14px; font-size: 14px;
 }
 .pl-panel .se-btn-primary { background: var(--glow); border-color: var(--glow); color: var(--on-glow); }
-.pl-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* chip left, turn text exactly in the middle of the row, icons flush right: two equal side columns round an auto middle one */
+.pl-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
 .pl-status { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--on-scrim-muted); min-width: 0; }
 .pl-dot-idle { background: var(--tide); animation: none; }
 .pl-panel .pl-icon-btn { width: 44px; min-height: 44px; padding: 0; flex: none; }
@@ -1171,9 +1175,9 @@ html:has(.pl-field) .se-header {
 
 /* player: the face label and the owner's face control */
 .pl-face { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
-.pl-bar-btns { display: flex; gap: 8px; flex: none; }
+.pl-bar-btns { display: flex; gap: 8px; justify-self: end; }
 /* the turn text takes the room between the chip and the buttons, centred; the panel drops it when it is too narrow (controls-panel.tsx) */
-.pl-when { flex: 1; min-width: 0; margin: 0; text-align: center; color: var(--on-scrim-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-when { min-width: 0; margin: 0; text-align: center; color: var(--on-scrim-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-seg { display: flex; gap: 6px; }
 .pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
