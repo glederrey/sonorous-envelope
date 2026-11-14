@@ -398,7 +398,7 @@ html:has(.pl-field) .se-header {
   content: "";
   position: absolute;
   inset: auto 0 0 0;
-  height: clamp(90px, 16vw, 160px);
+  height: clamp(60px, 9vw, 100px);
   background: linear-gradient(to bottom, transparent, var(--bg));
   pointer-events: none;
 }
@@ -533,6 +533,7 @@ html:has(.pl-field) .se-header {
 }
 .lp-main section:first-child {
   border-top: 0;
+  padding-top: 32px;
 }
 .lp-loop-list {
   list-style: none;
@@ -603,7 +604,7 @@ html:has(.pl-field) .se-header {
     grid-template-columns: minmax(0, calc(var(--lp-h) * 8.1)) minmax(0, 1fr);
     column-gap: 56px;
     padding-top: 96px;
-    padding-bottom: 96px;
+    padding-bottom: 56px;
     align-items: center;
   }
   .lp-hero-body > .lp-envelope {
@@ -619,6 +620,9 @@ html:has(.pl-field) .se-header {
 /* On a phone the waves are 300px of decoration under the status card: hide them */
 @media (max-width: 640px) {
   .lp-hero-body > .lp-envelope { display: none; }
+  .lp-hero-body { padding-bottom: 20px; }
+  .lp-hero::after { height: 48px; }
+  .lp-main section:first-child { padding-top: 12px; }
 }
 
 @media (max-width: 760px) {
