@@ -28,9 +28,9 @@ const notes: string[] = [];
 const note = (n: string) => { if (notes.length < 8 && !notes.includes(n)) notes.push(n); };
 
 /** The drawings strudel.cc has and sonorous draws too (the page draws them, from the events this worker sends; the worker only records the call). */
-const VIZ = ["pianoroll", "punchcard", "wordfall", "scope", "tscope", "fscope"];
+const VIZ = ["pianoroll", "punchcard", "wordfall", "spiral", "pitchwheel", "scope", "tscope", "fscope", "spectrum"];
 /** What strudel.cc has and sonorous does not. Calling them must not break the code. */
-const IGNORED = ["pitchwheel", "spiral", "spectrum", "markcss", "hydra", "_pitchwheel", "_spiral", "_spectrum", "_markcss", "onPaint", "draw"];
+const IGNORED = ["markcss", "hydra", "_markcss", "onPaint", "draw"];
 const MAX_VIZ = 8, MAX_LOC = 16;
 const specs: Array<{ id: number; name: string; inline: boolean; opts: Record<string, unknown> }> = [];
 
@@ -151,13 +151,15 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
     report();
     const reach = (s: { name: string; opts: Record<string, unknown> }) => {
       // how far ahead and behind (in cycles) a drawing looks
+      if (s.name === "spiral") return { behind: 2, ahead: 2 };
+      if (s.name === "pitchwheel") return { behind: 1, ahead: 0.5 };
       if (s.name === "pianoroll" || s.name === "punchcard" || s.name === "wordfall") {
         const cycles = typeof s.opts.cycles === "number" ? Math.min(16, Math.max(1, s.opts.cycles)) : 4;
         const playhead = typeof s.opts.playhead === "number" ? Math.min(1, Math.max(0, s.opts.playhead)) : 0.5;
         const over = typeof s.opts.overscan === "number" ? Math.min(4, Math.max(0, s.opts.overscan)) : 1;
         return { behind: cycles * playhead + over, ahead: cycles * (1 - playhead) + over };
       }
-      return { behind: 0, ahead: 0.25 }; // scope and fscope read the sound, only the colour of the newest event
+      return { behind: 0, ahead: 0.25 }; // scope, fscope and spectrum read the sound, only the colour of the newest event
     };
     let drawFrom = Math.max(0, clock.cycle), drawSeen = 0, drawAt = 0, sentSpecs = specs.length;
     let from = start; // the first cycle boundary we may play (the next bar)

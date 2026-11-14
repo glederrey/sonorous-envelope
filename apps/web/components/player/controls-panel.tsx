@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { EyeOff, Lock, Maximize2, Play, Volume2, VolumeX } from "lucide-react";
 import { QrLink } from "../qr-link";
 
@@ -31,18 +31,30 @@ export interface ControlsPanelProps {
   qrPath: string;
 }
 
-export function ControlsPanel(p: ControlsPanelProps) {
+/** The turn text ("Turn 3 · 12 s ago") sits in the middle of the top row; a panel narrower than this (px) has no room for it and drops it. */
+export const WHEN_MIN_WIDTH = 430;
+
+export function ControlsPanel(p: ControlsPanelProps & { /** the width under which the turn text is dropped (the lab tries values) */ whenMinWidth?: number; onWidth?: (w: number) => void }) {
+  const ref = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(1000);
+  const onWidth = p.onWidth;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { const w = el.getBoundingClientRect().width; setWidth(w); onWidth?.(w); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onWidth]);
+  const showWhen = width >= (p.whenMinWidth ?? WHEN_MIN_WIDTH);
   return (
-    <section className="pl-panel" aria-label="Listening controls">
+    <section ref={ref} className="pl-panel" aria-label="Listening controls">
       {p.debug}
       <div className="pl-bar">
-        <div className="pl-bar-main">
-          <p className="pl-status se-sm">
-            <span className={p.midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
-            <span className="pl-face" title={p.faceTitle}>{p.faceLabel}{p.strudelTag ? " · Strudel" : ""}{p.locked && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
-          </p>
-          <p className="pl-when se-sm">{p.when}</p>
-        </div>
+        <p className="pl-status se-sm">
+          <span className={p.midTurn ? "pl-dot" : "pl-dot pl-dot-idle"} aria-hidden />
+          <span className="pl-face" title={p.faceTitle}>{p.faceLabel}{p.strudelTag ? " · Strudel" : ""}{p.locked && <><Lock size={12} aria-hidden /><span className="se-visually-hidden"> (locked by the owner)</span></>}</span>
+        </p>
+        {showWhen ? <p className="pl-when se-sm">{p.when}</p> : <span className="pl-when" />}
         <div className="pl-bar-btns">
           <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={p.onFullscreen} aria-label="Fullscreen" title="Only the picture: no header, controls or footer. Touch the picture to show the exit button; Esc leaves too.">
             <Maximize2 size={18} aria-hidden />

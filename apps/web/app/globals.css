@@ -1171,10 +1171,9 @@ html:has(.pl-field) .se-header {
 
 /* player: the face label and the owner's face control */
 .pl-face { display: inline-flex; align-items: center; gap: 4px; flex: none; white-space: nowrap; padding: 1px 8px; border: 1px solid var(--scrim-line); border-radius: 999px; font-weight: 500; }
-.pl-bar-btns { display: flex; gap: 8px; margin-left: auto; flex: none; }
-.pl-bar-main { display: grid; gap: 4px; min-width: 0; }
-/* under the face chip, lined up with the chip (the dot and its gap are 16px) */
-.pl-when { min-width: 0; margin: 0; padding-left: 16px; color: var(--on-scrim-muted); }
+.pl-bar-btns { display: flex; gap: 8px; flex: none; }
+/* the turn text takes the room between the chip and the buttons, centred; the panel drops it when it is too narrow (controls-panel.tsx) */
+.pl-when { flex: 1; min-width: 0; margin: 0; text-align: center; color: var(--on-scrim-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pl-seg { display: flex; gap: 6px; }
 .pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }

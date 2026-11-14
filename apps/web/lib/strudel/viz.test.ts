@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clampOpt, isSafeColour, validateDrawHap, validateHap, validateLoc, validateViz } from "./protocol";
-import { fitFont, hideTinyLabels, sweepOffset, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
+import { SPIRAL_MAX_EVENTS, fitFont, hideTinyLabels, spiralSpan, spiralSteps, sweepOffset, lanes, litKey, litSpans, runs, tokenize, VizStore, Cls } from "./viz";
 
 describe("code spans", () => {
   it("keeps whole, in-range spans only", () => {
@@ -142,12 +142,25 @@ describe("the store", () => {
 
 describe("hostile options stay bounded", () => {
   it("pulls numeric options into range", () => {
-    const [s] = validateViz([{ id: 0, name: "scope", opts: { cycles: -5, thickness: 1e12, scale: 1e9, unknownKey: 1e30 } }]);
-    expect(s.opts.cycles).toBe(0.25); expect(s.opts.thickness).toBe(100); expect(s.opts.scale).toBe(2); expect(s.opts.unknownKey).toBe(1e4);
+    const [a, b] = validateViz([
+      { id: 0, name: "spiral", opts: { stretch: 1e9, playheadLength: 1e9, size: 1e12, speed: 1e6, unknownKey: 1e30 } },
+      { id: 1, name: "pitchwheel", opts: { edo: 1e9, root: -5, hapRadius: 1e9, margin: 1e9, cycles: -5 } },
+    ]);
+    expect(a.opts.stretch).toBe(8); expect(a.opts.playheadLength).toBe(1); expect(a.opts.size).toBe(400); expect(a.opts.speed).toBe(16); expect(a.opts.unknownKey).toBe(1e4);
+    expect(b.opts.edo).toBe(96); expect(b.opts.root).toBe(16); expect(b.opts.hapRadius).toBe(60); expect(b.opts.margin).toBe(200); expect(b.opts.cycles).toBe(0.25);
     expect(clampOpt("minMidi", -50)).toBe(0);
   });
-  it("no longer knows the spiral or the spectrum", () => {
-    expect(validateViz([{ id: 0, name: "spiral", opts: {} }, { id: 1, name: "spectrum", opts: {} }])).toEqual([]);
+  it("knows every drawing but custom CSS and hydra", () => {
+    const names = ["pianoroll", "punchcard", "wordfall", "spiral", "pitchwheel", "scope", "tscope", "fscope", "spectrum"];
+    expect(validateViz(names.map((name, id) => ({ id: id % 8, name, opts: {} }))).map((x) => x.name)).toEqual(names.slice(0, 8));
+    expect(validateViz([{ id: 0, name: "markcss", opts: {} }, { id: 1, name: "hydra", opts: {} }])).toEqual([]);
+  });
+  it("cuts a spiral event to what shows and caps its pieces", () => {
+    expect(spiralSpan(0, 600, 10)).toEqual([-2.5, 2.5]);
+    expect(spiralSpan(100, 1, 10)).toBeNull();
+    expect(spiralSteps(600, 8)).toBe(240);
+    expect(spiralSteps(0, 1)).toBe(2);
+    expect(SPIRAL_MAX_EVENTS * spiralSteps(5, 8)).toBeLessThanOrEqual(400 * 240);
   });
 });
 

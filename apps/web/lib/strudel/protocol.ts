@@ -12,7 +12,7 @@ export type Loc = [number, number];
 export interface Hap { v: HapValue; /** audio-context time the event starts */ t: number; /** seconds */ d: number; cps: number; cycle: number; loc?: Loc[] }
 
 /** The drawings the model's code asked for (`.pianoroll()`, `.scope()`...). The worker records the call and its options; the page draws. */
-export const VIZ_NAMES = ["pianoroll", "punchcard", "wordfall", "scope", "tscope", "fscope"] as const;
+export const VIZ_NAMES = ["pianoroll", "punchcard", "wordfall", "spiral", "pitchwheel", "scope", "tscope", "fscope", "spectrum"] as const;
 export type VizName = (typeof VIZ_NAMES)[number];
 export interface VizSpec { id: number; name: VizName; /** `_pianoroll()`: drawn in a lane, not as the whole background */ inline: boolean; opts: Record<string, Prim> }
 /** An event for the drawings: where it starts and how long it lasts (in cycles), the few keys a drawing reads, the code spans, and the drawings it belongs to. */
@@ -92,7 +92,8 @@ export function validateHap(raw: unknown, codeLength = 0): Hap | null {
  *  thread (the watchdog only covers the worker), so nothing is taken as it comes: out-of-range numbers are pulled into range. */
 const OPT_RANGE: Record<string, [number, number]> = {
   cycles: [0.25, 16], playhead: [0, 1], overscan: [0, 4], minMidi: [0, 127], maxMidi: [0, 127],
-  thickness: [0.5, 100], scale: [-2, 2], pos: [-1, 2], lean: [0, 1], min: [-200, 100], max: [-200, 100], trigger: [-1, 1],
+  stretch: [0.1, 8], size: [10, 400], thickness: [0.5, 100], inset: [0, 8], padding: [0, 4], playheadLength: [0, 1], playheadThickness: [0.5, 100], steady: [0, 2],
+  speed: [1, 16], edo: [1, 96], root: [16, 4000], hapRadius: [1, 60], margin: [0, 200], scale: [-2, 2], pos: [-1, 2], lean: [0, 1], min: [-200, 100], max: [-200, 100], trigger: [-1, 1],
 };
 export const clampOpt = (key: string, x: number): number => { const [a, b] = OPT_RANGE[key] ?? [-1e4, 1e4]; return Math.min(b, Math.max(a, x)); };
 

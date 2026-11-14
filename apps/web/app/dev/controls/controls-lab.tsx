@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ControlsPanel } from "../../../components/player/controls-panel";
+import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
 import { ControlsMiddle } from "../../../components/player/controls-middle";
 import { CopyLink } from "../../../components/copy-link";
 import type { Face, Policy } from "../../../lib/mcp/modes";
@@ -29,13 +29,12 @@ const CODE = `stack(
 
 type Viewer = "owner" | "listener" | "guest";
 const VIEWERS: Array<[Viewer, string]> = [["owner", "Owner"], ["listener", "Signed-in listener"], ["guest", "Guest (link)"]];
-const WIDTHS = [360, 390, 440, 520];
 
 export function ControlsLab() {
   const [viewer, setViewer] = useState<Viewer>("owner");
   const [strudel, setStrudel] = useState(true);
   const [face, setFace] = useState<Face>("external");
-  const [width, setWidth] = useState(390);
+  const [width, setWidth] = useState(390), [measured, setMeasured] = useState(0), [whenMin, setWhenMin] = useState(WHEN_MIN_WIDTH);
   const [muted, setMuted] = useState(false), [volume, setVolume] = useState(0.8);
   const [gradientOn, setGradientOn] = useState(true), [visualsOn, setVisualsOn] = useState(true), [strudelVisuals, setStrudelVisuals] = useState(true);
   const [note, setNote] = useState("");
@@ -64,12 +63,14 @@ export function ControlsLab() {
         {pick(VIEWERS, viewer, setViewer, "Who is looking")}
         {pick([["strudel", "Strudel plays"], ["synth", "Synth plays"]], strudel ? "strudel" : "synth", (v) => setStrudel(v === "strudel"), "What plays")}
         {pick([["external", "External face"], ["internal", "Internal face"]] as Array<[Face, string]>, face, setFace, "Face")}
-        {pick(WIDTHS.map((w) => [String(w), `${w} px`] as [string, string]), String(width), (v) => setWidth(Number(v)), "Panel width")}
+        <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Panel width</span><input type="range" min={280} max={640} step={1} value={width} onChange={(e) => setWidth(Number(e.target.value))} /><output>{width} px</output></label>
+        <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Hide turn below</span><input type="range" min={280} max={640} step={5} value={whenMin} onChange={(e) => setWhenMin(Number(e.target.value))} /><output>{whenMin} px</output></label>
+        <p className="se-sm" style={{ margin: 0 }}>Measured panel width: {Math.round(measured)} px. The turn text shows from {whenMin} px up.</p>
         {note && <p className="se-sm" role="status" style={{ margin: 0 }}>{note}</p>}
       </div>
       {mounted && <main className="pl-stage" style={{ padding: 0 }}>
         <div style={{ width, maxWidth: "100%" }}>
-          <ControlsPanel
+          <ControlsPanel whenMinWidth={whenMin} onWidth={setMeasured}
             midTurn={false}
             faceLabel={face === "internal" ? "Internal" : "External"}
             faceTitle=""

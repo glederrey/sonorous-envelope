@@ -18,7 +18,7 @@ const tools = [
   {
     name: "strudel_mode",
     live: true,
-    text: "Switches the model between its built-in synth and Strudel, live-coded music as on strudel.cc, on the external face only and only after you said yes. With on set to true it sends Strudel code and a tempo and your browser plays it, with drums and samples; sending new code changes the music on the next bar, and the picture becomes the code with the parts that sound lit up, plus any drawing the code asks for (a piano roll, a scope). With on set to false it goes back to the synth. While Strudel is on, set_sound only changes the picture. The model cannot hear the music: it reads what the owner's player reports back, such as an error.",
+    text: "Switches the model between its built-in synth and Strudel, live-coded music as on strudel.cc, on the external face only and only after you said yes. With on set to true it sends Strudel code and a tempo and your browser plays it, with drums and samples; sending new code changes the music on the next bar, and the picture becomes the code with the parts that sound lit up, plus any drawing the code asks for (a piano roll, a scope, a spiral, a pitch wheel). With on set to false it goes back to the synth. While Strudel is on, set_sound only changes the picture. The model cannot hear the music: it reads what the owner's player reports back, such as an error.",
     example: "Play me a slow techno groove in Strudel, around 120 BPM.",
   },
   {
