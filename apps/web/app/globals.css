@@ -1246,3 +1246,22 @@ html:has(.pl-field) .se-header {
   .lp-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 0; }
   .lp-chips li { text-align: center; padding: 8px 12px; }
 }
+
+/* ---- the Strudel picture (components/player/strudel-view.tsx) ---- */
+/* In the same grid cell as the visual canvas, pinned to the visible part of the field. The base is a deep dark in the model's hue. */
+.pl-strudel { position: sticky; top: 0; grid-area: 1 / 1; align-self: start; width: 100%; height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); pointer-events: none; z-index: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 30%, hsl(calc(var(--pl-h) * 1deg) 32% 9%), hsl(calc(var(--pl-h) * 1deg) 36% 4%)); }
+.pl-strudel-cv { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pl-strudel-code { --ac: hsl(calc(var(--pl-h) * 1deg) 85% 72%); position: absolute; inset: 0; margin: 0; padding: clamp(16px, 6vh, 56px) clamp(16px, 6vw, 72px); overflow: hidden;
+  font-family: var(--font-mono); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: rgba(255, 255, 255, 0.64); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55); tab-size: 2; }
+.pl-strudel-code .sv1 { color: rgba(255, 255, 255, 0.32); font-style: italic; }
+.pl-strudel-code .sv2 { color: hsl(calc(var(--pl-h) * 1deg + 110deg) 55% 74%); }
+.pl-strudel-code .sv3 { color: hsl(calc(var(--pl-h) * 1deg + 30deg) 80% 74%); }
+.pl-strudel-code .sv4 { color: hsl(calc(var(--pl-h) * 1deg + 200deg) 60% 76%); }
+.pl-strudel-code .sv5 { color: hsl(calc(var(--pl-h) * 1deg + 330deg) 60% 78%); }
+.pl-strudel-code .sv6 { color: rgba(255, 255, 255, 0.4); }
+/* a part of the code that sounds now: a soft box in the event's colour (or the model's hue) that fades as the note ends */
+.pl-strudel-code .svh { --hc: var(--ac); color: #fff; border-radius: 4px;
+  background: color-mix(in srgb, var(--hc) calc(var(--lv) * 34%), transparent);
+  outline: 1px solid color-mix(in srgb, var(--hc) calc(var(--lv) * 80%), transparent);
+  text-shadow: 0 0 calc(var(--lv) * 0.8em) var(--hc), 0 1px 8px rgba(0, 0, 0, 0.5); }

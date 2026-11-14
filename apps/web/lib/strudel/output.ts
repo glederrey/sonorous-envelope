@@ -1,9 +1,13 @@
-import { FRAME_URL, WORKER_URL, validateHap, validateReport, type Report, type ToFrame } from "./protocol";
+import { FRAME_URL, WORKER_URL, MAX_DRAW_BATCH, isSafeColour, validateDrawHap, validateHap, validateReport, validateViz, type Report, type ToFrame } from "./protocol";
+import type { VizStore } from "./viz";
 import { DEFAULT_BANKS, resolveBankRequest, safeSampleMap } from "./banks";
 
 // The page's side of Strudel (docs/implementation/strudel.md). The model's code runs in a sandboxed frame and only sends events; this
 // class plays them with superdough into the player's own audio graph, loads samples from the allowed banks, and watches the frame.
 // Nothing here limits how loud or harsh the music is: Strudel on sonorous has no sound limits besides the listener's own volume.
+
+/** Minifiers drop licence comments from page chunks, a string they keep: said once in the console when Strudel starts, and in /strudel/NOTICE.txt. */
+export const STRUDEL_NOTICE = "Sonorous Envelope runs Strudel (@strudel/core, @strudel/draw, superdough), Copyright (C) Strudel contributors, AGPL-3.0-or-later, unmodified: https://codeberg.org/uzu/strudel . This site is AGPL-3.0-or-later too; its source is linked in the footer and in /strudel/NOTICE.txt. It is not affiliated with Strudel.";
 
 export interface PatternSource { id: string | null; code: string; bpm: number; seed: number }
 export interface StrudelHooks {
@@ -13,6 +17,8 @@ export interface StrudelHooks {
   cycleNow: () => number;
   /** seconds from audio being scheduled to the ear */
   latency: () => number;
+  /** what the picture reads: the drawings the code asked for, the events to draw, the spans of the code that sound */
+  viz: VizStore;
 }
 
 type Sd = typeof import("superdough");
@@ -43,10 +49,20 @@ export class StrudelOutput {
   private seq = 0; // one per play: a report that comes from an older run is not the new code's
   private lastReport: Report | null = null;
 
+  /** the picture's tap on the sound: after the pattern's fade, before the listener's volume, so the waves stay when the listener mutes */
+  private analyser: AnalyserNode;
+
   constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {
+    this.analyser = new AnalyserNode(ctx, { fftSize: 2048, smoothingTimeConstant: 0.6 });
     this.fade = new GainNode(ctx);
     this.fade.connect(out);
+    this.fade.connect(this.analyser);
   }
+
+  /** The sound as it is now, for the scope drawings: time-domain samples (-1 to 1) and frequency bins (dB). Arrays are filled in place. */
+  readSound(time: Float32Array, freq: Float32Array) { this.analyser.getFloatTimeDomainData(time as Float32Array<ArrayBuffer>); this.analyser.getFloatFrequencyData(freq as Float32Array<ArrayBuffer>); }
+  get soundBins() { return this.analyser.frequencyBinCount; }
+  get soundSamples() { return this.analyser.fftSize; }
 
   get playing() { return this.current !== null; }
   get code() { return this.current?.code ?? null; }
@@ -54,6 +70,7 @@ export class StrudelOutput {
   /** Load superdough once and route its output into the player's graph (the listener's volume node). */
   private async init() {
     if (!this.ready) this.ready = (async () => {
+      console.info(STRUDEL_NOTICE);
       const sd = (this.sd = await import("superdough"));
       sd.setAudioContext(this.ctx);
       const ctrl = sd.getSuperdoughAudioController();
@@ -117,17 +134,25 @@ export class StrudelOutput {
     if (!m || typeof m !== "object" || m.token !== this.token) return;
     if (m.kind === "alive") { this.lastAlive = performance.now(); return; }
     if (m.kind === "hap") {
-      const h = validateHap(m.hap);
+      const code = this.current?.code ?? "";
+      const h = validateHap(m.hap, code.length);
       // a hap already well past (the worker or the page was throttled, then caught up) is dropped: playing a burst of old events is the "speeds up" glitch
       // h.t is on the clock shifted back by the output latency (clockMsg), so a hap that is on time already lies up to `latency` behind currentTime
       const late = h ? this.ctx.currentTime - h.t - this.hooks.latency() : 0;
       if (!h) this.stats.invalid++;
       else if (late >= LATE_DROP_S) this.stats.late++;
-      else if (this.sd && this.current) { this.stats.played++; this.stats.worstLate = Math.max(this.stats.worstLate, late); void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {}); }
+      else if (this.sd && this.current) {
+        if (h.loc) this.hooks.viz.addMark({ c: h.cycle, l: h.d * h.cps, loc: h.loc, colour: isSafeColour(h.v.color) ? h.v.color.trim() : undefined });
+        this.stats.played++; this.stats.worstLate = Math.max(this.stats.worstLate, late); void this.sd.superdough(h.v, h.t, h.d, h.cps, h.cycle).catch(() => {}); }
     } else if (m.kind === "report") {
       if (typeof (m as { seq?: unknown }).seq === "number" && (m as { seq: number }).seq !== this.seq) return; // from an older code
       const r = validateReport(m.report);
       if (r && this.current) { this.lastReport = r; this.hooks.onReport(this.current.id, r); }
+    } else if (m.kind === "viz") {
+      if (this.current) this.hooks.viz.setSpecs(validateViz((m as { specs?: unknown }).specs));
+    } else if (m.kind === "draw") {
+      const list = (m as { haps?: unknown }).haps;
+      if (this.current && Array.isArray(list)) for (const raw of list.slice(0, MAX_DRAW_BATCH)) { const d = validateDrawHap(raw, this.current.code.length); if (d) this.hooks.viz.addDraw(d); }
     } else if (m.kind === "banks" && Array.isArray(m.names)) {
       for (const n of m.names.slice(0, 8)) if (typeof n === "string") void this.loadBank(n);
     }
@@ -172,6 +197,7 @@ export class StrudelOutput {
     this.lastAlive = performance.now(); // the worker has been quiet since it was stopped: the watchdog must not read that as a freeze
     void this.ctx.resume();
     this.lastReport = null;
+    this.hooks.viz.reset(src.code, src.bpm);
     if (fresh) {
       // a gentle way in, like the synth has: silent until the first bar, then up over half a second
       const c = this.hooks.cycleNow(), toBar = (Math.ceil(c + 0.05) - c) * 240 / src.bpm, t = this.ctx.currentTime;
@@ -198,6 +224,7 @@ export class StrudelOutput {
     const old = this.fade;
     this.fade = new GainNode(this.ctx);
     this.fade.connect(this.out);
+    this.fade.connect(this.analyser);
     if (this.hub) { this.hub.disconnect(); this.hub.connect(this.fade); }
     old.disconnect();
   }

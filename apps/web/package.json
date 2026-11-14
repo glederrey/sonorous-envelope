@@ -14,6 +14,7 @@
     "@modelcontextprotocol/server": "^2.4.0",
     "@sonorous/engine": "workspace:*",
     "@sonorous/shared": "workspace:*",
+    "@strudel/draw": "1.2.6",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
     "acorn": "^8.19.0",

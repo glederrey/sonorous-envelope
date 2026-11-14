@@ -27,15 +27,45 @@ function mulberry32(a: number) {
 const notes: string[] = [];
 const note = (n: string) => { if (notes.length < 8 && !notes.includes(n)) notes.push(n); };
 
-/** What strudel.cc has and the worker does not: drawing and the like. Calling them must not break the code. */
-const DRAW = ["pianoroll", "punchcard", "scope", "tscope", "fscope", "spectrum", "spiral", "pitchwheel", "wordfall", "markcss", "hydra", "_pianoroll", "_punchcard", "_scope", "_tscope", "_fscope", "_spectrum", "_spiral", "_pitchwheel", "_wordfall", "onPaint", "draw"];
+/** The drawings strudel.cc has and sonorous draws too (the page draws them, from the events this worker sends; the worker only records the call). */
+const VIZ = ["pianoroll", "punchcard", "wordfall", "scope", "tscope", "fscope"];
+/** What strudel.cc has and sonorous does not. Calling them must not break the code. */
+const IGNORED = ["pitchwheel", "spiral", "spectrum", "markcss", "hydra", "_pitchwheel", "_spiral", "_spectrum", "_markcss", "onPaint", "draw"];
+const MAX_VIZ = 8, MAX_LOC = 16;
+const specs: Array<{ id: number; name: string; inline: boolean; opts: Record<string, unknown> }> = [];
+
+/** Options of a drawing call: numbers, booleans, strings, nothing else (the page checks them again). */
+function cleanOpts(o: any): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!o || typeof o !== "object") return out;
+  for (const k of Object.keys(o).slice(0, 32)) {
+    const x = o[k];
+    if (typeof x === "number" || typeof x === "boolean" || (typeof x === "string" && x.length <= 96)) out[k] = x;
+  }
+  return out;
+}
 
 let ready: Promise<void> | null = null;
 function setup() {
   if (!ready) ready = (async () => {
     await core.evalScope(core, mini, tonal);
-    for (const name of DRAW) {
-      (core.Pattern.prototype as any)[name] = function () { note(`.${name.replace(/^_/, "")}() ignored: no drawing on sonorous`); return this; };
+    for (const name of IGNORED) {
+      (core.Pattern.prototype as any)[name] = function () { note(`.${name.replace(/^_/, "")}() ignored: not available on sonorous`); return this; };
+    }
+    // a drawing call records what was asked (with its options) and tags the events of that pattern with the drawing's number
+    for (const base of VIZ) {
+      for (const name of [base, `_${base}`]) {
+        const method = function (this: any, opts?: unknown) {
+          const o = cleanOpts(opts), inline = name.startsWith("_");
+          let spec = specs.find((s) => s.name === base && s.inline === inline && JSON.stringify(s.opts) === JSON.stringify(o));
+          if (!spec && specs.length < MAX_VIZ) { spec = { id: specs.length, name: base, inline, opts: o }; specs.push(spec); }
+          else if (!spec) { note(`.${base}(): at most ${MAX_VIZ} drawings, the rest are ignored`); return this; }
+          return this.tag(`viz:${spec.id}`);
+        };
+        (core.Pattern.prototype as any)[name] = method;
+        // all(pianoroll), all(scope({ ... })): the function forms
+        g[name] = (arg?: any) => (core.isPattern(arg) ? (arg as any)[name]() : (pat: any) => pat[name](arg));
+      }
     }
     // the page loads samples, from its own list of banks: the worker only asks
     g.samples = async (a: unknown) => {
@@ -46,6 +76,21 @@ function setup() {
     g.hush = g.hush ?? (() => core.silence);
   })();
   return ready;
+}
+
+/** The code spans of an event and the drawings it belongs to (from its tags). */
+function spans(h: any): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const l of h.context?.locations ?? []) {
+    if (out.length >= MAX_LOC) break;
+    if (l && Number.isInteger(l.start) && Number.isInteger(l.end)) out.push([l.start, l.end]);
+  }
+  return out;
+}
+function vizIds(h: any): number[] {
+  const out: number[] = [];
+  for (const t of h.context?.tags ?? []) { const m = typeof t === "string" && /^viz:(\d+)$/.exec(t); if (m && out.length < MAX_VIZ) out.push(Number(m[1])); }
+  return out;
 }
 
 function sanitize(v: any): Record<string, unknown> {
@@ -75,6 +120,7 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
   seq = typeof m.seq === "number" ? m.seq : 0;
   const mySeq = seq;
   notes.length = 0;
+  specs.length = 0;
   cps = m.bpm / 240; // one cycle is one bar of four beats; the tempo is the tool's bpm, not setcps
   clock = { ctxTime: m.ctxTime, epochMs: m.epochMs, cycle: m.cycle };
   Math.random = mulberry32(m.seed);
@@ -100,6 +146,20 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
     const sounds = [...new Set(sample.map((h: any) => (h.value && typeof h.value === "object" ? (h.value.s ?? "(default)") : "(default)")))].slice(0, 8);
     post({ kind: "report", seq: mySeq, report: { ok: true, eventsPerCycle: sample.length / 4, notes: [...notes, ...(sounds.length ? [`sounds: ${sounds.join(", ")}`] : [])].slice(0, 8) } });
 
+    // the drawings the code asked for (the specs are filled while the code runs, and while the first look-ahead queries it)
+    const report = () => post({ kind: "viz", specs: specs.map((s) => ({ ...s })) });
+    report();
+    const reach = (s: { name: string; opts: Record<string, unknown> }) => {
+      // how far ahead and behind (in cycles) a drawing looks
+      if (s.name === "pianoroll" || s.name === "punchcard" || s.name === "wordfall") {
+        const cycles = typeof s.opts.cycles === "number" ? Math.min(16, Math.max(1, s.opts.cycles)) : 4;
+        const playhead = typeof s.opts.playhead === "number" ? Math.min(1, Math.max(0, s.opts.playhead)) : 0.5;
+        const over = typeof s.opts.overscan === "number" ? Math.min(4, Math.max(0, s.opts.overscan)) : 1;
+        return { behind: cycles * playhead + over, ahead: cycles * (1 - playhead) + over };
+      }
+      return { behind: 0, ahead: 0.25 }; // scope and fscope read the sound, only the colour of the newest event
+    };
+    let drawFrom = Math.max(0, clock.cycle), drawSeen = 0, drawAt = 0, sentSpecs = specs.length;
     let from = start; // the first cycle boundary we may play (the next bar)
     loop = setInterval(() => {
       if (mine !== run) return;
@@ -113,8 +173,33 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
           if (!h.hasOnset()) continue;
           h.ensureObjectValue?.();
           const begin = h.whole.begin.valueOf();
-          post({ kind: "hap", hap: { v: sanitize(h.value), t: clock.ctxTime + (begin - clock.cycle) / cps, d: h.duration / cps, cps, cycle: begin } });
+          post({ kind: "hap", hap: { v: sanitize(h.value), t: clock.ctxTime + (begin - clock.cycle) / cps, d: h.duration / cps, cps, cycle: begin, loc: spans(h) } });
         }
+        // drawings: the events of the tagged patterns, several cycles ahead, in batches (never to the speakers)
+        if (specs.length !== sentSpecs) { sentSpecs = specs.length; report(); }
+        const nowMs = Date.now();
+        if (specs.length && nowMs - drawAt >= 150) try { // a drawing that fails must not stop the music
+          drawAt = nowMs;
+          const ahead = Math.max(...specs.map((s) => reach(s).ahead)), behind = Math.max(...specs.map((s) => reach(s).behind));
+          const upTo = nowCycle + ahead;
+          if (drawSeen === 0) drawFrom = Math.max(0, nowCycle - behind);
+          drawSeen++;
+          if (upTo > drawFrom) {
+            const out: unknown[] = [];
+            for (const h of pattern.queryArc(drawFrom, upTo, { _cps: cps })) {
+              if (!h.hasOnset()) continue;
+              const ids = vizIds(h);
+              if (!ids.length) continue;
+              h.ensureObjectValue?.();
+              const begin = h.whole.begin.valueOf();
+              if (begin < drawFrom) continue; // an event that began before this window was sent with the one before
+              out.push({ c: begin, l: Number(h.duration), v: sanitize(h.value), loc: spans(h), viz: ids });
+              if (out.length >= 400) break;
+            }
+            if (out.length) post({ kind: "draw", haps: out });
+            drawFrom = upTo;
+          }
+        } catch { drawAt = nowMs + 5000; }
       } catch (e: any) {
         post({ kind: "report", seq: mySeq, report: { ok: false, error: `while playing: ${String(e?.message ?? e).slice(0, 160)}`, notes: [...notes] } });
         stopLoop();

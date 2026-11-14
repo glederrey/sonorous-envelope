@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import dynamic from "next/dynamic";
 import { Eye, EyeOff, Lock, Play, Volume2, VolumeX } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
@@ -14,10 +15,14 @@ import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
-import { OwnerControls } from "./owner-controls";
+import { OwnerControls, StrudelToggles } from "./owner-controls";
 import { StrudelPanel } from "./strudel-panel";
+import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
 import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
+
+// Strudel's picture is loaded when a Strudel state first shows (it brings the drawing code of Strudel with it)
+const StrudelView = dynamic(() => import("./strudel-view").then((m) => m.StrudelView), { ssr: false });
 
 type Phase = "joining" | "ready" | "ended" | "error";
 interface Playing { state: EngineState; seed: number; turn: number; final: boolean; at: number; id?: string }
@@ -73,6 +78,13 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [gradientOn, setGradientOn] = useState(true);
   const [visualsOn, setVisualsOn] = useState(true);
   const stillPicture = !gradientOn && !visualsOn; // both off: the base colour only
+  // "Strudel visuals" (on by default, per device): while Strudel plays, the picture is the code and its drawings, not the scenes
+  const [strudelVisuals, setStrudelVisuals] = useState(true);
+  const strudelPref = useRef(true);
+  const [stSeen, setStSeen] = useState(false); // a Strudel state has shown: the view is loaded
+  const [stShown, setStShown] = useState(false); // the Strudel picture is the one showing (it stays through a silence, and fades with the level)
+  const vizStore = useMemo(() => new VizStore(), []);
+  const vizLevel = useRef(0), vizBeats = useRef(0); // written by the visual canvas, read by the Strudel picture
   const [nudgeMs, setNudgeMs] = useState(0);
   const [canvasOk, setCanvasOk] = useState(true);
   const nudge = useRef(0);
@@ -115,12 +127,14 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   // the picture's own settings, per device: ?field=css keeps the old CSS motion
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; nudge?: number };
+      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; nudge?: number; strudel?: boolean };
+      setStrudelVisuals(v.strudel !== false); strudelPref.current = v.strudel !== false;
       setGradientOn(v.still ? false : v.gradient !== false); setVisualsOn(v.still ? false : v.visuals !== false); const n = Number.isFinite(v.nudge) ? Math.min(400, Math.max(0, Number(v.nudge))) : 0; setNudgeMs(n); nudge.current = n;
     } catch { /* private window */ }
     if (new URLSearchParams(window.location.search).get("field") === "css") setCanvasOk(false);
   }, []);
-  const rememberPicture = (gradient: boolean, visuals: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, nudge: n })); } catch { /* private window */ } };
+  const rememberPicture = (gradient: boolean, visuals: boolean, n: number) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, nudge: n, strudel: strudelPref.current })); } catch { /* private window */ } };
+  const chooseStrudelVisuals = (on: boolean) => { setStrudelVisuals(on); strudelPref.current = on; rememberPicture(gradientOn, visualsOn, nudgeMs); };
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0) + nudge.current / 1000, []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
@@ -140,7 +154,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     const a = audio.current;
     if (!a || strudel.current) return strudel.current;
     strudel.current = new StrudelOutput(a.context, a.strudelBus, {
-      cycleNow, latency: () => audio.current?.latency ?? 0,
+      cycleNow, latency: () => audio.current?.latency ?? 0, viz: vizStore,
       onReport: (id, r) => {
         // only the owner's device may report, and each state once: the model reads it as data from the player
         if (!id || reported.current.has(id)) return;
@@ -150,7 +164,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       },
     });
     return strudel.current;
-  }, [supabase, cycleNow]);
+  }, [supabase, cycleNow, vizStore]);
   /** Send a state to the right engine: the pattern into Strudel (the synth paused), anything else into the synth. */
   const runEngine = useCallback((p: Playing, delay = 0, elapsed?: number) => {
     const a = audio.current;
@@ -514,6 +528,16 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     } finally { setStarting(false); }
   }
 
+  // The Strudel picture shows while a pattern plays here (external face, code allowed, not blocked). A synth sound that takes over hides it
+  // (it fades out); a silence keeps it, and it fades with the level like the scenes do.
+  const patternShows = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at);
+  const soundingNow = Boolean(playing && isSounding(playing.state));
+  useEffect(() => {
+    if (patternShows) { setStShown(true); setStSeen(true); }
+    else if (soundingNow) setStShown(false);
+  }, [patternShows, soundingNow, playing?.at]);
+  const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
+
   const colour = playing?.state.colour;
   // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
   const hue = unwrapHue(lastHue.current.h, colour?.h ?? 220);
@@ -548,8 +572,12 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       {canvasOk && !reduced && (
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
-          clockOffset={clockOffset} latency={pictureLatency} active={started && !stillPicture} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
+          clockOffset={clockOffset} latency={pictureLatency} active={started && (!stillPicture || strudelOn)} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
+          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats}
         />
+      )}
+      {canvasOk && !reduced && stSeen && (
+        <StrudelView store={vizStore} output={() => strudel.current} level={vizLevel} beats={vizBeats} shown={strudelOn} hue={colour?.h ?? 220} />
       )}
       <main className="pl-stage">
         {phase === "joining" && <p className="pl-note" role="status">Opening the player…</p>}
@@ -640,7 +668,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} />
                 : null;
               // the code sits right under the Face block for the owner, and on its own for a listener
-              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} /> : code;
+              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} patternPlays={patternShows} /> : <>{patternShows ? <StrudelToggles visuals={{ on: strudelVisuals, set: chooseStrudelVisuals }} /> : null}{code}</>;
             })()}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}

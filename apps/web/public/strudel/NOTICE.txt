@@ -1,0 +1,11 @@
+Strudel notice
+==============
+
+Sonorous Envelope runs Strudel in the player: @strudel/core, @strudel/mini, @strudel/tonal and @strudel/transpiler (in /strudel/worker.js, in a sandbox),
+and @strudel/draw and superdough (in the player page). They are Copyright (C) Strudel contributors, licensed AGPL-3.0-or-later, and used unmodified.
+Strudel: https://codeberg.org/uzu/strudel  (licence: https://www.gnu.org/licenses/agpl-3.0.html)
+
+Parts of the picture code (apps/web/lib/strudel/draw.ts) are written after Strudel's spiral.mjs, scope.mjs and spectrum.mjs and carry Strudel's notice.
+
+Sonorous Envelope is AGPL-3.0-or-later too. The corresponding source of the running version is at https://github.com/glederrey/sonorous-envelope
+(the footer links the release tag that is live). Sonorous Envelope is an independent project and is not affiliated with Strudel.

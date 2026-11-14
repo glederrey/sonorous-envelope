@@ -181,3 +181,7 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 - **Aurora on a phone:** the veil grid was always 2:1, so the veil's crop for a tall view never applied and the whole curtain was squeezed into the narrow width. The grid now has the view's shape (up to 320 rows), so a phone sees the middle of the curtain at normal width, with fewer streaks.
 - **Smoke on a bright base:** the base goes to the full dark (up to 0.95, slope 2.4) under smoke, as dark as under a dark colour. At 0.8 the scene was still much brighter than the dark-base smoke the tester liked.
 - **Warp under `sync: "phrase"`:** only the core's swell follows the phrase (four bars); the rings keep their pace of one every two beats (v0.17.3 slowed them to one per phrase, and warp should feel fast).
+
+
+## Strudel
+While Strudel plays and the listener has "Strudel visuals" on, this picture is not drawn: the Strudel view takes its place (the canvas keeps the level and the beat for it). See [implementation/strudel.md](implementation/strudel.md), "The picture".
