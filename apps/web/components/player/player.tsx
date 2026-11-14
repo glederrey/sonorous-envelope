@@ -668,7 +668,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
                 ? <StrudelPanel code={playing.state.pattern.code} bpm={playing.state.pattern.bpm} />
                 : null;
               // the code sits right under the Face block for the owner, and on its own for a listener
-              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} /> : <>{strudelOn || patternShows ? <StrudelToggles visuals={{ on: strudelVisuals, set: chooseStrudelVisuals }} /> : null}{code}</>;
+              return signedIn ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={() => reload.current()} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} patternPlays={patternShows} /> : <>{patternShows ? <StrudelToggles visuals={{ on: strudelVisuals, set: chooseStrudelVisuals }} /> : null}{code}</>;
             })()}
 
             {signedIn && <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} />}

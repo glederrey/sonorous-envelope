@@ -8,7 +8,7 @@
 // of a work under the same licence (docs/licensing.md). The colours of the model's code go only into canvas colour properties.
 import { __pianoroll } from "@strudel/draw";
 import type { DrawHap, Prim } from "./protocol";
-import type { Lane } from "./viz";
+import { SPIRAL_MAX_EVENTS, spiralSpan, spiralSteps, type Lane } from "./viz";
 
 /** What a drawing needs to know about the moment: where the music is, the events, the sound, and the colours of this session. */
 export interface Env {
@@ -153,18 +153,23 @@ function spiral(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
     from *= stretch; to *= stretch; rot *= stretch;
     ctx.lineWidth = thick; ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
     const [sx, sy] = onSpiral(from, size / stretch, cx, cy, rot); ctx.moveTo(sx, sy);
-    for (let a = from; a <= to; a += 1 / 60) {
-      const [px, py] = onSpiral(a, size / stretch, cx, cy, rot);
-      ctx.globalAlpha = ((a - from) / (to - from || 1)) * opacity; ctx.lineTo(px, py);
+    const steps = spiralSteps((to - from) / stretch, stretch); // a bounded number of pieces, whatever the code's options say
+    for (let i = 1; i <= steps; i++) {
+      const a = from + ((to - from) * i) / steps, [px, py] = onSpiral(a, size / stretch, cx, cy, rot);
+      ctx.globalAlpha = (i / steps) * opacity; ctx.lineTo(px, py);
     }
     ctx.stroke();
   };
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+  let drawn = 0;
   for (const d of env.draws) {
-    if (!d.viz.includes(id) || d.c > time + 2 || d.c + d.l < time - 2) continue;
+    if (!d.viz.includes(id)) continue;
+    const span = spiralSpan(d.c, d.l, time);
+    if (!span) continue;
+    if (++drawn > SPIRAL_MAX_EVENTS) break;
     const isActive = d.c <= time && d.c + d.l > time;
     const colour = typeof d.v.color === "string" ? d.v.color : active;
-    segment(d.c - time + inset, d.c + d.l - time + inset - padding, colourIdle || isActive ? colour : inactive, thickness, fade ? 1 - Math.abs((d.c - time) / min) : 1, rotate, cap);
+    segment(span[0] + inset, span[1] + inset - padding, colourIdle || isActive ? colour : inactive, thickness, fade ? 1 - Math.abs((d.c - time) / min) : 1, rotate, cap);
   }
   segment(inset - headLen, inset, head, headThick, 1, rotate, cap);
   ctx.restore(); ctx.globalAlpha = 1;

@@ -43,7 +43,7 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the external face only (the internal face is how the model feels, and
  * nobody steers that), and the "fade after" setting (the external face never fades, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void }) {
+export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, patternPlays }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
@@ -73,7 +73,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     const timer = setInterval(() => void loadPending(), 15_000); // a reaction disappears from the list once the model has read it
     return () => { cancelled = true; clearInterval(timer); };
   }, [supabase, sessionId, loadPending]);
-  if (!owner) return <><StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
+  if (!owner) return <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />}{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
   const external = face === "external";
   const choose = async (value: Policy) => {

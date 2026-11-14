@@ -88,6 +88,15 @@ export function validateHap(raw: unknown, codeLength = 0): Hap | null {
   return { v, t: h.t, d: h.d, cps: h.cps, cycle: h.cycle, ...(loc.length ? { loc } : {}) };
 }
 
+/** The range of each numeric option of a drawing. The values come from the model's code and drive loops and sizes on the page's own
+ *  thread (the watchdog only covers the worker), so nothing is taken as it comes: out-of-range numbers are pulled into range. */
+const OPT_RANGE: Record<string, [number, number]> = {
+  cycles: [0.25, 16], playhead: [0, 1], overscan: [0, 4], minMidi: [0, 127], maxMidi: [0, 127],
+  stretch: [0.1, 8], size: [10, 400], thickness: [0.5, 100], inset: [0, 8], padding: [0, 4], playheadLength: [0, 1], playheadThickness: [0.5, 100], steady: [0, 2],
+  speed: [1, 16], scale: [-2, 2], pos: [-1, 2], lean: [0, 1], min: [-200, 100], max: [-200, 100], trigger: [-1, 1],
+};
+export const clampOpt = (key: string, x: number): number => { const [a, b] = OPT_RANGE[key] ?? [-1e4, 1e4]; return Math.min(b, Math.max(a, x)); };
+
 const VIZ_OPT_KEY = /^[A-Za-z][A-Za-z0-9]{0,23}$/;
 /** The drawings the code asked for: a known name, options that are numbers, booleans, short plain strings, colours only where a colour is expected. */
 export function validateViz(raw: unknown): VizSpec[] {
@@ -102,7 +111,7 @@ export function validateViz(raw: unknown): VizSpec[] {
     if (r.opts && typeof r.opts === "object" && !Array.isArray(r.opts)) {
       for (const [k, v] of Object.entries(r.opts as Record<string, unknown>).slice(0, 32)) {
         if (!VIZ_OPT_KEY.test(k)) continue;
-        if (isFiniteNum(v) || typeof v === "boolean") opts[k] = v;
+        if (isFiniteNum(v)) opts[k] = clampOpt(k, v); else if (typeof v === "boolean") opts[k] = v;
         else if (typeof v === "string") { if (/color$/i.test(k) || k === "active" || k === "inactive" || k === "background" || k === "fill") { if (isSafeColour(v)) opts[k] = v.trim(); } else if (/^[A-Za-z0-9 _.-]{0,32}$/.test(v)) opts[k] = v; }
       }
     }
