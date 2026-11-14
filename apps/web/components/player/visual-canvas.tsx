@@ -20,7 +20,7 @@ interface Props {
   source: VisualSource | null;
   /** server clock minus ours, ms */
   clockOffset: MutableRefObject<number>;
-  /** seconds from the audio being scheduled to the ear, with the listener's own nudge */
+  /** seconds from the audio being scheduled to the ear,  */
   latency: () => number;
   /** false: draw nothing (audio not started, or the listener asked for a still picture) */
   active: boolean;
@@ -35,16 +35,18 @@ interface Props {
   /** written every frame: how much of the picture shows (0 to 1, with the fades and the first-bar wait) and the beat the ear is at */
   levelOut?: MutableRefObject<number>;
   beatsOut?: MutableRefObject<number>;
+  /** how opaque the Strudel view is: until it is, the scenes keep painting under it, so they cross-fade */
+  viewOpacity?: MutableRefObject<number>;
 }
 
 interface SceneSpec { scene: SceneName | "none"; density?: number; speed?: number; epoch: number }
 const SCALE_START = 1, SCALE_MIN = 0.3; // the canvas starts at the device's own resolution (up to 2x the CSS size); a slow device steps it down below
 
-export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut }: Props) {
+export function VisualCanvas({ source, clockOffset, latency, active, play = true, visuals = true, onFail, strudelView = false, levelOut, beatsOut, viewOpacity }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const veils = useRef<Array<{ cv: HTMLCanvasElement; img: ImageData | null; key: unknown; colour?: string }>>([]); // the small canvas each veil layer is drawn into before it is smoothed up
-  const live = useRef({ source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut });
-  live.current = { source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
+  const live = useRef({ source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity });
+  live.current = { source, active, latency, play, visuals, onFail, strudelView, levelOut, beatsOut, viewOpacity }; // read inside the loop: a new callback or source must never restart it (a restart redraws the picture from nothing)
 
   useEffect(() => {
     const cv = ref.current;
@@ -222,8 +224,12 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         const { levelOut: lo, beatsOut: bo, strudelView: sv } = live.current;
         if (lo) lo.current = lvl;
         if (bo) bo.current = beats;
-        if (sv) { // Strudel's picture is on top: nothing to paint here
+        // Strudel's picture is on top: nothing to paint here. The scenes that are showing keep painting until that view is opaque, so
+        // the two cross-fade; coming from nothing there is nothing to keep. The scene bookkeeping starts again when the scenes come back
+        // (no slow fade in from a scene that was never painted).
+        if (sv && (wasEmpty || (live.current.viewOpacity?.current ?? 1) >= 0.98)) {
           if (!wasEmpty) { ctx.clearRect(0, 0, w, h); wasEmpty = true; }
+          curSig = null; curScene = null; fromScene = null;
           last = now; return;
         }
         // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.

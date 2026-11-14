@@ -118,13 +118,29 @@ export function litKey(spans: Lit[]): string {
   return spans.map((s) => `${s.start}:${s.end}:${Math.ceil(s.level * 4)}:${s.colour ?? ""}`).sort().join("|");
 }
 
-/** The font size (px) that sets the whole code in a box: wide lines shrink it, many lines shrink it, within 11 to 24 px. Monospace: a
- *  character is 0.6 em wide, a line 1.55 em tall. Code that still does not fit at 11 px scrolls off the bottom (the view clips it). */
+/** The biggest font size (px) at which the whole code fits a box of `width` by `height`, counting the lines that wrap: monospace, a
+ *  character 0.6 em wide, a line 1.55 em tall. From 24 px down to a floor that is smaller on narrow screens (phones); code that still
+ *  does not fit at the floor is set at the floor, and the view follows the lit part up and down (`scrollFor`). */
 export function fitFont(code: string, width: number, height: number): number {
-  const lines = code.split("\n");
-  const cols = Math.max(8, ...lines.map((l) => l.length));
-  const byWidth = (width * 0.9) / (cols * 0.6), byHeight = (height * 0.8) / (Math.max(1, lines.length) * 1.55);
-  return Math.round(Math.min(24, Math.max(11, Math.min(byWidth, byHeight))));
+  const lines = code.split("\n"), floor = width < 560 ? 8 : 10;
+  for (let size = 24; size > floor; size--) {
+    const cols = Math.max(1, Math.floor((width * 0.92) / (size * 0.6)));
+    const rows = lines.reduce((n, l) => n + Math.max(1, Math.ceil(l.length / cols)), 0);
+    if (rows * size * 1.55 <= height * 0.92) return size;
+  }
+  return floor;
+}
+
+/** Where a box whose content is `over` px taller than the box is scrolled at time `t` (seconds): it waits at the top, drifts down at `speed`
+ *  px a second, waits at the bottom, drifts back. Code taller than the view is shown by sweeping over it (a stack lights every line at
+ *  once, so there is no one lit line to follow), and the page itself never scrolls. 0 when it all fits. */
+export function sweepOffset(t: number, over: number, speed = 28, pause = 2): number {
+  if (over <= 0) return 0;
+  const travel = over / speed, period = 2 * (travel + pause), u = ((t % period) + period) % period;
+  if (u < pause) return 0;
+  if (u < pause + travel) return (u - pause) * speed;
+  if (u < 2 * pause + travel) return over;
+  return over - (u - 2 * pause - travel) * speed;
 }
 
 /** Rectangles of the drawings in a canvas of w by h: the plain calls (`.pianoroll()`) fill the whole view behind the code; the `_` calls
@@ -137,3 +153,37 @@ export function lanes(specs: VizSpec[], w: number, h: number): Lane[] {
   inline.forEach((spec, i) => out.push({ spec, x: 0, y: h - band + i * laneH, w, h: laneH }));
   return out;
 }
+
+/** The text a piano roll puts on an event by default (Strudel's own rule: its note, else its sound and index). */
+const defaultLabel = (v: DrawHap["v"]): string => String(v.label ?? v.note ?? (v.s !== undefined ? `${v.s}${v.n !== undefined ? `:${v.n}` : ""}` : ""));
+
+/** Labels on a roll are drawn at a size set by the bar (its thickness on a horizontal roll, its length on a vertical one), so on a small
+ *  screen or for a short event they come out tiny, or spill out of the bar. This blanks the label of an event whose label would be smaller
+ *  than `minPx` or more than twice as wide as its bar (Strudel squeezes it into the bar), instead of drawing it unreadable. `w` and `h` are the lane in canvas pixels. */
+export function hideTinyLabels(haps: DrawHap[], o: { vertical: boolean; fold: boolean; minMidi: number; maxMidi: number; timeExtent: number }, w: number, h: number, minPx: number): DrawHap[] {
+  const rowKey = (v: DrawHap["v"]) => (typeof v.freq === "number" ? `f${v.freq}` : String(v.note ?? v.n ?? (v.s !== undefined ? `_${v.s}` : "")));
+  const rows = o.fold ? Math.max(1, new Set(haps.map((d) => rowKey(d.v))).size) : o.maxMidi - o.minMidi + 1;
+  const valueAxis = o.vertical ? w : h, timeAxis = o.vertical ? h : w;
+  const thickness = valueAxis / rows;
+  return haps.map((d) => {
+    const text = defaultLabel(d.v);
+    if (!text) return d;
+    const lengthPx = (d.l / o.timeExtent) * timeAxis;
+    // horizontal: the font is 0.75 of the bar's thickness and the text runs along the bar; vertical: the font is the bar's length and the text runs across it
+    const font = o.vertical ? lengthPx : thickness * 0.75;
+    // Strudel squeezes a label into its bar (fillText has a max width), so a little too wide still reads; hide it when the squeeze is extreme
+    const natural = text.length * 0.6 * font, room = o.vertical ? thickness : lengthPx;
+    return font >= minPx && natural <= room * 2 ? d : { ...d, v: { ...d.v, label: "", activeLabel: "" } };
+  });
+}
+
+/** The part of an event (c to c + l, in cycles) that a spiral shows at `time`: it looks two cycles behind and ahead, so a long event is
+ *  cut to that. Null when none of it shows. */
+export function spiralSpan(c: number, l: number, time: number, reach = 2.5): [number, number] | null {
+  const a = Math.max(c - time, -reach), b = Math.min(c + l - time, reach);
+  return b > a ? [a, b] : null;
+}
+/** How many line segments a spiral piece of `span` cycles gets: 60 a turn, at least 2, at most 240, whatever `stretch` says. */
+export const spiralSteps = (span: number, stretch: number): number => Math.min(240, Math.max(2, Math.ceil(span * stretch * 60)));
+/** Most events one spiral draws a frame. */
+export const SPIRAL_MAX_EVENTS = 400;

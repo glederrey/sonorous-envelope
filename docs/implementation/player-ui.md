@@ -112,7 +112,7 @@ The model does not exist between two turns, but a sound that keeps playing reads
 - `pulse`: a faint white wash on the beat. `drift`: a highlight that wanders. `breathe`: a glow that swells over the phrase (4 bars, 16 beats). `scene`: motes, ripples (a ring per beat), rain (fine drops with depth, splashes and a mist), snow, embers (rising sparks), aurora, waves, fireflies, stars, bubbles or leaves; the mood picks one when the model sets none, and a change of scene is a crossfade of at least 1.5 s. The mood shapes all of it (`feel`, see visuals.md).
 - `prefers-reduced-motion`: no canvas; the colour still changes. The "Gradient" and "Scenes" buttons do it for one listener: the picture is three parts, the base colour (always on), the gradient (colour play, slow, off the beat) and the visuals (the scene); each of the last two can be turned off. `?field=css` brings the old CSS motion back.
 - Header and landing: the burger menu and the phone layout start at 900px and below (the hero waves are hidden there). The footer is one centred line: the two credit logos, then Privacy, AGPL-3.0, Source code and the version; two rows under 640px.
-- Listener controls: "Gradient", "Scenes" and "Picture delay" (0 to 400 ms, delays the picture, for Bluetooth), both remembered on the device (`se:picture`).
+- Listener controls: "Gradient" and "Scenes" (the "Picture delay" slider was removed in v0.18.1: the picture lands with the sound at 0), remembered on the device (`se:picture`).
 
 ### Session details page
 - Timeline of states: turn, final, time, intent mood as five small bars, reads_as overlaid, gesture icon, clamps.
@@ -142,3 +142,5 @@ A collapsed "Settings" in the owner panel, on the internal face only, holds "Fad
 
 ## Strudel visuals
 Two buttons side by side under the Gradient and Scenes row, in the same style: **Allow Strudel** (owner only, saved on the session; it replaced the checkbox "Let the model play Strudel code") and **Strudel visuals** (every listener, saved on the device in `se:picture`, on by default). While Strudel plays with the visuals on, the picture is the code and its drawings instead of the scenes ([strudel.md](strudel.md), "The picture"). A listener who is not the owner sees only "Strudel visuals", and only while a pattern plays.
+
+The top row of the controls has the status (a face chip) on the left, the turn text in the middle (dropped when the controls are narrower than 430 px, `WHEN_MIN_WIDTH`, Gael 2026-11-14) and, flush right, **Fullscreen** (only the picture; Esc or the exit button, which shows for a moment and again on a touch, bring the layout back) and Hide controls. `/dev/controls` renders the controls with made-up state for the owner, a signed-in listener and a guest.

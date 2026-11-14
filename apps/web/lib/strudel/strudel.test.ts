@@ -84,8 +84,8 @@ describe("the beat of a Strudel state", () => {
 
 describe("code length", () => {
   it("accepts exactly the limit and refuses one more", () => {
-    expect(MAX_PATTERN_CHARS).toBe(4000);
-    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(4000), bpm: 100 }).success).toBe(true);
-    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(4001), bpm: 100 }).success).toBe(false);
+    expect(MAX_PATTERN_CHARS).toBe(5000);
+    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(5000), bpm: 100 }).success).toBe(true);
+    expect(StrudelModeInput.safeParse({ on: true, code: "a".repeat(5001), bpm: 100 }).success).toBe(false);
   });
 });

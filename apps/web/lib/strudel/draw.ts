@@ -1,12 +1,12 @@
-// The drawings of the Strudel picture: pianoroll, punchcard, wordfall, scope, fscope.
+// The drawings of the Strudel picture: pianoroll, punchcard, wordfall, spiral, scope, fscope, spectrum, pitchwheel.
 //
-// The pianoroll family is Strudel's own `__pianoroll` from `@strudel/draw`, used unmodified: it draws into a canvas we hand it, from
+// The pianoroll family is Strudel's own `__pianoroll` and the pitch wheel its own `pitchwheel`, both from `@strudel/draw`, used unmodified: it draws into a canvas we hand it, from
 // events we hand it, so none of Strudel's page-level code (`getDrawContext`, which would add a fixed canvas to the body) runs.
-// The scopes are written here after Strudel's `scope.mjs` (packages/webaudio): the same geometry and options, reading our own analyser instead of superdough's. Strudel is Copyright (C) Strudel contributors, AGPL-3.0-or-later (https://codeberg.org/uzu/strudel); this file is part
+// The spiral and the scopes are written here after Strudel's `spiral.mjs` (packages/draw), `scope.mjs` and `spectrum.mjs` (packages/webaudio): the same geometry and options, reading plain events instead of Strudel's Hap objects and our own analyser instead of superdough's. Strudel is Copyright (C) Strudel contributors, AGPL-3.0-or-later (https://codeberg.org/uzu/strudel); this file is part
 // of a work under the same licence (docs/licensing.md). The colours of the model's code go only into canvas colour properties.
-import { __pianoroll } from "@strudel/draw";
+import { __pianoroll, getTheme, pitchwheel, setTheme } from "@strudel/draw";
 import type { DrawHap, Prim } from "./protocol";
-import type { Lane } from "./viz";
+import { SPIRAL_MAX_EVENTS, hideTinyLabels, spiralSpan, spiralSteps, type Lane } from "./viz";
 
 /** What a drawing needs to know about the moment: where the music is, the events, the sound, and the colours of this session. */
 export interface Env {
@@ -53,20 +53,40 @@ export class Painter {
           if (!c) break;
           const cycles = num(o, "cycles", 4), playhead = num(o, "playhead", 0.5), hideNegative = flag(o, "hideNegative", false);
           const from = -cycles * playhead, to = cycles * (1 - playhead), t = env.cycle;
-          const haps = env.draws
-            .filter((d) => d.viz.includes(lane.spec.id) && d.c < t + to && d.c + d.l > t + from && (!hideNegative || d.c >= 0))
-            .map(asHap);
+          let events = env.draws.filter((d) => d.viz.includes(lane.spec.id) && d.c < t + to && d.c + d.l > t + from && (!hideNegative || d.c >= 0));
           // punchcard folds the rows, wordfall is a vertical roll with labels (the same presets as Strudel's)
           const preset = lane.spec.name === "wordfall" ? { fold: 1, vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "#ffffff" } : lane.spec.name === "punchcard" ? { fold: 1 } : {};
+          const merged = { ...preset, ...o } as Record<string, Prim>;
+          // a label that would come out tiny or wider than its bar is left off (readable on a phone, instead of a smudge)
+          if (merged.labels) events = hideTinyLabels(events, { vertical: Boolean(merged.vertical), fold: merged.fold === undefined ? true : Boolean(merged.fold), minMidi: num(merged, "minMidi", 10), maxMidi: num(merged, "maxMidi", 90), timeExtent: cycles }, w, h, 11 * env.dpr);
           __pianoroll({
             active: env.accent.active, inactive: env.accent.inactive, playheadColor: env.accent.head,
-            ...preset, ...o, cycles, playhead, time: t, haps, ctx: c, id: undefined,
+            ...merged, cycles, playhead, time: t, haps: events.map(asHap), ctx: c, id: undefined,
           });
           ctx.globalAlpha = lane.spec.inline ? 0.92 : 0.7; ctx.drawImage(c.canvas, x, y); ctx.globalAlpha = 1; // behind the code, a little softer so the code reads
           break;
         }
+        case "spiral": spiral(ctx, x, y, w, h, lane.spec.id, o, env); break;
         case "scope": case "tscope": scope(ctx, x, y, w, h, lane.spec.id, o, env); break;
         case "fscope": fscope(ctx, x, y, w, h, lane.spec.id, o, env); break;
+        case "spectrum": {
+          const c = this.canvasFor(key, w, h, true);
+          if (c) { spectrum(c, w, h, lane.spec.id, o, env); ctx.drawImage(c.canvas, x, y); }
+          break;
+        }
+        case "pitchwheel": {
+          const c = this.canvasFor(key, w, h, false);
+          if (!c) break;
+          setTheme({ ...getTheme(), foreground: env.accent.active });
+          const t = env.cycle;
+          const haps = env.draws.filter((d) => d.viz.includes(lane.spec.id) && d.c <= t && d.c + d.l > t).map(asHap);
+          const o2: Record<string, Prim> = { ...o };
+          if (typeof o2.root !== "number") delete o2.root;
+          if (o2.mode !== "polygon" && o2.mode !== "flake") delete o2.mode;
+          pitchwheel({ ...o2, haps, ctx: c, id: undefined });
+          ctx.drawImage(c.canvas, x, y);
+          break;
+        }
       }
     }
   }
@@ -106,4 +126,63 @@ function fscope(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
     }
   }
   ctx.restore();
+}
+
+/** Strudel's `spectrum`: a spectrogram that scrolls left; the newest column is drawn at the right edge. It keeps its own canvas. */
+function spectrum(c: CanvasRenderingContext2D, w: number, h: number, id: number, o: Record<string, Prim>, env: Env) {
+  const data = env.freq;
+  if (!data) return;
+  const colour = str(o, "color", env.colours.get(id) ?? env.accent.active);
+  const speed = Math.max(1, Math.round(num(o, "speed", 1) * env.dpr)), min = num(o, "min", -80), max = num(o, "max", 0);
+  c.globalCompositeOperation = "copy"; c.drawImage(c.canvas, -speed, 0); c.globalCompositeOperation = "source-over";
+  c.clearRect(w - speed, 0, speed, h);
+  c.fillStyle = colour;
+  const n = data.length, lim = Math.log(n);
+  let prev = 0;
+  for (let i = 0; i < n; i++) {
+    const norm = clamp((data[i] - min) / (max - min), 0, 1);
+    const next = (Math.log(i + 1) / lim) * h;
+    c.globalAlpha = norm;
+    c.fillRect(w - speed, h - next, speed, Math.max(2 * env.dpr * 0.5, next - prev));
+    prev = next;
+  }
+  c.globalAlpha = 1;
+}
+
+// polar coordinates -> x, y (Strudel's spiral.mjs)
+const fromPolar = (angle: number, radius: number, cx: number, cy: number) => { const r = ((angle - 90) * Math.PI) / 180; return [cx + Math.cos(r) * radius, cy + Math.sin(r) * radius]; };
+const onSpiral = (angle: number, margin: number, cx: number, cy: number, rotate: number) => fromPolar((angle + rotate) * 360, margin * angle, cx, cy);
+
+/** Strudel's `spiral`: the events wind round a centre, one turn a cycle; the playhead is the short bright piece at the start. */
+function spiral(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number, id: number, o: Record<string, Prim>, env: Env) {
+  const stretch = num(o, "stretch", 1), size = num(o, "size", 80) * env.dpr * (Math.min(w, h) / (600 * env.dpr)), thickness = num(o, "thickness", size / 2);
+  const cap = str(o, "cap", "butt") as CanvasLineCap, inset = num(o, "inset", 3), padding = num(o, "padding", 0), steady = num(o, "steady", 1);
+  const headLen = num(o, "playheadLength", 0.02), headThick = num(o, "playheadThickness", thickness);
+  const fade = flag(o, "fade", true), colourIdle = flag(o, "colorizeInactive", false);
+  const active = str(o, "activeColor", env.accent.active), inactive = str(o, "inactiveColor", env.accent.inactive), head = str(o, "playheadColor", env.accent.head);
+  const cx = x0 + w / 2, cy = y0 + h / 2, time = env.cycle, rotate = steady * time, min = -2;
+  const segment = (from: number, to: number, colour: string, thick: number, opacity: number, rot: number, linecap: CanvasLineCap) => {
+    from *= stretch; to *= stretch; rot *= stretch;
+    ctx.lineWidth = thick; ctx.lineCap = linecap; ctx.strokeStyle = colour; ctx.beginPath();
+    const [sx, sy] = onSpiral(from, size / stretch, cx, cy, rot); ctx.moveTo(sx, sy);
+    const steps = spiralSteps((to - from) / stretch, stretch); // a bounded number of pieces, whatever the code's options say
+    for (let i = 1; i <= steps; i++) {
+      const a = from + ((to - from) * i) / steps, [px, py] = onSpiral(a, size / stretch, cx, cy, rot);
+      ctx.globalAlpha = (i / steps) * opacity; ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  };
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+  let drawn = 0;
+  for (const d of env.draws) {
+    if (!d.viz.includes(id)) continue;
+    const span = spiralSpan(d.c, d.l, time);
+    if (!span) continue;
+    if (++drawn > SPIRAL_MAX_EVENTS) break;
+    const isActive = d.c <= time && d.c + d.l > time;
+    const colour = typeof d.v.color === "string" ? d.v.color : active;
+    segment(span[0] + inset, span[1] + inset - padding, colourIdle || isActive ? colour : inactive, thickness, fade ? 1 - Math.abs((d.c - time) / min) : 1, rotate, cap);
+  }
+  segment(inset - headLen, inset, head, headThick, 1, rotate, cap);
+  ctx.restore(); ctx.globalAlpha = 1;
 }

@@ -22,6 +22,9 @@ $: note("<c2 g2>*2").s("sawtooth").lpf(400).color("magenta")`,
   note("c3 e3 g3 b3").s("sawtooth").lpf(900).gain(0.5),
   s("bd*2, hh*8").bank("RolandTR909")
 ).scope({ thickness: 4 })`,
+  "Spiral + spectrum": `note("<c3 eb3 g3 bb3>*4").s("triangle").room(0.5).color("orange").spiral({ steady: 0.96 })
+  .spectrum()`,
+  "Pitchwheel": `note("<c3 e3 g3 b3 d4>*3").s("triangle").color("hotpink").pitchwheel()`,
   "Inline lanes": `stack(
   s("bd sd, hh*4").bank("RolandTR909"),
   note("<c3 g3>*2").s("sine")
@@ -37,8 +40,8 @@ export function StrudelLab() {
   const [allow, setAllow] = useState(true), [visuals, setVisuals] = useState(true); // the two buttons of the player, here only to look at
   const [report, setReport] = useState("");
   const store = useMemo(() => new VizStore(), []);
-  useEffect(() => { (window as unknown as { __viz: VizStore }).__viz = store; }, [store]); // for the headless check
-  const level = useRef(1), beats = useRef(0);
+  useEffect(() => { (window as unknown as { __viz: VizStore; __op: { current: number }; __lv: { current: number } }).__viz = store; (window as unknown as { __op: unknown }).__op = opacity; (window as unknown as { __lv: unknown }).__lv = level; }, [store]); // for the headless check
+  const level = useRef(1), beats = useRef(0), opacity = useRef(0);
   const audio = useRef<AudioOutput | null>(null), out = useRef<StrudelOutput | null>(null);
   const t0 = useRef(0), bpmRef = useRef(bpm);
   bpmRef.current = bpm;
@@ -69,7 +72,7 @@ export function StrudelLab() {
 
   return (
     <div className="pl-field" style={{ "--pl-h": hue, "--pl-t": "1s" } as React.CSSProperties}>
-      {started && <StrudelView store={store} output={() => out.current} level={level} beats={beats} shown={visuals} hue={hue} />}
+      {started && <StrudelView store={store} output={() => out.current} level={level} beats={beats} shown={visuals} opacity={opacity} hue={hue} />}
       <main className="pl-stage">
         <section className="pl-panel" aria-label="Strudel lab">
           <div className="pl-toggles" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>

@@ -26,7 +26,7 @@ describe("MCP tools", () => {
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
     const strudel = r.result.tools.find((t: { name: string }) => t.name === "strudel_mode");
     expect(strudel.inputSchema.required).toContain("on");
-    expect(strudel.inputSchema.properties.code.maxLength).toBe(4000);
+    expect(strudel.inputSchema.properties.code.maxLength).toBe(5000);
     expect(JSON.stringify(strudel.inputSchema).length).toBeLessThan(4500);
   });
 
