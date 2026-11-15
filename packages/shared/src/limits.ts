@@ -24,14 +24,16 @@ export function hardCaps(s: EngineState, note: (field: string, from: number | st
   // Hard rule, not configurable. The beat motion is kept under the flash threshold by `capFrame` (visual.ts), in the player as well.
   // `pulseHz` is the old CSS pulse, still used by the fallback field and the landing page: never faster than 3 Hz.
   const c = s.colour;
-  if (c.pulseHz > 3) { note("pulse", c.pulseHz, 3, "safety"); c.pulseHz = 3; }
+  if (!Number.isFinite(c.pulseHz)) c.pulseHz = 0;
+  else if (c.pulseHz > 3) { note("pulse", c.pulseHz, 3, "safety"); c.pulseHz = 3; }
   if (c.motion !== "pulse") c.pulseHz = 0;
   if (c.density !== undefined) c.density = Math.min(1, Math.max(0, c.density));
   if (c.speed !== undefined) c.speed = Math.min(1, Math.max(0, c.speed));
   if (c.feel) for (const k of Object.keys(c.feel) as Array<keyof typeof c.feel>) c.feel[k] = Math.min(1, Math.max(0, c.feel[k]));
 
   // the absolute volume cap; the listener's own slider is the volume control
-  if (s.volume > 0.9) { note("volume", s.volume, 0.9, "safety"); s.volume = 0.9; }
+  if (!Number.isFinite(s.volume)) { note("volume", String(s.volume), 0, "safety"); s.volume = 0; } // NaN passes every comparison: never let it reach the engine
+  else if (s.volume > 0.9) { note("volume", s.volume, 0.9, "safety"); s.volume = 0.9; }
   s.pan.width = Math.min(1, Math.max(0, s.pan.width));
 }
 

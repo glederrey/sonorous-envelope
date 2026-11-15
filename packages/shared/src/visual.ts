@@ -116,7 +116,7 @@ export function capFrame(f: Frame, aspect = 0.6, minW = 0): Frame {
   for (const i of f.items) {
     if (items.length >= MAX_ITEMS) break;
     const a = itemArea(i, aspect, minW);
-    if (area + a > MAX_SMALL_AREA) continue;
+    if (!(area + a <= MAX_SMALL_AREA)) continue; // written this way so a NaN area is dropped, not let through with every item after it
     area += a; items.push({ ...i, a: clamp(i.a, 0, MAX_ITEM_ALPHA) });
   }
   return { wash, glow, layers, items };
