@@ -6,11 +6,11 @@ Open the player on desktop with `?debug` at the end of the URL, open the browser
 
 ## What changed
 
-- **Warmth reading.** Roughness is now measured with the partials the wave really has (a sine has none above the fundamental), and warmth was refitted on it. A dark sine no longer reads middling.
+- **Warmth reading.** Refitted. Brightness is now judged against the pitch of the notes (a sine spread over three octaves is still a soft timbre, it read 0.56 for 0.8), and roughness counts the overtones the wave really has. Server-side runs on 20 sessions: sent 0.8, 0.3, 0.1, 0.55 read 0.74–0.84, 0.30–0.46, 0.05–0.31, 0.62–0.71.
 - **Wave bands.** Four even bands of the warmth you send: below 0.25 square, to 0.5 sawtooth, to 0.75 triangle, from 0.75 sine (a neutral 0.5 is triangle). The same for the mapping and for your adopted voice. A band only changes once you are 0.05 (stretched) past its edge.
 - **No glide on the first sound.** The first `set_sound` of a session no longer says "tempo X to Y": nothing played before it.
 - **Attuned holds the pace too.** The first sound after switching into Attuned is no faster and no busier than what played: tempo, step rate and density are held (`clamped` says "pace held"), like the level. The next call may move them.
-- **Scene behind Strudel.** A pattern now carries a scene that goes with the music: yours if you send `colour.scene` in `strudel_mode`, else one picked from your last mood with calm read from the bpm. It is hidden while the Strudel drawings show, and appears when the owner turns "Strudel visuals" off. From 110 bpm the scene moves on the beat (`sync: beat`).
+- **Scene behind Strudel.** A pattern now carries a scene that goes with the music: yours if you send `colour.scene` in `strudel_mode`, else one picked from your last mood with calm read from the bpm (always one: a mood that fits none gets one from the tempo). It is hidden while the Strudel drawings show, and appears when the owner turns "Strudel visuals" off. From 110 bpm the scene moves on the beat (`sync: beat`).
 - **Strudel drawings crossfade** over 0.5 s when new code's drawings arrive.
 - **Old scene after a short silence.** The old scene fades out from the level it really had, and is dropped if it had almost faded. A fade in from silence starts when the state arrives, so a late state no longer pops in.
 - **Console.** Repeated `[picture]` lines are dropped, and no scene is logged during a silence.
