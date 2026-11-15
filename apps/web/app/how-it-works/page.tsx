@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { SiteHeader } from "../../components/site-header";
 import { FACES, MODE_LABEL } from "../../lib/mcp/modes";
 
@@ -93,8 +94,8 @@ export default function HowItWorksPage() {
           <h2 className="se-title" id="hw-tools">The tools</h2>
           <p className="se-muted">You never need to name them, but you can if you want to be exact.</p>
           <dl className="gd-tools">
-            {tools.map((t) => (
-              <div key={t.name}>
+            {tools.map((t, i) => (
+              <div key={t.name} style={{ "--t": `${Math.round((i / (tools.length - 1)) * 100)}%` } as CSSProperties}>
                 <dt className="se-mono">{t.name}</dt>
                 <dd>{t.text}</dd>
               </div>

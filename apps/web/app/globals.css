@@ -892,8 +892,9 @@ html:has(.pl-field) .se-header {
   padding: 14px 0;
   border-bottom: 1px solid var(--line);
 }
-.gd-tools dt { font-weight: 500; }
-.gd-tools dd { margin: 0; line-height: 1.6; }
+/* the names step along the logo's stroke, warm (amber) to cool (teal), one solid colour each */
+.gd-tools dt { font-weight: 500; color: color-mix(in oklab, var(--glow-ink), var(--tide) var(--t, 0%)); }
+.gd-tools dd { margin: 0; line-height: 1.6; color: var(--ink-muted); }
 @media (max-width: 760px) {
   .gd-say { grid-template-columns: 1fr; }
   .gd-tools > div { grid-template-columns: 1fr; }
