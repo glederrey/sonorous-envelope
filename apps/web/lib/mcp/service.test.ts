@@ -229,6 +229,6 @@ describe("v0.19.3 report", () => {
     const s = await session();
     await s.set({ mood: mood({ calm: 0.9 }) });
     const r = await s.set({ mood: mood({ calm: 0.05 }), mode: "attuned" });
-    expect((r.clamped as string[]).join(" ")).toMatch(/pace held.*do not correct/);
+    expect((r.clamped as string[]).join(" ")).toMatch(/pace held.*do not correct.*send it again now with a transition/);
   });
 });
