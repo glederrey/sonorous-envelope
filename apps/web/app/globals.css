@@ -528,7 +528,7 @@ html:has(.pl-field) .se-header {
   padding-top: 24px;
 }
 .lp-main section {
-  padding: 72px 0;
+  padding: 52px 0;
   border-top: 1px solid var(--line);
 }
 .lp-main section:first-child {
@@ -639,7 +639,7 @@ html:has(.pl-field) .se-header {
   .md-mode { display: grid; grid-row: span 7; grid-template-rows: subgrid; }
   .md-facts { display: grid; grid-row: span 4; grid-template-rows: subgrid; margin: 0; }
 }
-.md-section { margin-top: 80px; }
+.md-section { margin-top: 56px; }
 .md-sub { margin: 8px 0 0; }
 .md-scene {
   list-style: none;
@@ -690,7 +690,7 @@ html:has(.pl-field) .se-header {
   .md-axis { display: none; }
   .md-modes, .md-scene, .md-steps { grid-template-columns: 1fr; }
   .md-idea { grid-template-columns: 1fr; padding: 24px; }
-  .md-section { margin-top: 56px; }
+  .md-section { margin-top: 40px; }
 }
 .lp-split {
   display: grid;
@@ -756,7 +756,7 @@ html:has(.pl-field) .se-header {
     padding-top: 40px;
   }
   .lp-main section {
-    padding: 48px 0;
+    padding: 36px 0;
   }
 }
 
@@ -779,7 +779,7 @@ html:has(.pl-field) .se-header {
   padding: 32px 16px 32px;
 }
 .doc-head {
-  padding-bottom: 48px;
+  padding-bottom: 32px;
 }
 .doc-head > * + * {
   margin-top: 16px;
@@ -822,8 +822,8 @@ html:has(.pl-field) .se-header {
   padding-top: 24px;
 }
 .gd-section + .gd-section {
-  margin-top: 64px;
-  padding-top: 56px;
+  margin-top: 44px;
+  padding-top: 36px;
   border-top: 2px solid var(--line-strong);
 }
 .gd-section > .se-title {
