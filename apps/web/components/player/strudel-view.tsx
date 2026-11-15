@@ -27,6 +27,8 @@ interface Props {
 
 const DPR_MAX = 1.5; // the drawings are soft; a lower resolution keeps a phone smooth
 const TAIL_S = 0.18; // seconds a lit part stays after its note ends
+const BLACK_S = 0.6; // seconds the view takes to turn the picture behind it black when it comes on (instant when nothing shows behind)
+const IN_S = 1.5; // seconds the code and its drawings take to fade in once the view is black (still capped by the level, so a bar-synced start waits for the bar)
 const OUT_S = 2; // seconds the view takes to fade out once its content is black: what comes after (a scene, the field) comes up from black
 
 export function StrudelView({ store, output, level, beats, shown, opacity, hue }: Props) {
@@ -38,7 +40,7 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
     const el = root.current, canvas = cv.current, code = pre.current, ctx = canvas?.getContext("2d");
     if (!el || !canvas || !code || !ctx) return;
     const painter = new Painter();
-    let raf = 0, vis = 0, op = 0, wasOn = false, outT = 0, out0 = 0, last = 0, w = 1, h = 1, dpr = 1, cssW = 1, cssH = 1;
+    let raf = 0, vis = 0, op = 0, op0 = 0, onT = 0, inT = 0, wasOn = false, outT = 0, out0 = 0, last = 0, w = 1, h = 1, dpr = 1, cssW = 1, cssH = 1;
     let seenVersion = -1, seenCode = "", cls: Uint8Array = new Uint8Array(0), key = "", cleared = true, time: Float32Array | null = null, freq: Float32Array | null = null;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
@@ -56,12 +58,16 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       const { shown: on, hue: hu, output, store: st } = live.current;
       const dt = last ? Math.min(0.25, (now - last) / 1000) : 0.016; last = now;
       // The whole view (`op`) is opaque while it is shown, even in a silence, so the colour field never shows through a fade: the content fades
-      // to black inside it. It fades in over the scenes when the listener switches it on (the canvas paints them until it is opaque), and out
-      // over them when a synth sound takes over or it is switched off. Coming in from nothing it is there at once.
+      // to black inside it. Coming on (Strudel starts, or the listener turns the visuals back on) it goes in two steps: first the view's black
+      // background covers the picture behind it (BLACK_S, at once when almost nothing shows), then the code and its drawings fade in over IN_S.
+      // It fades out over the scenes when a synth sound takes over or it is switched off.
       // Fading out, the content goes black first (about 0.3 s), then the black view fades over OUT_S, so the scene or the field behind comes
       // up from black whether a silence came first (strudel_mode off) or the synth state arrived straight away.
-      if (on) { if (!wasOn && level.current < 0.05) op = 1; op += (1 - op) * (1 - Math.exp(-dt / 0.35)); if (op > 0.995) op = 1; }
-      else {
+      if (on) {
+        if (!wasOn) { op0 = op; onT = 0; inT = 0; if (level.current < 0.05) op = 1; }
+        if (op < 1) { onT += dt; const k = Math.min(1, onT / BLACK_S); op = op0 + (1 - op0) * k * k * (3 - 2 * k); if (k >= 1) op = 1; }
+        if (op === 1) inT += dt;
+      } else {
         if (wasOn) { outT = 0; out0 = op; }
         outT += dt;
         const k = Math.min(1, outT / OUT_S);
@@ -72,7 +78,8 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       opacity.current = op;
       // the content follows the canvas's level (the fades of the sound, the first bar) and the view's own opacity
       // while it fades out the content only ever dims: a synth sound rising behind it (its level) must not bring the code back
-      vis = on ? Math.min(level.current, op) : Math.min(vis * Math.exp(-dt / 0.1), level.current, op);
+      const fin = Math.min(1, inT / IN_S);
+      vis = on ? Math.min(level.current, op, fin * fin * (3 - 2 * fin)) : Math.min(vis * Math.exp(-dt / 0.1), level.current, op);
       if (op === 0) { if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } el.style.visibility = "hidden"; return; }
       el.style.visibility = "visible"; el.style.opacity = String(op); el.style.setProperty("--sv-k", String(vis));
       canvas.style.opacity = code.style.opacity = String(vis);

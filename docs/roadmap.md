@@ -59,7 +59,7 @@ A model played five rounds of a chosen emotion and the user guessed (two near hi
 
 ### Fourth outside test (2026-11-10, v0.7.1 to v0.11)
 Gael's first look at the owner controls, and a scripted test by a model on the live session. What we did:
-- [x] Invitee panel is volume, mute, hide, share row only. Owner panel: reaction buttons only on the external face, with a "waiting for Claude" line (the server cannot push to the model); every press counts; Settings block; fade select readable.
+- [x] Invitee panel is volume, mute, hide, share row only. Owner panel: reaction buttons only on the external face, with a "Waiting for the AI" line (the server cannot push to the model); every press counts; Settings block; fade select readable.
 - [x] The `/s/` scrollbar came from the drift and breathe lights moving past the box (transforms count as overflow). They now animate inside it.
 - [x] Guessing-game hide switch and wording removed.
 - [x] Inner and outer became **internal and external faces** (Anzieu). Default `auto`: starts internal; the model may offer a switch in words and switch only after a yes or a clear request; the server enforces 2 finished messages and 2 minutes before going external; an owner lock (Auto, Internal, External) is final; every change is logged and shown in `inspect`; everyone sees the face. Migration 0008.
@@ -77,7 +77,7 @@ Gael and a model ran the test list on the live site. Passed: owner panel, reacti
 - [x] The start state no longer shows as "turn 0" in `inspect`.
 - [x] Phone chip and status line shortened (lock icon for "locked"); dropdown lists follow the page theme; the live counter has its own box with a slow teal to amber dot; "Step by step" hides below 420 px.
 - [x] **Sticky first voice**: without a voice of its own, the first sound the model sets becomes its voice (scale, root, note order, wave) and stays until it sends a voice, so a mood that barely moves cannot move the key. The cost: joy no longer lifts the scale by itself.
-- [x] The "How is it landing?" block starts closed when the controls open.
+- [x] The "Guide the sound" block (was "How is it landing?", renamed in v0.19.1) starts closed when the controls open.
 - [x] Tension adds about 6 dB across a five-step sweep; the 4 dB cap limits a call, not the climb over several calls. Decided: fine. A climb over several calls is the gradual move the Care rules ask for, and the listener's volume stays theirs; a cumulative cap would block a deliberate build.
 - [x] Instructions trimmed from about 900 to about 790 words (v0.12.8): the feedback fields moved into the `set_sound` description, the synth and voice persistence into the schema descriptions. Further cuts would touch the Care rules and the face rules, which are design, not detail; a test keeps them under 800.
 
