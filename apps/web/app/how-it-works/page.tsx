@@ -27,7 +27,7 @@ const know = [
 
 const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
-  { name: "set_sound", text: "Sets the sound and the colour from a mood. The model calls it as it writes, and once at the end of each message." },
+  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
