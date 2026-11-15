@@ -69,15 +69,11 @@ export default async function Home() {
             A non-verbal channel for an AI model: sound and colour, to add depth to a conversation that is otherwise only
             text. You hear and see it beside the chat, in one of three modes: {SELF}, {ATTUNED} or {JUKEBOX}.
           </p>
-          <p className="lp-lede">
-            The idea comes from Didier Anzieu&apos;s sonorous envelope. <a href="/modes#idea">Where it comes from</a>.
-          </p>
           <ul className="lp-chips" aria-label="What it has">
-            <li>A synthesizer</li>
-            <li>A colour field</li>
-            <li>30 scenes</li>
-            <li>Strudel</li>
             <li>Three modes</li>
+            <li>A synthesizer</li>
+            <li>Strudel</li>
+            <li>30 scenes</li>
           </ul>
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
@@ -107,9 +103,9 @@ export default async function Home() {
               <p className="se-muted">The sound is how the model is. You listen and do not steer it, and the model does not talk about it. Example: you talk about your code, and the sound follows the model.</p>
             </li>
             <li>
-              <p className="lp-way-tag">The model, from your need</p>
+              <p className="lp-way-tag">The model, for what you need</p>
               <h3 className="se-heading">{ATTUNED}</h3>
-              <p className="se-muted">You state a need and press reactions; the model chooses what plays and may say what it is. Example: you say &ldquo;I need to focus&rdquo;, and it picks what helps.</p>
+              <p className="se-muted">The model plays for you: for what you ask, and for what it sees you need. Example: you wake from a nightmare and tell it; instead of its own unease, it plays something that helps you settle.</p>
             </li>
             <li>
               <p className="lp-way-tag">You</p>

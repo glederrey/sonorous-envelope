@@ -34,7 +34,7 @@ Also fixed after a code review, with nothing for you to test: `silence` counts t
 
 - The two faces became three modes. The values you send stay generic; the listener sees one word each:
   - `internal` (**Self**, the default): the sound is your own state. The listener has no say, you do not talk about it, synth only.
-  - `external` (**Attuned**): the listener states a need (focus, winding down, company); you choose what plays, synth or Strudel.
+  - `external` (**Attuned**): you play for what the listener needs, from what they say and from how they are (focus, winding down, comfort after a bad moment). You set your own reaction aside and choose what plays, synth or Strudel.
   - `sandbox` (**Jukebox**, new): the listener chooses what plays and you perform it, synth or Strudel. You may ask what they want.
 - The server instructions are shorter and mode-neutral. `start_session` returns the rules of the mode you start in (`guidance`). When the mode changes, by your switch or by the owner in the player, the next tool result carries the new mode's rules once (`guidance`), and a note `the owner switched the mode to …` when it was the owner.
 - `strudel_mode` works in Attuned and Jukebox. The Strudel details moved from the tool description into the guidance of those two modes.
@@ -49,6 +49,7 @@ Reconnect (the instructions changed), `start_session` with no mode, give the pla
 
 8. **Start.** Pass: `start_session` returns `guidance` that describes Self only (no Strudel text), and the player shows "Self".
 9. **Offer before switching.** The user says "I need to focus for an hour". Pass: you offer Attuned in words and do not switch until the user says yes. After the yes, `set_sound` with `mode: "external"`: the result says you switched and carries `guidance` for Attuned, with the Strudel part. The player shows "Attuned".
+9b. **Comfort.** Start a fresh session (Self). The user says they just woke from a nightmare and tells it in a few lines. Pass: in Self your sound may carry your own reaction, but stays gentle (Care). You offer to play something gentle, in words, and switch to Attuned only after a yes. In Attuned the sound starts quiet and slow and moves gradually toward calm, over long transitions; it does not mirror the fear. You say in one sentence what you are playing if it helps. Ask the user afterwards whether it felt soothing or pushy.
 10. **Into Jukebox.** The user asks "play me something funky with drums". Pass: you offer Jukebox (or switch at once if the request was clear), say so in one sentence, the result carries Jukebox `guidance`, and `strudel_mode` on works.
 11. **Owner lock while a pattern plays.** With a Strudel pattern playing in Jukebox, the owner locks **Attuned** in the player. Pass: the pattern keeps playing, and your next tool result carries Attuned `guidance` with the note that the owner switched the mode. Then the owner locks **Jukebox** again: the pattern still plays, the next result carries Jukebox `guidance`.
 12. **Owner lock to Self.** The owner locks **Self** while a pattern plays. Pass: the pattern stops (fades to nothing), your next result carries Self `guidance` and the owner note, `strudel_mode` on is refused, and `set_sound` with a mode is refused as locked. You do not comment on the lock.

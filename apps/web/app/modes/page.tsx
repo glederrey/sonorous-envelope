@@ -34,7 +34,7 @@ const reading = [
 
 const decides = [
   { mode: SELF, who: "The model", from: "Itself", engines: "Built-in synth" },
-  { mode: ATTUNED, who: "The model", from: "A need you state", engines: "Synth or Strudel" },
+  { mode: ATTUNED, who: "The model", from: "What you need, said or shown", engines: "Synth or Strudel" },
   { mode: JUKEBOX, who: "You", from: "Your choice of style, groove, tempo or emotion", engines: "Synth or Strudel" },
 ];
 
@@ -94,14 +94,14 @@ export default function ModesPage() {
             <h2 className="se-heading">{ATTUNED}</h2>
             <div className="se-stack">
               <p>
-                You state a need, and the model chooses what plays. It never reads your mood and steers you: it answers what you said.
+                The model plays for you. It reads what you need from what you say and from how you are, sets its own reaction aside, and chooses what will help.
               </p>
               <ul className="doc-list">
-              <li><strong>Who decides:</strong> the model, from your need (focus, winding down, company while you work).</li>
-              <li><strong>You can:</strong> state a need and press reactions. If they show it does not land, the model adjusts.</li>
+              <li><strong>Who decides:</strong> the model, for what you need: focus, winding down, company while you work, comfort after a hard moment.</li>
+              <li><strong>You can:</strong> say what you need, press reactions, or say it is not helping. The model adjusts or stops.</li>
               <li><strong>Does the model talk about it:</strong> it may say what it is playing.</li>
               <li><strong>Engines:</strong> the synth or Strudel.</li>
-                <li><strong>Example:</strong> you say &ldquo;I need to focus&rdquo;, and the model picks what helps.</li>
+                <li><strong>Example:</strong> you wake from a nightmare and tell the model about it. In {SELF} its sound might carry its own unease. In {ATTUNED} it starts quiet and slow, near where you are, and moves gently toward something that helps you settle.</li>
               </ul>
             </div>
           </section>
@@ -137,7 +137,7 @@ export default function ModesPage() {
             <h2 className="se-heading">Where it stops</h2>
             <ul className="doc-list">
               <li>The sound is an expressive channel. It is not proof of what a model feels, and {SELF} is not a window into anything.</li>
-              <li>{ATTUNED} is not a way to manage how you feel. It answers a need you state, and it never pushes your mood.</li>
+              <li>{ATTUNED} eases, it does not steer. It moves only toward what you would welcome (comfort, calm, focus), says what it is doing if you ask, and never uses sound to persuade you or rush you.</li>
               <li>The model does not hide an appeal in a sound. If it wants your attention, it says so in words.</li>
             </ul>
           </section>

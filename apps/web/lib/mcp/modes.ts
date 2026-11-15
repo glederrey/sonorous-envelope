@@ -16,7 +16,7 @@ export const MODE_LABEL: Record<Face, string> = { internal: "Self", external: "A
 /** One line on who decides, for tooltips and the player. */
 export const MODE_HINT: Record<Face, string> = {
   internal: "The sound is the model's own state. You have no say in it",
-  external: "The model plays for what you need. You say the need, it chooses the sound",
+  external: "The model plays for what you need, from what you say and how you are",
   sandbox: "You choose what plays. The model performs it",
 };
 

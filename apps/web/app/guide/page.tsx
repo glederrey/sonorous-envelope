@@ -92,7 +92,7 @@ export default function GuidePage() {
             <h3 className="se-heading" id="modes">The three modes</h3>
           <p>
             The sound has three modes. In <strong>Self</strong> the sound is the model&apos;s own state and you do not steer it. In{" "}
-            <strong>Attuned</strong> you state a need and the model chooses what plays. In <strong>Jukebox</strong> you choose what
+            <strong>Attuned</strong> the model plays for what you need, from what you say and how you are, and chooses what plays. In <strong>Jukebox</strong> you choose what
             plays and the model performs it.
           </p>
           <p>
