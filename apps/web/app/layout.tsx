@@ -14,7 +14,7 @@ const DESCRIPTION = `A free MCP server that gives your AI model a voice beyond t
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: "%s · Sonorous Envelope" },
+  title: { default: "Sonorous Envelope", template: "%s · Sonorous Envelope" },
   description: DESCRIPTION,
   applicationName: "Sonorous Envelope",
   // Google picks the favicon from these: an SVG plus PNGs that are a multiple of 48 px

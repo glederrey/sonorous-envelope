@@ -94,6 +94,12 @@ export function PlayerLab() {
     e.transition = { time: 6, curve: "smooth", delay: Math.max(0, script.last.effective.transition.time - (Date.now() - Date.parse(script.last.created_at)) / 1000) };
     script.push(e, true); note("silence end");
   };
+  // `silence` (volume 0, the scene kept, 3 s), then a new scene after `s` seconds: the old scene must keep fading out, never come back
+  const silenceThen = (s: number) => {
+    clear();
+    if (script.last) { const e = copy(script.last.effective); e.volume = 0; e.transition = { time: 3, curve: "smooth" }; script.push(e); note("silence (scene kept)"); }
+    later(s, () => setSound("caustics"));
+  };
   const later = (s: number, f: () => void) => { timers.current.push(window.setTimeout(f, s * 1000)); };
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const offThen = (s: number) => { clear(); strudelOff(); later(s, () => setSound("stars")); };
@@ -116,6 +122,8 @@ export function PlayerLab() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {[0.5, 1.5, 3, 8].map((s) => <button key={s} type="button" className={btn} onClick={() => offThen(s)}>Off, stars after {s} s</button>)}
           <button type="button" className={btn} onClick={() => { clear(); setSound("stars"); }}>Strudel straight to stars</button>
+          <button type="button" className={btn} onClick={() => { clear(); setSound("fireflies"); }}>set_sound fireflies</button>
+          {[0.5, 1.5, 3].map((s) => <button key={s} type="button" className={btn} onClick={() => silenceThen(s)}>Silence, caustics after {s} s</button>)}
           <button type="button" className={btn} onClick={closing}>Closing: off, waves at 3 s, end at 9 s</button>
           <button type="button" className={btn} onClick={reset}>Reset</button>
         </div>

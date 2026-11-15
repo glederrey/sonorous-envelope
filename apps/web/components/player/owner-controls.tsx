@@ -110,7 +110,9 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         <p className="pl-owner-title">Mode</p>
         <div className="pl-seg" role="radiogroup" aria-label="Which mode the sound is in">
           {POLICIES.map((o) => (
-            <button key={o.value} type="button" role="radio" aria-checked={policy === o.value} title={o.hint} className="se-btn pl-seg-btn" onClick={() => void choose(o.value)}>{o.label}</button>
+            <button key={o.value} type="button" role="radio" aria-checked={policy === o.value} title={o.hint} className="se-btn pl-seg-btn" data-active={face === o.value ? "true" : undefined} onClick={() => void choose(o.value)}>
+              {o.label}{face === o.value && <span className="se-visually-hidden"> (playing now)</span>}
+            </button>
           ))}
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
@@ -120,14 +122,14 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
       {afterFace}
       {listener && (
         <details className="pl-set se-sm">
-          <summary>How is it landing?</summary>
+          <summary>Guide the sound</summary>
           <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
             {REACTION_PAIRS.flat().map((k) => (
               <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
             ))}
           </div>
           <p className="pl-local" aria-live="polite">
-            {waiting ? `Waiting for Claude: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+            {waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
           </p>
           {error && <p role="alert">{error}</p>}
         </details>

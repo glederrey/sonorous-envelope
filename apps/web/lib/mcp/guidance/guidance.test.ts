@@ -22,8 +22,16 @@ describe("mode guidance", () => {
   it("every guidance names its mode and its label", () => {
     for (const face of FACES) {
       expect(MODE_GUIDANCE[face]).toContain(MODE_LABEL[face]);
-      expect(modeGuidance(face, "auto")).toContain(`Mode ${face}`);
+      expect(modeGuidance(face, "auto")).toContain(`Mode ${MODE_LABEL[face]}`);
     }
+  });
+  it("speaks only the listener's names to the model", () => {
+    for (const face of FACES) for (const policy of ["auto", face] as const)
+      expect(startGuidance(face, policy)).not.toMatch(/\b(internal|external|sandbox)\b/);
+  });
+  it("Self lets unease show, softly; Attuned never starts faster than what plays", () => {
+    expect(MODE_GUIDANCE.internal).toContain("Your reaction may show");
+    expect(MODE_GUIDANCE.external).toContain("never faster, louder or tenser than what is playing now");
   });
   it("sandbox lifts the never-ask rule", () => {
     expect(MODE_GUIDANCE.sandbox).toContain("ask what they want");

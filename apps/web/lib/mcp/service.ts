@@ -12,7 +12,7 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
-import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, normalizeFace, parsePolicy, type Face, type Policy } from "./modes";
+import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, MODE_ID, MODE_LABEL, normalizeFace, parsePolicy, type Face, type Policy } from "./modes";
 import { modeGuidance, startGuidance } from "./guidance";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 import { checkPatternCode } from "./strudel-code";
@@ -31,7 +31,7 @@ interface SessionRow {
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 function fail(action: string, error: { message: string } | null): never {
@@ -219,7 +219,7 @@ function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, n
   });
 }
 
-export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: "auto" | "internal" | "external" | "sandbox" | "inner" | "outer" }, now = Date.now()) {
+export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: "auto" | "self" | "attuned" | "jukebox" | "internal" | "external" | "sandbox" | "inner" | "outer" }, now = Date.now()) {
   // keep at most 10 active sessions: end the oldest
   const { data: active, error: aerr } = await db.from("sessions").select("id").eq("owner_id", userId).is("ended_at", null)
     .order("last_active_at", { ascending: false });
@@ -262,8 +262,8 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     guidance: startGuidance(mode, "auto"),
     settings: { rest_after: effectiveRestAfter(settings.rest_after, mode) },
     note: forListener(mode)
-      ? "Give player_url to the user and tell them to open it and tap Start listening. Pass session_id in every call."
-      : "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
+      ? "Give player_url to the user in your final reply text, after your last tool call of this turn (text between tool calls may be hidden), and tell them to open it and tap Start listening. Pass session_id in every call."
+      : "Give player_url to the user in one short sentence in your final reply text, after your last tool call of this turn (text between tool calls may be hidden), and say nothing more about the sound. Pass session_id in every call.",
   };
 }
 
@@ -284,14 +284,17 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const turn = planTurn(prev, input.final, now);
   const faceNow = faceOf(session);
   // before this call's own state is saved, so that the message in progress does not count as a finished one
-  const sw = await switchFace(db, session, input.mode, turn.stateTurn, now);
+  const sw = await switchFace(db, session, input.mode === undefined ? undefined : normalizeFace(input.mode), turn.stateTurn, now);
   // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
-  const sentMood = input.mood ?? prev?.intent.mood ?? NEUTRAL_MOOD; // no mood: the last one stays
-  // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
   const switched = sw.face !== faceNow;
+  // the owner moved the session to Self from a listener mode: the mood played for the listener is not the model's own state, so it does not carry over
+  const guidedMode = session.guided_mode ? normalizeFace(session.guided_mode) : null;
+  const ownerToSelf = !switched && sw.face === "internal" && ((guidedMode !== null && forListener(guidedMode)) || Boolean(prev?.intent.owner_silenced)); // owner_silenced: the lock wrote a silent copy (0017), even if another call already took the new guidance
+  const sentMood = input.mood ?? (ownerToSelf ? NEUTRAL_MOOD : prev?.intent.mood ?? NEUTRAL_MOOD); // no mood: the last one stays
+  // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
   if (prev?.effective.engine === "strudel" && forListener(sw.face)) return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note, sw.face, switched);
   const mood = stretchMood(sentMood);
-  const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
+  const slow = nextSlowMood(ownerToSelf ? undefined : prev?.slow_mood, mood, input.final);
 
   // a new voice replaces the old one for good; it is a big change, so without a transition of its own it gets a long one
   let voice = input.voice !== undefined ? input.voice : session.voice;
@@ -346,7 +349,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   // Sound reaches the listener before anything can be softened: one call may raise the level by at most LEVEL_STEP_DB. A bigger
   // jump is held down to that step (the master volume is scaled for this state only); it rises further on the next call.
   let levelNote: string | undefined;
-  const wasDb = prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
+  const wasDb = prev?.intent.owner_silenced ? undefined : prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
   if (typeof wasDb === "number" && typeof nowDb === "number" && nowDb - wasDb > LEVEL_STEP_DB) {
     const excess = nowDb - wasDb - LEVEL_STEP_DB;
     effective.volume = Math.max(0.05, effective.volume * 10 ** (-excess / 20));
@@ -372,7 +375,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (internal mode has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   const g = await guide(db, session, sw.face, switched);
@@ -396,6 +399,21 @@ async function patternFeedback(db: Db, state: StateRow, players: number): Promis
   const r = await patternReport(db, state.id);
   if (r) return r;
   return { ran: "not reported yet", why: players === 0 ? "nobody is listening, so nothing has run it" : "the owner's player has not reported yet. It only runs and reports the code after the owner has pressed Start listening; a listener with just the link does not report. Read it again with get_feedback" };
+}
+
+/** How a picture moves when the pattern decides: faster for a faster pattern. */
+export function patternSceneMotion(bpm: number): { speed: number; density: number } {
+  return { speed: Math.min(0.9, Math.max(0.2, 0.2 + (bpm - 60) / 150)), density: 0.5 };
+}
+
+/** The colour of a pattern state. A new scene does not inherit the old scene's density and speed: without its own it takes them from the pattern's tempo. */
+function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSoundInput["colour"], bpm: number | undefined) {
+  const was = e.colour.scene;
+  e.colour = applyColour(e.colour, kept);
+  if (!sent?.scene || sent.scene === was || bpm === undefined) return;
+  const m = patternSceneMotion(bpm);
+  if (sent.density === undefined) e.colour.density = m.density;
+  if (sent.speed === undefined) e.colour.speed = m.speed;
 }
 
 /** A pattern state from the previous state: same synth fields (paused), the colour as the model set it, no tempo glide. */
@@ -426,7 +444,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
   const sticky = mergeSticky(session.sticky, { colour: input.colour });
   const title = input.title?.trim().slice(0, 80);
   const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
-    (e) => { e.colour = applyColour(e.colour, sticky.colour); },
+    (e) => { applyPatternColour(e, sticky.colour, input.colour, prev.effective.pattern?.bpm); },
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
@@ -434,9 +452,10 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
+  const reactions = await reactionsFor(db, session.id, true, now);
   const g = await guide(db, session, face, switched);
   if (g.note) notes.push(g.note);
-  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, reactions, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
 }
 
 /** Strudel on or off. Only this tool changes the engine; it needs a listener mode (external or sandbox) and the owner's permission. */
@@ -449,9 +468,9 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (input.on) {
     if (session.allow_code === false) throw new ToolError("code_off", "The owner turned Strudel off for this session. It is final: do not try again or comment on it.");
     if (!forListener(face)) {
-      throw new ToolError("internal_face", policy === "auto"
-        ? `Strudel is for the ${faceName("external")} and ${faceName("sandbox")} modes. Offer one in words; if the listener says yes, switch with set_sound mode, then call this again.`
-        : `mode stays ${faceName("internal")}: the owner locked it. It is final: do not try to change it or comment on it.`);
+      throw policy === "auto"
+        ? new ToolError("self_mode", `Strudel is for the ${faceName("external")} and ${faceName("sandbox")} modes. Offer one in words; if the listener says yes, switch with set_sound mode (${MODE_ID.external} or ${MODE_ID.sandbox}), then call this again.`)
+        : new ToolError("self_locked", `mode stays ${faceName("internal")}: the owner locked it. It is final: do not try to change it or comment on it.`);
     }
     if (!input.code?.trim() || input.bpm === undefined) throw new ToolError("bad_input", "on true needs code and bpm.");
     const check = checkPatternCode(input.code);
@@ -476,7 +495,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (input.on) {
     const code = input.code!.trim(), bpm = Math.round(input.bpm! * 10) / 10;
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
-      e.engine = "strudel"; e.pattern = { code, bpm }; e.colour = applyColour(e.colour, sticky.colour);
+      e.engine = "strudel"; e.pattern = { code, bpm }; applyPatternColour(e, sticky.colour, input.colour, bpm);
     }, intent, { title, sticky }));
     sameCode = wasStrudel && prev.effective.pattern?.code === code && prev.effective.pattern?.bpm === bpm;
     notes.push(sameCode ? "same code and tempo as before: the music does not change" : wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");
@@ -496,11 +515,12 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
+  const reactions = await reactionsFor(db, session.id, true, now);
   const g = await guide(db, session, face, false);
   if (g.note) all.push(g.note);
   return withGuidance(buildFeedback({
     turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes: all, resting: rest.resting,
-    analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
+    reactions, analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
   }), g);
 }
 
@@ -514,7 +534,12 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   const stopped = state.effective.engine === "strudel" && (!forListener(faceOf(session)) || session.allow_code === false);
   const shown: StateRow = stopped ? { ...state, effective: (({ engine: _e, pattern: _p, ...rest2 }) => rest2)(state.effective) as EngineState } : state;
   const ownerStopped = stopped || Boolean((state.intent as { owner_stopped_pattern?: boolean }).owner_stopped_pattern);
-  const stopNote = ownerStopped ? `the owner stopped your Strudel pattern (mode locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${shown.effective.volume <= 0.001 ? ". The synth state is silent (volume 0): nothing sounds until you send set_sound" : ""}` : undefined;
+  const silentSuffix = shown.effective.volume <= 0.001 ? ". The synth state is silent (volume 0): nothing sounds until you send set_sound" : "";
+  const faceNow = faceOf(session);
+  const stopNote = !ownerStopped ? undefined
+    : forListener(faceNow) && session.allow_code !== false
+      ? `the owner stopped your Strudel pattern when they changed the mode; the mode is now ${faceName(faceNow)}, where Strudel is allowed: start it again with strudel_mode if it fits${silentSuffix}`
+      : `the owner stopped your Strudel pattern (mode locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${silentSuffix}`;
   const g = await guide(db, session, faceOf(session), false);
   const fb = feedbackFor(shown, p, [note, stopNote, g.note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), parsePolicy(session.mode_policy)));
   const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
@@ -565,7 +590,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, parseSettings(session.settings), now, faceOf(session));
   const g = input.end ? {} as { guidance?: string; note?: string } : await guide(db, session, faceOf(session), false);
-  const notes = [note, g.note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, prev.effective.engine === "strudel" ? "Strudel stops with the fade; set_sound brings the synth back" : undefined, ...rest.notes]
+  const notes = [note, g.note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, prev.effective.engine === "strudel" && !input.end ? "Strudel stops with the fade; set_sound brings the synth back" : undefined, ...rest.notes]
     .filter((x): x is string => Boolean(x));
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), parsePolicy(session.mode_policy)) }), g);
 }
@@ -589,6 +614,6 @@ export async function inspect(db: Db, userId: string, input: { session_id?: stri
   });
   const { data: changes } = await db.from("mode_changes").select("turn,to_mode,by,created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(5);
   const faces = ((changes ?? []) as Array<{ turn: number; to_mode: string; by: string; created_at: string }>).reverse()
-    .map((c) => `turn ${c.turn} ${new Date(c.created_at).toISOString().slice(11, 19)} · ${c.by === "owner" ? (c.to_mode === "auto" ? "owner set auto" : `owner locked ${c.to_mode}`) : `you switched to ${c.to_mode}`}`);
+    .map((c) => `turn ${c.turn} ${new Date(c.created_at).toISOString().slice(11, 19)} · ${c.by === "owner" ? (c.to_mode === "auto" ? "owner set auto" : `owner locked ${MODE_LABEL[normalizeFace(c.to_mode)]}`) : `you switched to ${MODE_LABEL[normalizeFace(c.to_mode)]}`}`);
   return { history: lines, ...(faces.length ? { face_changes: faces } : {}), ...(note ? { notes: [note] } : {}) };
 }

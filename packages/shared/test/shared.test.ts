@@ -331,6 +331,15 @@ describe("what stays on the session", () => {
     expect(c.colour).toBeUndefined(); expect(c.stack).toBeUndefined(); expect(c.lfo).toBeUndefined(); expect(c.pad).toBeDefined();
     expect(stickyToSynth(mergeSticky(c, { synth: { pad: { on: false } } }))?.pad).toMatchObject({ on: false, notes: ["D3"] });
   });
+  it("a new scene drops the kept density and speed unless the call sends them", () => {
+    const s = mergeSticky(null, { colour: { scene: "rain", density: 0.8, speed: 0.7, hue: 10 } });
+    expect(mergeSticky(s, { colour: { scene: "rain" } }).colour).toEqual({ scene: "rain", density: 0.8, speed: 0.7, hue: 10 }); // same scene: kept
+    expect(mergeSticky(s, { colour: { hue: 50 } }).colour).toEqual({ scene: "rain", density: 0.8, speed: 0.7, hue: 50 }); // no scene sent: kept
+    const d = mergeSticky(s, { colour: { scene: "none" } }).colour;
+    expect(d).toEqual({ scene: "none", hue: 10 });
+    expect(mergeSticky(s, { colour: { scene: "none", density: 0.2 } }).colour).toEqual({ scene: "none", density: 0.2, hue: 10 });
+    expect(mergeSticky(s, { colour: { scene: "none", speed: 0.3 } }).colour).toEqual({ scene: "none", speed: 0.3, hue: 10 });
+  });
   it("new pad notes switch the pad back on after it was silenced", () => {
     let s = mergeSticky(null, { synth: { pad: { notes: ["D3"] } } });
     s = mergeSticky(s, { synth: { pad: { on: false } } });
@@ -426,6 +435,30 @@ describe("analysis", () => {
     const sad = state({ joy: 0.2, calm: 0.5 }); sad.osc.wave = "square"; sad.filter.cutoff = 5000;
     expect(analyze(sad, 3).reads_as.joy).toBeLessThan(0.4);
     expect(analyze(state({ joy: 0.5, calm: 0.12, spontaneity: 0.7 }), 3).reads_as.calm).toBeLessThan(0.35);
+  });
+  describe("round trip: what reads_as says about the mood that was sent (v0.19.1)", () => {
+    // the same path as set_sound: the sent mood is stretched, mapped (with the scale of a voice if there is one), analysed
+    const read = (sent: Partial<MoodT>, scale?: string) => {
+      const mood = stretchMood({ warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.5, spontaneity: 0.5, ...sent });
+      let s = moodToEngineState(mood, mood, voiceSeedOf("round-trip"));
+      if (scale) { const v = { scale } as never; s = applyOverride(alignToVoice(s, v), voiceToSynth(v)).state; }
+      return analyze(s, 1).reads_as;
+    };
+    it("warmth reads within 0.12 of what was sent, 0.2 to 0.8, with no voice", () => {
+      for (const w of [0.2, 0.4, 0.6, 0.8]) expect(Math.abs(read({ warmth: w }).warmth - w)).toBeLessThanOrEqual(0.12);
+    });
+    it("joy reads within 0.12 of what was sent with no voice at 0.4 and 0.6, and with the auto voice scale at 0.6 and 0.8", () => {
+      for (const j of [0.4, 0.6]) expect(Math.abs(read({ joy: j }).joy - j)).toBeLessThanOrEqual(0.12);
+      for (const j of [0.6, 0.8]) expect(Math.abs(read({ joy: j }, BAND_SCALE[nextBand(undefined, stretchMood({ ...neutral, joy: j }).joy)]).joy - j)).toBeLessThanOrEqual(0.12);
+    });
+    it("a dorian voice at joy 0.6 reads at least 0.45 (it used to read 0.27 whenever the lowest note was not the tonic)", () => {
+      expect(read({ joy: 0.6 }, "dorian").joy).toBeGreaterThanOrEqual(0.45);
+    });
+    it("the joy reading follows the scale: lydian and major above dorian, dorian above minor above phrygian", () => {
+      const r = (sc: string) => read({ joy: 0.6 }, sc).joy;
+      expect(r("lydian")).toBeGreaterThan(r("dorian") + 0.1); expect(r("major")).toBeGreaterThan(r("dorian") + 0.1);
+      expect(r("dorian")).toBeGreaterThan(r("minor") + 0.05); expect(r("minor")).toBeGreaterThan(r("phrygian"));
+    });
   });
   it("tension: absent or 0 leaves the sound as it was, and more of it is heard as more clash", () => {
     const base = stretchMood(neutral);

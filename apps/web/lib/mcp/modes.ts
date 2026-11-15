@@ -1,7 +1,8 @@
-// The three modes. The stored values (database, tool arguments) stay generic; people see the labels below.
-//   internal: the sound is the model's own state. Nobody steers it.
-//   external: the sound is made for the listener, from what they say they need. The model chooses what to play.
-//   sandbox:  the listener chooses what plays; the model performs it.
+// The three modes. The stored values (database) stay generic; people and the model see the labels below.
+//   internal (self, Self):       the sound is the model's own state. Nobody steers it.
+//   external (attuned, Attuned): the sound is made for the listener, from what they say they need. The model chooses what to play.
+//   sandbox (jukebox, Jukebox):  the listener chooses what plays; the model performs it.
+// The model sends and reads self / attuned / jukebox (MODE_ID); the tool schemas list only those. normalizeFace still reads the stored values.
 // A session is on auto (the model may switch, with consent) or locked to one mode by its owner.
 // The guidance for each mode lives in ./guidance and reaches the model only when that mode is in use (lazy guidance).
 
@@ -13,18 +14,22 @@ export const FACES: readonly Face[] = ["internal", "external", "sandbox"];
 /** What people see. One word each; change them here only. */
 export const MODE_LABEL: Record<Face, string> = { internal: "Self", external: "Attuned", sandbox: "Jukebox" };
 
+/** The id the model sends and reads for each mode (the stored values are the old names, still accepted). */
+export const MODE_ID: Record<Face, string> = { internal: "self", external: "attuned", sandbox: "jukebox" };
+
 /** One line on who decides, for tooltips and the player. */
 export const MODE_HINT: Record<Face, string> = {
   internal: "The sound is the model's own state. You have no say in it",
-  external: "The model plays for what you need, from what you say and how you are",
+  external: "The model plays for what you need, read from how you are",
   sandbox: "You choose what plays. The model performs it",
 };
 
-/** Old clients and prompts say inner and outer; people may send the labels. Anything unknown is internal, the safe default. */
+/** The model sends self, attuned or jukebox; the stored values and the old inner and outer are aliases. Anything unknown is internal, the safe default. */
 export function normalizeFace(x: unknown): Face {
   const s = typeof x === "string" ? x.toLowerCase() : "";
-  if (s === "external" || s === "outer" || s === MODE_LABEL.external.toLowerCase()) return "external";
-  if (s === "sandbox" || s === MODE_LABEL.sandbox.toLowerCase()) return "sandbox";
+  if (s === "attuned" || s === "external" || s === "outer") return "external";
+  if (s === "jukebox" || s === "sandbox") return "sandbox";
+  if (s === "self" || s === "internal" || s === "inner") return "internal";
   return "internal";
 }
 
@@ -55,9 +60,9 @@ export function decideSwitch(i: SwitchInput): SwitchResult {
   return { change: i.requested };
 }
 
-/** The id the model sends, with the word the listener uses: "external (Attuned)". */
+/** The mode as the model and the listener name it: "Attuned". */
 export function faceName(face: Face): string {
-  return `${face} (${MODE_LABEL[face]})`;
+  return MODE_LABEL[face];
 }
 
 /** What the model reads back: the mode, and that it is locked when it is. */
