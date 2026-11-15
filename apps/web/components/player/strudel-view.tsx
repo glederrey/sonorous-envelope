@@ -31,6 +31,7 @@ const TAIL_S = 0.18; // seconds a lit part stays after its note ends
 const BLACK_S = 0.6; // seconds the view takes to turn the picture behind it black when it comes on (instant when nothing shows behind)
 const IN_S = 1.5; // seconds the code and its drawings take to fade in once the view is black (still capped by the level, so a bar-synced start waits for the bar)
 const OUT_S = 2; // seconds the view takes to fade out once its content is black: what comes after (a scene, the field) comes up from black
+const SWAP_S = 0.5; // seconds the old code's drawings take to fade out over the new code's (v0.19.2 tests: they swapped at once)
 
 export function StrudelView({ store, output, level, beats, shown, opacity, hue }: Props) {
   const root = useRef<HTMLDivElement>(null), cv = useRef<HTMLCanvasElement>(null), pre = useRef<HTMLPreElement>(null);
@@ -42,6 +43,8 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
     if (!el || !canvas || !code || !ctx) return;
     const painter = new Painter();
     let raf = 0, vis = 0, op = 0, op0 = 0, onT = 0, inT = 0, wasOn = false, outT = 0, out0 = 0, last = 0, w = 1, h = 1, dpr = 1, cssW = 1, cssH = 1;
+    const snap = document.createElement("canvas"), sctx = snap.getContext("2d");
+    let seenSwaps = store.swaps, swapT = SWAP_S; // the last frame of the old drawings, held and faded out over the new ones
     let seenVersion = -1, seenCode = "", cls: Uint8Array = new Uint8Array(0), key = "", cleared = true, time: Float32Array | null = null, freq: Float32Array | null = null;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
@@ -118,7 +121,11 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
         code.replaceChildren(frag);
       }
 
-      // the drawings behind the code
+      // the drawings behind the code. New code's drawings have just replaced the old: keep the last frame of the old ones (still on the canvas) to fade out over them
+      if (st.swaps !== seenSwaps) {
+        seenSwaps = st.swaps;
+        if (sctx) { if (snap.width !== w || snap.height !== h) { snap.width = w; snap.height = h; } sctx.clearRect(0, 0, w, h); sctx.drawImage(canvas, 0, 0); swapT = 0; picLog("strudel drawings crossfade", { s: SWAP_S }); }
+      }
       ctx.clearRect(0, 0, w, h);
       if (st.specs.length) {
         const needsSound = st.specs.some((s) => s.name === "scope" || s.name === "tscope" || s.name === "fscope" || s.name === "spectrum");
@@ -133,6 +140,11 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
         };
         painter.paint(ctx, lanes(st.specs, w, h), env);
       } else painter.reset();
+      if (swapT < SWAP_S) {
+        swapT += dt;
+        const k = Math.min(1, swapT / SWAP_S);
+        if (k < 1 && snap.width === w && snap.height === h) { ctx.globalAlpha = 1 - k * k * (3 - 2 * k); ctx.drawImage(snap, 0, 0); ctx.globalAlpha = 1; }
+      }
     };
     raf = requestAnimationFrame(loop);
     return () => { picLog("strudel view unmount"); cancelAnimationFrame(raf); ro.disconnect(); };
