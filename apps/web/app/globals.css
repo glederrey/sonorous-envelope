@@ -18,7 +18,7 @@
   --field-a: #22343a;
   --field-b: #3a2c24;
   --scrim: rgba(8, 10, 14, 0.72);
-  --scrim-panel: rgba(8, 10, 14, 0.92);
+  --scrim-panel: rgba(8, 10, 14, 0.8);
   --scrim-line: rgba(255, 255, 255, 0.14);
   --on-scrim: #f2f4f7;
   --on-scrim-muted: #c8ced6;
@@ -45,7 +45,7 @@
   --field-a: #e4edef;
   --field-b: #f0e8e1;
   --scrim: rgba(255, 255, 255, 0.82);
-  --scrim-panel: rgba(255, 255, 255, 0.92);
+  --scrim-panel: rgba(255, 255, 255, 0.8);
   --scrim-line: rgba(18, 21, 26, 0.14);
   --on-scrim: #12151a;
   --on-scrim-muted: #3f4753;
@@ -70,7 +70,7 @@
     --field-a: #e4edef;
     --field-b: #f0e8e1;
     --scrim: rgba(255, 255, 255, 0.82);
-    --scrim-panel: rgba(255, 255, 255, 0.92);
+    --scrim-panel: rgba(255, 255, 255, 0.8);
     --scrim-line: rgba(18, 21, 26, 0.14);
     --on-scrim: #12151a;
     --on-scrim-muted: #3f4753;
