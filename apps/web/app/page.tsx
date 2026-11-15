@@ -113,7 +113,6 @@ export default async function Home() {
               <p className="se-muted">You ask for anything and the model performs it, and says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
             </li>
           </ul>
-          <p className="lp-modes-more"><a href="/modes">More about the modes</a></p>
         </section>
 
         <section className="lp-loop" id="engines">

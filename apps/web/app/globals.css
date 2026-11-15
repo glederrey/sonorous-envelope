@@ -581,9 +581,6 @@ html:has(.pl-field) .se-header {
 .lp-ways.lp-ways-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.lp-modes-more {
-  margin: 24px 0 0;
-}
 .md-table {
   width: 100%;
   border-collapse: collapse;
