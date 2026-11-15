@@ -497,6 +497,10 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   if (now - new Date(prev.created_at).getTime() < MIN_GAP_MS) throw new ToolError("too_fast", "Wait a moment between updates.");
+  const { count, error: cerr } = await db.from("states").select("id", { count: "exact", head: true })
+    .eq("session_id", session.id).gte("created_at", new Date(now - 60_000).toISOString());
+  if (cerr) fail("check the update rate", cerr);
+  if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
 
   const final = input.final || Boolean(input.end);
   const turn = planTurn(prev, final, now);
