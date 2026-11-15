@@ -31,8 +31,49 @@ const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 /** A DrawHap as the Hap `__pianoroll` reads: a begin in cycles, an end, a duration, a value. Tags are filtered before the call. */
 const asHap = (h: DrawHap) => ({ whole: { begin: h.c }, endClipped: h.c + h.l, duration: h.l, value: h.v, hasTag: () => true });
 
+const CHROMA: Record<string, number> = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+/** Strudel's `getValue` of pianoroll.mjs for a plain event value: the row it sits on. A number is a midi note (`freq` is converted, a note name too, an unreadable one is 0), a string is `_` + the sound name; null when it has neither. */
+export function rowValue(v: Record<string, Prim>): number | string | null {
+  if (v.freq) return (12 * Math.log(Number(v.freq) / 440)) / Math.LN2 + 69;
+  const note = v.note ?? v.n;
+  if (typeof note === "string") {
+    const m = /^([a-gA-G])([#bsf]*)(-?[0-9]*)$/.exec(note);
+    if (!m) return 0;
+    const acc = [...m[2]].reduce((o, c) => o + (c === "#" || c === "s" ? 1 : -1), 0);
+    return ((m[3] ? Number(m[3]) : 3) + 1) * 12 + CHROMA[m[1].toLowerCase()] + acc;
+  }
+  if (typeof note === "number") return note;
+  return v.s ? `_${v.s}` : null;
+}
+
+/** The most rows a lane remembers. */
+export const MAX_ROWS = 128;
+/** Where the ghost events sit in time: far outside any view, so they draw nothing. */
+const GHOST_AT = 1e9;
+
+/** Add the rows of `draws` to `seen` (row value -> a stripped value that gives that row again), up to MAX_ROWS. */
+export function rememberRows(seen: Map<number | string, Record<string, Prim>>, draws: DrawHap[]) {
+  for (const d of draws) {
+    if (seen.size >= MAX_ROWS) return;
+    const r = rowValue(d.v);
+    if (r === null || seen.has(r)) continue;
+    const keep: Record<string, Prim> = {};
+    for (const k of ["freq", "note", "n", "s"]) if (d.v[k] !== undefined) keep[k] = d.v[k];
+    seen.set(r, keep);
+  }
+}
+
+/** One event per remembered row that `events` leave out, far off in time. Handed to `__pianoroll` with the real events, they keep the rows of its folded view where they were. */
+export function ghostHaps(seen: Map<number | string, Record<string, Prim>>, events: DrawHap[]): DrawHap[] {
+  const here = new Set(events.map((d) => rowValue(d.v)));
+  const out: DrawHap[] = [];
+  for (const [r, v] of seen) if (!here.has(r)) out.push({ c: GHOST_AT, l: 0, v: { ...v }, loc: [], viz: [] });
+  return out;
+}
+
 export class Painter {
   private canvases = new Map<string, HTMLCanvasElement>();
+  private rows = new Map<string, Map<number | string, Record<string, Prim>>>();
   private canvasFor(key: string, w: number, h: number, keep = false): CanvasRenderingContext2D | null {
     let cv = this.canvases.get(key);
     if (!cv) { cv = document.createElement("canvas"); this.canvases.set(key, cv); }
@@ -40,7 +81,7 @@ export class Painter {
     return cv.getContext("2d");
   }
   /** Forget the lane canvases (a new code, or a different set of drawings). */
-  reset() { this.canvases.clear(); }
+  reset() { this.canvases.clear(); this.rows.clear(); }
 
   paint(ctx: CanvasRenderingContext2D, lanes: Lane[], env: Env) {
     for (const lane of lanes) {
@@ -57,11 +98,19 @@ export class Painter {
           // punchcard folds the rows, wordfall is a vertical roll with labels (the same presets as Strudel's)
           const preset = lane.spec.name === "wordfall" ? { fold: 1, vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "#ffffff" } : lane.spec.name === "punchcard" ? { fold: 1 } : {};
           const merged = { ...preset, ...o } as Record<string, Prim>;
+          // With the rows folded, Strudel makes one row per value in the window, so rows come and go and every bar jumps. The lane remembers the rows it has seen and passes the missing ones as events far off in time: the rows stay where they are, an empty one stays empty.
+          let ghosts: DrawHap[] = [];
+          if ((merged.fold === undefined || merged.fold) && !merged.autorange && merged.minMidi === undefined && merged.maxMidi === undefined) {
+            let seen = this.rows.get(key);
+            if (!seen) { seen = new Map(); this.rows.set(key, seen); }
+            rememberRows(seen, env.draws.filter((d) => d.viz.includes(lane.spec.id)));
+            ghosts = ghostHaps(seen, events);
+          }
           // a label that would come out tiny or wider than its bar is left off (readable on a phone, instead of a smudge)
-          if (merged.labels) events = hideTinyLabels(events, { vertical: Boolean(merged.vertical), fold: merged.fold === undefined ? true : Boolean(merged.fold), minMidi: num(merged, "minMidi", 10), maxMidi: num(merged, "maxMidi", 90), timeExtent: cycles }, w, h, 11 * env.dpr);
+          if (merged.labels) events = hideTinyLabels([...events, ...ghosts], { vertical: Boolean(merged.vertical), fold: merged.fold === undefined ? true : Boolean(merged.fold), minMidi: num(merged, "minMidi", 10), maxMidi: num(merged, "maxMidi", 90), timeExtent: cycles }, w, h, 11 * env.dpr).slice(0, events.length);
           __pianoroll({
             active: env.accent.active, inactive: env.accent.inactive, playheadColor: env.accent.head,
-            ...merged, cycles, playhead, time: t, haps: events.map(asHap), ctx: c, id: undefined,
+            ...merged, cycles, playhead, time: t, haps: [...events, ...ghosts].map(asHap), ctx: c, id: undefined,
           });
           ctx.globalAlpha = lane.spec.inline ? 0.92 : 0.7; ctx.drawImage(c.canvas, x, y); ctx.globalAlpha = 1; // behind the code, a little softer so the code reads
           break;
