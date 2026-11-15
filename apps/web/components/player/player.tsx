@@ -647,7 +647,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             debug={debug ? <>
               <p className="pl-local se-sm pl-debug" role="status">{dbgText}{strudel.current ? `\n${strudel.current.statsLine()}` : ""}</p>
               <p className="pl-local se-sm pl-debug" role="status">
-                {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}, session type ${audio.current?.audioSessionType ?? "n/a"}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
+                {`Live: engine ${audio.current?.state ?? "not started"}, keep-alive ${audio.current ? (audio.current.keepAlivePlaying ? "playing" : "paused") : "n/a"}${audio.current && audio.current.audioSessionType !== "not supported" ? `, iOS audio session ${audio.current.audioSessionType}` : ""}.\n${audio.current?.events.slice(-8).join("\n") ?? ""}`}
               </p>
             </> : null}
             midTurn={midTurn}

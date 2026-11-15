@@ -219,8 +219,11 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         if (lvlKey !== key) {
           quietBefore = prevTarget === 0; prevTarget = target01;
           dbg("level", { from: +(lvl < 0 ? target01 : lvl).toFixed(2), to: target01, span: +span.toFixed(2), delay, afterSilence: quietBefore });
-          ramp0 = lvlAt === s.at ? tau : 0;
+          const sameAt = lvlAt === s.at;
           lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; lvlKey = key; rampStart = null;
+          // A fade in from nothing starts when the state arrives here, not when it was written: a state that arrives a second late would
+          // otherwise pop in at a third of its level (v0.19.2 tests, test 8: tau 1.28 s at arrival, level 0 to 0.39 in one frame).
+          ramp0 = sameAt ? tau : lvlFrom < 0.05 && target01 === 1 ? Math.max(0, tau - delay) : 0;
           fadeMin = lvlFrom < 0.05 && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern) ? SCENE_FADE_IN : 1;
           // Strudel comes in on the next bar: when the picture fades in from silence it waits for that bar, so it starts with the music
           const fromQuiet = lvlFrom < 0.5 && target01 === 1 && s.state.engine === "strudel" && Boolean(s.state.pattern);
@@ -228,6 +231,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         }
         if (hold !== null && rampStart === null) { if (target >= hold) rampStart = tau; }
         const p = hold !== null ? (rampStart === null ? 0 : Math.min(1, Math.max(0, (tau - rampStart) / span))) : Math.min(1, Math.max(0, (tau - ramp0 - delay) / span));
+        const lvlShown = Math.max(0, lvl); // the level painted last frame: an old scene that is kept fades out from there
         lvl = lvlFrom + (target01 - lvlFrom) * (p * p * (3 - 2 * p));
         if (lvl < 0.003) lvl = 0;
         const { levelOut: lo, beatsOut: bo, strudelView: sv } = live.current;
@@ -245,13 +249,15 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         if (lvl === 0) { curSig = null; curScene = null; fromScene = null; }
         // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.
         const sig = `${c.scene ?? "none"}|${c.density ?? 0.4}|${c.speed ?? 0.4}`;
-        if (sig !== curSig) {
+        if (lvl > 0 && sig !== curSig) { // nothing shows at level 0: no scene starts there (it logged and counted a new scene every frame of a silence)
           if (curSig !== null && curScene) {
             const fading = fromScene !== null && (now - fadeStart) / 1000 < fadeDur * 0.5; // changed again early in a fade: keep fading out the first
-            if (!fading) { fromScene = curScene; oldLvl = Math.min(1, lvl); } // the old scene starts from the level it had now
+            // The old scene fades out from the level it was painted at last frame, not the new state's level (it showed at 0.39 when it had
+            // faded to almost nothing, v0.19.2 tests); one that had all but faded out is dropped.
+            if (!fading) { if (lvlShown < 0.05) fromScene = null; else { fromScene = curScene; oldLvl = Math.min(1, lvlShown); } }
             // after a silence the old scene is only what was fading out with the sound: it finishes at once, so it never shows under the new one
             fadeStart = now; fadeDur = quietBefore ? 0.6 : Math.min(8, Math.max(1.5, tr.time));
-            dbg("scene", { from: curScene.scene, to: c.scene ?? "none", fade: +fadeDur.toFixed(2), level: +lvl.toFixed(2), kept: !fading });
+            dbg("scene", { from: curScene.scene, to: c.scene ?? "none", fade: +fadeDur.toFixed(2), level: +lvlShown.toFixed(2), kept: fromScene !== null });
           } else if (curSig === null) dbg("scene", { from: null, to: c.scene ?? "none", level: +lvl.toFixed(2) });
           if (curScene?.scene !== (c.scene ?? "none")) epochs++; // a scene that starts is a new epoch: the sunbeam rolls a new lean
           curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed, epoch: epochs };

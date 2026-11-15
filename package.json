@@ -11,6 +11,7 @@
     "emails": "node emails/build.mjs",
     "samples:loudness": "esbuild scripts/sample-loudness.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/sample-loudness.mjs --log-level=warning && node node_modules/.cache/sample-loudness.mjs",
     "calibrate": "esbuild scripts/calibrate-analysis.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/calibrate.mjs --log-level=warning && node node_modules/.cache/calibrate.mjs",
+    "fit-warmth": "esbuild scripts/fit-warmth.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/fit-warmth.mjs --log-level=warning && node node_modules/.cache/fit-warmth.mjs",
     "render:moods": "esbuild scripts/render-moods.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/render-moods.mjs --log-level=warning && node node_modules/.cache/render-moods.mjs"
   },
   "devDependencies": {

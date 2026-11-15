@@ -1,6 +1,7 @@
 import { clone } from "./util";
 import { mulberry32, neutralState, noteToMidi, type EngineState, type ResolvedColour, type ScaleName, type Wave } from "@sonorous/engine";
 import type { Colour, Mood, SynthOverride, Voice } from "./schemas";
+import { WAVE_ORDER, waveIndex } from "./voice-band";
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -128,7 +129,7 @@ const ramp = (x: number, lo: number, hi: number) => clamp((x - lo) / (hi - lo));
 /** The scene the mood suggests when the model sets none (visuals.md, "Emotions in the picture"): the emotion regions of the five axes and
  *  tension, each with the scene that carries it. Fuzzy, so neighbouring moods get neighbouring pictures; the strongest region wins, and a
  *  mood that fits none well (the middle of every axis) gets no scene. The form of each scene then follows the same axes (`feel`). */
-export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene"]>; density: number; speed: number } | null {
+export function moodToScene(m: Mood, minScore = 0.3): { scene: NonNullable<ResolvedColour["scene"]>; density: number; speed: number } | null {
   const { warmth: w, closeness: c, joy: j, calm: k, spontaneity: s2 } = m, t = clamp(m.tension ?? 0);
   const lowJoy = 1 - ramp(j, 0.2, 0.45), calm = ramp(k, 0.35, 0.65), notTense = 1 - ramp(t, 0.3, 0.6);
   const anger = ramp(t, 0.35, 0.65) * (1 - ramp(j, 0.45, 0.7)) * (1 - ramp(k, 0.5, 0.75));
@@ -165,7 +166,7 @@ export function moodToScene(m: Mood): { scene: NonNullable<ResolvedColour["scene
   ];
   let best = score[0];
   for (const x of score) if (x[1] > best[1]) best = x;
-  if (best[1] < 0.3) return null;
+  if (best[1] < minScore || best[1] <= 0) return null;
   // Coarse steps: a scene's motion is a rate times the beat count, so a small drift of the mood between two messages must not move every item.
   const q = (x: number) => clamp(Math.round(x * 4) / 4, 0.25, 0.9);
   return { scene: best[0], density: q(0.2 + 0.55 * best[1]), speed: q(lerp(0.8, 0.12, k) + 0.15 * t) };
@@ -253,7 +254,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
   const rate = k > 0.75 ? "1/4" : k > 0.45 ? (s > 0.6 ? "1/8t" : "1/8") : "1/16";
   const drive = 0.8 * (Math.max(0, 0.6 - j) / 0.6) * (Math.max(0, 0.6 - k) / 0.6) * (Math.max(0, 0.9 - w) / 0.9);
   const cutoff = Math.pow(2, lerp(Math.log2(400), Math.log2(6000), 0.5 * (1 - w) + 0.35 * j + 0.15 * (1 - k)));
-  const wave: Wave = w > 0.66 ? "sine" : w > 0.4 ? "triangle" : w > 0.2 ? "sawtooth" : "square";
+  const wave: Wave = WAVE_ORDER[waveIndex(w)]; // four even bands of the sent warmth (voice-band.ts)
 
   // LFOs
   const lfo: EngineState["lfo"] = [{
