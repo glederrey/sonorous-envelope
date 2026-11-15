@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, normalizeFace, parsePolicy } from "./modes";
-import { guidanceUpdate } from "./service";
+import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, MODE_ID, normalizeFace, parsePolicy } from "./modes";
+import { guidanceUpdate, patternSceneMotion } from "./service";
 
 const base = { policy: "auto" as const, current: "internal" as const, requested: "external" as const };
 
@@ -8,6 +8,10 @@ describe("modes", () => {
   it("reads old names and labels", () => {
     expect(normalizeFace("outer")).toBe("external");
     expect(normalizeFace("inner")).toBe("internal");
+    expect(normalizeFace("self")).toBe("internal");
+    expect(normalizeFace("Self")).toBe("internal");
+    expect(normalizeFace("internal")).toBe("internal");
+    expect(normalizeFace("external")).toBe("external");
     expect(normalizeFace("attuned")).toBe("external");
     expect(normalizeFace("jukebox")).toBe("sandbox");
     expect(normalizeFace("sandbox")).toBe("sandbox");
@@ -52,9 +56,15 @@ describe("modes", () => {
     expect(effectiveRestAfter(null, "internal")).toBeNull();
   });
   it("tells the model the mode and when it is locked", () => {
-    expect(faceLine("internal", "auto")).toBe("internal (Self)");
-    expect(faceLine("external", "external")).toBe("external (Attuned), locked by the owner");
-    expect(faceLine("sandbox", "sandbox")).toBe("sandbox (Jukebox), locked by the owner");
+    expect(faceLine("internal", "auto")).toBe("Self");
+    expect(faceLine("external", "external")).toBe("Attuned, locked by the owner");
+    expect(faceLine("sandbox", "sandbox")).toBe("Jukebox, locked by the owner");
+  });
+  it("names the modes with the labels only, and the ids the model sends round-trip", () => {
+    expect(faceName("external")).toBe("Attuned");
+    expect(faceName("sandbox")).toBe("Jukebox");
+    expect(MODE_ID).toEqual({ internal: "self", external: "attuned", sandbox: "jukebox" });
+    for (const f of ["internal", "external", "sandbox"] as const) expect(normalizeFace(MODE_ID[f])).toBe(f);
   });
 });
 
@@ -71,5 +81,14 @@ describe("guidanceUpdate", () => {
   });
   it("a session from before the migration records the mode and sends nothing", () => {
     expect(guidanceUpdate({ guided: null, face: "external", switched: false })).toEqual({ send: false, ownerChanged: false, store: "external" });
+  });
+});
+
+describe("patternSceneMotion", () => {
+  it("takes the speed of the picture from the tempo, clamped", () => {
+    expect(patternSceneMotion(60)).toEqual({ speed: 0.2, density: 0.5 });
+    expect(patternSceneMotion(30).speed).toBe(0.2);
+    expect(patternSceneMotion(135).speed).toBeCloseTo(0.7);
+    expect(patternSceneMotion(200).speed).toBe(0.9);
   });
 });

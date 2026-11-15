@@ -86,8 +86,8 @@ describe("MCP tools", () => {
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("voice");
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("rest_after");
     expect(tool("silence").inputSchema.properties).toHaveProperty("end");
-    expect(tool("set_sound").inputSchema.properties.mode.enum).toEqual(["internal", "external", "sandbox"]);
-    expect(tool("start_session").inputSchema.properties.mode.enum).toContain("sandbox");
+    expect(tool("set_sound").inputSchema.properties.mode.enum).toEqual(["self", "attuned", "jukebox"]);
+    expect(tool("start_session").inputSchema.properties.mode.enum).toEqual(["auto", "self", "attuned", "jukebox"]);
     expect(tool("start_session").inputSchema.properties).toHaveProperty("voice");
     expect(synth.lfo.items.properties.rate.description).toMatch(/stay until you change them.*\[\]/);
     expect(tool("set_sound").inputSchema.properties.colour.description).toMatch(/stays until you change it/);

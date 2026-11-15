@@ -26,7 +26,15 @@ export function mergeSticky(prev: Sticky | null | undefined, input: { colour?: C
       const keep = defined({ scene: c.scene, density: c.density, speed: c.speed, sync: c.sync });
       if (Object.keys(keep).length) s.colour = keep; else delete s.colour;
     }
-    else s.colour = { ...(s.colour ?? {}), ...defined(c) };
+    else {
+      const kept = { ...(s.colour ?? {}) };
+      // a new picture decides its own density and speed from the mood, unless this call sends them: the old picture's stay no longer
+      if (c.scene !== undefined && c.scene !== kept.scene) {
+        if (c.density === undefined) delete kept.density;
+        if (c.speed === undefined) delete kept.speed;
+      }
+      s.colour = { ...kept, ...defined(c) };
+    }
   }
   const stack = input.synth?.osc?.stack;
   if (stack !== undefined) { if (stack.length) s.stack = [...stack]; else delete s.stack; }
