@@ -633,6 +633,12 @@ html:has(.pl-field) .se-header {
 .md-facts > div { padding: 10px 0; border-top: 1px solid var(--line); }
 .md-facts dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); }
 .md-facts dd { margin: 2px 0 0; font-size: 15px; line-height: 1.5; }
+/* wide screens: the rows of the three cards line up (title, line, then each fact) */
+@media (min-width: 861px) {
+  .md-modes { grid-template-rows: repeat(7, auto); row-gap: 0; }
+  .md-mode { display: grid; grid-row: span 7; grid-template-rows: subgrid; }
+  .md-facts { display: grid; grid-row: span 4; grid-template-rows: subgrid; margin: 0; }
+}
 .md-section { margin-top: 80px; }
 .md-sub { margin: 8px 0 0; }
 .md-scene {
