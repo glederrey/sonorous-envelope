@@ -249,8 +249,8 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
     joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
-    calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["brightness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
-    warmth: explain([["brightness", 0.345, 1 - c], ["high_frequencies", 0.11, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.62, 1 - f.roughness]]),
+    calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["darkness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
+    warmth: explain([["darkness", 0.345, 1 - c], ["high_frequencies", 0.11, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.62, 1 - f.roughness]]),
     closeness: explain([["narrow_width", 1.12, 1 - f.width], ["dryness", 0.13, 1 - f.tailRatio], ["roughness", 0.19, f.roughness]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };

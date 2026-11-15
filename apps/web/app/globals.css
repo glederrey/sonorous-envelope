@@ -1333,9 +1333,8 @@ html:has(.pl-field) .se-header {
 .pl-seg { display: flex; gap: 4px; }
 .pl-seg-btn { flex: 1; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
-/* the mode in effect while the owner's choice is another (Auto): a ring and a dot, lighter than the filled choice; it moves when the model switches */
-.pl-seg-btn[data-active="true"]:not([aria-checked="true"]) { position: relative; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--glow, var(--tide)) 70%, transparent); }
-.pl-seg-btn[data-active="true"]:not([aria-checked="true"])::after { content: ""; position: absolute; top: 5px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--glow, var(--tide)); }
+/* the mode in effect while the owner's choice is another (Auto): a teal ring and teal text (the cool accent, the owner's side of the warm-to-cool scale), so it never reads as the orange choice; it moves when the model switches */
+.pl-seg-btn[data-active="true"]:not([aria-checked="true"]) { box-shadow: inset 0 0 0 2px var(--accent-cool); color: var(--tide); font-weight: 600; }
 
 /* a setting: its name and explanation on the left, the control on the right, centred on the whole text */
 .pl-setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding: 12px 0; }

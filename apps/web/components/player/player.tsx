@@ -214,6 +214,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       // does not count it as sounding.
       const { engine: _engine, pattern: _pattern, ...rest } = p.state;
       const state: EngineState = { ...rest, volume: 0, transition: { time: 3, curve: "smooth" } };
+      // Without its pattern the state counts its beats at the synth's tempo, not the pattern's: the beat the picture reads would jump, and the
+      // drawings (placed by it) would vanish at once while the code fades. Its beat count starts where the pattern's was.
+      const age = Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000), grid = { arp: 0, bass: 0, ...rest.grid };
+      state.grid = { ...grid, beat: beatsAt(p.state, age) - beatsAt({ ...state, grid: { ...grid, beat: 0 } }, age) };
       latest.current = { ...p, state }; // this is now the state that plays here: allowing Strudel again must not bring the synth fields back
       setPlaying({ ...p, state });
       runEngine({ ...p, state }, 0, Math.max(0, (Date.now() + clockOffset.current - p.at) / 1000));

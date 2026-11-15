@@ -5,6 +5,7 @@ import { beatsAt, tempoAt, type EngineState, type ResolvedColour } from "@sonoro
 import { blendColour, drawFrame, EMPTY_FRAME, GLYPHS, hslToRgb, scaleFrame, type Frame, type SceneName } from "@sonorous/shared";
 import { BeatClock } from "../../lib/beat-clock";
 import { isSounding } from "../../lib/sounding";
+import { picLog } from "../../lib/debug";
 
 // The moving part of the colour field (docs/visuals.md): a canvas over the CSS gradient. It reads the beat from the shared timeline,
 // asks the pure frame model (`drawFrame`, which also applies the flash budget) what to draw, and paints it. Nothing here decides how
@@ -56,13 +57,14 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
     const ctx = cv?.getContext("2d");
     if (!cv || !ctx) { live.current.onFail(); return; }
     const clock = new BeatClock();
-    // Dev only: what the picture sees when a session ends (docs/archive/visuals-test-brief-v0.17.1.md, D17): a mount, a new state and a jump of the beat show here
-    const dbg = process.env.NODE_ENV !== "production" ? (...a: unknown[]) => console.debug("[picture]", ...a) : () => {};
+    // With `?debug` in the address: what the picture sees (a mount, a new state, a jump of the beat, the scenes and the fades), as `[picture]` lines
+    const dbg = picLog;
     let dbgAt = 0, dbgBeats = 0; dbg("mount");
     let raf = 0, scale = SCALE_START, w = 1, h = 1, last = 0, ema = 16, wasEmpty = true, failed = false;
     let epochs = 0, curSig: string | null = null, curScene = null as SceneSpec | null, fromScene = null as SceneSpec | null, fadeStart = 0, fadeDur = 1.5, oldLvl = 1; // the scene being replaced fades out while the new one fades in
     let shown: ResolvedColour | null = null, fromC: ResolvedColour | null = null, colAt = 0; // the colour the picture is drawn from: it glides from the colour before to the state's own over its transition
     let fadeMin = 1; // the shortest fade for the state now playing
+    let prevTarget = -1, quietBefore = false; // the level the last state aimed for, and whether the state now playing came after a silence
     let lvl = -1, lvlFrom = 1, lvlAt = 0, hold: number | null = null, rampStart: number | null = null, lvlKey = "", ramp0 = 0; // how much of the picture shows: it fades out with the sound after silence, and back in with the next sound
 
     const resize = () => {
@@ -215,6 +217,8 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         // from the level shown now. For the same `at` it starts now, not at the time the state was written (that was long ago: no fade at all).
         const key = `${s.at}|${target01}`;
         if (lvlKey !== key) {
+          quietBefore = prevTarget === 0; prevTarget = target01;
+          dbg("level", { from: +(lvl < 0 ? target01 : lvl).toFixed(2), to: target01, span: +span.toFixed(2), delay, afterSilence: quietBefore });
           ramp0 = lvlAt === s.at ? tau : 0;
           lvlFrom = lvl < 0 ? target01 : lvl; lvlAt = s.at; lvlKey = key; rampStart = null;
           fadeMin = lvlFrom < 0.05 && target01 === 1 && !(s.state.engine === "strudel" && s.state.pattern) ? SCENE_FADE_IN : 1;
@@ -245,8 +249,10 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
           if (curSig !== null && curScene) {
             const fading = fromScene !== null && (now - fadeStart) / 1000 < fadeDur * 0.5; // changed again early in a fade: keep fading out the first
             if (!fading) { fromScene = curScene; oldLvl = Math.min(1, lvl); } // the old scene starts from the level it had now
-            fadeStart = now; fadeDur = Math.min(8, Math.max(1.5, tr.time));
-          }
+            // after a silence the old scene is only what was fading out with the sound: it finishes at once, so it never shows under the new one
+            fadeStart = now; fadeDur = quietBefore ? 0.6 : Math.min(8, Math.max(1.5, tr.time));
+            dbg("scene", { from: curScene.scene, to: c.scene ?? "none", fade: +fadeDur.toFixed(2), level: +lvl.toFixed(2), kept: !fading });
+          } else if (curSig === null) dbg("scene", { from: null, to: c.scene ?? "none", level: +lvl.toFixed(2) });
           if (curScene?.scene !== (c.scene ?? "none")) epochs++; // a scene that starts is a new epoch: the sunbeam rolls a new lean
           curSig = sig; curScene = { scene: c.scene ?? "none", density: c.density, speed: c.speed, epoch: epochs };
         }

@@ -18,7 +18,9 @@ for (const name of ["indexedDB", "caches", "Worker", "SharedWorker", "XMLHttpReq
 // the clock: audio-context time of "now", from the page's last sync
 let clock = { ctxTime: 0, epochMs: Date.now(), cycle: 0 };
 let seq = 0;
-let cps = 0.5, loop: ReturnType<typeof setInterval> | null = null, run = 0;
+let cps = 0.5, loop: ReturnType<typeof setInterval> | null = null, run = 0, halt = 0;
+/** Asks the loop that plays to finish at a time on the page's clock (the next bar): new code takes over from there, without a gap. */
+let endLoop: ((until: number) => void) | null = null;
 
 function mulberry32(a: number) {
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -112,11 +114,13 @@ function friendly(msg: string): string {
   return msg;
 }
 
-function stopLoop() { if (loop) clearInterval(loop); loop = null; run++; }
+function stopLoop() { if (loop) clearInterval(loop); loop = null; endLoop = null; halt++; run++; }
 
 async function play(m: { seq?: number; code: string; bpm: number; seed: number; ctxTime: number; epochMs: number; cycle: number }) {
-  stopLoop();
-  const mine = run;
+  // New code while a pattern plays: the old one goes on until the next bar and the new one starts there (a stop now would leave a gap)
+  endLoop?.(m.ctxTime + (Math.ceil(m.cycle + 0.05) - m.cycle) / (m.bpm / 240));
+  endLoop = null; loop = null;
+  const mine = ++run;
   seq = typeof m.seq === "number" ? m.seq : 0;
   const mySeq = seq;
   notes.length = 0;
@@ -163,24 +167,30 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
     };
     let drawFrom = Math.max(0, clock.cycle), drawSeen = 0, drawAt = 0, sentSpecs = specs.length;
     let from = start; // the first cycle boundary we may play (the next bar)
-    loop = setInterval(() => {
-      if (mine !== run) return;
+    const myCps = cps, myHalt = halt;
+    let ends = Infinity, own: typeof clock | null = null; // set when new code takes over: the time this pattern ends, and the clock it keeps (the page's clock now belongs to the new code)
+    endLoop = (until) => { ends = until; own = { ...clock }; };
+    const timer = setInterval(() => {
+      if (myHalt !== halt) { clearInterval(timer); return; }
       post({ kind: "alive" });
-      const now = clock.ctxTime + (Date.now() - clock.epochMs) / 1000;
-      const nowCycle = clock.cycle + (now - clock.ctxTime) * cps;
-      const to = nowCycle + 0.8 * cps; // look 800 ms ahead: a stalled main thread (a phone while its controls are used) must not run dry
-      if (to <= from) return;
+      const ck = own ?? clock, retiring = own !== null;
+      const now = ck.ctxTime + (Date.now() - ck.epochMs) / 1000;
+      const nowCycle = ck.cycle + (now - ck.ctxTime) * myCps;
+      let to = nowCycle + 0.8 * myCps; // look 800 ms ahead: a stalled main thread (a phone while its controls are used) must not run dry
+      const last = ck.cycle + (ends - ck.ctxTime) * myCps, over = to >= last;
+      if (retiring && over) to = last;
+      if (to <= from) { if (retiring && over) clearInterval(timer); return; }
       try {
-        for (const h of pattern.queryArc(from, to, { _cps: cps })) {
+        for (const h of pattern.queryArc(from, to, { _cps: myCps })) {
           if (!h.hasOnset()) continue;
           h.ensureObjectValue?.();
           const begin = h.whole.begin.valueOf();
-          post({ kind: "hap", hap: { v: sanitize(h.value), t: clock.ctxTime + (begin - clock.cycle) / cps, d: h.duration / cps, cps, cycle: begin, loc: spans(h) } });
+          post({ kind: "hap", hap: { v: sanitize(h.value), t: ck.ctxTime + (begin - ck.cycle) / myCps, d: h.duration / myCps, cps: myCps, cycle: begin, loc: retiring ? [] : spans(h) } });
         }
         // drawings: the events of the tagged patterns, several cycles ahead, in batches (never to the speakers)
-        if (specs.length !== sentSpecs) { sentSpecs = specs.length; report(); }
+        if (!retiring && specs.length !== sentSpecs) { sentSpecs = specs.length; report(); }
         const nowMs = Date.now();
-        if (specs.length && nowMs - drawAt >= 150) try { // a drawing that fails must not stop the music
+        if (!retiring && specs.length && nowMs - drawAt >= 150) try { // a drawing that fails must not stop the music
           drawAt = nowMs;
           const ahead = Math.max(...specs.map((s) => reach(s).ahead)), behind = Math.max(...specs.map((s) => reach(s).behind));
           const upTo = nowCycle + ahead;
@@ -188,7 +198,7 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
           drawSeen++;
           if (upTo > drawFrom) {
             const out: unknown[] = [];
-            for (const h of pattern.queryArc(drawFrom, upTo, { _cps: cps })) {
+            for (const h of pattern.queryArc(drawFrom, upTo, { _cps: myCps })) {
               if (!h.hasOnset()) continue;
               const ids = vizIds(h);
               if (!ids.length) continue;
@@ -208,7 +218,9 @@ async function play(m: { seq?: number; code: string; bpm: number; seed: number; 
         return;
       }
       from = to;
+      if (retiring && over) clearInterval(timer);
     }, 40);
+    loop = timer;
   } catch (e: any) {
     post({ kind: "report", seq: mySeq, report: { ok: false, error: friendly(String(e?.message ?? e)).slice(0, 200), notes: [...notes] } });
   }

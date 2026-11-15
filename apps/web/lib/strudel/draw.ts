@@ -95,8 +95,8 @@ export class Painter {
           const cycles = num(o, "cycles", 4), playhead = num(o, "playhead", 0.5), hideNegative = flag(o, "hideNegative", false);
           const from = -cycles * playhead, to = cycles * (1 - playhead), t = env.cycle;
           let events = env.draws.filter((d) => d.viz.includes(lane.spec.id) && d.c < t + to && d.c + d.l > t + from && (!hideNegative || d.c >= 0));
-          // punchcard folds the rows, wordfall is a vertical roll with labels (the same presets as Strudel's)
-          const preset = lane.spec.name === "wordfall" ? { fold: 1, vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "#ffffff" } : lane.spec.name === "punchcard" ? { fold: 1 } : {};
+          // punchcard folds the rows, wordfall is a vertical roll with labels (the same presets as Strudel's); the pianoroll has labels on by default here
+          const preset = lane.spec.name === "wordfall" ? { fold: 1, vertical: 1, labels: 1, stroke: 0, fillActive: 1, active: "#ffffff" } : lane.spec.name === "punchcard" ? { fold: 1 } : { labels: 1 }; // unless the code says `labels: 0`; hideTinyLabels drops the ones too small to read
           const merged = { ...preset, ...o } as Record<string, Prim>;
           // With the rows folded, Strudel makes one row per value in the window, so rows come and go and every bar jumps. The lane remembers the rows it has seen and passes the missing ones as events far off in time: the rows stay where they are, an empty one stays empty.
           let ghosts: DrawHap[] = [];

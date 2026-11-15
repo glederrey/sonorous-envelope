@@ -183,5 +183,9 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 - **Warp under `sync: "phrase"`:** only the core's swell follows the phrase (four bars); the rings keep their pace of one every two beats (v0.17.3 slowed them to one per phrase, and warp should feel fast).
 
 
+### v0.19.2 (2026-11-15): fixes from the v0.19.1 test
+- **Old scene under the new one after a silence.** A scene change after a silence (the state before aimed at volume 0) fades the old scene out in 0.6 s, not over the transition: what is left of it is only what was fading out with the sound, and in one run in two it still showed under the new scene's fade-in (fire under caustics, `set_sound` about 1 s after the silence, fade 4). A change between two sounding states keeps its crossfade of at least 1.5 s.
+- **`?debug`:** the picture's `[picture]` console lines (new state, level fades, scene changes, beat jumps, the Strudel view on and off) are written with `console.info` for `?debug`, `?debug=1` and `?debug=true`, in any build.
+
 ## Strudel
 While Strudel plays and the listener has "Strudel visuals" on, this picture is not drawn: the Strudel view takes its place (the canvas keeps the level and the beat for it). See [implementation/strudel.md](implementation/strudel.md), "The picture".

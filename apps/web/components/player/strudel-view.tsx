@@ -4,6 +4,7 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 import { Painter, type Env } from "../../lib/strudel/draw";
 import { fitFont, sweepOffset, lanes, litKey, litSpans, runs, tokenize, type VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
+import { picLog } from "../../lib/debug";
 
 // The picture of a Strudel state (docs/implementation/strudel.md, "The picture"): the model's code fills the background, the parts that
 // sound light up as they sound, and the drawings the code asked for (`.pianoroll()`, `.scope()`...) are drawn behind it. It replaces the
@@ -49,6 +50,7 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       seenCode = ""; // the font is set again
     };
+    picLog("strudel view mount");
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
@@ -64,11 +66,11 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       // Fading out, the content goes black first (about 0.3 s), then the black view fades over OUT_S, so the scene or the field behind comes
       // up from black whether a silence came first (strudel_mode off) or the synth state arrived straight away.
       if (on) {
-        if (!wasOn) { op0 = op; onT = 0; inT = 0; if (level.current < 0.05) op = 1; }
+        if (!wasOn) { op0 = op; onT = 0; inT = 0; if (level.current < 0.05) op = 1; picLog("strudel view on", { opacity: +op0.toFixed(2), level: +level.current.toFixed(2) }); }
         if (op < 1) { onT += dt; const k = Math.min(1, onT / BLACK_S); op = op0 + (1 - op0) * k * k * (3 - 2 * k); if (k >= 1) op = 1; }
         if (op === 1) inT += dt;
       } else {
-        if (wasOn) { outT = 0; out0 = op; }
+        if (wasOn) { outT = 0; out0 = op; picLog("strudel view off", { opacity: +op.toFixed(2), level: +level.current.toFixed(2) }); }
         outT += dt;
         const k = Math.min(1, outT / OUT_S);
         op = out0 * (1 - k * k * (3 - 2 * k));
@@ -133,7 +135,7 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       } else painter.reset();
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => { picLog("strudel view unmount"); cancelAnimationFrame(raf); ro.disconnect(); };
   }, [level, beats, opacity]);
 
   return (

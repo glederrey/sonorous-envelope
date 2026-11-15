@@ -370,15 +370,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(seen.face_changes).toHaveLength(4);
   });
 
-  it("the first sound becomes the voice: a different mood later keeps the root and the wave", async () => {
+  it("the first sound becomes the voice: a different mood later keeps the root, and the wave follows warmth", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const sad = { warmth: 0.2, closeness: 0.3, joy: 0.1, calm: 0.3, spontaneity: 0.4 };
     const glad = { warmth: 0.9, closeness: 0.8, joy: 0.95, calm: 0.7, spontaneity: 0.6 };
     const a = await svc.setSound(dbA, A, { session_id, mood: sad, final: true } as never, tick(25_000));
     expect((a.notes as string[]).join(" ")).toMatch(/first sound is now your voice/);
     const b = await svc.setSound(dbA, A, { session_id, mood: glad, final: true } as never, tick(25_000));
-    const key = (r: Record<string, unknown>) => { const p = r.playing as { scale: string; wave: string }; return `${p.scale.split(" ")[0]}/${p.wave}`; }; // root and wave
+    const key = (r: Record<string, unknown>) => (r.playing as { scale: string }).scale.split(" ")[0]; // the root
     expect(key(b)).toBe(key(a));
+    expect((a.playing as { wave: string }).wave).toBe("square"); expect((b.playing as { wave: string }).wave).toBe("sine"); // warmth 0.2 (stretched below 0.2: square) then 0.9
     expect((b.notes as string[] | undefined ?? []).join(" ")).not.toMatch(/first sound is now/);
   });
 
@@ -586,7 +587,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000)); // Strudel after a silence: the synth under it stays at volume 0
       expect(state(session_id).volume).toBe(0);
       const off = await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(5000));
-      expect(JSON.stringify(off.notes)).toMatch(/its state is silent/);
+      expect(JSON.stringify(off.notes)).toMatch(/back on the synth, silent/);
     });
 
     it("a call after the session ended says session_ended", async () => {
