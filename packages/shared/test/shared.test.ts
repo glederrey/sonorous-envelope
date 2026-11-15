@@ -632,14 +632,16 @@ describe("voice bands: the scale mode of an auto-drawn voice follows joy, with h
 
 describe("wave bands: the wave of an auto-drawn voice follows warmth, with hysteresis", () => {
   it("one wave per band, the same edges as the mapping", () => {
-    expect([0.1, 0.3, 0.5, 0.9].map((w) => nextWaveBand(undefined, w))).toEqual(["square", "sawtooth", "triangle", "sine"]);
-    for (const w of [0.05, 0.25, 0.45, 0.7, 0.95]) expect(nextWaveBand(undefined, w)).toBe(moodToEngineState({ ...neutral, warmth: w }).osc.wave);
+    // even bands of the sent warmth (0.25, 0.5, 0.75): stretched, 0.1, 0.5 and 0.9, lower edge included
+    expect([0.05, 0.3, 0.5, 0.9].map((w) => nextWaveBand(undefined, w))).toEqual(["square", "sawtooth", "triangle", "sine"]);
+    expect([0.2, 0.3, 0.5, 0.8].map((w) => nextWaveBand(undefined, stretchMood({ ...neutral, warmth: w }).warmth))).toEqual(["square", "sawtooth", "triangle", "sine"]);
+    for (const w of [0.05, 0.25, 0.45, 0.5, 0.7, 0.95]) expect(nextWaveBand(undefined, w)).toBe(moodToEngineState({ ...neutral, warmth: w }).osc.wave);
   });
   it("does not flip back and forth at the edges", () => {
-    let b = nextWaveBand("triangle", 0.72); expect(b).toBe("sine");
-    for (const w of [0.64, 0.7, 0.62, 0.68]) { b = nextWaveBand(b, w); expect(b).toBe("sine"); }
-    expect(nextWaveBand(b, 0.6)).toBe("triangle");
-    expect(nextWaveBand("triangle", 0.38)).toBe("triangle"); expect(nextWaveBand("triangle", 0.34)).toBe("sawtooth");
+    let b = nextWaveBand("triangle", 0.97); expect(b).toBe("sine"); // up past the edge plus the margin (0.95)
+    for (const w of [0.87, 0.9, 0.86, 0.88]) { b = nextWaveBand(b, w); expect(b).toBe("sine"); }
+    expect(nextWaveBand(b, 0.84)).toBe("triangle");
+    expect(nextWaveBand("triangle", 0.46)).toBe("triangle"); expect(nextWaveBand("triangle", 0.44)).toBe("sawtooth");
   });
   it("can cross every band at once", () => {
     expect(nextWaveBand("sine", 0.05)).toBe("square"); expect(nextWaveBand("square", 0.95)).toBe("sine");

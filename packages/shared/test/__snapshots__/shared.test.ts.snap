@@ -17,7 +17,7 @@ exports[`mood mapping > matches snapshots for the reference moods 1`] = `
     "rate": "1/8",
     "scale": "minor",
     "tempo": 101,
-    "wave": "square",
+    "wave": "sawtooth",
   },
   "despairCalm": {
     "arp": true,

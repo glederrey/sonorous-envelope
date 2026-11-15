@@ -7,10 +7,11 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
+import { appVersion } from "../version";
 import { ENDED_AFTER_S } from "../session-status";
 import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, MODE_ID, MODE_LABEL, normalizeFace, parsePolicy, type Face, type Policy } from "./modes";
 import { modeGuidance, startGuidance } from "./guidance";
@@ -31,7 +32,7 @@ interface SessionRow {
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 function fail(action: string, error: { message: string } | null): never {
@@ -154,6 +155,8 @@ type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number
 
 /** The most one call may raise the loudness of the sound (dB). Going down is never limited. */
 const LEVEL_STEP_DB = 4;
+/** Step rates from slowest to busiest, for holding the pace on a switch into Attuned. */
+const RATE_ORDER: EngineState["arp"]["rate"][] = ["1/4", "1/8", "1/8t", "1/16"];
 
 /** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
 function measureState(effective: EngineState, seed: number): Compact | null {
@@ -173,7 +176,7 @@ function measureState(effective: EngineState, seed: number): Compact | null {
 /** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
 function tempoNote(prev: StateRow | null | undefined, now: EngineState, at: number): string | undefined {
   if (!prev) return undefined;
-  if (!tempoHeard(prev, at)) return undefined; // the state before was silent: its tempo was not heard, so this one starts at its own, with no glide
+  if (!tempoHeard(prev, at)) return undefined; // the state before was silent, or the start_session placeholder: its tempo was not heard, so this one starts at its own, with no glide
   const a = Math.round(prev.effective.arp.tempo), b = Math.round(now.arp.tempo);
   if (a === b) return undefined;
   const t = now.transition, glides = t.curve !== "sudden" && t.time >= 0.5 && !(t.delay && t.delay > 0);
@@ -259,6 +262,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
   return {
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
+    version: appVersion(), // the release this server runs, so a stale deploy shows at once (v0.19.2 tests)
     mode: faceLine(mode, "auto"),
     guidance: startGuidance(mode, "auto"),
     settings: { rest_after: effectiveRestAfter(settings.rest_after, mode) },
@@ -353,6 +357,15 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     mapped: overridden, transition,
   });
   const allClamps = mergeClamps(clamps);
+  // The call that switches into Attuned is the first sound made for the listener: like the level (below), it is no faster and no busier
+  // than what they hear now. Tempo, step rate and note density are held at what played; the model can move them on its next calls.
+  if (switched && sw.face === "external" && prev && tempoHeard(prev, now)) {
+    const was = prev.effective.arp, held: string[] = [];
+    if (effective.arp.tempo > was.tempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(was.tempo)} bpm`); effective.arp.tempo = was.tempo; }
+    if (RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
+    if (effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
+    if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); send again to go further`);
+  }
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
   const seed = randomSeed();
@@ -423,13 +436,28 @@ export function patternSceneMotion(bpm: number): { speed: number; density: numbe
   return { speed: Math.min(0.9, Math.max(0.2, 0.2 + (bpm - 60) / 150)), density: 0.5 };
 }
 
-/** The colour of a pattern state. A new scene does not inherit the old scene's density and speed: without its own it takes them from the pattern's tempo. */
-function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSoundInput["colour"], bpm: number | undefined) {
+/** The scene behind a pattern, when the model set none: the one its last mood suggests, with calm read from the tempo (the inverse of the
+ *  mapping's tempo, 150 bpm at calm 0 to 56 at calm 1). Null when that mood fits no scene. */
+export function patternScene(mood: Mood | undefined, bpm: number) {
+  return moodToScene({ ...stretchMood(mood ?? NEUTRAL_MOOD), calm: Math.min(1, Math.max(0, (150 - bpm) / 94)) });
+}
+
+/** The colour of a pattern state. A new scene does not inherit the old scene's density and speed: without its own it takes them from the pattern's tempo.
+ *  The scene is not seen while the Strudel drawings show; it is what the listener sees when they turn them off (v0.19.3, the owner's request). */
+function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSoundInput["colour"], bpm: number | undefined, mood?: Mood) {
   const was = e.colour.scene;
   e.colour = applyColour(e.colour, kept);
   if (bpm === undefined) return;
   // the picture moves with the pattern, not with the mood that played before: unless the model chose a motion, a fast pattern pulses
   if (!kept?.motion) { e.colour.motion = bpm >= 110 ? "pulse" : bpm >= 80 ? "drift" : "breathe"; e.colour.pulseHz = e.colour.motion === "pulse" ? (e.colour.pulseHz || 0.3) : 0; }
+  // the canvas scene shows the beat only with sync "beat" (motion is the old CSS pulse): a fast pattern moves its scene on the beat
+  if (!kept?.sync) { if (bpm >= 110) e.colour.sync = "beat"; else delete e.colour.sync; }
+  // without a scene of the model's own, one that goes with the music, not the one the synth state left behind
+  if (!kept?.scene) {
+    const pick = patternScene(mood, bpm);
+    if (pick) { e.colour.scene = pick.scene; e.colour.density = pick.density; e.colour.speed = patternSceneMotion(bpm).speed; e.colour.sceneAuto = true; }
+    return;
+  }
   if (!sent?.scene || sent.scene === was) return;
   const m = patternSceneMotion(bpm);
   if (sent.density === undefined) e.colour.density = m.density;
@@ -464,7 +492,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
   const sticky = mergeSticky(session.sticky, { colour: input.colour });
   const title = input.title?.trim().slice(0, 80);
   const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
-    (e) => { applyPatternColour(e, sticky.colour, input.colour, prev.effective.pattern?.bpm); },
+    (e) => { applyPatternColour(e, sticky.colour, input.colour, prev.effective.pattern?.bpm, prev.intent.mood); },
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
@@ -515,7 +543,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (input.on) {
     const code = input.code!.trim(), bpm = Math.round(input.bpm! * 10) / 10;
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
-      e.engine = "strudel"; e.pattern = { code, bpm }; applyPatternColour(e, sticky.colour, input.colour, bpm);
+      e.engine = "strudel"; e.pattern = { code, bpm }; applyPatternColour(e, sticky.colour, input.colour, bpm, prev.intent.mood);
     }, intent, { title, sticky }));
     sameCode = wasStrudel && prev.effective.pattern?.code === code && prev.effective.pattern?.bpm === bpm;
     notes.push(sameCode ? "same code and tempo as before: the music does not change" : wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");

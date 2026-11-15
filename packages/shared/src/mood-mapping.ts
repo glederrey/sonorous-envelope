@@ -1,6 +1,7 @@
 import { clone } from "./util";
 import { mulberry32, neutralState, noteToMidi, type EngineState, type ResolvedColour, type ScaleName, type Wave } from "@sonorous/engine";
 import type { Colour, Mood, SynthOverride, Voice } from "./schemas";
+import { WAVE_ORDER, waveIndex } from "./voice-band";
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -253,7 +254,7 @@ export function moodToEngineState(m: Mood, slow: Mood = m, voiceSeed?: number): 
   const rate = k > 0.75 ? "1/4" : k > 0.45 ? (s > 0.6 ? "1/8t" : "1/8") : "1/16";
   const drive = 0.8 * (Math.max(0, 0.6 - j) / 0.6) * (Math.max(0, 0.6 - k) / 0.6) * (Math.max(0, 0.9 - w) / 0.9);
   const cutoff = Math.pow(2, lerp(Math.log2(400), Math.log2(6000), 0.5 * (1 - w) + 0.35 * j + 0.15 * (1 - k)));
-  const wave: Wave = w > 0.66 ? "sine" : w > 0.4 ? "triangle" : w > 0.2 ? "sawtooth" : "square";
+  const wave: Wave = WAVE_ORDER[waveIndex(w)]; // four even bands of the sent warmth (voice-band.ts)
 
   // LFOs
   const lfo: EngineState["lfo"] = [{

@@ -152,7 +152,7 @@ export const StrudelModeInput = z.object({
   on: z.boolean().describe("true: play Strudel code (send code and bpm). false: go back to the built-in synth, silent and with no scene, until your next set_sound"),
   code: z.string().max(MAX_PATTERN_CHARS).optional().describe("Strudel code, as on strudel.cc, up to 5000 characters. Send it again with new code to change the music; it lands on the next bar. Samples work (bd, sd, hh, piano...). Tempo comes from bpm, not from setcps"),
   bpm: z.number().min(30).max(200).optional().describe("tempo in beats per minute; one cycle is one bar of 4 beats"),
-  colour: Colour.optional().describe("the picture, as in set_sound; it follows bpm"),
+  colour: Colour.optional().describe("the picture, as in set_sound; it follows bpm. scene: what shows when the listener hides the drawings; pick one that fits the music"),
   final: z.boolean().default(false).describe("true on the last call of each message"),
   title: z.string().max(80).optional().describe("a short name for this session (2 to 5 words)"),
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),

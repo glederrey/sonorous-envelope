@@ -7,6 +7,10 @@ The model has two engines. The **built-in synth** is its own voice (Self, Attune
 
 **Colour motion (v0.19.2).** Unless the model has set a `motion` in its sticky colour, the picture's motion follows the pattern's tempo, in `strudel_mode` on and in `set_sound` while Strudel plays (`applyPatternColour`): `bpm ≥ 110` pulse (`pulseHz` 0.3 when it had none), `≥ 80` drift, else breathe. Before, the motion stayed what the mood before the pattern had given (a calm mood's breathe under a 160 bpm pattern).
 
+**The scene behind the drawings (v0.19.3, the owner's proposal).** A pattern state always carries a scene that goes with the music. It is never seen while the Strudel drawings show; it is what the listener sees, with its motion, when they turn "Strudel visuals" off (the view fades out over it). The model picks it with `colour.scene` in `strudel_mode` (sticky, like any colour). Without one, `patternScene(lastMood, bpm)` picks it: `moodToScene` on the last mood the model sent, stretched, with calm read from the tempo (the inverse of the mapping's tempo: `(150 − bpm) / 94`, clamped), its speed from `patternSceneMotion(bpm)`; marked `sceneAuto`, so the feedback does not report it as the model's. When that mood fits no scene, the scene stays what it was. `motion` is the legacy CSS pulse; the canvas scene shows the beat only with `sync: "beat"`, so a pattern at 110 bpm or more also gets `sync: "beat"` unless the model set a sync (below 110 the sync is left to the feel). Before, turning the drawings off showed the synth state's old scene with no beat.
+
+**Changing code (v0.19.3).** When new code's drawings arrive (`VizStore.setSpecs` after `swap`, which bumps `swaps`), the view keeps its last frame of the old drawings and fades it out over the new ones in 0.5 s (`SWAP_S`, `strudel-view.tsx`). Before, they swapped at once.
+
 ## Where the code runs
 ```
 model code -> [worker inside a sandboxed frame] -- haps --> page -- validate --> superdough -> listener volume -> speakers

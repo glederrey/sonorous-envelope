@@ -1,4 +1,4 @@
-import { buildCycle, renderOffline, type EngineState, type NoteEvent } from "@sonorous/engine";
+import { buildCycle, renderOffline, type EngineState, type NoteEvent, type Wave } from "@sonorous/engine";
 
 // Analysis of what a state sounds like (docs/implementation/analysis.md). It renders the state offline with the shared
 // engine and measures the audio and the note events. `reads_as` is computed from those measurements only, never from the
@@ -14,7 +14,7 @@ const FRAME = 1024, HOP = 512, BANDS = 32;
 
 export interface Features {
   loudnessDb: number; centroidHz: number; highFreqRatio: number; flux: number; fluxVariance: number;
-  density: number; roughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
+  density: number; roughness: number; waveRoughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
   width: number; tailRatio: number; pitchLow: number; pitchHigh: number;
   /** How much a note clashes with the stack started on it: the mean over arpeggio onsets of the summed weight of the semitone, tritone and major-seventh pairs inside one onset. */
   clash: number;
@@ -55,7 +55,7 @@ function fft(re: Float64Array, im: Float64Array) {
 
 const HANN = Float64Array.from({ length: FRAME }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FRAME - 1)));
 
-// ---- roughness: Plomp-Levelt dissonance (Sethares) of notes sounding together, with 6 harmonics ----
+// ---- roughness: Plomp-Levelt dissonance (Sethares) of notes sounding together, with the partials of the wave (up to the 6th) ----
 const hz = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 function pairDissonance(f1: number, a1: number, f2: number, a2: number) {
   const [lo, hi] = f1 < f2 ? [f1, f2] : [f2, f1];
@@ -63,14 +63,22 @@ function pairDissonance(f1: number, a1: number, f2: number, a2: number) {
   const d = hi - lo;
   return Math.min(a1, a2) * (Math.exp(-3.5 * s * d) - Math.exp(-5.75 * s * d));
 }
-function chordDissonance(midis: number[]) {
+/** Partial amplitudes up to the 6th harmonic. A sine has none above the fundamental, so it is far smoother than a sawtooth on the same
+ *  notes (v0.19.2 tests: with 6 harmonics for every wave, a dark sine read rough and only middling warm). */
+const PARTIALS: Record<Wave, number[]> = {
+  sine: [1],
+  triangle: [1, 0, 1 / 9, 0, 1 / 25, 0],
+  square: [1, 0, 1 / 3, 0, 1 / 5, 0],
+  sawtooth: [1, 1 / 2, 1 / 3, 1 / 4, 1 / 5, 1 / 6],
+};
+function chordDissonance(midis: number[], wave: Wave = "sawtooth") {
   const parts: Array<[number, number]> = [];
-  for (const m of midis) for (let h = 1; h <= 6; h++) parts.push([hz(m) * h, 1 / h]);
+  for (const m of midis) PARTIALS[wave].forEach((a, i) => { if (a > 0) parts.push([hz(m) * (i + 1), a]); });
   let d = 0;
   for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) d += pairDissonance(parts[i][0], parts[i][1], parts[j][0], parts[j][1]);
   return d;
 }
-/** A minor second at mid register reads as 1. */
+/** A minor second at mid register on a sawtooth reads as 1. */
 const MINOR_SECOND = chordDissonance([60, 61]);
 
 // ---- key profiles (Krumhansl-Kessler) for the mode estimate ----
@@ -170,13 +178,18 @@ export function measure(state: EngineState, seed = 1): Features {
   ];
 
   // roughness: notes within 0.4 s of each other plus the held ones
-  let rough = 0, cnt = 0;
+  // `roughness` counts 6 harmonics whatever the wave (the closeness, calm and spontaneity readings were fitted on it); `waveRoughness`
+  // counts the partials the wave really has, for warmth: a sine on the same notes is far smoother than a sawtooth (v0.19.2 tests)
+  let rough = 0, wrough = 0, cnt = 0;
   for (let i = 0; i < ev.length; i += 2) {
     const set = new Set<number>(held);
     for (const e of ev) if (e.time <= ev[i].time && e.time > ev[i].time - 0.4) set.add(e.midi);
-    if (set.size >= 2) { rough += chordDissonance([...set].slice(0, 6)) / Math.max(1, (set.size * (set.size - 1)) / 2) / (MINOR_SECOND || 1); cnt++; }
+    if (set.size >= 2) {
+      const notes = [...set].slice(0, 6), pairs = Math.max(1, (set.size * (set.size - 1)) / 2) * (MINOR_SECOND || 1);
+      rough += chordDissonance(notes) / pairs; wrough += chordDissonance(notes, state.osc.wave) / pairs; cnt++;
+    }
   }
-  const roughness = clamp01(cnt ? rough / cnt : 0);
+  const roughness = clamp01(cnt ? rough / cnt : 0), waveRoughness = clamp01(cnt ? wrough / cnt : 0);
 
   // clash: the semitones, tritones and major sevenths inside one onset, that is a note and the stack stacked on it (the
   // arpeggio plays one note per step). Only what starts together counts: counting what overlaps in a 0.4 s window made the
@@ -206,11 +219,15 @@ export function measure(state: EngineState, seed = 1): Features {
   const patternEntropy = iois.length > 2 ? clamp01(ent / Math.log(Math.max(2, Math.min(iois.length, 12)))) : 0;
 
   return {
-    loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness,
+    loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness, waveRoughness,
     modeBrightness: modeBrightness(pitches, state.arp.root, scaleNotes), onsetIrregularity, patternEntropy, width: ms > 0 ? clamp01(Math.sqrt(ss / ms)) : 0, tailRatio,
     pitchLow: pitches.length ? Math.min(...pitches) : 0, pitchHigh: pitches.length ? Math.max(...pitches) : 0, clash,
   };
 }
+
+// warmth = W0 - WC ln(centroid) - WR roughness + WW waveRoughness: least squares (v0.19.3) on 300 random moods, 150 moods with an
+// adopted voice (wave and scale bands, voice-band.ts) and a warmth sweep at neutral axes; r 0.88 (0.79 without waveRoughness)
+const W0 = 3.386, WC = 0.404, WR = 0.743, WW = 0.321;
 
 const word = (x: number, cuts: number[], names: string[]) => names[cuts.findIndex((c) => x < c) === -1 ? names.length - 1 : cuts.findIndex((c) => x < c)];
 
@@ -244,13 +261,13 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
   const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
   // warmth and closeness: least squares on 300 random moods through the mapping (held-out r 0.84 and 0.96, against 0.72 and 0.48 for the weights of v0.17.0; `pnpm calibrate`). Warmth is a dark, smooth sound (the centroid on a log scale and the roughness); it was refitted (v0.19.1) on the random moods plus a sweep of warmth at neutral other axes, because the first fit read 0.15 to 0.3 low there (the intercept was 2.65). Closeness is a dry, narrow, rough-edged sound (width above all)
-  const warmth = 3.0 - 0.345 * Math.log(Math.max(60, f.centroidHz)) - 0.62 * f.roughness - 0.11 * clamp01(f.highFreqRatio * 8);
+  const warmth = W0 - WC * Math.log(Math.max(60, f.centroidHz)) - WR * f.roughness + WW * f.waveRoughness;
   const closeness = 0.59 - 1.12 * f.width - 0.13 * f.tailRatio + 0.19 * f.roughness;
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
     joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
     calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["darkness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
-    warmth: explain([["darkness", 0.345, 1 - c], ["high_frequencies", 0.11, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.62, 1 - f.roughness]]),
+    warmth: explain([["darkness", WC, 1 - c], ["smoothness", WR, 1 - f.roughness]]),
     closeness: explain([["narrow_width", 1.12, 1 - f.width], ["dryness", 0.13, 1 - f.tailRatio], ["roughness", 0.19, f.roughness]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };
