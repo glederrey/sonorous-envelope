@@ -8,7 +8,7 @@ Read this whole file first. Two things changed: the hand-over from Strudel back 
 
 - `strudel_mode` with `on: false` no longer brings the synth back as it was left. It writes a **silent state with no scene**: Strudel and the picture fade to **black** over about 2 s, and nothing plays until the next `set_sound`, which fades in from black over about 2 s. The tool's note says so. The old scene (aurora) cannot come back, however long the next call takes.
 - The 4 s "hold" from v0.18.5 is gone. There is no timing any more: the black lasts until the `set_sound`.
-- The controls panel never had its blur: the CSS build dropped the line. It now has it, on every view (97% opaque, 18 px blur).
+- The controls panel never had its blur: the CSS build dropped the line. It now has it, on every view (92% opaque, 18 px blur, so the picture shows through a little; the "Exit fullscreen" button matches it).
 - Dependencies were upgraded (Next 16.4.6, TypeScript 7, esbuild 0.28, mcp-handler 2.4). Reconnecting and `start_session` in the setup are enough to check the connector still works.
 
 ### Setup
