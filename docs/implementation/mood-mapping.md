@@ -104,13 +104,15 @@ A voice is the part of the sound that says who is playing, as opposed to how it 
 - **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
 
 ### Voice bands (auto-drawn voices only)
+**Wave (v0.19.2):** the wave of an auto-drawn voice follows warmth in four bands, the same edges as the mapping (`≤0.2` square, `≤0.4` sawtooth, `≤0.66` triangle, else sine, on the stretched warmth; `nextWaveBand` in `voice-band.ts`, stored in `sticky.waveBand`), with a 0.05 margin of hysteresis. Before, the wave was fixed at the first sound, and since it is what carries warmth in the mapping, the warmth reading had a floor near 0.67 (sent 0.3 read 0.67). Now, at joy 0.3 with an adopted voice, warmth 0.3 reads 0.25 to 0.31 and 0.8 reads 0.71 to 0.74. Changing wave is noted in `notes` (`your warmth moved the wave of your voice from X to Y`) and uses the same 8 s transition as a scale change. A wave sent in a voice (`start_session`, `set_sound`, `keep_voice`) stays fixed. Sessions adopted before v0.19.2 have no `waveBand` and keep their wave.
+
 A voice the server drew itself (the first sound adopted as the voice) takes its scale from joy, in three bands: low `phrygian`, mid `dorian`, high `lydian` (`BAND_SCALE`). `nextBand` has hysteresis (enter high at 0.7, leave below 0.55; enter low at 0.3, leave above 0.45, on the stretched joy), so a joy hovering at an edge does not flip the mode. Changing band is noted in `notes` and uses an 8 s transition. A voice the model sent (`voice` or `keep_voice`) is never touched. `alignToVoice` puts the bass and drone in the voice's root and scale (bass chord `[1,3,5]`), so the harmony under the arpeggio agrees with it and `reads_as.joy` follows the band (measured at neutral axes with the v0.19.1 reading: sent 0.2, 0.4, 0.6, 0.8 read 0.29, 0.54, 0.57, 0.81; a dorian voice at joy 0.6 reads 0.57, it read 0.27 before the tonic was taken from the arp root and the sixth counted). `mixolydian` was tried for the mid band and read 0.70, too bright for a sent 0.4.
 
 ## Override merge
 Deep-merge the model's `synth` object over the mapped state, field by field. Arrays (`chord`, `lfo`, `drone.notes`) replace, not merge. Note names convert to MIDI. Record which fields were overridden in the state's `intent` (for the session details page).
 
 ## Unit tests to write
-- Monotonicity: increasing `calm` never increases tempo; the volume is the constant `MASTER_VOLUME` whatever the mood; increasing `warmth` never makes the wave harsher.
+- Monotonicity: increasing `calm` never increases tempo (it is flat above a sent calm of about 0.81, where the stretch saturates at 1); the volume is the constant `MASTER_VOLUME` whatever the mood; increasing `warmth` never makes the wave harsher.
 - Bounds: every output within the engine's valid ranges for all corners of the [0,1]^5 cube and 1000 random points.
 - Snapshot tests for 6 reference moods (neutral, warm-close-calm, cold-distant, joyful-spontaneous, despair-calm, urgent).
 - Chord quality: for each row of the table, a mood inside its region gives the listed scale and degrees; boundaries use the first matching row.

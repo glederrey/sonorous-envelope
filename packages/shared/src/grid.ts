@@ -11,6 +11,14 @@ export function stepSecondsOf(s: Pick<EngineState, "arp" | "bass">) {
   return { arp: (60 / Math.max(20, s.arp.tempo)) * RATE_BEATS[s.arp.rate], bass: Math.max(0.2, s.bass.stepSeconds) };
 }
 
+/** Whether the tempo of the state before is still heard at `atMs`: not once it is silent (volume 0) and its fade has finished
+ *  (silence, or the owner's lock to Self). The next state then starts at its own tempo, with no glide from one nobody heard. */
+export function tempoHeard(prev: { effective: Pick<EngineState, "volume" | "transition">; created_at: string }, atMs: number): boolean {
+  if (prev.effective.volume > 0.001) return true;
+  const t = prev.effective.transition, over = (t?.time ?? 0) + (t?.delay ?? 0);
+  return (atMs - new Date(prev.created_at).getTime()) / 1000 < over;
+}
+
 /** The counters for a state written at `atMs`, given the previous state (its counters, step lengths and creation time). `next` is
  *  the state being written: its transition says how long the tempo glides from the tempo that plays now. */
 export function nextGrid(prev: { effective: EngineState; created_at: string } | null, atMs: number, next?: Pick<EngineState, "transition"> & { arp?: Pick<EngineState["arp"], "rate"> }): NonNullable<EngineState["grid"]> {
@@ -32,5 +40,5 @@ export function nextGrid(prev: { effective: EngineState; created_at: string } | 
   // A delayed state (the closing fade) starts later, while the state before it is still gliding its tempo. Its beats must carry on along that glide, or the picture's beat jumps
   // by the difference when the delayed state takes over (the scenes were redrawn at the end of a session): so it inherits what is left of the glide.
   const delayed = (next?.transition.delay ?? 0) > 0, left = Math.max(0, (g.glide ?? 0) - dt);
-  return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: delayed ? (left >= 0.5 ? Math.round(left * 100) / 100 : 0) : glideSeconds(next.transition) } : {}) };
+  return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: !tempoHeard(prev, atMs) ? 0 : delayed ? (left >= 0.5 ? Math.round(left * 100) / 100 : 0) : glideSeconds(next.transition) } : {}) };
 }

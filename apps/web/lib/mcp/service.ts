@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, nextBand, nextGrid, nextSlowMood, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -171,8 +171,9 @@ function measureState(effective: EngineState, seed: number): Compact | null {
 }
 
 /** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
-function tempoNote(prev: StateRow | null | undefined, now: EngineState): string | undefined {
+function tempoNote(prev: StateRow | null | undefined, now: EngineState, at: number): string | undefined {
   if (!prev) return undefined;
+  if (!tempoHeard(prev, at)) return undefined; // the state before was silent: its tempo was not heard, so this one starts at its own, with no glide
   const a = Math.round(prev.effective.arp.tempo), b = Math.round(now.arp.tempo);
   if (a === b) return undefined;
   const t = now.transition, glides = t.curve !== "sudden" && t.time >= 0.5 && !(t.delay && t.delay > 0);
@@ -181,7 +182,7 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState): string 
 
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
 function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean, adopted = false): string | undefined {
-  if (adopted) return "your first sound is now your voice: root, wave, note order and octaves stay. Its scale mode follows your joy (phrygian low, dorian middle, lydian high) until you send a voice with a scale";
+  if (adopted) return "your first sound is now your voice: root, note order and octaves stay. Its scale mode follows your joy (phrygian low, dorian middle, lydian high) and its wave follows your warmth (square, sawtooth, triangle, sine) until you send a voice";
   if (held) return "voice kept: scale, root, note order and wave now stay until you send a voice";
   if (!prev || (voice && voice.scale && voice.wave && voice.root)) return undefined;
   const a = prev.effective, name = (s: EngineState) => `${midiToNoteName(s.arp.root)} ${s.arp.scale}, ${s.osc.wave}`;
@@ -308,22 +309,30 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
 
   // colour, stack, pad and LFOs stay until Claude changes them (like the voice); fold this call into what the session keeps
   const sticky = mergeSticky(session.sticky, input);
-  // A voice the model sends (or freezes) is fixed for good, scale included. Without one, the first sound becomes the voice:
-  // root, wave, chord, note order and octaves stay, and the scale mode follows joy in three bands (voice-band.ts), so a
-  // mood that barely moves cannot move the key, and a big joy change can still lift or lower the colour of the sound.
+  // A voice the model sends (or freezes) is fixed for good, scale and wave included. Without one, the first sound becomes the voice:
+  // root, chord, note order and octaves stay; the scale mode follows joy in three bands (voice-band.ts) and the wave follows warmth in
+  // four, so a mood that barely moves cannot move the key, a big joy change can still lift or lower the colour of the sound, and warmth
+  // can still change the timbre (the wave is what carries it).
   const explicit = input.voice !== undefined || held;
-  if (explicit) delete sticky.voiceBand;
+  if (explicit) { delete sticky.voiceBand; delete sticky.waveBand; }
   const complete = (v: typeof voice) => Boolean(v && v.root && v.scale && v.wave);
-  let scaleMoved = false, bandNote: string | undefined;
+  let scaleMoved = false, waveMoved = false, bandNote: string | undefined, waveNote: string | undefined;
   if (!explicit && sticky.voiceBand && complete(voice)) {
     const band = nextBand(sticky.voiceBand, mood.joy);
     if (band !== sticky.voiceBand) {
-      bandNote = `your joy moved the mode of your voice from ${voice!.scale} to ${BAND_SCALE[band]} (root, wave and note order unchanged)`;
+      bandNote = `your joy moved the mode of your voice from ${voice!.scale} to ${BAND_SCALE[band]} (root and note order unchanged)`;
       voice = { ...voice!, scale: BAND_SCALE[band] }; sticky.voiceBand = band; scaleMoved = true;
+    }
+    if (sticky.waveBand) {
+      const wave = nextWaveBand(sticky.waveBand, mood.warmth);
+      if (wave !== sticky.waveBand) {
+        waveNote = `your warmth moved the wave of your voice from ${sticky.waveBand} to ${wave} (root, scale and note order unchanged)`;
+        voice = { ...voice!, wave }; sticky.waveBand = wave; waveMoved = true;
+      }
     }
   }
   // a new voice, or a new mode, is a big change: without a transition of its own it gets a long one
-  const transition = (input.voice !== undefined || scaleMoved) && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
+  const transition = (input.voice !== undefined || scaleMoved || waveMoved) && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
   let { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
   let adopted = false;
   if (!complete(voice)) {
@@ -332,7 +341,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     if (explicit) voice = { ...drawn, ...(voice ?? {}) }; // a partial voice the model sent: the rest is drawn once and kept
     else {
       sticky.voiceBand = nextBand(undefined, mood.joy);
-      voice = { ...drawn, ...(voice ?? {}), scale: BAND_SCALE[sticky.voiceBand] };
+      const follows = !voice?.wave; // a wave from start_session is the model's own: it stays
+      if (follows) sticky.waveBand = nextWaveBand(undefined, mood.warmth);
+      voice = { ...drawn, ...(voice ?? {}), scale: BAND_SCALE[sticky.voiceBand], ...(follows ? { wave: sticky.waveBand } : {}) };
       ({ state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth)); // this call already plays the banded mode
     }
     adopted = true;
@@ -348,13 +359,19 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   let analysis = measureState(effective, ANALYSIS_SEED);
   // Sound reaches the listener before anything can be softened: one call may raise the level by at most LEVEL_STEP_DB. A bigger
   // jump is held down to that step (the master volume is scaled for this state only); it rises further on the next call.
+  // The call that switches into Attuned raises nothing: the listener hears the first sound made for them, so it starts no louder than what played.
+  const stepDb = switched && sw.face === "external" ? 0 : LEVEL_STEP_DB;
   let levelNote: string | undefined;
   const wasDb = prev?.intent.owner_silenced ? undefined : prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
-  if (typeof wasDb === "number" && typeof nowDb === "number" && nowDb - wasDb > LEVEL_STEP_DB) {
-    const excess = nowDb - wasDb - LEVEL_STEP_DB;
-    effective.volume = Math.max(0.05, effective.volume * 10 ** (-excess / 20));
-    analysis = measureState(effective, ANALYSIS_SEED);
-    levelNote = `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to +${LEVEL_STEP_DB} dB; send again to go further`;
+  if (typeof wasDb === "number" && typeof nowDb === "number" && nowDb - wasDb > stepDb) {
+    // the readings are rounded to whole dB, so the held sound can still read one above the step: tighten once more if so
+    for (let i = 0, over = nowDb - wasDb - stepDb; i < 3 && over > 0; i++) {
+      effective.volume = Math.max(0.05, effective.volume * 10 ** (-over / 20));
+      analysis = measureState(effective, ANALYSIS_SEED);
+      const again = analysis?.sound.loudness_db;
+      over = typeof again === "number" ? again - wasDb - stepDb : 0;
+    }
+    levelNote = `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further`;
     allClamps.push(levelNote); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
   }
   const stateId = await insertState(db, now, {
@@ -369,13 +386,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
-    ...(input.voice !== undefined || held || adopted || scaleMoved ? { voice } : {}),
+    ...(input.voice !== undefined || held || adopted || scaleMoved || waveMoved ? { voice } : {}),
     sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
   const g = await guide(db, session, sw.face, switched);
@@ -410,7 +427,10 @@ export function patternSceneMotion(bpm: number): { speed: number; density: numbe
 function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSoundInput["colour"], bpm: number | undefined) {
   const was = e.colour.scene;
   e.colour = applyColour(e.colour, kept);
-  if (!sent?.scene || sent.scene === was || bpm === undefined) return;
+  if (bpm === undefined) return;
+  // the picture moves with the pattern, not with the mood that played before: unless the model chose a motion, a fast pattern pulses
+  if (!kept?.motion) { e.colour.motion = bpm >= 110 ? "pulse" : bpm >= 80 ? "drift" : "breathe"; e.colour.pulseHz = e.colour.motion === "pulse" ? (e.colour.pulseHz || 0.3) : 0; }
+  if (!sent?.scene || sent.scene === was) return;
   const m = patternSceneMotion(bpm);
   if (sent.density === undefined) e.colour.density = m.density;
   if (sent.speed === undefined) e.colour.speed = m.speed;

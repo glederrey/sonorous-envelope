@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { beatsAt, mulberry32, renderOffline } from "@sonorous/engine";
 import {
-  BAND_SCALE, nextBand, alignToVoice,
+  BAND_SCALE, nextBand, nextWaveBand, tempoHeard, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
   describeReactions, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
@@ -629,3 +629,48 @@ describe("voice bands: the scale mode of an auto-drawn voice follows joy, with h
   });
 });
 
+
+describe("wave bands: the wave of an auto-drawn voice follows warmth, with hysteresis", () => {
+  it("one wave per band, the same edges as the mapping", () => {
+    expect([0.1, 0.3, 0.5, 0.9].map((w) => nextWaveBand(undefined, w))).toEqual(["square", "sawtooth", "triangle", "sine"]);
+    for (const w of [0.05, 0.25, 0.45, 0.7, 0.95]) expect(nextWaveBand(undefined, w)).toBe(moodToEngineState({ ...neutral, warmth: w }).osc.wave);
+  });
+  it("does not flip back and forth at the edges", () => {
+    let b = nextWaveBand("triangle", 0.72); expect(b).toBe("sine");
+    for (const w of [0.64, 0.7, 0.62, 0.68]) { b = nextWaveBand(b, w); expect(b).toBe("sine"); }
+    expect(nextWaveBand(b, 0.6)).toBe("triangle");
+    expect(nextWaveBand("triangle", 0.38)).toBe("triangle"); expect(nextWaveBand("triangle", 0.34)).toBe("sawtooth");
+  });
+  it("can cross every band at once", () => {
+    expect(nextWaveBand("sine", 0.05)).toBe("square"); expect(nextWaveBand("square", 0.95)).toBe("sine");
+  });
+});
+
+describe("tempoHeard: a silent state's tempo is not heard once its fade is over", () => {
+  const at = Date.parse("2026-01-01T00:00:00Z");
+  const prev = (volume: number, time: number, delay?: number) => ({ created_at: new Date(at).toISOString(), effective: { volume, transition: { time, curve: "smooth" as const, ...(delay ? { delay } : {}) } } });
+  it("is heard while it sounds and while the fade to silence runs", () => {
+    expect(tempoHeard(prev(0.5, 4), at + 60_000)).toBe(true);
+    expect(tempoHeard(prev(0, 8), at + 5_000)).toBe(true);
+    expect(tempoHeard(prev(0, 8, 4), at + 10_000)).toBe(true);
+  });
+  it("is not heard after the fade", () => {
+    expect(tempoHeard(prev(0, 8), at + 8_000)).toBe(false);
+    expect(tempoHeard(prev(0, 3), at + 20_000)).toBe(false);
+  });
+  it("nextGrid gives no glide after a silent state, and keeps the beat going", () => {
+    const silent = { ...moodToEngineState(neutral), volume: 0, transition: { time: 3, curve: "smooth" as const } };
+    const next = { ...moodToEngineState({ ...neutral, calm: 0.1 }), transition: { time: 4, curve: "smooth" as const } };
+    const p = { effective: { ...silent, grid: { arp: 5, bass: 2, beat: 3 } }, created_at: new Date(at).toISOString() };
+    expect(nextGrid(p, at + 30_000, next).glide).toBe(0);
+    expect(nextGrid({ ...p, effective: { ...p.effective, volume: 0.5 } }, at + 30_000, next).glide).toBe(4);
+    expect(nextGrid(p, at + 30_000, next).beat).toBeGreaterThan(3);
+  });
+});
+
+describe("the warmth reading explains itself in what the sound is", () => {
+  it("a dark sound is lifted by darkness, not by brightness", () => {
+    const why = analyze(moodToEngineState(stretchMood({ ...neutral, warmth: 0.9 }), undefined, 1), 1).why.warmth;
+    expect(why.high).toMatch(/darkness/); expect(`${why.low} ${why.high}`).not.toMatch(/brightness/);
+  });
+});

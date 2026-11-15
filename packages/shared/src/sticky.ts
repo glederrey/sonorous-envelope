@@ -1,3 +1,4 @@
+import type { Wave } from "@sonorous/engine";
 import type { Colour, SynthOverride } from "./schemas";
 
 /**
@@ -12,6 +13,8 @@ export interface Sticky {
   lfo?: NonNullable<SynthOverride["lfo"]>;
   /** Set while the voice is the one drawn from the first sound: its scale mode then follows joy (voice-band.ts). Gone once the model sends a voice. */
   voiceBand?: "low" | "mid" | "high";
+  /** Same for the wave: set while it follows warmth (voice-band.ts `nextWaveBand`). Gone once the model sends a voice. */
+  waveBand?: Wave;
 }
 
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
