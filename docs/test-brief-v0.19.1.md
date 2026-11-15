@@ -6,7 +6,7 @@ Answer to the question in test 14: the page stays "How it works" (the v0.19.0 br
 
 ## What changed
 
-- **Mode names for you.** The tools now take `self`, `attuned` and `jukebox` (start_session and set_sound `mode`), and every result names the mode as the listener does: "Self", "Attuned", "Jukebox". The old names are gone from the schemas and the guidance. Use only Self, Attuned and Jukebox with the user.
+- **Mode names for you.** The tools now take `self`, `attuned` and `jukebox` (start_session and set_sound `mode`), and every result names the mode as the listener does: "Self", "Attuned", "Jukebox". The old names (internal, external, sandbox, inner, outer) are gone from the schemas and the guidance, and the tools no longer accept them. Use only Self, Attuned and Jukebox with the user.
 - **Reconnect** the connector before you start: the tool schemas and the server instructions changed.
 - `strudel_mode` refused in Self now returns `self_locked` (owner locked Self) or `self_mode` (on auto), not `internal_face`.
 - `set_sound` with a `mode` while the owner has locked the mode is **ignored with a note** (not refused), so your sound still arrives. This is by design; the v0.19.0 brief was wrong to expect a refusal.

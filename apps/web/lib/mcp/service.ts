@@ -289,7 +289,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const switched = sw.face !== faceNow;
   // the owner moved the session to Self from a listener mode: the mood played for the listener is not the model's own state, so it does not carry over
   const guidedMode = session.guided_mode ? normalizeFace(session.guided_mode) : null;
-  const ownerToSelf = !switched && sw.face === "internal" && guidedMode !== null && forListener(guidedMode);
+  const ownerToSelf = !switched && sw.face === "internal" && ((guidedMode !== null && forListener(guidedMode)) || Boolean(prev?.intent.owner_silenced)); // owner_silenced: the lock wrote a silent copy (0017), even if another call already took the new guidance
   const sentMood = input.mood ?? (ownerToSelf ? NEUTRAL_MOOD : prev?.intent.mood ?? NEUTRAL_MOOD); // no mood: the last one stays
   // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
   if (prev?.effective.engine === "strudel" && forListener(sw.face)) return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note, sw.face, switched);

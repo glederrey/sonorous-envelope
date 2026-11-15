@@ -2,7 +2,7 @@
 //   internal (self, Self):       the sound is the model's own state. Nobody steers it.
 //   external (attuned, Attuned): the sound is made for the listener, from what they say they need. The model chooses what to play.
 //   sandbox (jukebox, Jukebox):  the listener chooses what plays; the model performs it.
-// The model sends and reads self / attuned / jukebox (MODE_ID); the old stored values are still accepted as aliases.
+// The model sends and reads self / attuned / jukebox (MODE_ID); the tool schemas list only those. normalizeFace still reads the stored values.
 // A session is on auto (the model may switch, with consent) or locked to one mode by its owner.
 // The guidance for each mode lives in ./guidance and reaches the model only when that mode is in use (lazy guidance).
 
