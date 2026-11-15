@@ -10,7 +10,10 @@ const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_APP_VERSION: process.env.APP_VERSION ?? "" },
   transpilePackages: ["@sonorous/engine", "@sonorous/shared"],
   async redirects() {
-    return [{ source: "/faces", destination: "/modes", permanent: true }];
+    return [
+      { source: "/faces", destination: "/modes", permanent: true },
+      { source: "/guide", destination: "/how-it-works", permanent: true },
+    ];
   },
   async headers() {
     return [{

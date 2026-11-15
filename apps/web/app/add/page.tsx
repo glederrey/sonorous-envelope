@@ -28,7 +28,7 @@ export default function AddPage() {
         <section className="gd-section" aria-labelledby="add-next">
           <h2 className="se-title" id="add-next">Then</h2>
           <p>
-            Turn the connector on at the start of a conversation and the model calls its tools itself: <a href="/guide">what each tool does</a>,
+            Turn the connector on at the start of a conversation and the model calls its tools itself: <a href="/how-it-works">what each tool does</a>,
             and <a href="/modes">the three modes</a> of the sound.
           </p>
         </section>
