@@ -12,7 +12,8 @@ import {
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { ENDED_AFTER_S } from "../session-status";
-import { GUIDANCE_OF, decideSwitch, effectiveRestAfter, faceLine, normalizeFace, type Face, type Policy } from "./modes";
+import { decideSwitch, effectiveRestAfter, faceLine, faceName, forListener, normalizeFace, parsePolicy, type Face, type Policy } from "./modes";
+import { modeGuidance, startGuidance } from "./guidance";
 import { MAX_PER_MINUTE, MIN_GAP_MS, planTurn } from "./turn";
 import { checkPatternCode } from "./strudel-code";
 
@@ -26,7 +27,7 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean; guided_mode?: string | null;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
@@ -109,24 +110,44 @@ async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: numb
 
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
 function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number, face: Face = "internal"): { resting: boolean; notes: string[] } {
-  const rest = effectiveRestAfter(settings.rest_after, face); // the external face never fades
+  const rest = effectiveRestAfter(settings.rest_after, face); // the listener modes never fade
   if (!prev || rest === null || !isResting(prev.created_at, rest, now)) return { resting: false, notes: [] };
   return { resting: true, notes: [restingNote(rest)] };
 }
 
 const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
-const policyOf = (s: { mode_policy?: string }): Policy => (s.mode_policy === "internal" || s.mode_policy === "external" ? s.mode_policy : "auto");
+
+/** Lazy guidance: what to do with the rules of a mode, given the mode whose rules the model last received (`guided`, null for
+ *  sessions from before the column) and the mode this call ends in. Pure, so it is tested without a database. */
+export function guidanceUpdate(i: { guided: Face | null; face: Face; switched: boolean }): { send: boolean; ownerChanged: boolean; store: Face | null } {
+  if (i.guided === null) return { send: false, ownerChanged: false, store: i.face };
+  if (i.guided === i.face) return { send: false, ownerChanged: false, store: null };
+  return { send: true, ownerChanged: !i.switched, store: i.face };
+}
+
+/** Once the final mode of a call is known: attach the rules of that mode if the model has not had them, and remember it (caller's client, RLS). */
+async function guide(db: Db, session: SessionRow, face: Face, switched: boolean): Promise<{ guidance?: string; note?: string }> {
+  const u = guidanceUpdate({ guided: session.guided_mode ? normalizeFace(session.guided_mode) : null, face, switched });
+  if (u.store !== null) {
+    const { error } = await db.from("sessions").update({ guided_mode: u.store }).eq("id", session.id);
+    if (error) fail("save the mode", error);
+  }
+  if (!u.send) return {};
+  return { guidance: modeGuidance(face, parsePolicy(session.mode_policy)), ...(u.ownerChanged ? { note: `the owner switched the mode to ${faceName(face)}` } : {}) };
+}
+
+const withGuidance = (fb: Record<string, unknown>, g: { guidance?: string }): Record<string, unknown> => (g.guidance ? { ...fb, guidance: g.guidance } : fb);
 
 /** Apply a `mode` sent with set_sound: an owner lock stops it; otherwise the face changes and the change is logged. */
 async function switchFace(db: Db, session: SessionRow, requested: Face | undefined, stateTurn: number, now: number): Promise<{ face: Face; note?: string }> {
-  const current = faceOf(session), policy = policyOf(session);
+  const current = faceOf(session), policy = parsePolicy(session.mode_policy);
   if (requested === undefined) return { face: current };
   const d = decideSwitch({ policy, current, requested });
   if (d.change === null) return { face: current, note: d.note };
   const { error: e1 } = await db.from("sessions").update({ mode: d.change }).eq("id", session.id);
   if (e1) fail("switch the face", e1);
   await db.from("mode_changes").insert({ session_id: session.id, turn: stateTurn, to_mode: d.change, by: "model", created_at: new Date(now).toISOString() });
-  return { face: d.change, note: `switched to the ${d.change} face: say so in one short sentence` };
+  return { face: d.change, note: `switched to ${faceName(d.change)}: say so in one short sentence` };
 }
 
 type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> };
@@ -198,7 +219,7 @@ function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, n
   });
 }
 
-export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: "auto" | "internal" | "external" | "inner" | "outer" }, now = Date.now()) {
+export async function startSession(db: Db, userId: string, input: { title?: string; voice?: Voice; mode?: "auto" | "internal" | "external" | "sandbox" | "inner" | "outer" }, now = Date.now()) {
   // keep at most 10 active sessions: end the oldest
   const { data: active, error: aerr } = await db.from("sessions").select("id").eq("owner_id", userId).is("ended_at", null)
     .order("last_active_at", { ascending: false });
@@ -211,14 +232,14 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
-  // a session starts on the internal face unless the listener asked for sound; it is on auto until the owner locks a face
+  // a session starts on the internal mode unless the listener asked for sound; it is on auto until the owner locks a face
   const mode: Face = input.mode === "auto" || input.mode === undefined ? "internal" : normalizeFace(input.mode);
   const settings: ListenerSettings = parseSettings(profile?.default_settings ?? {});
   const id = newSessionId();
 
   const { error: serr } = await db.from("sessions").insert({
     id, owner_id: userId, title: input.title?.slice(0, 80) ?? null, settings, last_active_at: new Date(now).toISOString(),
-    voice: input.voice ?? null, mode,
+    voice: input.voice ?? null, mode, guided_mode: mode,
   });
   if (serr) fail("start the session", serr);
   const { error: lerr } = await db.from("listeners").insert({ session_id: id, user_id: userId, role: "owner", label: "you" });
@@ -238,9 +259,9 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     session_id: id,
     player_url: `${publicBaseUrl()}/s/${id}`,
     mode: faceLine(mode, "auto"),
-    guidance: GUIDANCE_OF(mode),
+    guidance: startGuidance(mode, "auto"),
     settings: { rest_after: effectiveRestAfter(settings.rest_after, mode) },
-    note: mode === "external"
+    note: forListener(mode)
       ? "Give player_url to the user and tell them to open it and tap Start listening. Pass session_id in every call."
       : "Give player_url to the user in one short sentence and say nothing more about the sound. Pass session_id in every call.",
   };
@@ -267,7 +288,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   // the axes are stretched (instances send 0.4 to 0.7); nothing else limits the mood
   const sentMood = input.mood ?? prev?.intent.mood ?? NEUTRAL_MOOD; // no mood: the last one stays
   // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
-  if (prev?.effective.engine === "strudel" && sw.face === "external") return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note);
+  const switched = sw.face !== faceNow;
+  if (prev?.effective.engine === "strudel" && forListener(sw.face)) return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note, sw.face, switched);
   const mood = stretchMood(sentMood);
   const slow = nextSlowMood(prev?.slow_mood, mood, input.final);
 
@@ -350,10 +372,12 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (the internal face has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (internal mode has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, input.mood ? undefined : "mood kept from your last call", tempoNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const reactions = await reactionsFor(db, session.id, true, now);
-  return buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, policyOf(session)) });
+  const g = await guide(db, session, sw.face, switched);
+  if (g.note) notes.push(g.note);
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
 }
 
 /** Reads what the owner's player said about the Strudel code of a state (pattern_reports), in the words the model gets. */
@@ -398,7 +422,7 @@ async function writePatternState(
   return { effective, clamps: mergeClamps(clamps), stateId };
 }
 
-async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, input: SetSoundInput, turn: ReturnType<typeof planTurn>, now: number, switchNote: string | undefined, resolveNote: string | undefined) {
+async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, input: SetSoundInput, turn: ReturnType<typeof planTurn>, now: number, switchNote: string | undefined, resolveNote: string | undefined, face: Face, switched: boolean) {
   const sticky = mergeSticky(session.sticky, { colour: input.colour });
   const title = input.title?.trim().slice(0, 80);
   const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
@@ -410,22 +434,24 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
-  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, mode: faceLine("external", policyOf(session)), ...(pattern ? { pattern } : {}) });
+  const g = await guide(db, session, face, switched);
+  if (g.note) notes.push(g.note);
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
 }
 
-/** Strudel on or off. Only this tool changes the engine; it needs the external face and the owner's permission. */
+/** Strudel on or off. Only this tool changes the engine; it needs a listener mode (external or sandbox) and the owner's permission. */
 export async function strudelMode(db: Db, userId: string, input: StrudelModeInput, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   assertOpen(session);
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
-  const face = faceOf(session), policy = policyOf(session);
+  const face = faceOf(session), policy = parsePolicy(session.mode_policy);
   if (input.on) {
     if (session.allow_code === false) throw new ToolError("code_off", "The owner turned Strudel off for this session. It is final: do not try again or comment on it.");
-    if (face !== "external") {
+    if (!forListener(face)) {
       throw new ToolError("internal_face", policy === "auto"
-        ? "Strudel is for the external face. Offer it in words; if the listener says yes, switch with set_sound mode external, then call this again."
-        : "face stays internal: the owner locked it. It is final: do not try to change it or comment on it.");
+        ? `Strudel is for the ${faceName("external")} and ${faceName("sandbox")} modes. Offer one in words; if the listener says yes, switch with set_sound mode, then call this again.`
+        : `mode stays ${faceName("internal")}: the owner locked it. It is final: do not try to change it or comment on it.`);
     }
     if (!input.code?.trim() || input.bpm === undefined) throw new ToolError("bad_input", "on true needs code and bpm.");
     const check = checkPatternCode(input.code);
@@ -470,10 +496,12 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
-  return buildFeedback({
+  const g = await guide(db, session, face, false);
+  if (g.note) all.push(g.note);
+  return withGuidance(buildFeedback({
     turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes: all, resting: rest.resting,
     analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
-  });
+  }), g);
 }
 
 export async function getFeedback(db: Db, userId: string, input: { session_id?: string }, now = Date.now()) {
@@ -483,13 +511,14 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(state, parseSettings(session.settings), now, faceOf(session));
   // the owner locked the face or switched code off after the pattern started: the player has stopped it, so it is not what plays now
-  const stopped = state.effective.engine === "strudel" && (faceOf(session) !== "external" || session.allow_code === false);
+  const stopped = state.effective.engine === "strudel" && (!forListener(faceOf(session)) || session.allow_code === false);
   const shown: StateRow = stopped ? { ...state, effective: (({ engine: _e, pattern: _p, ...rest2 }) => rest2)(state.effective) as EngineState } : state;
   const ownerStopped = stopped || Boolean((state.intent as { owner_stopped_pattern?: boolean }).owner_stopped_pattern);
-  const stopNote = ownerStopped ? `the owner stopped your Strudel pattern (face locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${shown.effective.volume <= 0.001 ? ". The synth state is silent (volume 0): nothing sounds until you send set_sound" : ""}` : undefined;
-  const fb = feedbackFor(shown, p, [note, stopNote, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), policyOf(session)));
+  const stopNote = ownerStopped ? `the owner stopped your Strudel pattern (mode locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${shown.effective.volume <= 0.001 ? ". The synth state is silent (volume 0): nothing sounds until you send set_sound" : ""}` : undefined;
+  const g = await guide(db, session, faceOf(session), false);
+  const fb = feedbackFor(shown, p, [note, stopNote, g.note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now), faceLine(faceOf(session), parsePolicy(session.mode_policy)));
   const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
-  return pattern ? { ...fb, pattern } : fb;
+  return withGuidance(pattern ? { ...fb, pattern } : fb, g);
 }
 
 export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {
@@ -535,9 +564,10 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
 
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, parseSettings(session.settings), now, faceOf(session));
-  const notes = [note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, prev.effective.engine === "strudel" ? "Strudel stops with the fade; set_sound brings the synth back" : undefined, ...rest.notes]
+  const g = input.end ? {} as { guidance?: string; note?: string } : await guide(db, session, faceOf(session), false);
+  const notes = [note, g.note, turn.missedFinal ? "no final update last turn" : undefined, input.end ? (delay > 0 ? `session ends: the fade starts in ${Math.round(delay)} s, when your last sound has finished its transition` : "session ended") : `fading to silence over ${input.fade} s (volume shows the end of the fade)`, prev.effective.engine === "strudel" ? "Strudel stops with the fade; set_sound brings the synth back" : undefined, ...rest.notes]
     .filter((x): x is string => Boolean(x));
-  return buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), policyOf(session)) });
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), parsePolicy(session.mode_policy)) }), g);
 }
 
 /** The last states, one line each: what was sent, what it read as, clamps and the note. Text only. */

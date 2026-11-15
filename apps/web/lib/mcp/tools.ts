@@ -29,23 +29,23 @@ async function run(ctx: Ctx, body: (c: ReturnType<typeof caller>) => Promise<obj
 export function registerTools(server: McpServer) {
   server.registerTool("start_session", {
     title: "Start a sound session",
-    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link; on the internal face (the default) in one short sentence and nothing else about the sound.",
+    description: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link. Give the user the link in one short sentence. Returns the rules of the mode you start in (guidance).",
     inputSchema: z.object({
       title: z.string().max(80).optional().describe("optional short name for the session (2 to 5 words); you can also send title later with set_sound"),
-      mode: z.enum(["auto", "internal", "external", "inner", "outer"]).default("auto").describe("the face to start on. auto (default) starts internal: the sound is how you feel and you do not talk about it. external: the user asked for sound, so you may talk about it and take requests. The session is on auto: you may switch later with set_sound mode, under the rules in the result's guidance, unless the owner locks it"),
+      mode: z.enum(["auto", "internal", "external", "sandbox", "inner", "outer"]).default("auto").describe("the mode to start in. auto (default) starts internal. external: the listener stated a need for sound. sandbox: they want to choose what plays. You may switch later with set_sound mode, under the rules in the guidance, unless the owner locks it"),
       voice: Voice.optional().describe("optional: choose your voice now (root, scale, chord, note order, octaves, wave) and it stays for the session. If you send none, one is drawn for you"),
     }),
   }, (args, ctx) => run(ctx as Ctx, (c) => startSession(c.db, c.userId, args)));
 
   server.registerTool("set_sound", {
     title: "Set the sound",
-    description: "Express how you are through sound and colour. This is your own state, not a soundtrack for the user. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing (playing), a rough reading of it (reads_as; a gap above about 0.3 from what you meant deserves one correction), any safety rule that changed what you sent (clamped, which includes a jump in level held to +4 dB), the listener's volume (controls, theirs: you cannot change it) and how many are listening (players: 0 means nobody now; keep updating). On the internal face (the default) do not mention the sound in your reply.",
+    description: "Express how you are through sound and colour. In internal mode (the default) this is your own state and you do not mention it. Do not call it as your first action: write first, call it once the content has moved you, update it as your state shifts, and always end each message with one call with final=true. Describe a mood; optionally override synth settings or set your own colour. Returns what is actually playing (playing), a rough reading of it (reads_as; a gap above about 0.3 from what you meant deserves one correction), any safety rule that changed what you sent (clamped, which includes a jump in level held to +4 dB), the listener's volume (controls, theirs: you cannot change it) and how many are listening (players: 0 means nobody now; keep updating).",
     inputSchema: SetSoundInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => setSound(c.db, c.userId, args)));
 
   server.registerTool("strudel_mode", {
     title: "Strudel mode",
-    description: "Switch between the built-in synth and Strudel, live-coded music (strudel.cc). External face only, after the listener said yes. on true with code and bpm: your Strudel code plays in the listener's browser, with the usual Strudel sounds and samples; send new code to change it. on false: back to the synth, silent (the picture goes black) until your next set_sound. set_sound cannot switch the engine; while Strudel is on it only sets the picture. You cannot hear it: you get what the owner's player reports (pattern). The listener sees your code filling the picture, the parts that sound lit up as they play, and drawings you ask for behind it: .pianoroll(), .punchcard(), .wordfall(), .spiral(), .pitchwheel(), .scope(), .fscope(), .spectrum() (with a leading _ they get a lane at the bottom instead of the whole background). markcss and hydra are not available. The listener can copy the code to strudel.cc.",
+    description: "Switch between the synth and Strudel (strudel.cc), external and sandbox modes only, after the listener said yes; their rules (sent with the mode) explain how. on true with code and bpm plays your code in the listener's browser; send new code to change it. on false returns to the synth, silent until your next set_sound. You get what the owner's player reports (pattern).",
     inputSchema: StrudelModeInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => strudelMode(c.db, c.userId, args)));
 

@@ -321,9 +321,9 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
     const int = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null }; session_id: string };
-    expect(int.mode).toBe("internal"); expect(int.guidance).toMatch(/^Internal face/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
+    expect(int.mode).toBe("internal (Self)"); expect(int.guidance).toMatch(/^Mode internal/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
     const ext = await svc.startSession(dbA, A, { mode: "outer" }, tick()) as { mode: string; guidance: string; session_id: string; settings: { rest_after: number | null } };
-    expect(ext.mode).toBe("external"); expect(ext.guidance).toMatch(/^External face/); expect(ext.settings.rest_after).toBeNull();
+    expect(ext.mode).toBe("external (Attuned)"); expect(ext.guidance).toMatch(/^Mode external/); expect(ext.settings.rest_after).toBeNull();
     expect(sql(`select mode || '/' || mode_policy from sessions where id = '${ext.session_id}'`)).toBe("external/auto");
     expect(sql(`select mode from sessions where id = '${int.session_id}'`)).toBe("internal");
   });
@@ -338,19 +338,31 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(seen.history.join("\n")).not.toMatch(/turn 0/);
   });
 
+  it("sends the rules of a mode once, when the mode differs from the one last guided", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick()) as { session_id: string };
+    expect(sql(`select guided_mode from sessions where id = '${session_id}'`)).toBe("internal");
+    let r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000)) as Record<string, unknown>;
+    expect(r).not.toHaveProperty("guidance");
+    r = await svc.setSound(dbA, A, { session_id, mood, mode: "sandbox", final: true } as never, tick(5000)) as Record<string, unknown>;
+    expect(r.guidance).toMatch(/^Mode sandbox/); expect(r.mode).toBe("sandbox (Jukebox)");
+    expect(sql(`select guided_mode from sessions where id = '${session_id}'`)).toBe("sandbox");
+    r = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000)) as Record<string, unknown>;
+    expect(r).not.toHaveProperty("guidance");
+  });
+
   it("switches the face at once on auto, logs it, and an owner lock is final", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const call = (extra: object, ms = 1000) => svc.setSound(dbA, A, { session_id, mood, final: true, ...extra } as never, tick(ms));
     let r = await call({ mode: "external" });
-    expect(r.mode).toBe("external"); expect((r.notes as string[]).join(" ")).toMatch(/switched to the external face/);
+    expect(r.mode).toBe("external (Attuned)"); expect((r.notes as string[]).join(" ")).toMatch(/switched to external \(Attuned\)/);
     r = await call({ mode: "internal" });
-    expect(r.mode).toBe("internal");
+    expect(r.mode).toBe("internal (Self)");
     r = await call({ mode: "external" }); // no timer: straight back
-    expect(r.mode).toBe("external");
+    expect(r.mode).toBe("external (Attuned)");
     // the owner locks the face: the model cannot move it
     expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
     r = await call({ mode: "external" });
-    expect(r.mode).toBe("internal, locked by the owner"); expect((r.notes as string[]).join(" ")).toMatch(/locked/);
+    expect(r.mode).toBe("internal (Self), locked by the owner"); expect((r.notes as string[]).join(" ")).toMatch(/locked/);
     expect((await dbB.rpc("set_mode_policy", { p_session: session_id, p_policy: "auto" })).error).not.toBeNull(); // not the owner
     const seen = await svc.inspect(dbA, A, { session_id, what: "history" }) as { face_changes: string[] };
     const log = seen.face_changes.join("|");
@@ -452,7 +464,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       await expect(svc.strudelMode(dbA, A, { session_id: internal.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "internal_face" });
       const ext = await svc.startSession(dbA, A, { mode: "external" }, tick());
       expect((await dbA.rpc("set_mode_policy", { p_session: ext.session_id, p_policy: "internal" })).error).toBeNull();
-      await expect(svc.strudelMode(dbA, A, { session_id: ext.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "internal_face", message: expect.stringMatching(/locked it\. It is final/) });
+      await expect(svc.strudelMode(dbA, A, { session_id: ext.session_id, on: true, code, bpm: 120, final: true }, tick(5000))).rejects.toMatchObject({ code: "internal_face", message: expect.stringMatching(/mode stays internal \(Self\): the owner locked it\. It is final/) });
       expect((await dbA.rpc("set_mode_policy", { p_session: ext.session_id, p_policy: "external" })).error).toBeNull();
       expect((await dbB.rpc("set_allow_code", { p_session: ext.session_id, p_allow: false })).error).not.toBeNull(); // not the owner
       expect((await dbA.rpc("set_allow_code", { p_session: ext.session_id, p_allow: false })).error).toBeNull();
