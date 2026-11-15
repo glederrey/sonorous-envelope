@@ -32,8 +32,9 @@ function playingOf(e: EngineState) {
   if (e.engine === "strudel" && e.pattern) {
     // the synth fields are the paused synth; what plays is the pattern
     const c = e.colour, p: Record<string, unknown> = { engine: "strudel", bpm: Math.round(e.pattern.bpm), code: `${e.pattern.code.length} characters` };
-    const chosen = c.scene && c.scene !== "none" && !c.sceneAuto; // a scene the mood picked is not reported: only what you set
-    if (chosen || c.sync) p.picture = [chosen ? `${c.scene} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
+    // the scene is always reported here, also the one the server picked for the music (it shows when the listener hides the drawings)
+    const scene = c.scene && c.scene !== "none";
+    if (scene || c.sync) p.picture = [scene ? `${c.scene}${c.sceneAuto ? " (picked for the music)" : ""} density ${r2(c.density ?? 0.4)} speed ${r2(c.speed ?? 0.4)}` : "", c.sync ? `sync ${c.sync}` : ""].filter(Boolean).join(", ");
     return p;
   }
   const p: Record<string, unknown> = {

@@ -32,7 +32,7 @@ interface SessionRow {
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 function fail(action: string, error: { message: string } | null): never {
@@ -364,7 +364,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     if (effective.arp.tempo > was.tempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(was.tempo)} bpm`); effective.arp.tempo = was.tempo; }
     if (RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
     if (effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
-    if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); send again to go further`);
+    if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); send again to go further. reads_as reads the held sound, so its calm is higher than sent: do not correct for that`);
   }
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
