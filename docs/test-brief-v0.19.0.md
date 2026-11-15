@@ -18,7 +18,7 @@ Same as before: reconnect, start_session, give the player link, the user taps "S
 ### Tests (record pass, fail or partial, and what the user saw)
 
 1. **Straight away.** `strudel_mode` on false, then at once `set_sound` with the stars scene. Pass: the code fades to black (not green), the aurora never shows, the stars fade in from black over about 2 s.
-2. **After about 3 s.** `strudel_mode` on false, then `set_sound` with stars after about 3 seconds. Pass: black (not green) until the stars, no aurora, the stars fade in from black.
+2. **After about 3 s (optional, run it if there is time).** `strudel_mode` on false, then `set_sound` with stars after about 3 seconds. Pass: black (not green) until the stars, no aurora, the stars fade in from black.
 3. **After about 8 s.** Same with a pause of about 8 seconds. Pass: black for the whole pause (the aurora does **not** come back after 4 s any more), then the stars fade in from black.
 4. **Closing sequence.** `strudel_mode` on false, a closing `set_sound` with the waves scene, then `silence` with end. Pass: black first, the stars or the aurora never show, the waves fade in from black, then the end fade (already passed, just note if it changed).
 5. **Controls panel.** 360 px window, a pattern of about 1,300 characters playing, controls open: the code behind the panel is blurred, the panel looks the same as over a normal scene. Then over a normal scene (warp, for example): same look. Pass: one look on both views, blurred behind, no code readable through it.
@@ -54,11 +54,7 @@ Reconnect (the instructions changed), `start_session` with no mode, give the pla
 11. **Owner lock while a pattern plays.** With a Strudel pattern playing in Jukebox, the owner locks **Attuned** in the player. Pass: the pattern keeps playing, and your next tool result carries Attuned `guidance` with the note that the owner switched the mode. Then the owner locks **Jukebox** again: the pattern still plays, the next result carries Jukebox `guidance`.
 12. **Owner lock to Self.** The owner locks **Self** while a pattern plays. Pass: the pattern stops (fades to nothing), your next result carries Self `guidance` and the owner note, `strudel_mode` on is refused, and `set_sound` with a mode is refused as locked. You do not comment on the lock.
 13. **Guidance once.** After a change, make two more calls without a change. Pass: only the first result after the change has `guidance`.
-14. **Site.** Open `/` (the "Three modes" section is there and reads clearly), `/modes`, `/guide` and the old `/faces` link (it lands on `/modes`). Note anything unclear in the wording; this is the part the listener reads first.
-
-## Optional, on Gael's dev server
-
-`http://localhost:3000/dev/player` runs the real player on scripted states, no session needed: press Start listening, then "Synth aurora", "Strudel on", then one of the hand-overs ("Off, stars after 0.5 / 1.5 / 3 / 8 s", "Strudel straight to stars", "Closing"). The `set_sound` transition can be set to 0.5 s to check that the black does not lift before the scene. It needs `pnpm --filter web build:worklet` and `pnpm --filter web build:strudel` once (the bundles are not in git).
+14. **Redirects.** On the real domain, open `/faces` and `/guide`. Pass: they land on `/modes` and `/how-it-works`. (The pages themselves were checked on the dev server.)
 
 ## Report
 
