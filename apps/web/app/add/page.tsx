@@ -6,7 +6,7 @@ import { mcpResourceUrl } from "../../lib/env";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Add to your AI",
-  description: "Paste one URL into Claude, ChatGPT or any MCP client to give your AI model a synth, Strudel music and visuals. Free, about a minute.",
+  description: "Paste one URL into Claude, ChatGPT or any MCP client to give your AI model a synth, Strudel music and visuals. Free.",
   alternates: { canonical: "/add" },
 };
 
