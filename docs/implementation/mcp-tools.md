@@ -223,7 +223,7 @@ Every tool except `start_session` takes `session_id`.
 - If missing: use the caller's most recently active, non-ended session, and add the note `"session_id missing: used <id>"`. If none exists, return `{"error":"no_session","message":"Call start_session first."}`.
 
 ## Rate limits
-- At most 20 `set_sound` calls per session per minute, and 1 per 300 ms. Beyond that, return `{"error":"too_fast"}` without storing.
+- At most 20 `set_sound`, `strudel_mode` and `silence` calls together per session per minute (`silence` with `end` is never refused by this count, so a session can always stop), and 1 per 300 ms. Beyond that, return `{"error":"too_fast"}` without storing.
 - At most 10 active sessions per user; `start_session` beyond that ends the oldest.
 
 ## Tool descriptions (as the model sees them)

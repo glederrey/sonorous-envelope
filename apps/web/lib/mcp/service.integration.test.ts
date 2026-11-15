@@ -502,6 +502,15 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(log).toMatch(/strudel code/); expect(log).toMatch(/back to the synth/);
     });
 
+    it("strudel_mode off on a plain synth changes nothing", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood, colour: { scene: "stars" }, final: true } as never, tick(5000));
+      const before = state(session_id);
+      const off = await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(5000));
+      expect((off.notes as string[]).join(" ")).toMatch(/Strudel was not on/);
+      expect(state(session_id).volume).toBe(before.volume); expect(state(session_id).colour.scene).toBe("stars");
+    });
+
     it("silence stops Strudel too (the pattern fades out in the player)", async () => {
       const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
       await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));

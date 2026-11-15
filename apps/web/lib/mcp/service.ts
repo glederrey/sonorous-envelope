@@ -460,7 +460,8 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
     // nothing comes back until the next set_sound, which fades in from black. Restoring the old state showed its scene (and the colour
     // field) for as long as the model took to send that set_sound (handoff v0.18.5). The paused synth's fields stay for keep_voice.
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
-      delete e.engine; delete e.pattern; e.volume = 0; e.colour = applyColour(e.colour, sticky.colour); e.colour.scene = "none"; delete e.colour.sceneAuto;
+      delete e.engine; delete e.pattern; e.colour = applyColour(e.colour, sticky.colour);
+      if (wasStrudel) { e.volume = 0; e.colour.scene = "none"; delete e.colour.sceneAuto; } // off on a plain synth changes nothing
     }, intent, { title, sticky }));
     if (wasStrudel) notes.push("back on the synth, silent: Strudel and the picture fade to black, and nothing plays until you send set_sound (send it now for a closing sound)");
   }
@@ -497,10 +498,12 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound.");
   if (now - new Date(prev.created_at).getTime() < MIN_GAP_MS) throw new ToolError("too_fast", "Wait a moment between updates.");
-  const { count, error: cerr } = await db.from("states").select("id", { count: "exact", head: true })
-    .eq("session_id", session.id).gte("created_at", new Date(now - 60_000).toISOString());
-  if (cerr) fail("check the update rate", cerr);
-  if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
+  if (!input.end) { // ending is always allowed: the cap must never keep a session sounding
+    const { count, error: cerr } = await db.from("states").select("id", { count: "exact", head: true })
+      .eq("session_id", session.id).gte("created_at", new Date(now - 60_000).toISOString());
+    if (cerr) fail("check the update rate", cerr);
+    if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
+  }
 
   const final = input.final || Boolean(input.end);
   const turn = planTurn(prev, final, now);

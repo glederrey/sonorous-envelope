@@ -21,6 +21,11 @@ Same as before: reconnect, start_session, give the player link, the user taps "S
 4. **Closing sequence.** `strudel_mode` on false, a closing `set_sound` with the waves scene, then `silence` with end. Pass: black first, the stars or the aurora never show, the waves fade in from black, then the end fade (already passed, just note if it changed).
 5. **Controls panel.** 360 px window, a pattern of about 1,300 characters playing, controls open: the code behind the panel is blurred, the panel looks the same as over a normal scene. Then over a normal scene (warp, for example): same look. Pass: one look on both views, blurred behind, no code readable through it.
 
+6. **"Strudel visuals" off while code plays.** With a pattern playing, turn "Strudel visuals" off. The view now goes to black first and fades to the scenes over about 2 s (before: a quick 0.3 s cross-fade). Pass: it reads as a calm fade, not a flash, and turning it back on brings the code back as before.
+7. **A normal fade-in after silence.** On the synth only: `silence` (not end), then `set_sound` with a scene. The dark layer now lifts over at least 2 s, with the scene. Pass: the scene and the colour come up together from black, no colour patch before the scene.
+
+Also fixed after a code review, with nothing for you to test: `silence` counts toward the 20-per-minute limit (except `silence` with end); `strudel_mode` off while Strudel is not on changes nothing; NaN can no longer slip past the volume, pulse and small-element caps or the listener volume; a failed audio start no longer leaves an audio context running; `.fscope()`/`.spectrum()` with min equal to max no longer draws nothing; a Strudel sandbox closed while it starts no longer stays behind.
+
 ## Optional, on Gael's dev server
 
 `http://localhost:3000/dev/player` runs the real player on scripted states, no session needed: press Start listening, then "Synth aurora", "Strudel on", then one of the hand-overs ("Off, stars after 0.5 / 1.5 / 3 / 8 s", "Strudel straight to stars", "Closing"). The `set_sound` transition can be set to 0.5 s to check that the black does not lift before the scene. It needs `pnpm --filter web build:worklet` and `pnpm --filter web build:strudel` once (the bundles are not in git).
