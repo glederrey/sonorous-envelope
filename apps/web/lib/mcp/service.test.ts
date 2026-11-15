@@ -204,3 +204,31 @@ describe("patternScene", () => {
     }
   });
 });
+
+describe("v0.19.3 report", () => {
+  const code = 'note("c3 e3").s("sawtooth")';
+  async function pattern() {
+    const s = await session();
+    await s.set({ mood: mood({ calm: 0.1 }) });
+    await s.set({ mood: mood({ calm: 0.1 }), mode: "jukebox" });
+    const r = await svc.strudelMode(s.db, U, { session_id: s.session_id, on: true, code, bpm: 140, final: true } as never, s.tick()) as Fb;
+    return { s, r };
+  }
+  it("reports the scene picked for the music (feedback 2)", async () => {
+    const { r } = await pattern();
+    expect(r.playing.picture).toMatch(/^\w+ \(picked for the music\) density [\d.]+ speed [\d.]+, sync beat$/);
+  });
+  it("no glide and no tempo note after strudel_mode off, even straight away (feedback 3)", async () => {
+    const { s } = await pattern();
+    await svc.strudelMode(s.db, U, { session_id: s.session_id, on: false, final: true } as never, s.tick());
+    const r = await s.set({ mood: mood({ calm: 0.9 }) }, 1_000);
+    expect(notes(r)).not.toMatch(/tempo \d+ to/);
+    expect((s.last().effective.grid as { glide?: number }).glide).toBe(0);
+  });
+  it("pace held says reads_as needs no correction (feedback 5)", async () => {
+    const s = await session();
+    await s.set({ mood: mood({ calm: 0.9 }) });
+    const r = await s.set({ mood: mood({ calm: 0.05 }), mode: "attuned" });
+    expect((r.clamped as string[]).join(" ")).toMatch(/pace held.*do not correct/);
+  });
+});

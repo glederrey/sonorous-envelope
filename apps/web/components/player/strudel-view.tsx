@@ -28,7 +28,6 @@ interface Props {
 
 const DPR_MAX = 1.5; // the drawings are soft; a lower resolution keeps a phone smooth
 const TAIL_S = 0.18; // seconds a lit part stays after its note ends
-const BLACK_S = 0.6; // seconds the view takes to turn the picture behind it black when it comes on (instant when nothing shows behind)
 const IN_S = 1.5; // seconds the code and its drawings take to fade in once the view is black (still capped by the level, so a bar-synced start waits for the bar)
 const OUT_S = 2; // seconds the view takes to fade out once its content is black: what comes after (a scene, the field) comes up from black
 const SWAP_S = 0.5; // seconds the old code's drawings take to fade out over the new code's (v0.19.2 tests: they swapped at once)
@@ -63,15 +62,17 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       const { shown: on, hue: hu, output, store: st } = live.current;
       const dt = last ? Math.min(0.25, (now - last) / 1000) : 0.016; last = now;
       // The whole view (`op`) is opaque while it is shown, even in a silence, so the colour field never shows through a fade: the content fades
-      // to black inside it. Coming on (Strudel starts, or the listener turns the visuals back on) it goes in two steps: first the view's black
-      // background covers the picture behind it (BLACK_S, at once when almost nothing shows), then the code and its drawings fade in over IN_S.
+      // to black inside it. Coming on (Strudel starts, or the listener turns the visuals back on) the view's black
+      // background and the code and its drawings come in together over IN_S (at once when almost nothing shows behind; before v0.19.4 the black came first, a dip).
       // It fades out over the scenes when a synth sound takes over or it is switched off.
       // Fading out, the content goes black first (about 0.3 s), then the black view fades over OUT_S, so the scene or the field behind comes
       // up from black whether a silence came first (strudel_mode off) or the synth state arrived straight away.
+      // Over a scene that shows (the listener turns the drawings back on, or a pattern takes over from a sounding synth state) it is one
+      // crossfade: the view's black and its content come in together over IN_S, so the scene never dips to black first (v0.19.3 tests).
       if (on) {
         if (!wasOn) { op0 = op; onT = 0; inT = 0; if (level.current < 0.05) op = 1; picLog("strudel view on", { opacity: +op0.toFixed(2), level: +level.current.toFixed(2) }); }
-        if (op < 1) { onT += dt; const k = Math.min(1, onT / BLACK_S); op = op0 + (1 - op0) * k * k * (3 - 2 * k); if (k >= 1) op = 1; }
-        if (op === 1) inT += dt;
+        if (op < 1) { onT += dt; const k = Math.min(1, onT / IN_S); op = op0 + (1 - op0) * k * k * (3 - 2 * k); if (k >= 1) op = 1; }
+        inT += dt;
       } else {
         if (wasOn) { outT = 0; out0 = op; picLog("strudel view off", { opacity: +op.toFixed(2), level: +level.current.toFixed(2) }); }
         outT += dt;
