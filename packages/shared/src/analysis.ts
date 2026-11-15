@@ -14,7 +14,7 @@ const FRAME = 1024, HOP = 512, BANDS = 32;
 
 export interface Features {
   loudnessDb: number; centroidHz: number; highFreqRatio: number; flux: number; fluxVariance: number;
-  density: number; roughness: number; waveRoughness: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
+  density: number; roughness: number; waveRoughness: number; pitchHz: number; modeBrightness: number; onsetIrregularity: number; patternEntropy: number;
   width: number; tailRatio: number; pitchLow: number; pitchHigh: number;
   /** How much a note clashes with the stack started on it: the mean over arpeggio onsets of the summed weight of the semitone, tritone and major-seventh pairs inside one onset. */
   clash: number;
@@ -190,6 +190,10 @@ export function measure(state: EngineState, seed = 1): Features {
     }
   }
   const roughness = clamp01(cnt ? rough / cnt : 0), waveRoughness = clamp01(cnt ? wrough / cnt : 0);
+  // the mean pitch of what sounds (notes played and held), in Hz on a log scale: the centroid over it is the brightness of the timbre
+  // whatever the register (a sine three octaves up has a high centroid but no overtones)
+  const allMidi = [...ev.map((e) => e.midi), ...held];
+  const pitchHz = allMidi.length ? hz(allMidi.reduce((a, m) => a + m, 0) / allMidi.length) : 0;
 
   // clash: the semitones, tritones and major sevenths inside one onset, that is a note and the stack stacked on it (the
   // arpeggio plays one note per step). Only what starts together counts: counting what overlaps in a 0.4 s window made the
@@ -219,15 +223,17 @@ export function measure(state: EngineState, seed = 1): Features {
   const patternEntropy = iois.length > 2 ? clamp01(ent / Math.log(Math.max(2, Math.min(iois.length, 12)))) : 0;
 
   return {
-    loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness, waveRoughness,
+    loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness, waveRoughness, pitchHz,
     modeBrightness: modeBrightness(pitches, state.arp.root, scaleNotes), onsetIrregularity, patternEntropy, width: ms > 0 ? clamp01(Math.sqrt(ss / ms)) : 0, tailRatio,
     pitchLow: pitches.length ? Math.min(...pitches) : 0, pitchHigh: pitches.length ? Math.max(...pitches) : 0, clash,
   };
 }
 
-// warmth = W0 - WC ln(centroid) - WR roughness + WW waveRoughness: least squares (v0.19.3) on 300 random moods, 150 moods with an
-// adopted voice (wave and scale bands, voice-band.ts) and a warmth sweep at neutral axes; r 0.88 (0.79 without waveRoughness)
-const W0 = 3.386, WC = 0.404, WR = 0.743, WW = 0.321;
+// warmth = W0 - WC ln(centroid) - WT ln(centroid / pitch) - WR roughness + WW waveRoughness: least squares (v0.19.3, `scripts/fit-warmth.ts`)
+// on 300 random moods, 150 moods with an adopted voice (wave and scale bands, voice-band.ts) and a warmth sweep at neutral axes; r 0.91
+// (0.90 on the random moods; the v0.19.1 formula 0.86). The centroid over the mean pitch is the brightness of the timbre whatever the
+// register: with the centroid alone a sine spread over three octaves read 0.58 for a sent 0.8 (v0.19.2 tests: 0.56); now 0.75 at worst.
+const W0 = 1.817, WC = 0.153, WT = 0.284, WR = 0.371, WW = 0.403;
 
 const word = (x: number, cuts: number[], names: string[]) => names[cuts.findIndex((c) => x < c) === -1 ? names.length - 1 : cuts.findIndex((c) => x < c)];
 
@@ -261,13 +267,14 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
   const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
   // warmth and closeness: least squares on 300 random moods through the mapping (held-out r 0.84 and 0.96, against 0.72 and 0.48 for the weights of v0.17.0; `pnpm calibrate`). Warmth is a dark, smooth sound (the centroid on a log scale and the roughness); it was refitted (v0.19.1) on the random moods plus a sweep of warmth at neutral other axes, because the first fit read 0.15 to 0.3 low there (the intercept was 2.65). Closeness is a dry, narrow, rough-edged sound (width above all)
-  const warmth = W0 - WC * Math.log(Math.max(60, f.centroidHz)) - WR * f.roughness + WW * f.waveRoughness;
+  const timbre = Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)); // 0 for a pure tone at the mean pitch, about 2 for a bright sawtooth
+  const warmth = W0 - WC * Math.log(Math.max(60, f.centroidHz)) - WT * timbre - WR * f.roughness + WW * f.waveRoughness;
   const closeness = 0.59 - 1.12 * f.width - 0.13 * f.tailRatio + 0.19 * f.roughness;
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
     joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
     calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["darkness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
-    warmth: explain([["darkness", WC, 1 - c], ["smoothness", WR, 1 - f.roughness]]),
+    warmth: explain([["darkness", WC, 1 - c], ["soft_timbre", WT, clamp01(1 - timbre / 2)], ["smoothness", WR, 1 - f.roughness]]),
     closeness: explain([["narrow_width", 1.12, 1 - f.width], ["dryness", 0.13, 1 - f.tailRatio], ["roughness", 0.19, f.roughness]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };

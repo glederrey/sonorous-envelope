@@ -436,10 +436,12 @@ export function patternSceneMotion(bpm: number): { speed: number; density: numbe
   return { speed: Math.min(0.9, Math.max(0.2, 0.2 + (bpm - 60) / 150)), density: 0.5 };
 }
 
-/** The scene behind a pattern, when the model set none: the one its last mood suggests, with calm read from the tempo (the inverse of the
- *  mapping's tempo, 150 bpm at calm 0 to 56 at calm 1). Null when that mood fits no scene. */
-export function patternScene(mood: Mood | undefined, bpm: number) {
-  return moodToScene({ ...stretchMood(mood ?? NEUTRAL_MOOD), calm: Math.min(1, Math.max(0, (150 - bpm) / 94)) });
+/** The scene behind a pattern, when the model set none: the one its last mood suggests most, with calm read from the tempo (the inverse
+ *  of the mapping's tempo, 150 bpm at calm 0 to 56 at calm 1), even when it fits only loosely (with the usual 0.3 threshold 45% of moods got
+ *  none and kept the synth's old scene). A mood that fits no scene at all gets one from the tempo. Never null. */
+export function patternScene(mood: Mood | undefined, bpm: number): { scene: NonNullable<EngineState["colour"]["scene"]>; density: number; speed: number } {
+  const pick = moodToScene({ ...stretchMood(mood ?? NEUTRAL_MOOD), calm: Math.min(1, Math.max(0, (150 - bpm) / 94)) }, 0);
+  return pick ?? { scene: bpm >= 110 ? "motes" : bpm >= 80 ? "seeds" : "tide", density: 0.5, speed: patternSceneMotion(bpm).speed };
 }
 
 /** The colour of a pattern state. A new scene does not inherit the old scene's density and speed: without its own it takes them from the pattern's tempo.
@@ -455,7 +457,7 @@ function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSou
   // without a scene of the model's own, one that goes with the music, not the one the synth state left behind
   if (!kept?.scene) {
     const pick = patternScene(mood, bpm);
-    if (pick) { e.colour.scene = pick.scene; e.colour.density = pick.density; e.colour.speed = patternSceneMotion(bpm).speed; e.colour.sceneAuto = true; }
+    e.colour.scene = pick.scene; e.colour.density = pick.density; e.colour.speed = patternSceneMotion(bpm).speed; e.colour.sceneAuto = true;
     return;
   }
   if (!sent?.scene || sent.scene === was) return;

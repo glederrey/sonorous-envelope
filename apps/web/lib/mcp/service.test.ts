@@ -179,7 +179,8 @@ describe("v0.19.2 report", () => {
     await svc.strudelMode(s.db, U, { session_id: s.session_id, on: true, code: 'note("c3 e3").s("sawtooth")', bpm: 150, final: true } as never, s.tick());
     const c = s.last().effective.colour as { scene?: string; sync?: string; sceneAuto?: boolean };
     expect(c.sync).toBe("beat");
-    expect(c.scene).toBe(svc.patternScene(mood({ joy: 0.8, calm: 0.85, warmth: 0.5, closeness: 0.4 }), 150)?.scene ?? c.scene);
+    expect(c.scene).toBe(svc.patternScene(mood({ joy: 0.8, calm: 0.85, warmth: 0.5, closeness: 0.4 }), 150).scene);
+    expect(c.sceneAuto).toBe(true);
     await svc.strudelMode(s.db, U, { session_id: s.session_id, on: true, code: 'note("c3").s("sine")', bpm: 70, colour: { scene: "rain", sync: "phrase" }, final: true } as never, s.tick());
     const c2 = s.last().effective.colour as { scene?: string; sync?: string; sceneAuto?: boolean };
     expect(c2.scene).toBe("rain"); expect(c2.sync).toBe("phrase"); expect(c2.sceneAuto).toBeFalsy();
@@ -195,6 +196,11 @@ describe("patternScene", () => {
   it("reads calm from the tempo: the same mood at 150 and 60 bpm gives a busier and a calmer scene", () => {
     const m = mood({ joy: 0.85, warmth: 0.5, closeness: 0.4, spontaneity: 0.5 });
     const fast = svc.patternScene(m, 150), slow = svc.patternScene(m, 60);
-    expect(fast?.scene).not.toBe(slow?.scene);
+    expect(fast.scene).not.toBe(slow.scene);
+  });
+  it("always gives a scene, for any mood and tempo", () => {
+    for (const joy of [0, 0.3, 0.5, 0.7, 1]) for (const warmth of [0, 0.5, 1]) for (const bpm of [40, 90, 130, 200]) {
+      expect(svc.patternScene(mood({ joy, warmth }), bpm).scene).toBeTruthy();
+    }
   });
 });
