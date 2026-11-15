@@ -1083,7 +1083,7 @@ html:has(.pl-field) .se-header {
 .pl-panel {
   width: min(480px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
   background: var(--scrim-panel); color: var(--on-scrim); border: 1px solid var(--scrim-line); /* more opaque than the other scrims: long code behind it must not make the buttons hard to read */
-  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px); /* unprefixed only: the CSS minifier adds the -webkit- copy. Written by hand after it, it made the minifier drop this line, and Chromium has no blur for the prefixed one */
 }
 .pl-panel .se-btn {
   background: color-mix(in srgb, var(--on-scrim) 8%, transparent); border-color: var(--scrim-line); color: var(--on-scrim);
