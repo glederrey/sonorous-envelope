@@ -406,7 +406,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (the synth under Strudel stays paused: a closing sound needs that first; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
+  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
@@ -456,16 +456,19 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
     notes.push(sameCode ? "same code and tempo as before: the music does not change" : wasStrudel ? "the new code starts on the next bar" : "Strudel starts on the next bar, once a player is open. The synth is paused: only strudel_mode with on false brings it back");
   } else {
     if (!wasStrudel) { notes.push("Strudel was not on: nothing changed"); }
+    // Leaving Strudel writes a silence with no scene, not the synth as it was left: the player fades Strudel and the picture to black and
+    // nothing comes back until the next set_sound, which fades in from black. Restoring the old state showed its scene (and the colour
+    // field) for as long as the model took to send that set_sound (handoff v0.18.5). The paused synth's fields stay for keep_voice.
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
-      delete e.engine; delete e.pattern; e.colour = applyColour(e.colour, sticky.colour);
+      delete e.engine; delete e.pattern; e.volume = 0; e.colour = applyColour(e.colour, sticky.colour); e.colour.scene = "none"; delete e.colour.sceneAuto;
     }, intent, { title, sticky }));
-    if (wasStrudel) notes.push(effective.volume <= 0.001 ? "back on the synth, but its state is silent (volume 0): nothing fades in until you send set_sound" : "back on the synth, where you left it: it fades in");
+    if (wasStrudel) notes.push("back on the synth, silent: Strudel and the picture fade to black, and nothing plays until you send set_sound (send it now for a closing sound)");
   }
   const p = await presence(db, session.id, session.owner_id, now);
   const rest = restInfo(prev, settings, now, face);
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
-  const analysis = input.on ? null : measureState(effective, ANALYSIS_SEED);
+  const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
   return buildFeedback({
     turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes: all, resting: rest.resting,
     analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),

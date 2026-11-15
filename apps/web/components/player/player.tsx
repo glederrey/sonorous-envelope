@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { Eye, Minimize2 } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
 import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings } from "@sonorous/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { sliderToGain } from "../../lib/volume";
@@ -54,8 +55,9 @@ function age(sec: number) {
   return `${Math.round(sec / 3600)} h ago`;
 }
 
-export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: boolean }) {
-  const supabase = useMemo(() => createClient(), []);
+/** `client`: only for the /dev/player lab, a stand-in that serves scripted states (the background worker is off then: it polls the real server). */
+export function Player({ sessionId, signedIn, client }: { sessionId: string; signedIn: boolean; client?: SupabaseClient }) {
+  const supabase = useMemo(() => client ?? createClient(), [client]);
   const [phase, setPhase] = useState<Phase>("joining");
   const [message, setMessage] = useState("");
   const [playing, setPlaying] = useState<Playing | null>(null);
@@ -102,7 +104,6 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
   const [strudelVisuals, setStrudelVisuals] = useState(true);
   const strudelPref = useRef(true);
   const [stSeen, setStSeen] = useState(false); // a Strudel state has shown: the view is loaded
-  const sceneHold = useRef({ until: 0, at: 0 }); // the scenes wait after the Strudel picture hands over to the synth
   const [stShown, setStShown] = useState(false); // the Strudel picture is the one showing (it stays through a silence, and fades with the level)
   const vizStore = useMemo(() => new VizStore(), []);
   const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
@@ -371,7 +372,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     let ticker: Worker | null = null;
     let tickerUrl = "";
     let visFn: (() => void) | null = null;
-    try {
+    if (!client) try {
       const code = `
         let cfg = null, busy = false;
         onmessage = (e) => { cfg = Object.assign(cfg || {}, e.data); };
@@ -417,7 +418,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
       if (visFn) document.removeEventListener("visibilitychange", visFn);
       ticker?.terminate(); if (tickerUrl) URL.revokeObjectURL(tickerUrl);
       cancelled = true; reload.current = () => {}; clearInterval(poll); void supabase.removeChannel(channel); };
-  }, [supabase, sessionId, apply, restTick]);
+  }, [supabase, sessionId, apply, restTick, client]);
 
   // heartbeat: tells the model who is listening and with what controls
   const beat = useCallback(async () => {
@@ -558,12 +559,10 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     // the picture stays and fades to black instead of letting the scenes flash in. A new pattern that arrives while blocked is not stripped,
     // so it still hides the picture as before.
     const stripped = Boolean(playing?.state.pattern && latest.current && latest.current.at === playing.at && !latest.current.state.pattern);
-    if (soundingNow && !stripped) {
-      // the picture was the Strudel one and a synth sound takes over: the scenes wait (see `sceneHold` in the canvas)
-      if (stShown && playing) sceneHold.current = { until: Date.now() + 4000, at: playing.at };
-      setStShown(false);
-    }
-  }, [patternShows, soundingNow, playing, stShown]);
+    // A synth sound takes over: the view fades out from black (strudel-view.tsx). Leaving Strudel is a silent state (strudel_mode off), so the
+    // view stays through it and fades to black with the level; the set_sound after it is what hides the view.
+    if (soundingNow && !stripped) setStShown(false);
+  }, [patternShows, soundingNow, playing]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
   // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
   useEffect(() => {
@@ -580,6 +579,8 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
     "--pl-h2": hue2, "--pl-s2": colour?.secondary?.s ?? colour?.s ?? 0.15,
     "--pl-l2": colour?.secondary?.l ?? Math.max(0, (colour?.l ?? 0.12) - 0.08),
     "--pl-t": `${Math.max(1, playing?.state.transition.time ?? 1)}s`,
+    // the dark layer lifts at least as slowly as a scene comes in from nothing (SCENE_FADE_IN, 2 s), so the colour field never shows before the scene
+    "--pl-dim-t": `${playing && isSounding(playing.state) ? Math.max(2, playing.state.transition.time) : Math.max(1, playing?.state.transition.time ?? 1)}s`,
     "--pl-dim": playing && !isSounding(playing.state) ? 1 : 0, "--pl-dim-delay": `${playing && isSounding(playing.state) ? dimDelay : 0}s`,
     "--pl-pulse": colour?.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
@@ -605,7 +606,7 @@ export function Player({ sessionId, signedIn }: { sessionId: string; signedIn: b
         <VisualCanvas
           source={playing ? { state: playing.state, at: playing.at, seed: pictureSeed } : null}
           clockOffset={clockOffset} latency={pictureLatency} active={started && (!stillPicture || strudelOn)} play={gradientOn} visuals={visualsOn} onFail={failCanvas}
-          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats} viewOpacity={vizOpacity} sceneHold={sceneHold}
+          strudelView={strudelOn} levelOut={vizLevel} beatsOut={vizBeats} viewOpacity={vizOpacity}
         />
       )}
       {canvasOk && !reduced && stSeen && (

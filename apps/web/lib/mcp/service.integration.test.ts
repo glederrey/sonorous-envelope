@@ -489,9 +489,15 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(state(session_id).pattern.code).toBe('s("bd*4")');
       // back to the synth
       const off = await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(5000));
-      expect(state(session_id).engine).toBeUndefined();
-      expect(off.playing).toHaveProperty("scale"); expect(off).toHaveProperty("reads_as");
-      expect(state(session_id).arp.root).toBe(synth.arp.root);
+      const back = state(session_id);
+      expect(back.engine).toBeUndefined();
+      // it comes back silent and with no scene: the picture goes to black and the next set_sound fades in from it
+      expect(back.volume).toBe(0); expect(back.colour.scene).toBe("none");
+      expect(off.playing).toHaveProperty("scale"); expect(off).not.toHaveProperty("reads_as");
+      expect((off.notes as string[]).join(" ")).toMatch(/silent/);
+      expect(back.arp.root).toBe(synth.arp.root); // the paused synth's fields stay
+      await svc.setSound(dbA, A, { session_id, mood, colour: { scene: "stars" }, final: true } as never, tick(5000));
+      expect(state(session_id).volume).toBeGreaterThan(0); expect(state(session_id).colour.scene).toBe("stars");
       const log = (await svc.inspect(dbA, A, { session_id, what: "history" })).history.join("\n");
       expect(log).toMatch(/strudel code/); expect(log).toMatch(/back to the synth/);
     });
