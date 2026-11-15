@@ -4,7 +4,7 @@ import { SiteHeader } from "../../components/site-header";
 import { safeNext } from "../../lib/safe-next";
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Sign in · Sonorous Envelope" };
+export const metadata = { title: "Sign in" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; mode?: string }> }) {
   const { next, error, mode } = await searchParams;

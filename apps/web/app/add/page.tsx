@@ -4,7 +4,11 @@ import { AppTabs } from "../../components/app-tabs";
 import { mcpResourceUrl } from "../../lib/env";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Add to your AI · Sonorous Envelope", alternates: { canonical: "/add" } };
+export const metadata = {
+  title: "Add to your AI",
+  description: "Paste one URL into Claude, ChatGPT or any MCP client to give your AI model a synth, Strudel music and visuals. Free, about a minute.",
+  alternates: { canonical: "/add" },
+};
 
 export default function AddPage() {
   return (
@@ -25,7 +29,7 @@ export default function AddPage() {
           <h2 className="se-title" id="add-next">Then</h2>
           <p>
             Turn the connector on at the start of a conversation and the model calls its tools itself: <a href="/guide">what each tool does</a>,
-            and <a href="/faces">the two faces</a> of the sound.
+            and <a href="/modes">the three modes</a> of the sound.
           </p>
         </section>
       </main>

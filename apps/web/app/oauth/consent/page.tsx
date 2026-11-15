@@ -3,7 +3,7 @@ import { SiteHeader } from "../../../components/site-header";
 import { createClient } from "../../../lib/supabase/server";
 import { decide } from "./actions";
 
-export const metadata = { title: "Authorize · Sonorous Envelope" };
+export const metadata = { title: "Authorize" };
 
 export default async function ConsentPage({
   searchParams,

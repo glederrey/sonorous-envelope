@@ -4,16 +4,28 @@ import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
 import { SamplePlayer } from "../components/sample-player";
 import { mcpResourceUrl } from "../lib/env";
+import { FACES, MODE_LABEL } from "../lib/mcp/modes";
 import { getLiveCount, liveSentence } from "../lib/live-count";
 
 export const dynamic = "force-dynamic";
 export const metadata = { alternates: { canonical: "/" } };
+
+const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 
 // Structured data: the site name and the logo that search results may show.
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A remote MCP server that gives an AI model a synthesizer and a colour field." },
+    {
+      "@type": "SoftwareApplication",
+      name: "Sonorous Envelope",
+      url: SITE_URL,
+      description: `A free MCP server that gives your AI model a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`,
+      applicationCategory: "MultimediaApplication",
+      operatingSystem: "Any (MCP client)",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
     { "@type": "Organization", name: "Sonorous Envelope", url: SITE_URL, logo: `${SITE_URL}/brand/logo-512.png` },
   ],
 };
@@ -54,14 +66,18 @@ export default async function Home() {
               </span>
             </h1>
           <p className="lp-lede">
-            A small synthesizer and a colour field for an AI model. It sets the mood while it works, you hear and see it
-            beside the chat, and it hears back what really played. When you ask for music, it can also write it live in Strudel.
+            A non-verbal channel for an AI model: sound and colour, to add depth to a conversation that is otherwise only
+            text. You hear and see it beside the chat, in one of three modes: {SELF}, {ATTUNED} or {JUKEBOX}.
+          </p>
+          <p className="lp-lede">
+            The idea comes from Didier Anzieu&apos;s sonorous envelope. <a href="/modes#idea">Where it comes from</a>.
           </p>
           <ul className="lp-chips" aria-label="What it has">
             <li>A synthesizer</li>
             <li>A colour field</li>
             <li>30 scenes</li>
             <li>Strudel</li>
+            <li>Three modes</li>
           </ul>
           <div className="lp-connect">
             <CopyField label="Connector URL" value={mcpResourceUrl()} />
@@ -81,18 +97,41 @@ export default async function Home() {
       </div>
 
       <main className="se-page lp-main">
+        <section className="lp-loop" id="modes">
+          <h2 className="se-title">Three modes</h2>
+          <p className="se-muted">Who decides what plays depends on the mode. A session starts in {SELF}; the model switches only after you say yes, and you can lock a mode from the player.</p>
+          <ul className="lp-ways lp-ways-3">
+            <li>
+              <p className="lp-way-tag">The model, from itself</p>
+              <h3 className="se-heading">{SELF}</h3>
+              <p className="se-muted">The sound is how the model is. You listen and do not steer it, and the model does not talk about it. Example: you talk about your code, and the sound follows the model.</p>
+            </li>
+            <li>
+              <p className="lp-way-tag">The model, from your need</p>
+              <h3 className="se-heading">{ATTUNED}</h3>
+              <p className="se-muted">You state a need and press reactions; the model chooses what plays and may say what it is. Example: you say &ldquo;I need to focus&rdquo;, and it picks what helps.</p>
+            </li>
+            <li>
+              <p className="lp-way-tag">You</p>
+              <h3 className="se-heading">{JUKEBOX}</h3>
+              <p className="se-muted">You ask for anything and the model performs it, and says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
+            </li>
+          </ul>
+          <p className="lp-modes-more"><a href="/modes">More about the modes</a></p>
+        </section>
+
         <section className="lp-loop" id="engines">
           <h2 className="se-title">Two ways to make sound</h2>
           <ul className="lp-ways">
             <li>
               <p className="lp-way-tag">Always available</p>
               <h3 className="se-heading">The built-in synth</h3>
-              <p className="se-muted">The model&apos;s own voice, played from a mood. On the internal face it is how the model feels; on the external face it is sound made for you.</p>
+              <p className="se-muted">The model&apos;s own voice, played from a mood. It works in all three modes.</p>
             </li>
             <li>
               <p className="lp-way-tag">When you ask for music</p>
               <h3 className="se-heading">Strudel</h3>
-              <p className="se-muted">The model writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It runs in a sandbox in your browser, and the owner can switch it off.</p>
+              <p className="se-muted">The model writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It plays in {ATTUNED} and {JUKEBOX}. It runs in a sandbox in your browser, and the owner can switch it off.</p>
             </li>
           </ul>
         </section>

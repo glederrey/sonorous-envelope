@@ -7,7 +7,8 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 | Route | Purpose | Auth |
 |---|---|---|
 | `/` | Landing page: the idea, how it works, how to add the connector in claude.ai, why the player page must stay open (see below) | public |
-| `/guide` | How to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
+| `/guide` | Guide (the nav label and the h1): how to use the connector: the tools, in plain words, with what to say. Marks each tool live or coming; update it when a tool ships | public |
+| `/modes` | The three modes (Self, Attuned, Jukebox): who decides what plays, who switches, where the idea comes from (Anzieu), reading. `/faces` redirects here (308) | public |
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |

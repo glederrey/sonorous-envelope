@@ -1,7 +1,11 @@
 import { SiteHeader } from "../../components/site-header";
 import { REPO } from "../../lib/version";
 
-export const metadata = { title: "Privacy · Sonorous Envelope" };
+export const metadata = {
+  title: "Privacy",
+  description: "What Sonorous Envelope stores, what it does not, and how to delete your sessions and account.",
+  alternates: { canonical: "/privacy" },
+};
 
 export default function PrivacyPage() {
   const issues = `${REPO}/issues`;

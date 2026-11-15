@@ -578,6 +578,28 @@ html:has(.pl-field) .se-header {
   letter-spacing: 0.02em;
   color: var(--tide);
 }
+.lp-ways.lp-ways-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.lp-modes-more {
+  margin: 24px 0 0;
+}
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.md-table th,
+.md-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.md-table thead th {
+  color: var(--muted, inherit);
+  font-weight: 500;
+}
 .lp-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
@@ -630,7 +652,8 @@ html:has(.pl-field) .se-header {
     grid-template-columns: 1fr;
     gap: 24px;
   }
-  .lp-ways {
+  .lp-ways,
+  .lp-ways.lp-ways-3 {
     grid-template-columns: 1fr;
   }
   .lp-split {
@@ -1178,8 +1201,8 @@ html:has(.pl-field) .se-header {
 .pl-bar-btns { display: flex; gap: 8px; justify-self: end; }
 /* the turn text takes the room between the chip and the buttons, centred; the panel drops it when it is too narrow (controls-panel.tsx) */
 .pl-when { min-width: 0; margin: 0; text-align: center; color: var(--on-scrim-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pl-seg { display: flex; gap: 6px; }
-.pl-seg-btn { flex: 1; min-height: 44px; padding: 0 10px; font-size: 14px; }
+.pl-seg { display: flex; gap: 4px; }
+.pl-seg-btn { flex: 1; min-width: 0; min-height: 44px; padding: 0 6px; font-size: 14px; }
 .pl-seg-btn[aria-checked="true"] { border-color: var(--glow, var(--tide)); background: color-mix(in srgb, var(--glow, var(--tide)) 18%, transparent); font-weight: 600; }
 
 /* a setting: its name and explanation on the left, the control on the right, centred on the whole text */

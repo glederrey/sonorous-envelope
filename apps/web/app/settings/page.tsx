@@ -3,7 +3,7 @@ import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
 import { revokeGrant, signOut } from "./actions";
 
-export const metadata = { title: "Settings · Sonorous Envelope" };
+export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const supabase = await createClient();
