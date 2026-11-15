@@ -139,7 +139,7 @@ export const SetSoundInput = z.object({
   note: z.string().max(200).optional().describe("what you meant; stored, not sent back"),
   voice: Voice.optional().describe("your voice: root, scale, chord, note order, octaves, wave. It stays from turn to turn; send a new one to change it, for instance when the conversation turns"),
   keep_voice: z.boolean().optional().describe("true: freeze the scale, root, note order and wave that play now as your voice. Without one, your first sound becomes your voice, and its scale mode follows joy"),
-  mode: z.enum(["internal", "external"]).optional().describe("switch your face (see the guidance from start_session): external only after the listener said yes"),
+  mode: z.enum(["internal", "external", "sandbox"]).optional().describe("switch the mode, only after the listener said yes or clearly asked (see the mode rules)"),
   rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns; this is how the channel says so. Leave out to keep it"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
@@ -149,7 +149,7 @@ export const MAX_PATTERN_CHARS = 5000;
 
 export const StrudelModeInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
-  on: z.boolean().describe("true: play Strudel code (send code and bpm). false: go back to the built-in synth, where you left it"),
+  on: z.boolean().describe("true: play Strudel code (send code and bpm). false: go back to the built-in synth, silent and with no scene, until your next set_sound"),
   code: z.string().max(MAX_PATTERN_CHARS).optional().describe("Strudel code, as on strudel.cc, up to 5000 characters. Send it again with new code to change the music; it lands on the next bar. Samples work (bd, sd, hh, piano...). Tempo comes from bpm, not from setcps"),
   bpm: z.number().min(30).max(200).optional().describe("tempo in beats per minute; one cycle is one bar of 4 beats"),
   colour: Colour.optional().describe("the picture, as in set_sound; it follows bpm"),

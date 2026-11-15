@@ -3,7 +3,7 @@ import { SiteHeader } from "../../../components/site-header";
 import { createClient } from "../../../lib/supabase/server";
 import { ResetForm } from "./reset-form";
 
-export const metadata = { title: "New password · Sonorous Envelope" };
+export const metadata = { title: "New password" };
 
 export default async function ResetPage() {
   const supabase = await createClient();

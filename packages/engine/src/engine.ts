@@ -80,7 +80,7 @@ export class Engine {
 
 
   /** Local volume. 1 is the sound as mapped; up to 8 (+18 dB) boosts it, and the soft limiter below keeps it from clipping. */
-  setListenerGain(gain: number) { this.listenerGain = Math.min(8, Math.max(0, gain)); }
+  setListenerGain(gain: number) { this.listenerGain = Number.isFinite(gain) ? Math.min(8, Math.max(0, gain)) : 1; } // a NaN would stay in the echo and reverb buffers for good
 
   /** Snapshot of the currently gliding continuous parameters (for tests and debugging). */
   params(): Readonly<P> { return this.cur; }

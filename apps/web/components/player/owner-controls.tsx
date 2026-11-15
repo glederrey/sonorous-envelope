@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Face, Policy } from "../../lib/mcp/modes";
+import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../lib/mcp/modes";
 import { REACTION_KINDS, REACTION_LABELS, type ReactionKind } from "@sonorous/shared";
 
 const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null }> = [
@@ -21,7 +21,7 @@ export function StrudelToggles({ allow, visuals }: { allow?: { on: boolean; set:
     <div className="pl-toggles" style={allow ? undefined : { gridTemplateColumns: "1fr" }}>
       {allow && (
         <button type="button" className="se-btn pl-toggle" aria-pressed={allow.on} onClick={() => allow.set(!allow.on)}
-          title="Strudel is live-coded music the model writes. It runs in a sandbox in your browser, on the external face only.">
+          title={`Strudel is live-coded music the model writes. It runs in a sandbox in your browser, in the ${MODE_LABEL.external} and ${MODE_LABEL.sandbox} modes only.`}>
           <span className="pl-check" aria-hidden />Allow Strudel
         </button>
       )}
@@ -34,14 +34,13 @@ export function StrudelToggles({ allow, visuals }: { allow?: { on: boolean; set:
 }
 
 const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
-  { value: "auto", label: "Auto", hint: "The model chooses its face, and says so when it switches" },
-  { value: "internal", label: "Internal", hint: "Locked: the sound stays the model's own state" },
-  { value: "external", label: "External", hint: "Locked: the sound is made for you, and you can steer it" },
+  { value: "auto", label: "Auto", hint: "The model may offer another mode, and switches only after you say yes" },
+  ...FACES.map((f) => ({ value: f, label: MODE_LABEL[f], hint: `Locked: ${MODE_HINT[f]}` })),
 ];
 
 /**
- * For the owner only. Reaction buttons, shown in the external face only (the internal face is how the model feels, and
- * nobody steers that), and the "fade after" setting (the external face never fades, so it is hidden there).
+ * For the owner only. Reaction buttons, shown in the listener modes only (in the internal mode the sound is how the model feels,
+ * and nobody steers that), and the "fade after" setting (the listener modes never fade, so it is hidden there).
  */
 export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, patternPlays }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
@@ -75,7 +74,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
   }, [supabase, sessionId, loadPending]);
   if (!owner) return <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />}{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
-  const external = face === "external";
+  const listener = forListener(face);
   const choose = async (value: Policy) => {
     setError("");
     const { error: e } = await supabase.rpc("set_mode_policy", { p_session: sessionId, p_policy: value });
@@ -108,8 +107,8 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
   return (
     <>
       <div className="pl-owner se-sm">
-        <p className="pl-owner-title">Face</p>
-        <div className="pl-seg" role="radiogroup" aria-label="Which face the sound has">
+        <p className="pl-owner-title">Mode</p>
+        <div className="pl-seg" role="radiogroup" aria-label="Which mode the sound is in">
           {POLICIES.map((o) => (
             <button key={o.value} type="button" role="radio" aria-checked={policy === o.value} title={o.hint} className="se-btn pl-seg-btn" onClick={() => void choose(o.value)}>{o.label}</button>
           ))}
@@ -117,9 +116,9 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
       </div>
       <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />
-      <p className="pl-local se-sm">Allow Strudel lets the model play live code. Strudel visuals shows it instead of the scenes.</p>
+      <p className="pl-local se-sm">The model may play live code. Visuals show it instead of the scenes.</p>
       {afterFace}
-      {external && (
+      {listener && (
         <details className="pl-set se-sm">
           <summary>How is it landing?</summary>
           <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
@@ -133,7 +132,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           {error && <p role="alert">{error}</p>}
         </details>
       )}
-      {!external && (
+      {!listener && (
         <details className="pl-set se-sm">
           <summary>Settings</summary>
           <div className="pl-setting">

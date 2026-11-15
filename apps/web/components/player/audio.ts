@@ -47,10 +47,17 @@ export class AudioOutput {
     void keepAlive.play().catch(() => { /* needs the tap's activation; the sound still works without it */ });
     const ctx = new AudioContext({ latencyHint: "playback" });
     void ctx.resume(); // while the tap's user activation is still valid (Safari can lose it across an await)
-    await ctx.audioWorklet.addModule("/worklet/engine-worklet.js");
-    const node = new AudioWorkletNode(ctx, "sonorous-engine", {
-      numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
-    });
+    let node: AudioWorkletNode;
+    try {
+      await ctx.audioWorklet.addModule("/worklet/engine-worklet.js");
+      node = new AudioWorkletNode(ctx, "sonorous-engine", {
+        numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
+      });
+    } catch (e) {
+      // a failed start must not leave a context running: browsers allow only a few, and the listener may tap Start again
+      keepAlive.pause(); void ctx.close().catch(() => {});
+      throw e;
+    }
     node.connect(ctx.destination);
     // Strudel plays into this node, which carries the listener's volume like the synth's own gain does
     const strudelBus = new GainNode(ctx);

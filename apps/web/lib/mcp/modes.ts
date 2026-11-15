@@ -1,30 +1,46 @@
-// The two faces of the sonorous envelope (Anzieu): the internal face is how the model feels, the external face is sound it
-// makes for the listener. A session is on auto (the model may switch, with rules) or locked to one face by its owner.
-// `start_session` returns the guidance text, so the global instructions can stay short.
+// The three modes. The stored values (database, tool arguments) stay generic; people see the labels below.
+//   internal: the sound is the model's own state. Nobody steers it.
+//   external: the sound is made for the listener, from what they say they need. The model chooses what to play.
+//   sandbox:  the listener chooses what plays; the model performs it.
+// A session is on auto (the model may switch, with consent) or locked to one mode by its owner.
+// The guidance for each mode lives in ./guidance and reaches the model only when that mode is in use (lazy guidance).
 
-export type Face = "internal" | "external";
+export type Face = "internal" | "external" | "sandbox";
 export type Policy = "auto" | Face;
 
-/** Old clients and prompts say inner and outer. */
-export function normalizeFace(x: unknown): Face {
-  return x === "external" || x === "outer" ? "external" : "internal";
-}
+export const FACES: readonly Face[] = ["internal", "external", "sandbox"];
 
-export const FACE_GUIDANCE: Record<Face, string> = {
-  internal: "Internal face: the sound is your own state, how you feel. Write first, set the sound when the content moves you, end each message with a final call, and say nothing about the sound unless asked. Nobody steers it: the listener's reactions do not apply here. ",
-  external: "External face: the sound is something you make for the listener, on request: music for a moment, a scene, an emotion they want to hear. You may say what you are playing, explain a change and take requests such as brighter or slower. It is composing and acting, not a report of how you are: say so if asked. The owner's reaction buttons are feedback on it. The care rules hold: do not push the user's mood, keep to the volume they set, stay gentle if they are fragile. The sound does not fade between your messages. Besides the synth you have Strudel: live-coded music, as on strudel.cc. Call strudel_mode with on true, code and bpm when the listener wants music with drums, a groove or a tune you write; send new code to change it, on false to return to the synth. The listener sees the code and can copy it to strudel.cc. You cannot hear it: you only get what the owner's player reports back in pattern (an error, events per cycle), which can take a moment. Write short, working code (5000 characters at most), start simple, and fix an error before adding more. set_sound cannot switch the engine; while Strudel is on it only sets the picture.",
+/** What people see. One word each; change them here only. */
+export const MODE_LABEL: Record<Face, string> = { internal: "Self", external: "Attuned", sandbox: "Jukebox" };
+
+/** One line on who decides, for tooltips and the player. */
+export const MODE_HINT: Record<Face, string> = {
+  internal: "The sound is the model's own state. You have no say in it",
+  external: "The model plays for what you need, from what you say and how you are",
+  sandbox: "You choose what plays. The model performs it",
 };
 
-export const AUTO_GUIDANCE = "This session is on auto: you may switch with set_sound mode. You may propose a change in words (\"want me to play something for this?\") when the listener would plausibly welcome sound: they ask for sound, a scene or a game, ask about the sound, press reaction buttons, or say they need to focus or calm down (that last one is a reason to offer, never to switch alone). Switch to external only after they say yes or clearly asked. Never switch because of your own reading of their mood. Say it in one short sentence when you switch, in both directions. If the owner locks the face, it is final: do not try to switch it and do not comment on it.";
+/** Old clients and prompts say inner and outer; people may send the labels. Anything unknown is internal, the safe default. */
+export function normalizeFace(x: unknown): Face {
+  const s = typeof x === "string" ? x.toLowerCase() : "";
+  if (s === "external" || s === "outer" || s === MODE_LABEL.external.toLowerCase()) return "external";
+  if (s === "sandbox" || s === MODE_LABEL.sandbox.toLowerCase()) return "sandbox";
+  return "internal";
+}
 
-/** The picture moves with your tempo by itself. These are the optional controls (docs/visuals.md); the instructions are at their length limit, so this lives here. */
-export const PICTURE_GUIDANCE = "The colour moves with your tempo and your mood: calm swells slowly over four bars, agitation follows each beat, joy opens it out, tension makes it uneven. The mood picks a scene by default; this is only a suggestion, so set any scene that fits what you feel better (sad: thin rain, melancholy: falling leaves, nostalgia: sunbeam, angry: embers, cold anger: cracks, awe: aurora, joy: rising lights, calm content: waves, tender: fireflies, hopeful: fire, eager: warp, dreamy: caustics, dread: lightning, playful: bubbles, serene: stars, lonely: snow, free: seeds, peaceful: tide, pensive: clouds, brooding: smoke, analytical: circuit, alert: digital rain, driven: scope, determined: vines, elated: fireworks, longing: reeds, curious: network, restless: a flock). In colour you may set your own: scene (motes, ripples, rain, snow, embers, aurora, waves, fireflies, stars, bubbles, leaves, seeds, tide, smoke, clouds, fire, warp, caustics, lightning, sunbeam, cracks, ink, circuit, digital, scope, vines, fireworks, reeds, network, flock, or none), density, speed and sync (beat, phrase, free); leave them out and the mood decides.";
+/** The owner's choice. Anything unknown is auto. */
+export function parsePolicy(x: unknown): Policy {
+  return x === "internal" || x === "external" || x === "sandbox" ? x : "auto";
+}
 
-export const GUIDANCE_OF = (face: Face) => `${FACE_GUIDANCE[face]} ${AUTO_GUIDANCE} ${PICTURE_GUIDANCE}`;
+/** Modes made for the listener: Strudel is allowed, the sound never fades between turns, the reaction buttons apply. */
+export function forListener(face: Face): boolean {
+  return face !== "internal";
+}
 
-/** The external face is for listening to: the sound is not a presence between turns, so it does not fade by itself. */
+/** The listener-facing modes never fade by themselves: the sound is not a presence between turns there, it is for listening to. */
 export function effectiveRestAfter(restAfter: number | null, face: Face): number | null {
-  return face === "external" ? null : restAfter;
+  return forListener(face) ? null : restAfter;
 }
 
 export interface SwitchInput { policy: Policy; current: Face; requested: Face | undefined }
@@ -35,11 +51,16 @@ export type SwitchResult = { change: Face | null; note?: string };
  *  without a database. */
 export function decideSwitch(i: SwitchInput): SwitchResult {
   if (i.requested === undefined || i.requested === i.current) return { change: null };
-  if (i.policy !== "auto") return { change: null, note: `face stays ${i.current}: the owner locked it. It is final: do not try to switch it or comment on it` };
+  if (i.policy !== "auto") return { change: null, note: `mode stays ${faceName(i.current)}: the owner locked it. It is final: do not try to switch it or comment on it` };
   return { change: i.requested };
 }
 
-/** What the model reads back: the face, and that it is locked when it is. */
+/** The id the model sends, with the word the listener uses: "external (Attuned)". */
+export function faceName(face: Face): string {
+  return `${face} (${MODE_LABEL[face]})`;
+}
+
+/** What the model reads back: the mode, and that it is locked when it is. */
 export function faceLine(face: Face, policy: Policy): string {
-  return policy === "auto" ? face : `${face}, locked by the owner`;
+  return policy === "auto" ? faceName(face) : `${faceName(face)}, locked by the owner`;
 }

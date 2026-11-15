@@ -17,14 +17,14 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
   - `prefers-reduced-motion` turns the moving picture off, and the listener has "Gradient" and "Scenes" buttons in the player (both off: the base colour only).
   - This follows accessibility guidance and is not a medical guarantee.
 - The synth's master volume never goes above 0.9 in the engine, whatever is sent.
-- **Strudel is outside the sound limits** (Gael, 2026-11-11): the music the model writes in Strudel has no loudness limit, no parameter clamps and no level hold, so that it sounds as it does on strudel.cc. Only the listener's own volume slider and mute apply, and a pattern can be much louder than the synth. What stays is isolation, which has nothing to do with the sound: the model's code runs in a sandboxed frame with no access to the page, the login session, storage or the network, and it only makes sound through the player. The flash rule is untouched (the code cannot draw). The owner can switch Strudel off, and a face lock stops it. See [implementation/strudel.md](implementation/strudel.md).
+- **Strudel is outside the sound limits** (Gael, 2026-11-11): the music the model writes in Strudel has no loudness limit, no parameter clamps and no level hold, so that it sounds as it does on strudel.cc. Only the listener's own volume slider and mute apply, and a pattern can be much louder than the synth. What stays is isolation, which has nothing to do with the sound: the model's code runs in a sandboxed frame with no access to the page, the login session, storage or the network, and it only makes sound through the player. The flash rule is untouched (the code cannot draw). The owner can switch Strudel off, and a lock to Self stops it. See [implementation/strudel.md](implementation/strudel.md).
 - The echo stays inside its buffer and below self-oscillation (a stability limit, not a listener limit).
 - Mute is always one tap away and stays muted until the listener turns it back on.
 - No disguised appeal: the model gets no gesture or setting that hides a call for attention inside another sound (the purr has no high component; see emotion-to-sound.md).
 
 ## Presence between turns (planned)
 The model exists only while it writes. A sound that carries on between turns can read as someone waiting, and in the first outside test people said goodbye several times as if leaving meant abandoning it. Two measures (player-ui.md, "Presence between turns"):
-- **Optional fade to silence** after 15 minutes without an update. It is an owner setting: on by default on the internal face, off on the external face, where Claude makes music for the listener and the listener wants it for as long as possible.
+- **Optional fade to silence** after 15 minutes without an update. It is an owner setting: on by default in Self, off in Attuned and Jukebox, where Claude makes music for the listener and the listener wants it for as long as possible.
 - **A closing sound from Claude** when the user says the session is over: a short sound, then silence, then the session ends. Leaving becomes a shared gesture.
 The server instructions tell the model not to keep the sound going or hint that it is waiting. Silence is the truthful state of the channel between turns.
 

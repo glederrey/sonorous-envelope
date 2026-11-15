@@ -121,7 +121,7 @@ function fscope(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number
   else {
     const slice = w / data.length;
     for (let i = 0; i < data.length; i++) {
-      const v = clamp((data[i] - min) / (max - min), 0, 1) * scale;
+      const v = clamp((data[i] - min) / ((max - min) || 1), 0, 1) * scale; // min equal to max is allowed: no 0/0
       ctx.fillRect(x0 + i * slice, y0 + (pos - v * lean) * h, Math.max(slice, 1), v * h);
     }
   }
@@ -140,7 +140,7 @@ function spectrum(c: CanvasRenderingContext2D, w: number, h: number, id: number,
   const n = data.length, lim = Math.log(n);
   let prev = 0;
   for (let i = 0; i < n; i++) {
-    const norm = clamp((data[i] - min) / (max - min), 0, 1);
+    const norm = clamp((data[i] - min) / ((max - min) || 1), 0, 1);
     const next = (Math.log(i + 1) / lim) * h;
     c.globalAlpha = norm;
     c.fillRect(w - speed, h - next, speed, Math.max(2 * env.dpr * 0.5, next - prev));

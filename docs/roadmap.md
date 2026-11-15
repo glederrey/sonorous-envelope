@@ -121,6 +121,7 @@ Level hold in `clamped`, `inspect` with clamps and tension, loud to calm, tensio
 - [ ] **Step 7b. Essentia model** for joy and calm, to compare with the heuristics.
 - [ ] **Step 8. Several listeners, second half.** Labelled reactions; optional comments or reactions from link listeners through a bounded no-account function.
 - [ ] **Step 9. Final-update enforcement in Claude Code.** A `Stop` hook that asks the server (`GET /api/hook/turn-status?session=<id>`, authenticated) whether the latest state is final; if not, it blocks the stop and tells the model to call `set_sound` with `final: true`. Check the current Claude Code hook format first.
+- [ ] **#60 Save a moment.** (Gael, 2026-11-15; not designed yet.) Today a session that ends is gone. If the model makes something worth keeping, in any mode, the owner can save it: the sound (synth state or Strudel code with its bpm) and the picture (colour, scene) as they are at that moment. A saved moment is frozen: nobody can change it, the model included. It gets its own page and link to share later, with only the volume, copy link and "Open on phone" as controls. To decide: what is saved (one state or the last few with their transitions), who can save (owner only), a title, a list of saved moments in the account, deleting one, and whether a saved Strudel moment runs in the same sandbox frame (it must, the code is the model's).
 - [ ] **Step 10. Opt-in spectrogram.** `image_feedback` setting and `inspect` tool.
 - [ ] **Step 11. Server-rendered audio stream** on an always-on host. No longer needed for background playback on Android (solved with the keep-alive file), but it would give every listener the identical sound (#34) and may be the only way on iPhone. Cost guard rails if built: render only while someone listens, caps on streams and listeners, stop after a few minutes of silence, auto-stop host. Echo and volume would stop being per listener. MCP Apps player if the mobile app supports it.
 - [x] **#11 Sitemap and robots.** Added (`apps/web/app/sitemap.ts`, `robots.ts`).
@@ -139,7 +140,7 @@ Session, player and `set_sound` feedback worked: changes were heard live without
 Spec: [player-ui.md](implementation/player-ui.md), "The landing page". It is not a numbered step because it grows with the others:
 - **With step 1:** the static page, all seven sections, no JavaScript needed. Replaces the current placeholder. The connector URL in "Add it to Claude" is built from `PUBLIC_BASE_URL`; the "Sign in" link works once login exists.
 - **After step 3:** the live colour field behind the hero and the optional "Play a sample" button, both on the shared engine.
-- **With every tool that ships:** mark it live on the `/guide` page.
+- **With every tool that ships:** list it on the `/how-it-works` page.
 - **Before the public launch:** check the claude.ai connector menu names in section 4 (see CLAUDE.md, "Things to verify").
 
 ## Calibration by ear

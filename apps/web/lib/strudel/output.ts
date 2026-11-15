@@ -31,6 +31,7 @@ export class StrudelOutput {
   private ready: Promise<void> | null = null;
   private frame: HTMLIFrameElement | null = null;
   private frameReady: Promise<void> | null = null;
+  private frameGen = 0; // a teardown during the start makes that start stale: it must not add its frame or its watchdog afterwards
   private token = "";
   private current: PatternSource | null = null;
   private lastAlive = 0;
@@ -102,8 +103,10 @@ export class StrudelOutput {
   private async startFrame() {
     if (this.frameReady) return this.frameReady;
     this.token = crypto.randomUUID();
+    const gen = ++this.frameGen;
     this.frameReady = (async () => {
       const worker = await (await fetch(WORKER_URL)).text();
+      if (gen !== this.frameGen) return;
       const f = document.createElement("iframe");
       f.setAttribute("sandbox", "allow-scripts"); // no allow-same-origin: an opaque origin, no storage, no cookies
       f.setAttribute("aria-hidden", "true"); f.tabIndex = -1;
@@ -113,8 +116,10 @@ export class StrudelOutput {
       window.addEventListener("message", this.listener);
       this.frame = f;
       await new Promise<void>((ok, bad) => { f.onload = () => ok(); f.onerror = () => bad(new Error("frame")); document.body.appendChild(f); });
+      if (gen !== this.frameGen) return;
       this.send({ kind: "init", token: this.token, worker });
       await new Promise((r) => setTimeout(r, 250));
+      if (gen !== this.frameGen) return;
       this.lastAlive = performance.now();
       this.watchdog = setInterval(() => this.check(), 1000);
     })();
@@ -167,6 +172,7 @@ export class StrudelOutput {
   }
 
   private teardown() {
+    this.frameGen++;
     if (this.watchdog) clearInterval(this.watchdog);
     if (this.resync) clearInterval(this.resync);
     this.watchdog = this.resync = null;

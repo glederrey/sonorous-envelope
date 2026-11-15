@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createMcpHandler } from "mcp-handler";
 import { registerTools } from "./tools";
 import { SERVER_INSTRUCTIONS } from "./instructions";
+import { INTERNAL_GUIDANCE } from "./guidance/internal";
 
 const handler = createMcpHandler((s) => registerTools(s), { serverInfo: { name: "t", version: "0" }, instructions: SERVER_INSTRUCTIONS });
 
@@ -36,14 +37,14 @@ describe("MCP tools", () => {
   });
 
   it("keeps the instructions short", () => {
-    expect(SERVER_INSTRUCTIONS.split(/\s+/).length).toBeLessThan(800);
+    expect(SERVER_INSTRUCTIONS.split(/\s+/).length).toBeLessThan(650);
   });
 
   it("puts the rules that matter before the part a client may cut off", () => {
-    // a client showed the model a truncated copy (the tail of the old last section was missing): keep the face and talking rules
-    // early and the feedback reading, which the tool descriptions repeat, last
+    // a client showed the model a truncated copy: keep the modes and the care rules early and the feedback reading, which the tool descriptions repeat, last
     const at = (s: string) => SERVER_INSTRUCTIONS.indexOf(s);
-    expect(at("Talking about it")).toBeLessThan(2800);
+    expect(at("Three modes")).toBeGreaterThanOrEqual(0);
+    expect(at("Three modes")).toBeLessThan(1200);
     expect(at("Care")).toBeLessThan(3500);
     expect(at("Reading the feedback")).toBeGreaterThan(at("Care"));
   });
@@ -53,11 +54,14 @@ describe("MCP tools", () => {
     expect(SERVER_INSTRUCTIONS).not.toMatch(/gesture/i); // removed in v0.12
   });
 
-  it("frames the sound as the model's own state, written first, never announced", () => {
-    expect(SERVER_INSTRUCTIONS).toMatch(/not a soundtrack/i);
+  it("frames the sound as the model's own state, written first", () => {
     expect(SERVER_INSTRUCTIONS).toMatch(/not .*first action/i);
-    expect(SERVER_INSTRUCTIONS).toMatch(/Say nothing about the sound/);
     expect(SERVER_INSTRUCTIONS).not.toMatch(/play to the user|plays to the user/i);
+  });
+
+  it("keeps the internal-only rules in the guidance of that mode", () => {
+    expect(INTERNAL_GUIDANCE).toMatch(/not a soundtrack/i);
+    expect(INTERNAL_GUIDANCE).toMatch(/Say nothing about the sound/);
   });
 
   it("answers an unauthenticated tool call with a readable error result", async () => {
@@ -82,6 +86,8 @@ describe("MCP tools", () => {
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("voice");
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("rest_after");
     expect(tool("silence").inputSchema.properties).toHaveProperty("end");
+    expect(tool("set_sound").inputSchema.properties.mode.enum).toEqual(["internal", "external", "sandbox"]);
+    expect(tool("start_session").inputSchema.properties.mode.enum).toContain("sandbox");
     expect(tool("start_session").inputSchema.properties).toHaveProperty("voice");
     expect(synth.lfo.items.properties.rate.description).toMatch(/stay until you change them.*\[\]/);
     expect(tool("set_sound").inputSchema.properties.colour.description).toMatch(/stays until you change it/);
