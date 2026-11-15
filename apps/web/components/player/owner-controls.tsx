@@ -116,7 +116,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
       </div>
       <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} />
-      <p className="pl-local se-sm">Allow Strudel lets the model play live code. Strudel visuals shows it instead of the scenes.</p>
+      <p className="pl-local se-sm">The model may play live code. Visuals show it instead of the scenes.</p>
       {afterFace}
       {listener && (
         <details className="pl-set se-sm">
