@@ -19,7 +19,7 @@ import { ControlsMiddle } from "./controls-middle";
 import { ControlsPanel } from "./controls-panel";
 import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
-import { effectiveRestAfter, normalizeFace, type Face, type Policy } from "../../lib/mcp/modes";
+import { MODE_HINT, MODE_LABEL, effectiveRestAfter, forListener, normalizeFace, parsePolicy, type Face, type Policy } from "../../lib/mcp/modes";
 
 // Strudel's picture is loaded when a Strudel state first shows (it brings the drawing code of Strudel with it)
 const StrudelView = dynamic(() => import("./strudel-view").then((m) => m.StrudelView), { ssr: false });
@@ -93,7 +93,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     window.addEventListener("keydown", key); document.addEventListener("fullscreenchange", change);
     return () => { window.removeEventListener("keydown", key); document.removeEventListener("fullscreenchange", change); delete document.documentElement.dataset.plFull; };
   }, [full, exitFull]);
-  const [face, setFace] = useState<Face>("internal"); // the face playing now (the model switches it, or the owner locks it)
+  const [face, setFace] = useState<Face>("internal"); // the mode playing now (the model switches it, or the owner locks it)
   const [policy, setPolicy] = useState<Policy>("auto");
   // the moving picture (canvas): the listener can turn it off, and
   // ?field=css brings back the old CSS motion
@@ -108,13 +108,13 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const vizStore = useMemo(() => new VizStore(), []);
   const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
   const [canvasOk, setCanvasOk] = useState(true);
-  // Strudel (roadmap #18): the model's code plays in a sandbox on the external face, if the owner allows it. The listener may stop it here.
+  // Strudel (roadmap #18): the model's code plays in a sandbox in a listener mode, if the owner allows it. The listener may stop it here.
   const [allowCode, setAllowCode] = useState(true);
   const strudel = useRef<StrudelOutput | null>(null);
   const engineCtl = useRef({ face: "internal" as Face, allowCode: true });
   engineCtl.current = { face, allowCode };
   const reported = useRef(new Set<string>());
-  // The owner locked the face or switched code off while this state played. When they allow it again the synth keeps playing until the
+  // The owner locked the mode or switched code off while this state played. When they allow it again the synth keeps playing until the
   // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
   const ownerBlocked = useRef<number | null>(null);
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
@@ -158,10 +158,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0), []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
-  /** Strudel is on for this state when the model asked for it, the face is external, the owner allows code. */
+  /** Strudel is on for this state when the model asked for it, the mode is a listener one, the owner allows code. */
   const patternOn = (p: Playing) => {
     const c = engineCtl.current;
-    return p.state.engine === "strudel" && Boolean(p.state.pattern) && c.face === "external" && c.allowCode && ownerBlocked.current !== p.at;
+    return p.state.engine === "strudel" && Boolean(p.state.pattern) && forListener(c.face) && c.allowCode && ownerBlocked.current !== p.at;
   };
   const cycleNow = useCallback(() => {
     const p = latest.current;
@@ -203,14 +203,14 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       a.setState(p.state, p.seed, quiet ? delay : Math.max(delay, left - 0.5), elapsed);
     }
   }, [ensureStrudel]);
-  // the owner locked the face or switched code off: the same state goes to the other engine
+  // the owner locked the mode or switched code off: the same state goes to the other engine
   useEffect(() => {
     const p = latest.current;
     if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
-    if (face !== "external" || !allowCode) {
+    if (!forListener(face) || !allowCode) {
       block(p.at);
-      // The owner turned Strudel off or locked the internal face: the sound and the picture fade to nothing, not to the leftover synth state
-      // (the faces are different voices; the model's next set_sound brings the internal one). The state loses its pattern, so the picture
+      // The owner turned Strudel off or locked the internal mode: the sound and the picture fade to nothing, not to the leftover synth state
+      // (the modes are different voices; the model's next set_sound brings the internal one). The state loses its pattern, so the picture
       // does not count it as sounding.
       const { engine: _engine, pattern: _pattern, ...rest } = p.state;
       const state: EngineState = { ...rest, volume: 0, transition: { time: 3, curve: "smooth" } };
@@ -264,7 +264,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const restedAtMs = useRef(0); // the fade to silence takes 30 s: "Fading" until then, "Faded" after
   const restTick = useCallback(() => {
     const p = latest.current, r = settings.current.rest_after;
-    if (!p || (p.state.engine === "strudel" && p.state.pattern)) return; // a pattern keeps playing: the external face never fades
+    if (!p || (p.state.engine === "strudel" && p.state.pattern)) return; // a pattern keeps playing: the listener modes never fade
     if (p.state.volume <= 0.001) return; // already silent (a silence, an owner stop): nothing to fade, and the rested state would wipe the scene at once
     const resting = r !== null && isResting(p.at, r, Date.now() + clockOffset.current);
     if (resting && !restedFrom.current) {
@@ -328,10 +328,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       known.current = true;
       lastGridSync.current = Date.now();
       const f = normalizeFace(data.mode);
-      const pol: Policy = data.mode_policy === "internal" || data.mode_policy === "external" ? data.mode_policy : "auto";
+      const pol: Policy = parsePolicy(data.mode_policy);
       setFace(f); setPolicy(pol); setAllowCode(data.allow_code !== false);
       const parsed = parseSettings(data.settings);
-      settings.current = { ...parsed, rest_after: effectiveRestAfter(parsed.rest_after, f) }; // the external face never fades
+      settings.current = { ...parsed, rest_after: effectiveRestAfter(parsed.rest_after, f) }; // the listener modes never fade
       if (data.now && clockSamples.current.length === 0) clockOffset.current = Date.parse(data.now) - Date.now(); // a first guess, from the worker
       if (data.ended) {
         ended = true;
@@ -347,8 +347,8 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         return;
       }
       if (data.state) apply(data.state);
-      // joined while the owner has Strudel off or the face locked: the old pattern must not start when they allow it again
-      if ((f !== "external" || data.allow_code === false) && latest.current?.state.engine === "strudel") block(latest.current.at);
+      // joined while the owner has Strudel off or the mode locked: the old pattern must not start when they allow it again
+      if ((!forListener(f) || data.allow_code === false) && latest.current?.state.engine === "strudel") block(latest.current.at);
       // now and then, pull this device's step grid back onto the shared one (audio clocks drift apart slowly)
       if (data.state && latest.current && !restedFrom.current) {
         const age = (Date.now() + clockOffset.current - latest.current.at) / 1000;
@@ -548,13 +548,13 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     } finally { setStarting(false); }
   }
 
-  // The Strudel picture shows while a pattern plays here (external face, code allowed, not blocked). A synth sound that takes over hides it
+  // The Strudel picture shows while a pattern plays here (listener mode, code allowed, not blocked). A synth sound that takes over hides it
   // (it fades out); a silence keeps it, and it fades with the level like the scenes do.
-  const patternShows = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at);
+  const patternShows = Boolean(playing && playing.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at);
   const soundingNow = Boolean(playing && isSounding(playing.state));
   useEffect(() => {
     if (patternShows) { setStShown(true); setStSeen(true); return; }
-    // The owner just blocked the pattern (Allow Strudel off, the face locked): the block effect above has already put its silent copy into
+    // The owner just blocked the pattern (Allow Strudel off, the mode locked): the block effect above has already put its silent copy into
     // `latest`, but `playing` still holds the pattern for this one render and reads as sounding. That is not a synth sound taking over, so
     // the picture stays and fades to black instead of letting the scenes flash in. A new pattern that arrives while blocked is not stripped,
     // so it still hides the picture as before.
@@ -564,9 +564,9 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     if (soundingNow && !stripped) setStShown(false);
   }, [patternShows, soundingNow, playing]);
   const strudelOn = strudelVisuals && stShown && canvasOk && !reduced;
-  // Strudel may start any moment on the external face: load its picture and its player first, so the first pattern from silence does not wait on the network
+  // Strudel may start any moment in a listener mode: load its picture and its player first, so the first pattern from silence does not wait on the network
   useEffect(() => {
-    if (started && face === "external" && allowCode) { void import("./strudel-view"); void import("../../lib/strudel/output"); }
+    if (started && forListener(face) && allowCode) { void import("./strudel-view"); void import("../../lib/strudel/output"); }
   }, [started, face, allowCode]);
 
   const colour = playing?.state.colour;
@@ -647,9 +647,9 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               </p>
             </> : null}
             midTurn={midTurn}
-            faceLabel={face === "internal" ? "Internal" : "External"}
-            faceTitle={face === "internal" ? "The sound is how the model feels" : "The sound is made for you"}
-            strudelTag={face === "external" && allowCode && blockedAt !== playing?.at && playing?.state.engine === "strudel" && Boolean(playing.state.pattern)}
+            faceLabel={MODE_LABEL[face]}
+            faceTitle={MODE_HINT[face]}
+            strudelTag={forListener(face) && allowCode && blockedAt !== playing?.at && playing?.state.engine === "strudel" && Boolean(playing.state.pattern)}
             locked={policy !== "auto"}
             when={playing
               ? rested ? (Date.now() - restedAtMs.current < 30_000 ? "Fading · no update for a while" : `Faded · no update for ${age(ageSec).replace(" ago", "")}`) : `Turn ${playing.turn} · ${midTurn ? "mid-answer" : age(ageSec)}`
@@ -666,7 +666,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             } : null}
             middle={<ControlsMiddle
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
-              pattern={playing?.state.engine === "strudel" && playing.state.pattern && face === "external" && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
+              pattern={playing?.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals}
             />}
             extra={signedIn ? <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /> : null}

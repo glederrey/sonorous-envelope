@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
 import { ControlsMiddle } from "../../../components/player/controls-middle";
 import { CopyLink } from "../../../components/copy-link";
-import type { Face, Policy } from "../../../lib/mcp/modes";
+import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../../lib/mcp/modes";
 
 // A stand-in for the Supabase client, only for what the owner's block asks of it: who is signed in, who owns the session, and answers
 // that say "saved". Nothing leaves the page.
@@ -43,7 +43,7 @@ export function ControlsLab() {
   const policy: Policy = "auto";
   // an owner is someone whose id is the session's owner; a signed-in listener is someone else's
   const supabase = useMemo(() => fakeClient(viewer === "owner" ? "me" : "someone-else"), [viewer]);
-  const playsPattern = strudel && face === "external";
+  const playsPattern = strudel && forListener(face);
 
   const shareAction = viewer === "guest"
     ? <><a className="se-btn" href="/add">Add to your AI</a><CopyLink path="/s/demo" label="Copy link" /></>
@@ -62,7 +62,7 @@ export function ControlsLab() {
         <p className="se-sm" style={{ margin: 0 }}>Controls lab: the player&apos;s controls with made-up state. Nothing is saved or sent.</p>
         {pick(VIEWERS, viewer, setViewer, "Who is looking")}
         {pick([["strudel", "Strudel plays"], ["synth", "Synth plays"]], strudel ? "strudel" : "synth", (v) => setStrudel(v === "strudel"), "What plays")}
-        {pick([["external", "External face"], ["internal", "Internal face"]] as Array<[Face, string]>, face, setFace, "Face")}
+        {pick(FACES.map((f) => [f, MODE_LABEL[f]] as [Face, string]), face, setFace, "Mode")}
         <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Panel width</span><input type="range" min={280} max={640} step={1} value={width} onChange={(e) => setWidth(Number(e.target.value))} /><output>{width} px</output></label>
         <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Hide turn below</span><input type="range" min={280} max={640} step={5} value={whenMin} onChange={(e) => setWhenMin(Number(e.target.value))} /><output>{whenMin} px</output></label>
         <p className="se-sm" style={{ margin: 0 }}>Measured panel width: {Math.round(measured)} px. The turn text shows from {whenMin} px up.</p>
@@ -72,8 +72,8 @@ export function ControlsLab() {
         <div style={{ width, maxWidth: "100%" }}>
           <ControlsPanel whenMinWidth={whenMin} onWidth={setMeasured}
             midTurn={false}
-            faceLabel={face === "internal" ? "Internal" : "External"}
-            faceTitle=""
+            faceLabel={MODE_LABEL[face]}
+            faceTitle={MODE_HINT[face]}
             strudelTag={playsPattern}
             locked={false}
             when="Turn 3 · 12 s ago"

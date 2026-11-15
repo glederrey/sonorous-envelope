@@ -3,9 +3,10 @@ import { SiteHeader } from "../../components/site-header";
 import { CopyLink } from "../../components/copy-link";
 import { createClient } from "../../lib/supabase/server";
 import { ago, isOlder, sessionStatus } from "../../lib/session-status";
+import { MODE_LABEL, normalizeFace } from "../../lib/mcp/modes";
 import { endSession } from "./actions";
 
-export const metadata = { title: "Your sessions · Sonorous Envelope" };
+export const metadata = { title: "Your sessions" };
 
 export default async function SessionsPage() {
   const supabase = await createClient();
@@ -24,7 +25,7 @@ export default async function SessionsPage() {
       <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
       <div className="se-stack">
         <p className="se-sm se-muted" style={{ margin: 0 }}>
-          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{s.mode === "outer" || s.mode === "external" ? " · external face" : ""} · last sound {ago(s.last_active_at, now)}
+          {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{normalizeFace(s.mode) !== "internal" ? ` · ${MODE_LABEL[normalizeFace(s.mode)]}` : ""} · last sound {ago(s.last_active_at, now)}
         </p>
         {status(s) !== "ended" && (
           <div className="ss-actions">
