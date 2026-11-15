@@ -1,5 +1,6 @@
 import { FRAME_URL, WORKER_URL, MAX_DRAW_BATCH, isSafeColour, validateDrawHap, validateHap, validateReport, validateViz, type Report, type ToFrame } from "./protocol";
 import type { VizStore } from "./viz";
+import { picLog } from "../debug";
 import { DEFAULT_BANKS, resolveBankRequest, safeSampleMap } from "./banks";
 
 // The page's side of Strudel (docs/implementation/strudel.md). The model's code runs in a sandboxed frame and only sends events; this
@@ -203,7 +204,7 @@ export class StrudelOutput {
     this.lastAlive = performance.now(); // the worker has been quiet since it was stopped: the watchdog must not read that as a freeze
     void this.ctx.resume();
     this.lastReport = null;
-    this.hooks.viz.reset(src.code, src.bpm);
+    if (fresh) this.hooks.viz.reset(src.code, src.bpm); else this.hooks.viz.swap(src.code, src.bpm); // new code keeps the drawings until it reports its own
     if (fresh) {
       // a gentle way in, like the synth has: silent until the first bar, then up over half a second
       const c = this.hooks.cycleNow(), toBar = (Math.ceil(c + 0.05) - c) * 240 / src.bpm, t = this.ctx.currentTime;
@@ -213,7 +214,9 @@ export class StrudelOutput {
       this.fade.gain.setValueAtTime(0, start);
       this.fade.gain.linearRampToValueAtTime(1, start + 0.6);
     }
-    this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, seq: ++this.seq, ...this.clockMsg() });
+    const clock = this.clockMsg();
+    picLog(fresh ? "strudel start" : "strudel new code", { bpm: src.bpm, cycle: +clock.cycle.toFixed(2) });
+    this.send({ kind: "play", code: src.code, bpm: src.bpm, seed: src.seed, seq: ++this.seq, ...clock });
     if (this.resync) clearInterval(this.resync);
     this.resync = setInterval(() => { this.stats.resyncs++; this.send({ kind: "clock", ...this.clockMsg() }); }, 4000);
   }

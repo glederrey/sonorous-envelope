@@ -12,6 +12,11 @@ import { Player } from "../../../components/player/player";
 type Row = { id: string; effective: EngineState; seed: number; turn: number; final: boolean; created_at: string };
 type Scene = NonNullable<EngineState["colour"]["scene"]>;
 
+const CODE2 = `stack(
+  s("bd*4 [~ bd] sd:3").bank("RolandTR909"),
+  s("hh*16").gain(0.4),
+  note("<c2 g2 eb2 bb1>*2").s("sawtooth").lpf(500)
+).punchcard()`;
 const MOOD: Mood = { warmth: 0.5, closeness: 0.6, joy: 0.6, calm: 0.6, spontaneity: 0.5, tension: 0 };
 const CODE = `stack(
   s("bd*2 [~ bd] sd:3").bank("RolandTR909"),
@@ -22,6 +27,7 @@ const CODE = `stack(
 class Script {
   rows: Row[] = [];
   ended = false;
+  mode = "external"; // the mode the owner has locked, or the one the model chose
   nudge: (() => void) | null = null;
   private turn = 0;
   get last() { return this.rows[this.rows.length - 1] ?? null; }
@@ -43,9 +49,9 @@ class Script {
     };
     const rpc = async (name: string, args: { p_known?: string | null }) => {
       if (name !== "player_poll") return { data: null, error: null };
-      const v = `${this.rows.length}:${this.ended}`;
+      const v = `${this.rows.length}:${this.ended}:${this.mode}`;
       if (args.p_known === v) return { data: { same: true }, error: null };
-      return { data: { v, now: new Date().toISOString(), mode: "external", mode_policy: "auto", allow_code: true, settings: { rest_after: null }, ended: this.ended, state: this.last }, error: null };
+      return { data: { v, now: new Date().toISOString(), mode: this.mode, mode_policy: "auto", allow_code: true, settings: { rest_after: null }, ended: this.ended, state: this.last }, error: null };
     };
     const channel = () => {
       const ch = { on: (_t: string, _f: unknown, cb: () => void) => { this.nudge = cb; return ch; }, subscribe: () => ch };
@@ -79,6 +85,13 @@ export function PlayerLab() {
     base.engine = "strudel"; base.pattern = { code: CODE, bpm: 110 }; base.transition = { time: 2, curve: "smooth" };
     script.push(base); note("strudel_mode on");
   };
+  // new code while Strudel plays (a faster version with another drawing): no gap in the music, the picture only updates
+  const newCode = (code: string, bpm: number) => {
+    if (!script.last) return;
+    const e = copy(script.last.effective);
+    e.pattern = { code, bpm }; e.transition = { time: 2, curve: "smooth" };
+    script.push(e); note(`new code (${bpm} bpm)`);
+  };
   // what strudel_mode off writes since v0.18.6 (service.ts): silent, no scene, the paused synth's other fields kept
   const strudelOff = () => {
     if (!script.last) return;
@@ -104,6 +117,8 @@ export function PlayerLab() {
   const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const offThen = (s: number) => { clear(); strudelOff(); later(s, () => setSound("stars")); };
   const closing = () => { clear(); strudelOff(); later(3, () => setSound("waves")); later(9, silenceEnd); };
+  // the owner locks Self (the synth) while Strudel plays from the jukebox, and back
+  const lock = (mode: string) => { script.mode = mode; script.nudge?.(); note(`mode ${mode}`); };
   const reset = () => { clear(); setLog([]); setGen((g) => g + 1); };
 
   const box: CSSProperties = { position: "fixed", top: 8, left: 8, zIndex: 20, maxWidth: 340,  padding: 10, borderRadius: 12, background: "rgba(0,0,0,0.75)", color: "#eee", fontSize: 12 };
@@ -116,6 +131,9 @@ export function PlayerLab() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           <button type="button" className={btn} onClick={() => setSound("aurora")}>Synth aurora</button>
           <button type="button" className={btn} onClick={strudelOn}>Strudel on</button>
+          <button type="button" className={btn} onClick={() => newCode(CODE2, 110)}>New code (punchcard)</button>
+          <button type="button" className={btn} onClick={() => newCode(CODE, 110)}>New code (pianoroll)</button>
+          <button type="button" className={btn} onClick={() => newCode(CODE2, 140)}>New code (faster)</button>
           <button type="button" className={btn} onClick={() => { clear(); strudelOff(); }}>Strudel off</button>
           <button type="button" className={btn} onClick={() => setSound("stars")}>set_sound stars</button>
         </div>
@@ -125,6 +143,8 @@ export function PlayerLab() {
           <button type="button" className={btn} onClick={() => { clear(); setSound("fireflies"); }}>set_sound fireflies</button>
           {[0.5, 1.5, 3].map((s) => <button key={s} type="button" className={btn} onClick={() => silenceThen(s)}>Silence, caustics after {s} s</button>)}
           <button type="button" className={btn} onClick={closing}>Closing: off, waves at 3 s, end at 9 s</button>
+          <button type="button" className={btn} onClick={() => lock("internal")}>Lock Self</button>
+          <button type="button" className={btn} onClick={() => lock("external")}>Back to Jukebox</button>
           <button type="button" className={btn} onClick={reset}>Reset</button>
         </div>
         <label>set_sound transition <select value={fadeIn} onChange={(e) => setFadeIn(Number(e.target.value))}>{[0.5, 1, 2, 4].map((t) => <option key={t} value={t}>{t} s</option>)}</select></label>

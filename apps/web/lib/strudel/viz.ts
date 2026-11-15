@@ -21,8 +21,17 @@ export class VizStore {
   /** bumps when the code or the drawings change, so the view knows to lay out again */
   version = 0;
 
-  reset(code: string, bpm: number) { this.code = code; this.bpm = bpm; this.specs = []; this.draws = []; this.marks = []; this.colours.clear(); this.version++; }
-  setSpecs(specs: VizSpec[]) { this.specs = specs; this.version++; }
+  /** new code is evaluated and has not reported its drawings yet: the old drawings stay until it does (see `swap`) */
+  swapping = false;
+
+  reset(code: string, bpm: number) { this.code = code; this.bpm = bpm; this.specs = []; this.draws = []; this.marks = []; this.colours.clear(); this.swapping = false; this.version++; }
+  /** New code on a pattern that plays: the code text changes at once, the lit parts go out, but the drawings keep running until the new code
+   *  reports its own (`setSpecs`), so nothing blinks. */
+  swap(code: string, bpm: number) { this.code = code; this.bpm = bpm; this.marks = []; this.swapping = true; this.version++; }
+  setSpecs(specs: VizSpec[]) {
+    if (this.swapping) { this.draws = []; this.colours.clear(); this.swapping = false; }
+    this.specs = specs; this.version++;
+  }
   addDraw(h: DrawHap) {
     this.draws.push(h);
     const colour = h.v.color;

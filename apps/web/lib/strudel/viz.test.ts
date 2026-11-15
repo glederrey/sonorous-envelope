@@ -140,6 +140,24 @@ describe("the store", () => {
   });
 });
 
+describe("new code on a pattern that plays", () => {
+  it("keeps the drawings until the new code reports its own", () => {
+    const s = new VizStore();
+    s.reset("a", 120);
+    s.setSpecs([{ id: 0, name: "pianoroll", inline: false, opts: {} }]);
+    s.addDraw({ c: 1, l: 1, v: { color: "red" }, loc: [], viz: [0] });
+    s.addMark({ c: 0, l: 1, loc: [[0, 1]] });
+    s.swap("b", 140);
+    expect(s.code).toBe("b"); expect(s.bpm).toBe(140); expect(s.marks).toEqual([]);
+    expect(s.specs).toHaveLength(1); expect(s.draws).toHaveLength(1);
+    s.setSpecs([{ id: 0, name: "punchcard", inline: false, opts: {} }]);
+    expect(s.specs[0].name).toBe("punchcard"); expect(s.draws).toEqual([]); expect(s.colours.size).toBe(0);
+    s.addDraw({ c: 2, l: 1, v: {}, loc: [], viz: [0] });
+    s.setSpecs([]); // a later report is not a swap: what has been drawn stays
+    expect(s.draws).toHaveLength(1);
+  });
+});
+
 describe("hostile options stay bounded", () => {
   it("pulls numeric options into range", () => {
     const [a, b] = validateViz([
