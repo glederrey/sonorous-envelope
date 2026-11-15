@@ -29,7 +29,7 @@ interface Props {
 const DPR_MAX = 1.5; // the drawings are soft; a lower resolution keeps a phone smooth
 const TAIL_S = 0.18; // seconds a lit part stays after its note ends
 const IN_S = 1.5; // seconds the code and its drawings take to fade in once the view is black (still capped by the level, so a bar-synced start waits for the bar)
-const OUT_S = 2; // seconds the view takes to fade out once its content is black: what comes after (a scene, the field) comes up from black
+const OUT_S = 1.5; // seconds the view and its content take to fade out together: what comes after (a scene, the field) crossfades in under them
 const SWAP_S = 0.5; // seconds the old code's drawings take to fade out over the new code's (v0.19.2 tests: they swapped at once)
 
 export function StrudelView({ store, output, level, beats, shown, opacity, hue }: Props) {
@@ -65,7 +65,8 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       // to black inside it. Coming on (Strudel starts, or the listener turns the visuals back on) the view's black
       // background and the code and its drawings come in together over IN_S (at once when almost nothing shows behind; before v0.19.4 the black came first, a dip).
       // It fades out over the scenes when a synth sound takes over or it is switched off.
-      // Fading out, the content goes black first (about 0.3 s), then the black view fades over OUT_S, so the scene or the field behind comes
+      // Fading out is the same crossfade the other way (v0.19.5, the owner asked for both directions alike): the content and the black view fade
+      // together over OUT_S, so the scene behind comes up under the drawings. Before, the content went black first (about 0.3 s), a dip; the old wording:
       // up from black whether a silence came first (strudel_mode off) or the synth state arrived straight away.
       // Over a scene that shows (the listener turns the drawings back on, or a pattern takes over from a sounding synth state) it is one
       // crossfade: the view's black and its content come in together over IN_S, so the scene never dips to black first (v0.19.3 tests).
@@ -85,7 +86,7 @@ export function StrudelView({ store, output, level, beats, shown, opacity, hue }
       // the content follows the canvas's level (the fades of the sound, the first bar) and the view's own opacity
       // while it fades out the content only ever dims: a synth sound rising behind it (its level) must not bring the code back
       const fin = Math.min(1, inT / IN_S);
-      vis = on ? Math.min(level.current, op, fin * fin * (3 - 2 * fin)) : Math.min(vis * Math.exp(-dt / 0.1), level.current, op);
+      vis = on ? Math.min(level.current, op, fin * fin * (3 - 2 * fin)) : Math.min(vis, level.current, op);
       if (op === 0) { if (!cleared) { ctx.clearRect(0, 0, w, h); code.replaceChildren(); key = ""; cleared = true; } el.style.visibility = "hidden"; return; }
       el.style.visibility = "visible"; el.style.opacity = String(op); el.style.setProperty("--sv-k", String(vis));
       canvas.style.opacity = code.style.opacity = String(vis);

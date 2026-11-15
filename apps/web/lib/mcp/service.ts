@@ -364,7 +364,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     if (effective.arp.tempo > was.tempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(was.tempo)} bpm`); effective.arp.tempo = was.tempo; }
     if (RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
     if (effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
-    if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); send again to go further. reads_as reads the held sound, so its calm is higher than sent: do not correct for that`);
+    if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); reads_as reads the held sound, so its calm is higher than sent: do not correct for that. If the listener asked for more energy, send it again now with a transition of 8 s or more, so it rises to the pace they asked for`);
   }
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
 
