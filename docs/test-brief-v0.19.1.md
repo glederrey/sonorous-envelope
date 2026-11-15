@@ -31,7 +31,7 @@ Reconnect, `start_session` with no mode, and give the player link as the start n
 1. **Player link.** Pass: the user sees the link in your reply text (not only inside a tool summary).
 2. **Names.** Through the session, watch the host's tool summaries and your own words. Pass: only Self, Attuned and Jukebox (or self, attuned, jukebox in the tool calls); results say "Self", "Attuned", "Jukebox".
 3. **Self lets unease show.** In Self, the user tells a short unsettling story (a bad dream). Pass: the sound shows some unease, softly (a touch of tension, slower or quieter), never louder or faster; the user says whether it felt honest and not alarming.
-4. **reads_as.** In Self, send two or three plain moods (no voice change, no synth override) with warmth and joy far apart (for example warmth 0.8 joy 0.6, then warmth 0.3 joy 0.3). Pass: `reads_as` warmth and joy within about 0.15 of what you sent. Note the numbers.
+4. **reads_as.** In Self, send two or three plain moods (no voice change, no synth override) with warmth and joy far apart (for example warmth 0.8 joy 0.6, then warmth 0.3 joy 0.3). Pass: `reads_as` warmth and joy within about 0.15 of what you sent. A voice in a major, lydian or mixolydian scale still holds joy up (about +0.2), and warmth above 0.8 reads about 0.75: those are expected. Note the numbers and your voice's scale.
 
 ### Part B: Attuned and the player
 

@@ -20,6 +20,7 @@ export interface Features {
   clash: number;
 }
 
+const JOY_GAIN = 1.25;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const norm = (x: number, [lo, hi]: readonly [number, number]) => clamp01((x - lo) / (hi - lo));
 const r2 = (x: number) => Math.round(x * 100) / 100;
@@ -81,18 +82,25 @@ function corr(a: number[], b: number[]) {
   for (let i = 0; i < a.length; i++) { n += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; }
   return da && db ? n / Math.sqrt(da * db) : 0;
 }
-function modeBrightness(midis: number[]) {
+function modeBrightness(midis: number[], tonicMidi: number, scaleMidis: number[]) {
   if (!midis.length) return 0.5;
   const hist = new Array(12).fill(0);
   for (const m of midis) hist[((m % 12) + 12) % 12]++;
+  // the chord tones alone say little about the mode (dorian and aeolian share the stack 1-b3-5-b7), so the notes of the
+  // scale itself count once each
+  for (const m of scaleMidis) hist[((m % 12) + 12) % 12]++;
   const best = (profile: number[]) => Math.max(...Array.from({ length: 12 }, (_, t) => corr(hist, profile.map((_, i) => profile[(i - t + 12) % 12]))));
   const key = 0.5 + 0.5 * (best(MAJOR) - best(MINOR));
-  // a handful of notes fits a major key and its relative minor equally well, so also look at the third above the lowest
-  // note (the likely tonic): a major third reads bright, a minor third dark, none is neutral
-  const tonic = ((Math.min(...midis) % 12) + 12) % 12;
-  const major = hist[(tonic + 4) % 12], minor = hist[(tonic + 3) % 12];
-  const third = major + minor > 0 ? major / (major + minor) : 0.5;
-  return clamp01(0.4 * key + 0.6 * third);
+  // a handful of notes fits a major key and its relative minor equally well, so also look at the intervals above the tonic
+  // (the root of the arpeggio, not the lowest note: that one swings with the octaves and the chord): the third (major
+  // bright, minor dark), the sixth (raised in dorian, which makes it a half-bright minor) and the second (flat in phrygian).
+  // None of a pair is neutral.
+  const tonic = ((tonicMidi % 12) + 12) % 12;
+  const pair = (up: number, flat: number) => {
+    const u = hist[(tonic + up) % 12], f = hist[(tonic + flat) % 12];
+    return u + f > 0 ? u / (u + f) : 0.5;
+  };
+  return clamp01(0.25 * key + 0.4 * pair(4, 3) + 0.2 * pair(9, 8) + 0.15 * pair(2, 1));
 }
 
 /** Render a state in steady state and measure it. */
@@ -153,6 +161,8 @@ export function measure(state: EngineState, seed = 1): Features {
   const held = [...(state.drone.on ? state.drone.notes : []), ...(state.pad?.on ? state.pad.notes : [])];
   // pitch content for the mode estimate: the notes the layers cycle through (a few seconds of events is too little for a
   // key profile), plus what is held
+  const scaleHost = state.arp.on ? state.arp : state.bass.on ? state.bass : null;
+  const scaleNotes = scaleHost ? buildCycle(state.arp.root, scaleHost.scale, [1, 2, 3, 4, 5, 6, 7], 1, "up") : [];
   const pitches = [
     ...(state.arp.on ? buildCycle(state.arp.root, state.arp.scale, state.arp.chord, state.arp.octaves, state.arp.pattern) : []),
     ...(state.bass.on ? buildCycle(state.bass.root, state.bass.scale, state.bass.chord, 1, "up") : []),
@@ -197,7 +207,7 @@ export function measure(state: EngineState, seed = 1): Features {
 
   return {
     loudnessDb, centroidHz, highFreqRatio: totE > 0 ? hiE / totE : 0, flux, fluxVariance, density, roughness,
-    modeBrightness: modeBrightness(pitches), onsetIrregularity, patternEntropy, width: ms > 0 ? clamp01(Math.sqrt(ss / ms)) : 0, tailRatio,
+    modeBrightness: modeBrightness(pitches, state.arp.root, scaleNotes), onsetIrregularity, patternEntropy, width: ms > 0 ? clamp01(Math.sqrt(ss / ms)) : 0, tailRatio,
     pitchLow: pitches.length ? Math.min(...pitches) : 0, pitchHigh: pitches.length ? Math.max(...pitches) : 0, clash,
   };
 }
@@ -229,17 +239,18 @@ export function readFeatures(f: Features, tempo: number): Analysis {
   // so that sent and read agree (read 0, 0.22, 0.45, 0.73, 1.0)
   const tension = norm(f.clash, RANGES.clash) ** 0.6;
   const smooth = 1 - clamp01(0.5 * f.roughness + 0.5 * tension);
-  const joy = 0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * smooth;
+  // the sum compresses toward the middle (a random mood read with slope 0.36 on the joy sent), so it is widened around 0.5
+  const joy = 0.5 + JOY_GAIN * (0.5 * f.modeBrightness + 0.1 * c + 0.1 * norm(tempo, RANGES.tempo) + 0.3 * smooth - 0.5);
   // urgent music is also fast and rough, not only dense and loud (third test, round 2: calm 0.12 sent, 0.48 read)
   const calm = 1 - (0.3 * den + 0.2 * loud + 0.15 * flux + 0.1 * c + 0.15 * norm(tempo, RANGES.tempo) + 0.1 * f.roughness);
-  // warmth and closeness: least squares on 300 random moods through the mapping (held-out r 0.84 and 0.96, against 0.72 and 0.48 for the weights of v0.17.0; `pnpm calibrate`). Warmth is a dark, smooth sound (the centroid on a log scale and the roughness); closeness is a dry, narrow, rough-edged sound (width above all)
-  const warmth = 2.65 - 0.33 * Math.log(Math.max(60, f.centroidHz)) - 0.52 * f.roughness - 0.06 * clamp01(f.highFreqRatio * 8);
+  // warmth and closeness: least squares on 300 random moods through the mapping (held-out r 0.84 and 0.96, against 0.72 and 0.48 for the weights of v0.17.0; `pnpm calibrate`). Warmth is a dark, smooth sound (the centroid on a log scale and the roughness); it was refitted (v0.19.1) on the random moods plus a sweep of warmth at neutral other axes, because the first fit read 0.15 to 0.3 low there (the intercept was 2.65). Closeness is a dry, narrow, rough-edged sound (width above all)
+  const warmth = 3.0 - 0.345 * Math.log(Math.max(60, f.centroidHz)) - 0.62 * f.roughness - 0.11 * clamp01(f.highFreqRatio * 8);
   const closeness = 0.59 - 1.12 * f.width - 0.13 * f.tailRatio + 0.19 * f.roughness;
   const spontaneity = 0.5 * f.onsetIrregularity + 0.3 * f.patternEntropy + 0.2 * norm(f.fluxVariance, RANGES.fluxVar);
   const why = {
     joy: explain([["mode", 0.5, f.modeBrightness], ["brightness", 0.1, c], ["tempo", 0.1, norm(tempo, RANGES.tempo)], ["smoothness", 0.3, smooth]]),
     calm: explain([["density", 0.3, 1 - den], ["loudness", 0.2, 1 - loud], ["movement", 0.15, 1 - flux], ["brightness", 0.1, 1 - c], ["tempo", 0.15, 1 - norm(tempo, RANGES.tempo)], ["smoothness", 0.1, 1 - f.roughness]]),
-    warmth: explain([["brightness", 0.33, 1 - c], ["high_frequencies", 0.06, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.52, 1 - f.roughness]]),
+    warmth: explain([["brightness", 0.345, 1 - c], ["high_frequencies", 0.11, 1 - clamp01(f.highFreqRatio * 8)], ["smoothness", 0.62, 1 - f.roughness]]),
     closeness: explain([["narrow_width", 1.12, 1 - f.width], ["dryness", 0.13, 1 - f.tailRatio], ["roughness", 0.19, f.roughness]]),
     spontaneity: explain([["timing_irregularity", 0.5, f.onsetIrregularity], ["note_order", 0.3, f.patternEntropy], ["changing_texture", 0.2, norm(f.fluxVariance, RANGES.fluxVar)]]),
   };
