@@ -207,7 +207,7 @@ export function OwnerControls({ picture, supabase, sessionId, face, policy, onCh
           </p>
         </>}
         <button type="button" className="se-btn pl-toggle" style={{ marginTop: listener ? 12 : 0 }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
-          title="The AI can ask for a small picture of this player and a spectrogram of its last 8 s of sound output. Nothing from your camera or microphone.">
+          title="The AI can ask for a small picture of this player and a spectrogram of its last 10 s of sound output. Nothing from your camera or microphone.">
           <span className="pl-check" aria-hidden />Let the AI see the picture
         </button>
         <p className="pl-local" style={{ marginTop: 10 }}>The AI can ask for a small picture of this player and its last seconds of sound.</p>

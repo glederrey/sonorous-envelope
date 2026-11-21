@@ -83,7 +83,7 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("inspect", {
     title: "Recent history or a snapshot",
-    description: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~8 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as).",
+    description: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~10 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as).",
     inputSchema: z.object({ session_id: z.string().optional(), what: z.enum(["history", "snapshot"]).default("history") }),
   }, (args, ctx) => run(ctx as Ctx, (c) => inspect(c.db, c.userId, args)));
 

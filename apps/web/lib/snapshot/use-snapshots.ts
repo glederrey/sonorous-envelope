@@ -9,6 +9,7 @@ import { composeSnapshot, toJpegDataUrl } from "./compose";
 import { SoundRecorder } from "./sound-recorder";
 
 const SAMPLE_MS = 100;
+const SPECTRO_S = 10; // the spectrogram and the numbers cover the last 10 s of output (Gael, v0.22.1; 8 s before)
 
 /** True when a canvas holds nothing yet (every pixel of a 16×9 reduction is transparent). */
 function isBlank(c: HTMLCanvasElement): boolean {
@@ -33,7 +34,7 @@ export interface SnapshotSource {
 /**
  * The owner's player keeps the picture and the sound it produces for the model's `inspect("snapshot")`: it listens to a tap on
  * its own output every 100 ms, and shortly after each new state (and every 30 s after that) it saves one small JPEG (the picture
- * on top, a spectrogram of the last ~8 s below) with the numbers measured from that sound. Only while this browser is the
+ * on top, a spectrogram of the last ~10 s below) with the numbers measured from that sound. Only while this browser is the
  * session owner's, the audio runs, the page is visible and the owner has not turned picture feedback off. One capture at a time.
  */
 export function useSnapshots({ supabase, sessionId, signedIn, started, playing, audio, settings, field, controls, strudelPlays, strudelDrawn, debug }: {
@@ -82,7 +83,7 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
   const recorderFor = () => {
     const tap = audio.current?.tap;
     if (!tap) return null;
-    if (recorder.current?.tap !== tap) recorder.current = { tap, rec: new SoundRecorder(tap, { everyMs: SAMPLE_MS }) };
+    if (recorder.current?.tap !== tap) recorder.current = { tap, rec: new SoundRecorder(tap, { everyMs: SAMPLE_MS, seconds: SPECTRO_S }) };
     return recorder.current.rec;
   };
 
