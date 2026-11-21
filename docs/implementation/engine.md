@@ -61,6 +61,7 @@ function renderOffline(state: EngineState, opts: { seconds: number; sampleRate: 
 ```
 
 - Gestures go to the mix after the filter, so they stay audible when the filter is dark, then through delay and reverb.
+- The motif voice (below) joins the same way: after the filter and the amp LFO, before the delay and reverb, so the master volume (0.9 at most) and the limiter still apply to it.
 - LFO targets: `cutoff` (multiplies cutoff by 2^(depth·2·lfo) i.e. ±2 octaves at depth 1), `pitch` (±depth·50 cents vibrato), `amp` (tremolo, gain 1 − depth·(0.5+0.5·lfo)), `pan`.
 - LFO rate: `cutoff`, `pitch` and `pan` stay capped at 12 Hz. `amp` goes up to about 80 Hz, which turns a tremolo into a grain: about 25 Hz is the purring texture, 30 to 70 Hz the growling one (emotion-to-sound.md). The `amp` LFO must be computed per sample, not once per 128-frame block: a block is 2.7 ms, so a 70 Hz wave sampled that way is badly aliased. A `random` shape at these rates is sample-and-hold on the LFO's own clock. Gestures keep their own modulation (purr 25 Hz, growl 40 Hz); this is for the continuous layer. Consent and harshness limits apply (limits.md), and the colour pulse never follows it (mood-mapping.md, "Colour").
 - Soft limiter: `tanh` with drive normalised so a −6 dBFS sine passes almost unchanged; then a hard clamp at ±0.98.
@@ -121,6 +122,14 @@ When `setState` is called:
 
 ## Determinism test
 Rendering the same state with the same seed twice must produce bit-identical buffers. Browser vs Node may differ in the last float bits (Math functions), so compare the analysis features within tolerance, not raw samples.
+
+## Motif voice (roadmap #128, built 2026-11-21)
+`EngineState.motif?: { id, notes (MIDI, -1 a rest), beats, repeat (1 to 4), level (0 to 1) }` (`motif.ts`, class `MotifVoice`, called from `Engine.applyState` and `process`). A short phrase the model plays over the sound, once. Like the removed gestures it is a one-shot, deduplicated by `id`, never replayed for a late joiner.
+- **When.** Applying a state whose `motif.id` differs from the last one seen schedules it for the first bar (multiple of 4 beats) at least 2.5 s after the state was written (`LEAD_S`, counted in beats at the state's tempo from `grid.beat`): players receive a state about a second after it is written (their poll), so a bar closer than that would be missed. A device that applies the state more than 0.5 s after the phrase began (`LATE_S`, a late joiner or a reload) skips it entirely, never half.
+- **Never half, never again.** If the state is applied later than 0.25 s after the phrase's start (a late joiner, a reload), nothing plays. The id is remembered either way, so re-applying the same state (a rest and return, a duplicate poll) does not replay it. A later state without a motif, or with the same id, does not touch a phrase that plays; a new id replaces the notes not yet started (a note already sounding rings out).
+- **Notes.** Back to back, each sounding for 90% of its beats, rests silent, the whole phrase `repeat` times with no gap. Each note is the state's `osc.wave`, two unison voices detuned by 7 cents either way, attack 15 ms, release 300 ms (time constant release/5, as the layers), at most 8 voices at once (the oldest is stolen). Gain `0.45 * level` (default 0.6: just above the arpeggio at the same master volume). No LFO pitch and no seeded randomness: phases start at 0, so the same state, seed and elapsed give the same samples.
+- **Events.** Each note pushes a `NoteEvent` with `layer: "motif"` at its onset (the analysis and the tests see them). The server's analysis render is made without the motif.
+- **Tests** (`packages/engine/test/engine.test.ts`, "motifs"): notes on the first bar after the 2.5 s lead-in at the state's tempo, bar boundary, repeat, tempo glide, deterministic, silence before and sound after, late joiner, same id, new id, no motif following, master cap.
 
 ## Shared timeline (roadmap #34, built)
 Devices playing the same session now play the same notes at the same moments (within the accuracy of the clock estimate, tens of milliseconds). Option (a) of the roadmap, without server-rendered audio.

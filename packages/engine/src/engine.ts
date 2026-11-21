@@ -2,6 +2,7 @@ import { Biquad } from "./filter";
 import { PingPongDelay, Reverb } from "./fx";
 import { Layer, type LayerParams } from "./layer";
 import { Lfo } from "./lfo";
+import { MotifVoice } from "./motif";
 import { midiToHz } from "./music";
 import { oscSample } from "./oscillator";
 import { mulberry32 } from "./prng";
@@ -57,6 +58,7 @@ export class Engine {
   private arp: Layer; private bass: Layer;
   private events: NoteEvent[] | null = null;
   private lfos: Lfo[];
+  private motif: MotifVoice;
   private filter = new Biquad();
   private delay: PingPongDelay; private reverb: Reverb;
   private drones: DroneOsc[] = [];
@@ -70,13 +72,14 @@ export class Engine {
     this.lfos = [new Lfo(mulberry32(seed ^ 0x1f)), new Lfo(mulberry32(seed ^ 0x2f))];
     this.arp = new Layer(sampleRate, mulberry32(seed ^ 0xa1), "arp", null);
     this.bass = new Layer(sampleRate, mulberry32(seed ^ 0xb2), "bass", null);
+    this.motif = new MotifVoice(sampleRate);
     this.delay = new PingPongDelay(sampleRate);
     this.reverb = new Reverb(sampleRate);
     this.setGridSeed(seed);
   }
 
   /** Start recording note events (for offline analysis). */
-  recordEvents(into: NoteEvent[]) { this.events = into; this.arp.setEvents(into); this.bass.setEvents(into); }
+  recordEvents(into: NoteEvent[]) { this.events = into; this.arp.setEvents(into); this.bass.setEvents(into); this.motif.setEvents(into); }
 
 
   /** Local volume. 1 is the sound as mapped; up to 8 (+18 dB) boosts it, and the soft limiter below keeps it from clipping. */
@@ -136,6 +139,7 @@ export class Engine {
       const g = state.grid ?? { arp: 0, bass: 0 }, d = this.rampsOf(state);
       this.arp.align(this.t, g.arp, elapsedSec ?? 0, d.arp); this.bass.align(this.t, g.bass, elapsedSec ?? 0, d.bass);
     } else { this.arp.clearGlide(); this.bass.clearGlide(); } // the grids just run on at the new state's step length
+    this.motif.apply(state, this.t, elapsedSec ?? 0);
     // drone: fade changed notes in and out over 3 s
     const want = new Map<number, Wave>();
     if (state.drone.on) for (const n of state.drone.notes) want.set(n, state.drone.wave);
@@ -239,6 +243,7 @@ export class Engine {
       // roughness: soft saturation before the filter
       if (c.drive > 0.001) { const g = 1 + 4 * c.drive; x = Math.tanh(x * g) / Math.tanh(g) ; }
       x = this.filter.process(x) * amp;
+      x += this.motif.process(this.t); // the model's phrase: after the filter, so a dark filter does not swallow it; before the fx
 
       // echo and reverb
       // the echo is Claude's: mix as sent. Feedback stays below 1 so the echo cannot run away (a stability limit).

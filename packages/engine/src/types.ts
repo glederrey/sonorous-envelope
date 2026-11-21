@@ -57,8 +57,11 @@ export interface EngineState {
    *  listener modes only (Attuned and Jukebox), roadmap #18) at `pattern.bpm`, and the synth fields below are the paused synth state that `strudel_mode on:false` brings back. */
   engine?: "synth" | "strudel";
   pattern?: { code: string; bpm: number };
+  /** A short phrase of the model's own, played once, on the first bar at least 2.5 s after the state was written, in the voice's wave (roadmap #128).
+   *  `id` tells devices whether they have played it already; `notes` are MIDI (-1 a rest), `beats` the length of each, `level` 0 to 1. */
+  motif?: { id: number; notes: number[]; beats: number[]; repeat: number; level: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */
   transition: { time: number; curve: "smooth" | "sudden"; delay?: number };
 }
 
-export interface NoteEvent { time: number; midi: number; velocity: number; layer: "arp" | "bass" }
+export interface NoteEvent { time: number; midi: number; velocity: number; layer: "arp" | "bass" | "motif" }

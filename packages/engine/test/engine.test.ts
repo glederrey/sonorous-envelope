@@ -327,3 +327,90 @@ describe("stack, pad and the fast amp LFO", () => {
   });
 });
 
+
+describe("motifs", () => {
+  // 120 BPM at 1/8: a beat is 0.5 s. The phrase waits at least 2.5 s (5 beats) for the players to have the state: grid.beat 3 puts the
+  // first bar after that (beat 8) at 2.5 s after the state was written.
+  const base = (motif?: EngineState["motif"]) => {
+    const s = neutralState();
+    s.arp = { ...s.arp, on: false, tempo: 120, rate: "1/8" }; s.grid = { arp: 6, bass: 0, beat: 3 };
+    s.fx = { delay: { time: 0.4, feedback: 0, mix: 0 }, reverb: { size: 0.5, mix: 0 } }; s.lfo = [];
+    if (motif) s.motif = motif;
+    return s;
+  };
+  const motif = (o: Partial<NonNullable<EngineState["motif"]>> = {}) => ({ id: 1, notes: [64, 67, -1, 69], beats: [1, 1, 1, 2], repeat: 1, level: 0.6, ...o });
+  const play = (states: Array<{ s: EngineState; at: number; elapsed?: number }>, seconds: number) => {
+    const e = new Engine(SR, 7); const ev: NoteEvent[] = []; e.recordEvents(ev);
+    const l = new Float32Array(Math.round(SR * seconds)), r = new Float32Array(l.length);
+    let done = 0;
+    for (const { s, at, elapsed } of states) {
+      const n = Math.round(at * SR); if (n > done) { e.process(l.subarray(done, n), r.subarray(done, n), n - done); done = n; }
+      e.setState(s, 7, 0, elapsed ?? at);
+    }
+    e.process(l.subarray(done), r.subarray(done), l.length - done);
+    return { ev: ev.filter((x) => x.layer === "motif"), l, r };
+  };
+
+  it("starts on the first bar at least 2.5 s later and plays the notes back to back, rests silent", () => {
+    const { ev } = play([{ s: base(motif()), at: 0 }], 7);
+    expect(ev.map((x) => x.midi)).toEqual([64, 67, 69]);
+    expect(ev[0].time).toBeCloseTo(2.5, 3);                 // beat 8
+    expect(ev[1].time).toBeCloseTo(3.0, 3);                 // beat 9
+    expect(ev[2].time).toBeCloseTo(4.0, 3);                 // beat 11 (beat 10 is the rest)
+    expect(ev[0].velocity).toBeCloseTo(0.6, 6);
+  });
+  it("never starts before the lead-in, even when the state was written on a bar", () => {
+    const s = base(motif()); s.grid = { arp: 0, bass: 0, beat: 8 };
+    expect(play([{ s, at: 0 }], 7).ev[0].time).toBeCloseTo(4.0, 3); // beat 12 is 2 s away, too soon: beat 16, 4 s later
+  });
+  it("repeats the phrase with no gap", () => {
+    const { ev } = play([{ s: base(motif({ repeat: 2 })), at: 0 }], 10);
+    expect(ev.map((x) => x.midi)).toEqual([64, 67, 69, 64, 67, 69]);
+    expect(ev[3].time - ev[0].time).toBeCloseTo(2.5, 3);    // 5 beats
+  });
+  it("follows the tempo glide on the shared timeline", () => {
+    const s = base(motif()); s.arp.tempo = 120; s.grid = { arp: 6, bass: 0, beat: 3, fromTempo: 60, glide: 4 }; s.transition = { time: 4, curve: "smooth" };
+    const { ev } = play([{ s, at: 0 }], 10);
+    expect(ev[0].time).toBeGreaterThan(2.5); expect(ev[0].time).toBeLessThan(5.0); // slower than 120 BPM at the start
+    expect(ev[1].time - ev[0].time).toBeGreaterThan(0.5 - 1e-3); expect(ev[1].time - ev[0].time).toBeLessThan(1.0);
+  });
+  it("is deterministic", () => {
+    const a = play([{ s: base(motif()), at: 0 }], 6), b = play([{ s: base(motif()), at: 0 }], 6);
+    expect(a.ev).toEqual(b.ev); expect(same(a.l, b.l)).toBe(true); expect(same(a.r, b.r)).toBe(true);
+  });
+  it("makes sound where the notes are, in the state's wave", () => {
+    const { l } = play([{ s: base(motif()), at: 0 }], 6);
+    expect(rms(l.subarray(0, Math.round(2.4 * SR)))).toBeLessThan(1e-4);          // nothing before the bar
+    expect(rms(l.subarray(Math.round(2.6 * SR), Math.round(2.9 * SR)))).toBeGreaterThan(0.01);
+  });
+  it("plays nothing for a device that applies the state after the phrase began (late joiner), and nothing half", () => {
+    const { ev, l } = play([{ s: base(motif()), at: 0, elapsed: 3.1 }], 6);
+    expect(ev).toEqual([]); expect(peak(l)).toBeLessThan(1e-4);
+    expect(play([{ s: base(motif()), at: 0, elapsed: 2.9 }], 6).ev[0].midi).toBe(64); // within 0.5 s: still plays
+  });
+  it("does not play the same state again (same id), but plays a new id", () => {
+    const s = base(motif());
+    expect(play([{ s, at: 0 }, { s, at: 5 }], 9).ev.length).toBe(3);
+    const again = base(motif({ id: 2, notes: [60], beats: [1] }));
+    expect(play([{ s, at: 0 }, { s: again, at: 6, elapsed: 0 }], 12).ev.map((x) => x.midi)).toEqual([64, 67, 69, 60]);
+  });
+  it("a following state without a motif does not cut the phrase", () => {
+    const solo = play([{ s: base(motif()), at: 0 }], 6);
+    const next = base(); next.grid = { arp: 6, bass: 0, beat: 5.5 };
+    const cut = play([{ s: base(motif()), at: 0 }, { s: next, at: 2.7, elapsed: 2.7 }], 6);
+    expect(cut.ev).toEqual(solo.ev);
+    expect(rms(cut.l.subarray(Math.round(3.9 * SR), Math.round(4.4 * SR)))).toBeGreaterThan(0.005); // the third note still sounds
+  });
+  it("a new id replaces the notes that have not started yet", () => {
+    const b = base(motif({ id: 2, notes: [72], beats: [1] })); b.grid = { arp: 0, bass: 0, beat: 3.5 };
+    const { ev } = play([{ s: base(motif()), at: 0 }, { s: b, at: 2.7, elapsed: 0 }], 9);
+    expect(ev.map((x) => x.midi)).toEqual([64, 72]);       // 64 had started; 67 and 69 were dropped
+  });
+  it("the master volume cap still applies to it", () => {
+    const loud = base(motif({ level: 1 })), capped = base(motif({ level: 1 }));
+    loud.volume = 5; capped.volume = 0.9;
+    const a = play([{ s: loud, at: 0 }], 6), b = play([{ s: capped, at: 0 }], 6);
+    expect(same(a.l, b.l)).toBe(true);
+    expect(peak(a.l)).toBeLessThanOrEqual(0.98);
+  });
+});

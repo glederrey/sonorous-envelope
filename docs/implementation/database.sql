@@ -41,7 +41,8 @@ create table public.sessions (
   turn          integer not null default 0,       -- increments on each final update
   pending_final boolean not null default false,   -- true after a non-final update until a final one
   listening_until timestamptz,                    -- live tuning (migration 0019): while the model's `listen` waits, until when
-  moments       jsonb not null default '{}'::jsonb -- migration 0022: the model's kept moments, name -> { kept_at, turn, effective, intent_mood, analysis, sticky, voice, note }
+  moments       jsonb not null default '{}'::jsonb, -- migration 0022: the model's kept moments, name -> { kept_at, turn, effective, intent_mood, analysis, sticky, voice, note }
+  motifs        jsonb not null default '{}'::jsonb  -- migration 0025: the model's named motifs, name -> { notes, beats, kept_at, turn }
 );
 create index sessions_owner_active on public.sessions (owner_id, last_active_at desc) where ended_at is null;
 

@@ -176,7 +176,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           <p className="pl-local" aria-live="polite">
             {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{waiting ? ` Sent: ${waiting}.` : ""}</>
               : live ? "Live tuning is on: the AI listens after its next answer."
-              : waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+              : waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these as soon as it listens (Live tuning), or on its next message, then changes the sound."}
           </p>
           {error && <p role="alert">{error}</p>}
         </details>
@@ -190,7 +190,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           ))}
         </div>
         <p className="pl-local" aria-live="polite">
-          {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
+          {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this as soon as it listens (Live tuning), or on its next message, and compares it with what it meant."}
         </p>
         {error && <p role="alert">{error}</p>}
       </details>
@@ -209,7 +209,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         )}
         <div className="pl-toggles">
           <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
-            title="The AI can ask for a small picture of what you see and of the last 8 s of sound, taken by this player. Nothing from your camera or microphone.">
+            title="The AI can ask for a small picture of this player and a spectrogram of its last 8 s of sound output. Nothing from your camera or microphone.">
             <span className="pl-check" aria-hidden />Let the AI see the picture
           </button>
         </div>

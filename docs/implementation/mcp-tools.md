@@ -148,6 +148,7 @@ Input:
   keep_voice?: boolean,         // freeze the scale, root, note order and wave that play now as the session voice (needs a previous state); notes say "voice kept"
   rest_after?: number | null,   // seconds before the sound fades with no update, null = never. Shared with the owner (limits.md, "Who can change what")
   voice?: Voice,                // replaces the session's voice (mood-mapping.md); {} clears it; transition at least 8 s
+  motif?: Motif,                // roadmap #128: a short phrase of its own over the sound, played once, a few seconds later on a bar; see "Motif" below
   note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details and in the player's "What Claude set" panel; not echoed back in the feedback, the model already has it; listed in `inspect` history)
 }
 ```
@@ -164,6 +165,13 @@ Behaviour, in order:
 10. Return the compact feedback.
 
 Steps 5 and 6 come before 7, so players start gliding while the analysis runs.
+
+### Motif (roadmap #128, migration 0025)
+`motif: { notes?: string[] /* 1 to 8: "E4", "G#3", "Bb5" (C2 to B6), "-" a rest */, beats?: number[] /* 0.25 to 4 each, one per note, default 1 */, name?: string /* 1 to 40: keep it to quote later */, recall?: string /* a named motif instead of notes */, first?: number /* 1 to 8, with recall: only its first notes */, repeat: 1 to 4 (default 1), level: 0 to 1 (default 0.6) }`. Exactly one of `notes` and `recall`; `beats` needs one value per note (zod refines in `schemas.ts`). Any mode where the synth plays, Self included.
+- It plays once, on the first bar at least 2.5 s after the state, in the state's wave (engine.md, "Motif voice"), over the sound as set by the same call: the sound under it is unchanged. It is **not sticky**: only the call that sends it carries it (the next state has none; `silence` and a moment recall strip it).
+- Server (`setSound`, synth path): `recall` looks the name up in `sessions.motifs` (`unknown_motif`: `No motif named "x". Named: a, b.` or `none`), `first` slices notes and beats. Notes become MIDI (`-` is -1) and the effective state gets `motif: { id (random 31-bit), notes, beats, repeat, level }`, after `applyLimits` and the level hold. `name` with notes stores `{ notes, beats, kept_at, turn }` in `sessions.motifs`: at most 12 names, a new one when 12 exist is `motifs_full`, a used name is replaced. The analysis (`reads_as`) is made without the motif.
+- While Strudel plays the motif is ignored, with the note `Strudel is on: the motif was not played; write the phrase in your code`.
+- Result: `playing.motif` as `"E4 G4 A4 · beats 1 1 2 · ×1"` (rests as `-`) when the call carried one; the note `motif kept as "x"` when named. `moment` `list` returns `motifs: [{ name, notes: "E4 G4 A4", turn }]` when any are named. `inspect` history appends ` · motif "name"` (or ` · motif`) to the line of the state that carried one.
 
 ### Feedback object (returned by `set_sound` and `get_feedback`)
 ```json
@@ -233,7 +241,7 @@ Input: `{ session_id?, action: "keep" | "recall" | "list", name?: string /* 1 to
 
 - `keep`: needs a name and a current state (`no_state` otherwise). At most 12 names; a new name when 12 exist is `moments_full` ("Twelve moments are kept. Keep this one under a name you already used to replace it."); an existing name is replaced. Changes nothing that plays. Result `{ kept, turn, moments: [names] }`.
 - `recall`: `unknown_moment` lists the kept names. A Strudel moment needs a listener mode (Attuned or Jukebox) and the owner's code switch on, else `strudel_not_here`. A synth moment recalled while Strudel plays replaces it. Same rate limits as `silence` (`too_fast`). It writes a new state: the kept `effective` with this call's transition (no delay) and a fresh grid, through `applyLimits` and the +4 dB level step against the state before (`level held` in `clamped`), intent note `recalled "name"` (it reads in `inspect` history), the kept mood and analysis. The session's `sticky` and `voice` come back too, so the next `set_sound` continues in that voice. It counts as a sound update (`final`, turn, `pending_final`). Result: the normal feedback, claiming the owner's reactions, with the note `recalled "name" (kept at turn N)` and, for a Strudel moment, `pattern` ("not reported yet" until the player runs it).
-- `list`: `{ moments: [{ name, turn, kept_s_ago, note?, engine }] }` in the order they were kept.
+- `list`: `{ moments: [{ name, turn, kept_s_ago, note?, engine }], motifs?: [{ name, notes: "E4 G4 A4", turn }] }` in the order they were kept; `motifs` only when the model has named any (set_sound motif, above).
 
 ## `tell_developers` (migration 0021)
 Input: `{ session_id?, kind: "bug" | "idea" | "confusion" | "worked", text: string /* 80 to 1000 */, from: "model" | "user" /* default model */ }`. An anonymous note to the people who build this tool, read at the start of a dev session (CLAUDE.md, "Notes from users and models"). It calls RPC `send_dev_feedback` with the caller's token (database.md).

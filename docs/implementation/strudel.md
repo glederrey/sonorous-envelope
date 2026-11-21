@@ -2,6 +2,9 @@
 
 The model has two engines. The **built-in synth** is its own voice (Self, Attuned or Jukebox). **Strudel** is live-coded music as on strudel.cc, **listener modes only (Attuned and Jukebox)**, switched on and off with the tool `strudel_mode`. Decisions by Gael (2026-11-11): tool named `strudel_mode`; samples in v1 so it works as on strudel.cc; the owner's "allow code" switch is on by default; **no sound safety on Strudel** (no loudness governor, no parameter clamps, no 0.9 cap, only the listener's volume); the code is shown collapsed with Copy code and a link to strudel.cc, and cannot be edited on sonorous; the hero page and the guide explain both engines; only `strudel_mode` switches engines (`set_sound` never does).
 
+## Strudel in Self: no for now (2026-11-21, #128)
+Self is the model's face and stays one voice: synth only, no `strudel_mode`. Quoting an earlier phrase is done with synth motifs (`set_sound` motif, with `name`, `recall` and `first`; mcp-tools.md, engine.md "Motif voice"), which work in every mode where the synth plays, Self included. While Strudel plays, a motif is ignored with a note.
+
 ## The tool
 `strudel_mode { session_id?, on, code?, bpm?, colour?, final, title?, note? }` ([mcp-tools.md](mcp-tools.md)). `on: true` writes a state with `engine: "strudel"` and `pattern: { code, bpm }`; **all synth fields stay filled** (the paused synth), because `playingOf`, `hardCaps`, `nextGrid` and `silence` read them. `on: false` writes the synth back, silent and with no scene (v0.18.6): the picture goes to black and the next `set_sound` fades in from it. A change to Self (by the model) or an owner lock to Self writes or shows the synth again, and the player refuses to run a pattern unless the mode is Attuned or Jukebox and `allow_code` is true. The server parses the code with acorn (a syntax error comes back in the same result) and never runs it.
 

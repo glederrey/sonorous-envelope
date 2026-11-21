@@ -145,6 +145,7 @@ export function PlayerLab() {
           <button type="button" className={btn} onClick={() => newCode(CODE2, 140)}>New code (faster)</button>
           <button type="button" className={btn} onClick={() => { clear(); strudelOff(); }}>Strudel off</button>
           <button type="button" className={btn} onClick={() => setSound("stars")}>set_sound stars</button>
+          <button type="button" className={btn} onClick={() => { const e = synth("stars", fadeIn); e.motif = { id: Date.now() & 0x7fffffff, notes: [76, 79, -1, 83, 81], beats: [1, 1, 1, 1, 2], repeat: 1, level: 0.6 }; script.push(e); note("set_sound stars + motif E5 G5 - B5 A5"); }}>set_sound + motif</button>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
           {[0.5, 1.5, 3, 8].map((s) => <button key={s} type="button" className={btn} onClick={() => offThen(s)}>Off, stars after {s} s</button>)}

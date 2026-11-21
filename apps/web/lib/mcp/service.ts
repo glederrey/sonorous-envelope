@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // The tables are untyped here; generic params are loose so any client (including test clients) fits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
-import { midiToNoteName, type EngineState } from "@sonorous/engine";
+import { midiToNoteName, noteToMidi, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
@@ -28,11 +28,11 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean; guided_mode?: string | null; moments?: Record<string, Moment>;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean; guided_mode?: string | null; moments?: Record<string, Moment>; motifs?: Record<string, KeptMotif>;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean; motif?: { name?: string } }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 /** A kept moment: a self-contained copy of the sound and picture that played (migration 0022), so it survives the states it came from. */
@@ -40,6 +40,25 @@ interface Moment {
   kept_at: string; turn: number; effective: EngineState; intent_mood: Mood | null; analysis: Compact | null; sticky: Sticky | null; voice: Voice | null; note?: string;
 }
 const MAX_MOMENTS = 12;
+
+/** A phrase the model named (migration 0025): the note names and beats as sent, so a quote (`first`) takes the start of it. */
+interface KeptMotif { notes: string[]; beats: number[]; kept_at: string; turn: number }
+const MAX_MOTIFS = 12;
+const motifNames = (m: Record<string, KeptMotif>) => Object.keys(m).sort((a, b) => m[a].kept_at.localeCompare(m[b].kept_at)); // jsonb does not keep the order of keys
+
+/** The notes and beats a `motif` input plays: what it carries, or a named phrase brought back (all of it, or its first notes). */
+function resolveMotif(session: SessionRow, m: NonNullable<SetSoundInput["motif"]>, turn: number, now: number) {
+  const saved = session.motifs ?? {}, names = motifNames(saved);
+  if (m.recall !== undefined) {
+    if (!Object.hasOwn(saved, m.recall)) throw new ToolError("unknown_motif", `No motif named "${m.recall}". Named: ${names.length ? names.join(", ") : "none"}.`);
+    const k = saved[m.recall], n = m.first ?? k.notes.length;
+    return { notes: k.notes.slice(0, n), beats: k.beats.slice(0, n), label: m.recall, store: undefined };
+  }
+  const notes = m.notes ?? [], beats = m.beats ?? notes.map(() => 1);
+  if (m.name === undefined) return { notes, beats, label: undefined, store: undefined };
+  if (!Object.hasOwn(saved, m.name) && names.length >= MAX_MOTIFS) throw new ToolError("motifs_full", "Twelve motifs are named. Keep this one under a name you already used to replace it.");
+  return { notes, beats, label: m.name, store: { ...saved, [m.name]: { notes, beats, kept_at: new Date(now).toISOString(), turn } } };
+}
 
 function fail(action: string, error: { message: string } | null): never {
   console.error(`mcp ${action} failed:`, error?.message);
@@ -50,6 +69,7 @@ function fail(action: string, error: { message: string } | null): never {
  *  give a different note order, and a different reading, on every call). Playback keeps its own random seed. */
 const ANALYSIS_SEED = 1;
 const randomSeed = () => randomBytes(4).readUInt32BE(0);
+const randomMotifId = () => randomBytes(4).readUInt32BE(0) & 0x7fffffff;
 const newSessionId = () => randomBytes(18).toString("base64url");
 
 export function mergeClamps(...lists: string[][]): string[] {
@@ -337,6 +357,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const sentMood = input.mood ?? (ownerToSelf ? NEUTRAL_MOOD : prev?.intent.mood ?? NEUTRAL_MOOD); // no mood: the last one stays
   // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
   if (prev?.effective.engine === "strudel" && forListener(sw.face)) return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note, sw.face, switched);
+  // the phrase for this call (the synth path only: with Strudel on, it was handled above): resolved before anything is saved, so an unknown name is an error, not a half call
+  const motif = input.motif ? resolveMotif(session, input.motif, turn.stateTurn, now) : undefined;
   const mood = stretchMood(sentMood);
   const slow = nextSlowMood(ownerToSelf ? undefined : prev?.slow_mood, mood, input.final);
 
@@ -414,9 +436,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const level = holdLevel(effective, prev, analysis, stepDb);
   analysis = level.analysis;
   if (level.note) allClamps.push(level.note); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
+  // the phrase is not sticky: only the call that sends it carries it (each call builds its state from the mood, not from the last state)
+  if (motif && input.motif) {
+    effective.motif = { id: randomMotifId(), notes: motif.notes.map((n) => (n === "-" ? -1 : noteToMidi(n) ?? -1)), beats: motif.beats, repeat: input.motif.repeat ?? 1, level: Math.min(1, input.motif.level ?? 0.6) };
+  }
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
-    intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
+    intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields, ...(motif ? { motif: { name: motif.label } } : {}) },
     effective, clamps: allClamps, seed, slow_mood: slow, analysis,
   });
   const title = input.title?.trim().slice(0, 80);
@@ -427,12 +453,13 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
     ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
     ...(input.voice !== undefined || held || adopted || scaleMoved || waveMoved ? { voice } : {}),
+    ...(motif?.store ? { motifs: motif.store } : {}),
     sticky,
   }).eq("id", session.id);
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -448,11 +475,14 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   const names = Object.keys(kept).sort((a, b) => kept[a].kept_at.localeCompare(kept[b].kept_at)); // jsonb does not keep the order of keys
 
   if (input.action === "list") {
+    const savedMotifs = session.motifs ?? {};
+    const motifList = motifNames(savedMotifs).map((n) => ({ name: n, notes: savedMotifs[n].notes.join(" "), turn: savedMotifs[n].turn }));
     return {
       moments: names.map((name) => {
         const m = kept[name];
         return { name, turn: m.turn, kept_s_ago: Math.max(0, Math.round((now - new Date(m.kept_at).getTime()) / 1000)), ...(m.note ? { note: m.note } : {}), engine: m.effective.engine === "strudel" ? "strudel" : "synth" };
       }),
+      ...(motifList.length ? { motifs: motifList } : {}),
       ...(note ? { notes: [note] } : {}),
     };
   }
@@ -490,6 +520,7 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   const turn = planTurn(prev, input.final, now);
   // the picture seed and the voice seed are inside the kept state, so the sound and the picture come back as they were
   const { effective, clamps } = applyLimits({ mapped: JSON.parse(JSON.stringify(m.effective)), transition: { time: input.transition?.time ?? 6, curve: input.transition?.curve ?? "smooth" } });
+  delete effective.motif; // a phrase plays once, on the call that sent it: a moment brought back does not play it again
   effective.grid = nextGrid(prev, now, effective);
   const strudel = effective.engine === "strudel";
   const level = holdLevel(effective, prev, strudel ? null : m.analysis ?? measureState(effective, ANALYSIS_SEED), LEVEL_STEP_DB);
@@ -574,6 +605,7 @@ async function writePatternState(
   build: (e: EngineState) => void, intent: Record<string, unknown>, extra: { title?: string; sticky?: Sticky; rest_after?: number | null },
 ) {
   const copy: EngineState = JSON.parse(JSON.stringify(prev.effective));
+  delete copy.motif;
   build(copy);
   copy.transition = { time: 2, curve: "smooth" };
   const { effective, clamps } = applyLimits({ mapped: copy, transition: copy.transition });
@@ -600,7 +632,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]
+  const notes = [resolveNote, switchNote, input.motif ? "Strudel is on: the motif was not played; write the phrase in your code" : undefined, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
@@ -772,6 +804,7 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   const turn = planTurn(prev, final, now);
   const effective: EngineState = JSON.parse(JSON.stringify(prev.effective));
   effective.volume = 0;
+  delete effective.motif; // a phrase plays once: the fade does not carry it
   delete effective.engine; delete effective.pattern; // silence stops Strudel too: the player fades the pattern out over the same time
   // Ending: only the volume fades, so the closing sound sent just before keeps its notes while it dies away.
   if (!input.end) { effective.drone.on = false; effective.bass.on = false; effective.arp.on = false; }
@@ -844,7 +877,8 @@ async function inspectHistory(db: Db, userId: string, input: { session_id?: stri
     const reads = r.analysis ? ` · read ${f(r.analysis.reads_as, (r.intent.mood as { tension?: number } | undefined)?.tension !== undefined ? [...axes, "tension"] : axes)}` : "";
     const clamps = r.clamps?.length ? ` · clamped: ${r.clamps.join("; ")}` : "";
     const n = r.intent.note ? ` · "${r.intent.note}"` : "";
-    return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}`;
+    const mo = r.intent.motif ? ` · motif${r.intent.motif.name ? ` "${r.intent.motif.name}"` : ""}` : "";
+    return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}${mo}`;
   });
   const { data: changes } = await db.from("mode_changes").select("turn,to_mode,by,created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(5);
   const faces = ((changes ?? []) as Array<{ turn: number; to_mode: string; by: string; created_at: string }>).reverse()
