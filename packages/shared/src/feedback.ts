@@ -18,6 +18,8 @@ export interface FeedbackInput {
   resting?: boolean;
   /** What the owner pressed since the last call (reactions.ts), one short line per kind. */
   reactions?: string[];
+  /** "What I heard" (#129): how the sound read to the listener, since the last call. In every mode; information, not steering. */
+  heard?: string[];
   /** the face playing, with "locked by the owner" when it is */
   mode?: string;
   /** What the player reported about the Strudel code that plays (pattern_reports); only for a Strudel state. */
@@ -79,6 +81,7 @@ export function buildFeedback(i: FeedbackInput) {
   }
   if (i.pattern) out.pattern = i.pattern;
   if (i.reactions?.length) out.reactions = i.reactions;
+  if (i.heard?.length) out.heard = i.heard;
   if (i.mode) out.mode = i.mode;
   out.players = i.players;
   if (i.resting) out.resting = true;
