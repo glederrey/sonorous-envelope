@@ -1,33 +1,34 @@
 # Feedback loop
 
-The model needs to know what it actually produced in order to update it. Every `set_sound` and `get_feedback` call returns a compact summary of around 150 tokens.
+The model needs to know what it actually produced in order to update it. `set_sound`, `strudel_mode`, `silence` and `get_feedback` return the same compact object, about 150 to 250 tokens (built by `buildFeedback`, `packages/shared/src/feedback.ts`; the exact rules are in [implementation/mcp-tools.md](implementation/mcp-tools.md), "Feedback object").
 
 ## What comes back
 
-1. **Effective settings.** Not an echo of what the model sent, but what is playing after the mood mapping, the listener's changes and the limits, plus the difference. Example: `volume 0.8 → 0.5 (listener limit)`.
-2. **Perceptual audio features.** Computed from an offline render of a few seconds. Each is reported as an average and a range, because the LFO and arpeggiator make the sound move.
-   - loudness (LUFS or dBFS)
-   - brightness (spectral centroid)
-   - roughness / dissonance
-   - note density (onsets per second)
-   - pitch range
-   - spectral flux (how much it changes)
-3. **Colour.** HSL rather than RGB, since hue, saturation and lightness map to perception. Plus how much it moves.
-4. **Listener reactions** since the last call. This is the most important part: it is the only signal about how the expression landed.
-5. **Listener controls.** The owner's current volume and echo setting (`controls`). Other listeners can only listen, so their settings are not reported. The same sound lands differently at volume 0.3 and 0.9, and the model should know which one it is dealing with.
-6. **Mood estimate on the same axes as the intent.** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5".
-7. **Notes**, e.g. "no final update last turn" or "gesture skipped: listener muted gestures". Planned: `resting`, when the sound faded because the last update was minutes ago (player-ui.md, "Presence between turns").
+1. **What plays (`playing`).** Not an echo of what the model sent, but what is playing after the mood mapping and the limits, in the vocabulary the model can set, so it can check its choices arrived. While Strudel plays: `engine`, `bpm`, the code's length and the scene behind it. `clamped` lists what a rule changed (level held, the 0.9 volume cap).
+2. **Perceptual audio features (`sound`).** Computed from an offline render of a few seconds of the synth state: words for brightness, density and movement, numbers for loudness (`loudness_db`) and roughness. Not for Strudel: the server never runs the model's code, so a Strudel state has no `sound` and no `reads_as`.
+3. **Colour.** HSL rather than RGB, since hue, saturation and lightness map to perception, plus its motion (`still`, `drift`, `pulse`, `breathe`).
+4. **Listener reactions (`reactions`)** since the last call: what the owner pressed (calmer, softer, more of this...), one short line per kind with how long ago. Delivered once (`set_sound` and `strudel_mode` claim them; `get_feedback` only peeks). Only in Attuned and Jukebox: nobody steers Self, so reactions are never returned there.
+5. **Listener controls (`controls`).** The owner's own player volume. Other listeners can only listen, so their settings are not reported. The same sound lands differently at volume 0.3 and 0.9, and the model should know which one it is dealing with.
+6. **Mood estimate on the same axes as the intent (`reads_as`, `reads_why`).** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5". Where an axis is 0.25 or more away, `reads_why` names the two parts of the sound that pull it.
+7. **The Strudel report (`pattern`).** What the owner's player said about the code: whether it ran, its error, events per cycle.
+8. **Context.** `mode` (the mode playing, and whether the owner locked it), `players` (how many players are open), `resting` (the sound faded because the last update was minutes ago), and `notes` (e.g. "no final update last turn", tempo glides, voice changes). After a mode change the first result also carries the new mode's rules (`guidance`).
 
 ## Example
 
 ```json
-{"intent":   {"warmth": 0.8, "closeness": 0.7, "joy": 0.6, "calm": 0.75, "spontaneity": 0.3},
+{"turn": 12,
+ "intent":   {"warmth": 0.8, "closeness": 0.7, "joy": 0.6, "calm": 0.75, "spontaneity": 0.3},
+ "playing":  {"scale": "D dorian", "tempo": 64, "wave": "triangle", "cutoff": 900, "resonance": 0.2, "detune": 4, "volume": 0.5, "drone": true,
+              "pattern": "up", "rate": 1, "octaves": 1, "chord": false, "echo": 0.3, "reverb": 0.4},
+ "colour":   {"h": 30, "s": 0.4, "l": 0.35, "motion": "drift"},
+ "controls": {"volume": 0.6},
+ "sound":    {"brightness": "low", "density": "sparse", "movement": "slow", "loudness_db": -24, "roughness": 0.2},
  "reads_as": {"warmth": 0.5, "closeness": 0.6, "joy": 0.55, "calm": 0.8, "spontaneity": 0.25},
- "playing":  {"tempo": 64, "cutoff": 900, "volume": 0.5, "scale": "dorian"},
- "clamped":  {"volume": "0.7 → 0.5 by listener limit"},
- "sound":    {"loudness": -24, "brightness": "low", "roughness": 0.2, "density": "sparse"},
- "colour":   {"h": 30, "s": 0.4, "l": 0.35, "motion": "slow"},
- "listener": ["pressed calmer", "volume -30%"]}
+ "reads_why": {"warmth": "held down by brightness, roughness"},
+ "reactions": ["calmer, 40 s ago"],
+ "mode": "Attuned",
+ "players": 1,
+ "notes": ["no final update last turn"]}
 ```
 
 ## How the mood estimate is computed

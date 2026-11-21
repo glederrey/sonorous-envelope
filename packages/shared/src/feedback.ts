@@ -20,9 +20,9 @@ export interface FeedbackInput {
   reactions?: string[];
   /** the face playing, with "locked by the owner" when it is */
   mode?: string;
-  /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
   /** What the player reported about the Strudel code that plays (pattern_reports); only for a Strudel state. */
   pattern?: Record<string, unknown>;
+  /** The compact analysis of the state (analysis.ts): `sound` words and the `reads_as` estimate. */
   analysis?: { sound: Record<string, unknown>; reads_as: Record<string, number>; why?: Record<string, { low: string; high: string }> } | null;
 }
 
