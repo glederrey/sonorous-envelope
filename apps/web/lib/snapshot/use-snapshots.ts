@@ -121,4 +121,5 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     timer = setTimeout(() => void run(), Math.min(14, Math.max(8, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [isOwner, started, stateId, sessionId, supabase]);
+  return { isOwner }; // the player also uses it to say "Your AI" to the owner
 }
