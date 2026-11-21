@@ -31,6 +31,7 @@ const tools = [
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
   { name: "listen", text: `Waits up to 45 s for your button presses, in ${ATTUNED} and ${JUKEBOX}, so the model can answer at once (Live tuning).` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
+  { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings it back later, the way a theme returns. Up to 12 per session." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
   { name: "inspect", text: "The last states and mode changes, for a closer look." },
   { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. No name, account or conversation goes with it." },

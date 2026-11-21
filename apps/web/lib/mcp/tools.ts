@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { SetSoundInput, StrudelModeInput, Voice } from "@sonorous/shared";
+import { SetSoundInput, StrudelModeInput, Transition, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, inspect, listen, setSound, silence, startSession, strudelMode, tellDevelopers } from "./service";
+import { ToolError, getFeedback, inspect, listen, moment, setSound, silence, startSession, strudelMode, tellDevelopers } from "./service";
 
 type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } }; mcpReq?: { signal?: AbortSignal } };
 
@@ -53,6 +53,18 @@ export function registerTools(server: McpServer) {
     description: "Switch between the synth and Strudel (strudel.cc), Attuned and Jukebox modes only, after the listener said yes; their rules (sent with the mode) explain how. on true with code and bpm plays your code in the listener's browser; send new code to change it. on false returns to the synth, silent until your next set_sound. You get what the owner's player reports (pattern).",
     inputSchema: StrudelModeInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => strudelMode(c.db, c.userId, args)));
+
+  server.registerTool("moment", {
+    title: "Musical memory",
+    description: "Your musical memory for this session. keep: give the sound and picture playing now a name (up to 12 per session; keeping a name again replaces it). recall: bring a kept moment back exactly as it was (sound, voice, picture), with this call's transition (default 6 s); it then plays like any state, and your next set_sound moves on from it. list: the names you kept, with their turn and your note. Use it to return to something you shared earlier, the way a theme comes back in music, in any mode. recall counts as a sound update (final=true on the last call of a message).",
+    inputSchema: z.object({
+      session_id: z.string().optional(),
+      action: z.enum(["keep", "recall", "list"]),
+      name: z.string().trim().min(1).max(40).optional().describe("keep and recall: the name of the moment"),
+      transition: Transition.optional().describe("recall only: how the moment comes back (default smooth, 6 s)"),
+      final: z.boolean().default(false),
+    }),
+  }, (args, ctx) => run(ctx as Ctx, (c) => moment(c.db, c.userId, args)));
 
   server.registerTool("listen", {
     title: "Listen for the listener's buttons",

@@ -8,7 +8,7 @@ import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
-  type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Voice,
+  type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Transition, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
 import { appVersion } from "../version";
@@ -28,12 +28,18 @@ const PRESENCE_WINDOW_MS = 45_000;
 
 interface SessionRow {
   id: string; owner_id: string; title: string | null; settings: unknown; current_state_id: string | null;
-  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean; guided_mode?: string | null;
+  turn: number; pending_final: boolean; ended_at: string | null; voice: Voice | null; sticky: Sticky | null; mode?: string; mode_policy?: string; allow_code?: boolean; guided_mode?: string | null; moments?: Record<string, Moment>;
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
   intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
+
+/** A kept moment: a self-contained copy of the sound and picture that played (migration 0022), so it survives the states it came from. */
+interface Moment {
+  kept_at: string; turn: number; effective: EngineState; intent_mood: Mood | null; analysis: Compact | null; sticky: Sticky | null; voice: Voice | null; note?: string;
+}
+const MAX_MOMENTS = 12;
 
 function fail(action: string, error: { message: string } | null): never {
   console.error(`mcp ${action} failed:`, error?.message);
@@ -188,6 +194,22 @@ function measureState(effective: EngineState, seed: number): Compact | null {
     console.error("analysis failed:", e);
     return null;
   }
+}
+
+/** Sound reaches the listener before anything can be softened: one call may raise the level by at most `stepDb`. A bigger jump is
+ *  held down to that step (the master volume of `effective` is scaled, for this state only); it rises further on the next call.
+ *  Returns the reading of what plays after the hold, and a note when it held. */
+function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Compact | null, stepDb: number): { analysis: Compact | null; note?: string } {
+  const wasDb = prev?.intent.owner_silenced ? undefined : prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
+  if (typeof wasDb !== "number" || typeof nowDb !== "number" || nowDb - wasDb <= stepDb) return { analysis };
+  // the readings are rounded to whole dB, so the held sound can still read one above the step: tighten once more if so
+  for (let i = 0, over = nowDb - wasDb - stepDb; i < 3 && over > 0; i++) {
+    effective.volume = Math.max(0.05, effective.volume * 10 ** (-over / 20));
+    analysis = measureState(effective, ANALYSIS_SEED);
+    const again = analysis?.sound.loudness_db;
+    over = typeof again === "number" ? again - wasDb - stepDb : 0;
+  }
+  return { analysis, note: `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further` };
 }
 
 /** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
@@ -387,23 +409,11 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
 
   const seed = randomSeed();
   let analysis = measureState(effective, ANALYSIS_SEED);
-  // Sound reaches the listener before anything can be softened: one call may raise the level by at most LEVEL_STEP_DB. A bigger
-  // jump is held down to that step (the master volume is scaled for this state only); it rises further on the next call.
   // The call that switches into Attuned raises nothing: the listener hears the first sound made for them, so it starts no louder than what played.
   const stepDb = switched && sw.face === "external" ? 0 : LEVEL_STEP_DB;
-  let levelNote: string | undefined;
-  const wasDb = prev?.intent.owner_silenced ? undefined : prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
-  if (typeof wasDb === "number" && typeof nowDb === "number" && nowDb - wasDb > stepDb) {
-    // the readings are rounded to whole dB, so the held sound can still read one above the step: tighten once more if so
-    for (let i = 0, over = nowDb - wasDb - stepDb; i < 3 && over > 0; i++) {
-      effective.volume = Math.max(0.05, effective.volume * 10 ** (-over / 20));
-      analysis = measureState(effective, ANALYSIS_SEED);
-      const again = analysis?.sound.loudness_db;
-      over = typeof again === "number" ? again - wasDb - stepDb : 0;
-    }
-    levelNote = `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further`;
-    allClamps.push(levelNote); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
-  }
+  const level = holdLevel(effective, prev, analysis, stepDb);
+  analysis = level.analysis;
+  if (level.note) allClamps.push(level.note); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
   const stateId = await insertState(db, now, {
     session_id: session.id, turn: turn.stateTurn, final: input.final,
     intent: { mood: sentMood, synth: input.synth, colour: input.colour, transition: input.transition, note: input.note, overridden: fields },
@@ -428,6 +438,81 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const g = await guide(db, session, sw.face, switched);
   if (g.note) notes.push(g.note);
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, ...said, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
+}
+
+/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. */
+export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list"; name?: string; transition?: Transition; final: boolean }, now = Date.now()) {
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  assertOpen(session);
+  const kept = session.moments ?? {};
+  const names = Object.keys(kept).sort((a, b) => kept[a].kept_at.localeCompare(kept[b].kept_at)); // jsonb does not keep the order of keys
+
+  if (input.action === "list") {
+    return {
+      moments: names.map((name) => {
+        const m = kept[name];
+        return { name, turn: m.turn, kept_s_ago: Math.max(0, Math.round((now - new Date(m.kept_at).getTime()) / 1000)), ...(m.note ? { note: m.note } : {}), engine: m.effective.engine === "strudel" ? "strudel" : "synth" };
+      }),
+      ...(note ? { notes: [note] } : {}),
+    };
+  }
+  const name = input.name;
+  if (!name) throw new ToolError("bad_input", `${input.action} needs a name.`);
+  const prev = await currentState(db, session);
+  if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
+
+  if (input.action === "keep") {
+    const isNew = !Object.hasOwn(kept, name);
+    if (isNew && names.length >= MAX_MOMENTS) throw new ToolError("moments_full", "Twelve moments are kept. Keep this one under a name you already used to replace it.");
+    const m: Moment = {
+      kept_at: new Date(now).toISOString(), turn: prev.turn, effective: JSON.parse(JSON.stringify(prev.effective)), intent_mood: prev.intent.mood ?? null,
+      analysis: prev.analysis ?? null, sticky: session.sticky ?? null, voice: session.voice ?? null, ...(prev.intent.note ? { note: prev.intent.note } : {}),
+    };
+    const { error } = await db.from("sessions").update({ moments: { ...kept, [name]: m } }).eq("id", session.id);
+    if (error) fail("keep the moment", error);
+    return { kept: name, turn: m.turn, moments: isNew ? [...names, name] : names, ...(note ? { notes: [note] } : {}) };
+  }
+
+  // recall
+  if (!Object.hasOwn(kept, name)) throw new ToolError("unknown_moment", `No moment named "${name}". Kept: ${names.length ? names.join(", ") : "none"}.`);
+  const m = kept[name];
+  const face = faceOf(session);
+  if (m.effective.engine === "strudel" && (!forListener(face) || session.allow_code === false)) {
+    throw new ToolError("strudel_not_here", "That moment was Strudel, which plays only in Attuned and Jukebox with the owner's code switch on.");
+  }
+  if (now - new Date(prev.created_at).getTime() < MIN_GAP_MS) throw new ToolError("too_fast", "Wait a moment between updates.");
+  const { count, error: cerr } = await db.from("states").select("id", { count: "exact", head: true })
+    .eq("session_id", session.id).gte("created_at", new Date(now - 60_000).toISOString());
+  if (cerr) fail("check the update rate", cerr);
+  if ((count ?? 0) >= MAX_PER_MINUTE) throw new ToolError("too_fast", "Too many updates this minute. Send fewer, and make the final one count.");
+
+  const settings = parseSettings(session.settings);
+  const turn = planTurn(prev, input.final, now);
+  // the picture seed and the voice seed are inside the kept state, so the sound and the picture come back as they were
+  const { effective, clamps } = applyLimits({ mapped: JSON.parse(JSON.stringify(m.effective)), transition: { time: input.transition?.time ?? 6, curve: input.transition?.curve ?? "smooth" } });
+  effective.grid = nextGrid(prev, now, effective);
+  const strudel = effective.engine === "strudel";
+  const level = holdLevel(effective, prev, strudel ? null : m.analysis ?? measureState(effective, ANALYSIS_SEED), LEVEL_STEP_DB);
+  const allClamps = mergeClamps(clamps, level.note ? [level.note] : []);
+  const intent = { mood: m.intent_mood ?? NEUTRAL_MOOD, note: `recalled "${name}"`, recalled: name };
+  const slow = prev.slow_mood ?? NEUTRAL_MOOD;
+  const stateId = await insertState(db, now, { session_id: session.id, turn: turn.stateTurn, final: input.final, intent, effective, clamps: allClamps, seed: randomSeed(), slow_mood: slow, analysis: level.analysis });
+  const { error } = await db.from("sessions").update({
+    current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final, turn: turn.sessionTurn(session.turn),
+    sticky: m.sticky, voice: m.voice, // the next set_sound continues in the voice of that moment
+  }).eq("id", session.id);
+  if (error) fail("save the session", error);
+
+  const rest = restInfo(prev, settings, now, face);
+  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
+  const p = await presence(db, session.id, session.owner_id, now);
+  const said = await reactionsFor(db, session, true, now, face);
+  const g = await guide(db, session, face, false);
+  if (g.note) notes.push(g.note);
+  const state: StateRow = { id: stateId, session_id: session.id, turn: turn.stateTurn, final: input.final, created_at: new Date(now).toISOString(), analysis: level.analysis, intent, effective, clamps: allClamps, slow_mood: slow };
+  const pattern = await patternFeedback(db, state, p.players);
+  const fb = feedbackFor(state, p, notes, rest.resting, said, faceLine(face, parsePolicy(session.mode_policy)));
+  return withGuidance(pattern ? { ...fb, pattern } : fb, g);
 }
 
 /** Reads what the owner's player said about the Strudel code of a state (pattern_reports), in the words the model gets. */
