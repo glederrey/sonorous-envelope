@@ -29,14 +29,14 @@ const know = [
 
 const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
-  { name: "set_sound", text: "Sets the sound and the colour from a mood. Can add a short motif to quote later." },
+  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message. It can add a motif, a short phrase of its own, and quote it again later." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
-  { name: "listen", text: `Waits up to 20 s for your presses, in ${ATTUNED} and ${JUKEBOX} (Live tuning).` },
+  { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the model can answer them at once.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
-  { name: "moment", text: "Keeps the sound and picture under a name, and brings them back later." },
+  { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
-  { name: "inspect", text: "The last states, or a snapshot of what your player shows and plays." },
-  { name: "tell_developers", text: "Sends an anonymous note to the developers. At most 3 a day." },
+  { name: "inspect", text: "A closer look: the last few states, or a snapshot of what your player shows and plays." },
+  { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. At most 3 a day." },
 ];
 
 export default function HowItWorksPage() {
