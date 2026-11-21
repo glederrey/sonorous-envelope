@@ -93,6 +93,8 @@ Built (2026-11-10), owner only, and only in the listener modes, Attuned and Juke
 
 In Self the owner gets a collapsed "Settings" block with "Fade to silence after" (5 min to 1 hour, never); Attuned and Jukebox never fade, so the select is hidden there. The status line says "Fading" for the 30 s of the fade, then "Faded · no update for 6 min".
 
+**Live tuning (migration 0019).** In "Guide the sound", a "Live tuning" toggle (`pl-toggle`, `aria-pressed`) saves `sessions.settings.live` like the fade setting. When on, the model waits for presses with the tool `listen` after each answer. The status line under the buttons reads "The AI is listening: your presses reach it now (N s)." with a countdown (hidden from screen readers, so the live region does not speak every second) and what was sent while `sessions.listening_until` (from `player_poll`, compared with the server's clock offset) is in the future, and "Live tuning is on: the AI listens after its next answer." otherwise. While listening, the pending list refreshes every 2 s instead of 15 s.
+
 ### Owner panel (slide-up sheet)
 - Limits are removed for now; this panel will hold the owner's settings when limits come back (roadmap step 5). `rest_after` is the one shared setting.
 - Colour on/off, max brightness.

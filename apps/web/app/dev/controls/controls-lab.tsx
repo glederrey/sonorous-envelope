@@ -51,6 +51,7 @@ export function ControlsLab() {
   const [mounted, setMounted] = useState(false); // the link and QR buttons read the window: draw them on the client only
   useEffect(() => setMounted(true), []);
   const [policy, setPolicy] = useState<Policy>("auto");
+  const [listeningUntil, setListeningUntil] = useState<number | null>(null); // live tuning: the model waits in listen until then
   // an owner is someone whose id is the session's owner; a signed-in listener is someone else's
   const supabase = useMemo(() => fakeClient(viewer === "owner" ? "me" : "someone-else"), [viewer]);
   const playsPattern = strudel && forListener(face);
@@ -82,6 +83,7 @@ export function ControlsLab() {
         {pick([["strudel", "Strudel plays"], ["synth", "Synth plays"]], strudel ? "strudel" : "synth", (v) => setStrudel(v === "strudel"), "What plays")}
         {pick(FACES.map((f) => [f, MODE_LABEL[f]] as [Face, string]), face, setFace, "Mode")}
         {pick([["auto", "Auto"], ...FACES.map((f) => [f, MODE_LABEL[f]] as [Policy, string])], policy, setPolicy, "Owner's choice (mode row)")}
+        {pick([["no", "Not listening"], ["yes", "Listening (40 s)"]], listeningUntil ? "yes" : "no", (v) => setListeningUntil(v === "yes" ? Date.now() + 40_000 : null), "Live tuning")}
         {pick(BEHIND, behind, setBehind, "Behind the panel")}
         {behind === "scene" && pick(SCENE_STATES.map((s) => [s.id, s.name] as [string, string]), sample, setSample, "Scene")}
         <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Panel width</span><input type="range" min={280} max={640} step={1} value={width} onChange={(e) => setWidth(Number(e.target.value))} /><output>{width} px</output></label>
@@ -107,6 +109,7 @@ export function ControlsLab() {
               supabase={supabase} sessionId="demo" signedIn={viewer !== "guest"} face={face} policy={policy} onChanged={() => {}}
               pattern={playsPattern ? { code: CODE, bpm: 110 } : null}
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
+              listeningUntil={listeningUntil}
             />}
             extra={viewer !== "guest" ? <details className="pl-set se-sm"><summary>What the model set</summary></details> : null}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"

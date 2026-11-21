@@ -49,12 +49,15 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the listener modes only (in the internal mode the sound is how the model feels,
  * and nobody steers that), and the "fade after" setting (the listener modes never fade, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean }) {
+export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0 }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
+  /** live tuning: when the model's `listen` call stops waiting (the server's clock, ms since the epoch; null when it does not wait), and the server's clock minus this device's */ listeningUntil?: number | null; clockOffset?: number }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: Said }>>([]);
   const [error, setError] = useState("");
   const [allowCode, setAllowCode] = useState(true);
+  const [, setSecond] = useState(0);
+  const listening = listeningUntil !== null && listeningUntil > Date.now() + clockOffset; // the model is inside `listen` now
 
   const loadPending = useCallback(async () => {
     const { data } = await supabase.from("reactions").select("kind").eq("session_id", sessionId).is("delivered_at", null)
@@ -76,9 +79,19 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
       setRest(r === null ? "never" : typeof r === "number" ? String(r) : "900");
       void loadPending();
     })();
-    const timer = setInterval(() => void loadPending(), 15_000); // a reaction disappears from the list once the model has read it
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => { cancelled = true; };
   }, [supabase, sessionId, loadPending]);
+  // a reaction disappears from the list once the model has read it; while the model waits for presses it reads them within seconds
+  useEffect(() => {
+    const timer = setInterval(() => void loadPending(), listening ? 2_000 : 15_000);
+    return () => clearInterval(timer);
+  }, [loadPending, listening]);
+  // the countdown of the line under the buttons
+  useEffect(() => {
+    if (listeningUntil === null) return;
+    const timer = setInterval(() => setSecond((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [listeningUntil]);
   if (!owner) return <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
   const listener = forListener(face);
@@ -108,6 +121,16 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     if (e) setError("Could not save that. Try again."); else setOwner({ ...owner, raw });
   };
 
+  const live = owner.raw.live === true;
+  const setLive = async (value: boolean) => {
+    setError("");
+    const raw = { ...owner.raw, live: value };
+    setOwner({ ...owner, raw });
+    const { error: e } = await supabase.from("sessions").update({ settings: raw }).eq("id", sessionId);
+    if (e) { setOwner(owner); setError("Could not save that. Try again."); }
+  };
+  const secondsLeft = listening ? Math.max(1, Math.ceil((listeningUntil! - Date.now() - clockOffset) / 1000)) : 0;
+
   const counts = new Map<Said, number>();
   for (const p of pending) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
   const waitingOf = (heard: boolean) => [...counts].filter(([k]) => isHeard(k) === heard).map(([k, n]) => `${LABEL[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
@@ -136,8 +159,16 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
               <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
             ))}
           </div>
+          <div className="pl-toggles">
+            <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={live} onClick={() => void setLive(!live)}
+              title="After each answer the AI waits up to 45 s for your presses and answers them at once. While it waits, the chat shows it working: stop it or wait to type.">
+              <span className="pl-check" aria-hidden />Live tuning
+            </button>
+          </div>
           <p className="pl-local" aria-live="polite">
-            {waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+            {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{waiting ? ` Sent: ${waiting}.` : ""}</>
+              : live ? "Live tuning is on: the AI listens after its next answer."
+              : waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
           </p>
           {error && <p role="alert">{error}</p>}
         </details>

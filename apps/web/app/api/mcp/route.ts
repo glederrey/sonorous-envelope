@@ -3,7 +3,7 @@ import { verifyToken } from "../../../lib/auth/verify-token";
 import { SERVER_INSTRUCTIONS } from "../../../lib/mcp/instructions";
 import { registerTools } from "../../../lib/mcp/tools";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const handler = createMcpHandler(
   (server) => registerTools(server),

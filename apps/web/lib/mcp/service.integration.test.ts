@@ -345,6 +345,103 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sw).not.toHaveProperty("reactions");
   });
 
+  describe("live tuning: listen", () => {
+    // a listener who is playing right now, placed on the test clock (as in "counts players" above)
+    const beat = (session_id: string) => {
+      sql(`insert into player_heartbeats (session_id, user_id, device_id, audio, volume, delay) values ('${session_id}', '${A}', 'd1', 'playing', 0.4, null)`);
+      sql(`alter table player_heartbeats disable trigger player_heartbeats_touch; update player_heartbeats set seen_at = to_timestamp(${clock} / 1000.0) where session_id='${session_id}'; alter table player_heartbeats enable trigger player_heartbeats_touch`);
+    };
+    const listeningUntil = (id: string) => sql(`select coalesce(listening_until::text, 'null') from sessions where id='${id}'`);
+    // a clock the sleeps move, so no test waits for real
+    const fake = (onSleep: (n: number) => void = () => {}) => {
+      let t = clock, n = 0;
+      return { now: () => t, sleep: async (ms: number) => { t += ms; onSleep(++n); } };
+    };
+
+    it("refuses in Self", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await expect(svc.listen(dbA, A, { session_id, seconds: 10 })).rejects.toMatchObject({ code: "not_in_this_mode" });
+    });
+
+    it("returns at once when nobody listens", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      const r = await svc.listen(dbA, A, { session_id, seconds: 10 }, fake());
+      expect(r).toEqual({ event: "nobody_listening", waited_s: 0, players: 0 });
+      expect(listeningUntil(session_id)).toBe("null");
+    });
+
+    it("returns the presses as soon as they come, marks the wait while it lasts, and leaves the presses for set_sound", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      beat(session_id);
+      const seen: string[] = [];
+      const f = fake((n) => {
+        seen.push(listeningUntil(session_id));
+        if (n === 2) sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'calmer', now())`);
+      });
+      const r = await svc.listen(dbA, A, { session_id, seconds: 40 }, f);
+      expect(r.event).toBe("reactions");
+      expect(r.reactions?.join(" ")).toMatch(/calmer/);
+      expect(r.players).toBe(1);
+      expect(r.waited_s).toBe(3); // two sleeps of 1.5 s
+      expect(seen.length).toBe(2); expect(seen.every((x) => x !== "null")).toBe(true); // set during the wait
+      expect(listeningUntil(session_id)).toBe("null"); // cleared after it
+      expect(sql(`select count(*) from reactions where session_id='${session_id}' and delivered_at is null`)).toBe("1"); // listen never claims
+      const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick(5000));
+      expect((a.reactions as string[]).join(" ")).toMatch(/calmer/);
+    });
+
+    it("returns presses that are already waiting without a wait", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      beat(session_id);
+      sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'softer', now())`);
+      const r = await svc.listen(dbA, A, { session_id, seconds: 10 }, fake());
+      expect(r).toMatchObject({ event: "reactions", waited_s: 0 });
+      expect(listeningUntil(session_id)).toBe("null");
+    });
+
+    it("goes idle at the deadline", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      beat(session_id);
+      const r = await svc.listen(dbA, A, { session_id, seconds: 6 }, fake());
+      expect(r).toMatchObject({ event: "idle", waited_s: 6, players: 1 });
+      expect(r).not.toHaveProperty("reactions");
+      expect(listeningUntil(session_id)).toBe("null");
+    });
+
+    it("stops when the owner turns live tuning off, the mode changes, or the session ends", async () => {
+      const mk = async () => { const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick()); beat(session_id); return session_id; };
+      const a = await mk(); sql(`update sessions set settings = settings || '{"live": true}' where id='${a}'`);
+      expect(await svc.listen(dbA, A, { session_id: a, seconds: 20 }, fake((n) => { if (n === 1) sql(`update sessions set settings = settings || '{"live": false}' where id='${a}'`); }))).toMatchObject({ event: "stopped" });
+      const b = await mk();
+      expect(await svc.listen(dbA, A, { session_id: b, seconds: 20 }, fake((n) => { if (n === 1) sql(`update sessions set mode='internal' where id='${b}'`); }))).toMatchObject({ event: "mode_changed", mode: expect.stringMatching(/Self/) });
+      const c = await mk();
+      expect(await svc.listen(dbA, A, { session_id: c, seconds: 20 }, fake((n) => { if (n === 1) sql(`update sessions set ended_at=now() where id='${c}'`); }))).toMatchObject({ event: "session_ended" });
+      for (const id of [a, b, c]) expect(listeningUntil(id)).toBe("null");
+    });
+
+    it("returns idle at once when the request is aborted", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      beat(session_id);
+      const ctl = new AbortController();
+      const r = await svc.listen(dbA, A, { session_id, seconds: 40 }, { ...fake((n) => { if (n === 1) ctl.abort(); }), signal: ctl.signal });
+      expect(r.event).toBe("idle");
+      expect(listeningUntil(session_id)).toBe("null");
+    });
+
+    it("tells a running session about live tuning on a final call in Attuned, never in Self or on a non-final call", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      sql(`update sessions set settings = settings || '{"live": true}' where id='${session_id}'`);
+      const non = await svc.setSound(dbA, A, { session_id, mood, final: false } as never, tick(5000));
+      expect(JSON.stringify(non.notes ?? [])).not.toMatch(/live tuning/);
+      const fin = await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick(5000));
+      expect((fin.notes as string[]).join(" ")).toMatch(/live tuning is on/);
+      const off = await svc.startSession(dbA, A, {}, tick());
+      sql(`update sessions set settings = settings || '{"live": true}' where id='${off.session_id}'`);
+      const self = await svc.setSound(dbA, A, { session_id: off.session_id, mood, final: true } as never, tick(5000));
+      expect(JSON.stringify(self.notes ?? [])).not.toMatch(/live tuning/);
+    });
+  });
+
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
     const int = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null }; session_id: string };
     expect(int.mode).toBe("Self"); expect(int.guidance).toMatch(/^Mode Self/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
