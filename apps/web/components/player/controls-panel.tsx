@@ -38,6 +38,29 @@ export const WHEN_MIN_WIDTH = 430;
 export function ControlsPanel(p: ControlsPanelProps & { /** the width under which the turn text is dropped (the lab tries values) */ whenMinWidth?: number; onWidth?: (w: number) => void }) {
   const ref = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(1000);
+  // The panel's scrollbar: the native one is hidden (Chromium on Windows keeps its arrows even when thin, tester report v0.22.4) and a thin
+  // bar is drawn instead, shown while the panel scrolls and fading out a second after, like a phone's.
+  const scroller = useRef<HTMLDivElement>(null), bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scroller.current, b = bar.current;
+    if (!el || !b) return;
+    let hide: ReturnType<typeof setTimeout> | undefined;
+    const place = (show: boolean) => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      if (scrollHeight <= clientHeight + 1) { b.style.opacity = "0"; return; }
+      const track = clientHeight - 16, h = Math.max(28, (clientHeight / scrollHeight) * track);
+      b.style.height = `${h}px`;
+      b.style.transform = `translateY(${8 + (scrollTop / (scrollHeight - clientHeight)) * (track - h)}px)`;
+      if (!show) return;
+      b.style.opacity = "1";
+      clearTimeout(hide); hide = setTimeout(() => { b.style.opacity = "0"; }, 1000);
+    };
+    const onScroll = () => place(true);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const ro = new ResizeObserver(() => place(false));
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", onScroll); ro.disconnect(); clearTimeout(hide); };
+  }, []);
   const onWidth = p.onWidth;
   useEffect(() => {
     const el = ref.current;
@@ -49,7 +72,7 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
   const showWhen = width >= (p.whenMinWidth ?? WHEN_MIN_WIDTH);
   return (
     <section ref={ref} className="pl-panel pl-panel-clip" aria-label="Listening controls">
-      <div className="pl-panel-scroll">
+      <div ref={scroller} className="pl-panel-scroll">
       {p.debug}
       <div className="pl-bar">
         <p className="pl-status se-sm">
@@ -113,6 +136,7 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
         </div>
       </div>
       </div>
+      <div ref={bar} className="pl-scroll-bar" aria-hidden />
     </section>
   );
 }

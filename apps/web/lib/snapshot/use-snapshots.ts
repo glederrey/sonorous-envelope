@@ -22,7 +22,7 @@ function isBlank(c: HTMLCanvasElement): boolean {
   return true;
 }
 const REFRESH_MS = 30_000;
-const BACK_MS = 6_000; // after the page becomes visible again: a few seconds of sound recorded, the picture drawn again
+const BACK_MS = 10_500; // after the page becomes visible again: a full 10 s of sound recorded (the record restarts after a hidden gap), the picture drawn again
 const MAX_IMAGE_CHARS = 340_000; // put_snapshot refuses more than 350000
 
 /** What the player is showing and playing, as far as a snapshot needs it. */
