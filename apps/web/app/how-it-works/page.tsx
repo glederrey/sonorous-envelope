@@ -29,14 +29,14 @@ const know = [
 
 const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
-  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message. It can also send a motif: a short phrase of a few notes, played once over its sound a few seconds later, on a bar, in its voice. The model can name it and quote its first notes later." },
+  { name: "set_sound", text: "Sets the sound and the colour from a mood. Can add a short motif to quote later." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
-  { name: "listen", text: `Waits for your button presses, in ${ATTUNED} and ${JUKEBOX}, so the model can answer at once (Live tuning). Only as the last call of a message. It waits up to 20 s by default, 45 s at most, and returns as soon as you press a button.` },
+  { name: "listen", text: `Waits up to 20 s for your presses, in ${ATTUNED} and ${JUKEBOX} (Live tuning).` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
-  { name: "moment", text: "Keeps the sound and picture playing now under a name (keep), brings it back later (recall), or lists them (list), the way a theme returns. Up to 12 per session. The list also shows named motifs." },
+  { name: "moment", text: "Keeps the sound and picture under a name, and brings them back later." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
-  { name: "inspect", text: "A closer look. History: the last 8 states. Snapshot: the picture and sound your player shows, as an image with numbers measured from its output." },
-  { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. No name, account or conversation goes with it. 80 to 1000 characters; 3 a day per person and 50 a day overall; the same note within a week is refused." },
+  { name: "inspect", text: "The last states, or a snapshot of what your player shows and plays." },
+  { name: "tell_developers", text: "Sends an anonymous note to the developers. At most 3 a day." },
 ];
 
 export default function HowItWorksPage() {
