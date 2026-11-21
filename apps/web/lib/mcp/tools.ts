@@ -2,9 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { SetSoundInput, StrudelModeInput, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, inspect, setSound, silence, startSession, strudelMode } from "./service";
+import { ToolError, getFeedback, inspect, listen, setSound, silence, startSession, strudelMode } from "./service";
 
-type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } } };
+type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } }; mcpReq?: { signal?: AbortSignal } };
 
 function caller(ctx: Ctx) {
   const info = ctx.http?.authInfo;
@@ -48,6 +48,15 @@ export function registerTools(server: McpServer) {
     description: "Switch between the synth and Strudel (strudel.cc), Attuned and Jukebox modes only, after the listener said yes; their rules (sent with the mode) explain how. on true with code and bpm plays your code in the listener's browser; send new code to change it. on false returns to the synth, silent until your next set_sound. You get what the owner's player reports (pattern).",
     inputSchema: StrudelModeInput,
   }, (args, ctx) => run(ctx as Ctx, (c) => strudelMode(c.db, c.userId, args)));
+
+  server.registerTool("listen", {
+    title: "Listen for the listener's buttons",
+    description: "Attuned and Jukebox only. Wait up to `seconds` for the listener to press a button in the player and return as soon as they do (event reactions, with what they pressed), so you can answer within the same message. Call it after a final set_sound when live tuning is on (a note says so) or when the listener asks you to listen. On reactions: answer with one final call (set_sound, or strudel_mode while Strudel plays; it marks the presses as read), then listen again. On idle, stopped, mode_changed or nobody_listening: stop listening and end your message. It never changes the sound.",
+    inputSchema: z.object({
+      session_id: z.string().optional(),
+      seconds: z.number().int().min(5).max(45).default(40).describe("how long to wait at most"),
+    }),
+  }, (args, ctx) => run(ctx as Ctx, (c) => listen(c.db, c.userId, args, { signal: (ctx as Ctx).mcpReq?.signal })));
 
   server.registerTool("get_feedback", {
     title: "Read the current sound",

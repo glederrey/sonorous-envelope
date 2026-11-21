@@ -129,6 +129,12 @@ function restInfo(prev: StateRow | null, settings: ListenerSettings, now: number
 
 const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
 
+/** Told to the model on a final call while the owner's "Live tuning" switch is on: mode guidance reaches it only at the start or on a change, so a running session learns of the switch here. */
+function liveNote(settings: ListenerSettings, face: Face, final: boolean): string | undefined {
+  if (!final || !forListener(face) || !settings.live) return undefined;
+  return "live tuning is on: the listener wants their buttons to reach you now. After this final call, call listen; answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
+}
+
 /** Lazy guidance: what to do with the rules of a mode, given the mode whose rules the model last received (`guided`, null for
  *  sessions from before the column) and the mode this call ends in. Pure, so it is tested without a database. */
 export function guidanceUpdate(i: { guided: Face | null; face: Face; switched: boolean }): { send: boolean; ownerChanged: boolean; store: Face | null } {
@@ -416,7 +422,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -509,7 +515,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined]
+  const notes = [resolveNote, switchNote, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
@@ -574,7 +580,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   }
   const rest = restInfo(prev, settings, now, face);
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
-  const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
+  const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes, liveNote(settings, face, input.final) ?? ""].filter(Boolean);
   const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
   const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, false);
@@ -605,6 +611,63 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
   const fb = feedbackFor(shown, p, [note, stopNote, g.note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session, false, now, faceOf(session)), faceLine(faceOf(session), parsePolicy(session.mode_policy)));
   const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
   return withGuidance(pattern ? { ...fb, pattern } : fb, g);
+}
+
+const LISTEN_POLL_MS = 1500;
+
+/** Live tuning: wait inside the model's turn for a press in the player, so the model can answer within the same message. It only looks
+ *  (`reactionsFor` never claims): if the user stops the turn while this runs, a claimed press would be lost. set_sound and strudel_mode
+ *  stay the only claimers. `listening_until` tells the player. Clock and sleep are injectable for tests; `signal` is the request's abort. */
+export async function listen(
+  db: Db, userId: string, input: { session_id?: string; seconds: number },
+  opts: { signal?: AbortSignal; now?: () => number; sleep?: (ms: number) => Promise<void> } = {},
+) {
+  const clock = opts.now ?? Date.now;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  assertOpen(session);
+  const face = faceOf(session);
+  if (!forListener(face)) throw new ToolError("not_in_this_mode", `listen works in ${faceName("external")} and ${faceName("sandbox")} only. In ${faceName("internal")} nobody steers the sound: end your message.`);
+  const started = clock();
+  const p = await presence(db, session.id, session.owner_id, started);
+  const done = (event: string, extra: { reactions?: string[]; heard?: string[]; mode?: string } = {}) => ({
+    event, waited_s: Math.max(0, Math.round((clock() - started) / 1000)),
+    ...(extra.reactions?.length ? { reactions: extra.reactions } : {}), ...(extra.heard?.length ? { heard: extra.heard } : {}),
+    players: p.players, ...(extra.mode ? { mode: extra.mode } : {}), ...(note ? { notes: [note] } : {}),
+  });
+  if (p.players === 0) return done("nobody_listening");
+  const first = await reactionsFor(db, session, false, started, face);
+  if (first.reactions.length || first.heard.length) return done("reactions", first);
+
+  const wasLive = parseSettings(session.settings).live;
+  const deadline = started + input.seconds * 1000;
+  const until = new Date(deadline).toISOString();
+  const { error: werr } = await db.from("sessions").update({ listening_until: until }).eq("id", session.id);
+  if (werr) fail("start listening", werr);
+  try {
+    while (!opts.signal?.aborted) {
+      const left = deadline - clock();
+      if (left <= 0) break;
+      await sleep(Math.min(LISTEN_POLL_MS, left));
+      if (opts.signal?.aborted) break;
+      const { data, error } = await db.from("sessions").select("ended_at,mode,mode_policy,settings").eq("id", session.id).maybeSingle();
+      if (error) throw new Error(error.message);
+      const row = data as Pick<SessionRow, "ended_at" | "mode" | "mode_policy" | "settings"> | null;
+      if (!row || row.ended_at) return done("session_ended");
+      const now = faceOf(row);
+      if (!forListener(now)) return done("mode_changed", { mode: faceLine(now, parsePolicy(row.mode_policy)) });
+      const said = await reactionsFor(db, session, false, clock(), now);
+      if (said.reactions.length || said.heard.length) return done("reactions", said);
+      if (wasLive && !parseSettings(row.settings).live) return done("stopped");
+    }
+    return done("idle");
+  } catch (e) {
+    console.error("listen failed while waiting:", e); // never a server_error in the middle of a wait: the model just stops listening
+    return done("idle");
+  } finally {
+    const { error } = await db.from("sessions").update({ listening_until: null }).eq("id", session.id).eq("listening_until", until);
+    if (error) console.error("listen could not clear listening_until:", error.message);
+  }
 }
 
 export async function silence(db: Db, userId: string, input: { session_id?: string; fade: number; final: boolean; end?: boolean }, now = Date.now()) {

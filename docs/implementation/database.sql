@@ -39,7 +39,8 @@ create table public.sessions (
   settings      jsonb not null,                   -- ListenerSettings, see limits.md
   current_state_id uuid,                          -- FK added below
   turn          integer not null default 0,       -- increments on each final update
-  pending_final boolean not null default false    -- true after a non-final update until a final one
+  pending_final boolean not null default false,   -- true after a non-final update until a final one
+  listening_until timestamptz                     -- live tuning (migration 0019): while the model's `listen` waits, until when
 );
 create index sessions_owner_active on public.sessions (owner_id, last_active_at desc) where ended_at is null;
 

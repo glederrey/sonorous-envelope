@@ -85,4 +85,4 @@ A blind check is also possible: a second model instance, given only the spectrog
 
 ## Timing
 
-Feedback comes back on every call, including mid-turn ones, so the model can adjust within a turn. Listener reactions happen while the model isn't running, so they arrive on the first call of the next turn.
+Feedback comes back on every call, including mid-turn ones, so the model can adjust within a turn. Listener reactions happen while the model isn't running, so they arrive on the first call of the next turn, or at once while `listen` waits (live tuning, Attuned and Jukebox: the model calls `listen` after its final `set_sound`, gets the press within seconds and answers it in the same message; see [mcp-tools.md](implementation/mcp-tools.md)).

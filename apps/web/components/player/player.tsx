@@ -95,6 +95,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   }, [full, exitFull]);
   const [face, setFace] = useState<Face>("internal"); // the mode playing now (the model switches it, or the owner locks it)
   const [policy, setPolicy] = useState<Policy>("auto");
+  const [listeningUntil, setListeningUntil] = useState<number | null>(null); // live tuning: the model's `listen` waits until then (the server's clock)
   // the moving picture (canvas): the listener can turn it off, and
   // ?field=css brings back the old CSS motion
   const [gradientOn, setGradientOn] = useState(true);
@@ -317,7 +318,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       handle(data, error);
     };
     // shared by the page's own check and by the worker's check
-    const handle = (data: { same?: boolean; v?: string; settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; allow_code?: boolean; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
+    const handle = (data: { same?: boolean; v?: string; settings?: unknown; ended?: boolean; now?: string; mode?: string; mode_policy?: string; allow_code?: boolean; listening_until?: string | null; state?: Parameters<typeof apply>[0] } | null, error: unknown) => {
       if (cancelled) return;
       if (data?.same) {
         // nothing changed since the version we have: a few bytes came back. Still pull the step grid onto the shared one now and then.
@@ -338,7 +339,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       lastGridSync.current = Date.now();
       const f = normalizeFace(data.mode);
       const pol: Policy = parsePolicy(data.mode_policy);
-      setFace(f); setPolicy(pol); setAllowCode(data.allow_code !== false);
+      setFace(f); setPolicy(pol); setAllowCode(data.allow_code !== false); setListeningUntil(data.listening_until ? Date.parse(data.listening_until) : null);
       const parsed = parseSettings(data.settings);
       settings.current = { ...parsed, rest_after: effectiveRestAfter(parsed.rest_after, f) }; // the listener modes never fade
       if (data.now && clockSamples.current.length === 0) clockOffset.current = Date.parse(data.now) - Date.now(); // a first guess, from the worker
@@ -677,6 +678,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
               pattern={playing?.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
+              listeningUntil={listeningUntil} clockOffset={clockOffset.current}
             />}
             extra={signedIn ? <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /> : null}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}

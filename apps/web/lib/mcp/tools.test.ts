@@ -18,10 +18,10 @@ async function rpc(method: string, params?: object) {
 }
 
 describe("MCP tools", () => {
-  it("lists the six tools with compact schemas", async () => {
+  it("lists the seven tools with compact schemas", async () => {
     const r = await rpc("tools/list");
     const names = r.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["get_feedback", "inspect", "set_sound", "silence", "start_session", "strudel_mode"]);
+    expect(names).toEqual(["get_feedback", "inspect", "listen", "set_sound", "silence", "start_session", "strudel_mode"]);
     const set = r.result.tools.find((t: { name: string }) => t.name === "set_sound");
     expect(set.inputSchema.properties).toHaveProperty("mood"); // optional: left out, the last mood stays
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);

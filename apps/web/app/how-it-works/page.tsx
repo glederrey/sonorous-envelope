@@ -29,6 +29,7 @@ const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
   { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
+  { name: "listen", text: `Waits up to 45 s for your button presses, in ${ATTUNED} and ${JUKEBOX}, so the model can answer at once (Live tuning).` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
   { name: "inspect", text: "The last states and mode changes, for a closer look." },
