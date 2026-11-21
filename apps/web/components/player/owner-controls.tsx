@@ -202,8 +202,8 @@ export function OwnerControls({ picture, supabase, sessionId, face, policy, onCh
             {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{sent ? ` Sent: ${sent}.` : ""}</>
               : live ? (afterWait === "answering" ? "The AI is answering your press…"
                 : afterWait === "idle" ? `Not listening now: your presses reach the AI with your next message.${sent ? ` Sent: ${sent}.` : ""}`
-                : "Live tuning is on: after its next answer, the AI waits for you to guide the sound or tell it what you heard.")
-              : "Turn it on and the AI waits after each answer for you to guide the sound or tell it what you heard, and answers at once."}
+                : "On: after each answer, the AI waits for your presses.")
+              : "Off: your presses reach the AI with your next message."}
           </p>
         </>}
         <button type="button" className="se-btn pl-toggle" style={{ marginTop: listener ? 12 : 0 }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
