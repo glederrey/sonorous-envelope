@@ -24,7 +24,8 @@ export interface ControlsPanelProps {
   onVolume: (v: number) => void;
   /** null: no picture toggles (the canvas is off) */
   picture: { gradientOn: boolean; visualsOn: boolean; onGradient: () => void; onVisuals: () => void } | null;
-  middle: ReactNode;
+  /** the owner's block or the listener's: given the Gradient/Scenes toggles, it places them in its "Visuals" section */
+  middle: ReactNode | ((picture: ReactNode) => ReactNode);
   extra?: ReactNode;
   shareText: string;
   shareAction: ReactNode;
@@ -87,7 +88,8 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
         </label>
       </div>
 
-      {p.picture && (
+      {(() => {
+        const picture = p.picture && (
         <div className="pl-toggles">
           <button type="button" className="se-btn pl-toggle" aria-pressed={p.picture.gradientOn} onClick={p.picture.onGradient}>
             <span className="pl-check" aria-hidden />Gradient
@@ -96,9 +98,9 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
             <span className="pl-check" aria-hidden />Scenes
           </button>
         </div>
-      )}
-
-      {p.middle}
+        );
+        return typeof p.middle === "function" ? p.middle(picture) : <>{picture}{p.middle}</>;
+      })()}
       {/* What the AI is doing: information, not controls (the code playing, what the model set, what the AI can see), in one quiet
           card so it does not read as more buttons. Hidden when none of its blocks renders. */}
       {p.extra && <section className="pl-info" aria-label="What the AI is doing"><p className="pl-info-title">What the AI is doing</p>{p.extra}</section>}

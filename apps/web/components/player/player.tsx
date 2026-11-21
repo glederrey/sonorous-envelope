@@ -684,7 +684,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               onGradient: () => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn); },
               onVisuals: () => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn); },
             } : null}
-            middle={<ControlsMiddle
+            middle={(picture) => <ControlsMiddle picture={picture}
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
               pattern={codeNow}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}

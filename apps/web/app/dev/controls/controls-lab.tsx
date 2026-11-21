@@ -106,7 +106,7 @@ export function ControlsLab() {
             audioState="running" muted={muted} onResume={() => {}} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
             picture={{ gradientOn, visualsOn, onGradient: () => setGradientOn((v) => !v), onVisuals: () => setVisualsOn((v) => !v) }}
-            middle={<ControlsMiddle key={viewer}
+            middle={(picture) => <ControlsMiddle key={viewer} picture={picture}
               supabase={supabase} sessionId="demo" signedIn={viewer !== "guest"} face={face} policy={policy} onChanged={() => {}}
               pattern={playsPattern ? { code: CODE, bpm: 110 } : null}
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}

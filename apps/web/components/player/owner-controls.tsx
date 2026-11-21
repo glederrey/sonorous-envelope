@@ -33,7 +33,7 @@ export function StrudelToggles({ allow, visuals, code }: { allow?: { on: boolean
         <span className="pl-check" aria-hidden />Strudel visuals
       </button>
       <button type="button" className="se-btn pl-toggle" aria-pressed={code.on && visuals.on} disabled={!visuals.on} onClick={() => code.set(!code.on)}
-        title="The model's code over the picture. Off leaves only what the code draws; the code stays readable under Strudel code below.">
+        title="The model's code over the picture. Off leaves only what the code draws; the code stays readable under “The code playing” below.">
         <span className="pl-check" aria-hidden />Strudel code
       </button>
     </div>
@@ -49,7 +49,7 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the listener modes only (in the internal mode the sound is how the model feels,
  * and nobody steers that), and the "fade after" setting (the listener modes never fade, so it is hidden there).
  */
-export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0 }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
+export function OwnerControls({ picture, supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0 }: { picture?: ReactNode; supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
   /** live tuning: when the model's `listen` call stops waiting (the server's clock, ms since the epoch; null when it does not wait), and the server's clock minus this device's */ listeningUntil?: number | null; clockOffset?: number }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
@@ -105,7 +105,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     const timer = setInterval(() => setSecond((n) => n + 1), 1000);
     return () => clearInterval(timer);
   }, [listeningUntil]);
-  if (!owner) return <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
+  if (!owner) return <><details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details>{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
   const listener = forListener(face);
   const choose = async (value: Policy) => {
@@ -182,12 +182,17 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           </div>
         )}
       </div>
-      <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />
-      <p className="pl-local se-sm">The model may play live code. Visuals show it instead of the scenes.</p>
+      {/* closed by default: a new listener sees Mute, Volume and Mode, and opens the rest when they want to */}
+      <details className="pl-set se-sm pl-group">
+        <summary>Visuals and Strudel</summary>
+        {picture}
+        <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />
+        <p className="pl-local">The model may play live code. Visuals show it instead of the scenes.</p>
+      </details>
       {/* Feedback to the AI: everything here reaches the AI. Live tuning covers both blocks below (a press in either reaches it while it
           listens), in the listener modes only: in Self the AI never waits for presses. */}
-      <div className="pl-live">
-        <p className="pl-owner-title">Feedback to the AI</p>
+      <details className="pl-set se-sm pl-group">
+        <summary>Feedback to the AI</summary>
         {listener && <>
           <button type="button" className="se-btn pl-toggle" aria-pressed={live} onClick={() => void setLive(!live)}
             title="After each answer the AI waits about 20 s for your presses and answers each at once; every press gives it 20 s more. While it waits the chat shows it working: press stop to type at once.">
@@ -207,37 +212,37 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         </button>
         <p className="pl-local" style={{ marginTop: 10 }}>The AI can ask for a small picture of this player and its last seconds of sound.</p>
         {error && <p role="alert">{error}</p>}
-      </div>
-      {listener && (
+        {listener && (
+          <details className="pl-set se-sm">
+            <summary>Guide the sound</summary>
+            <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
+              {REACTION_PAIRS.flat().map((k) => (
+                <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
+              ))}
+            </div>
+            {!live && (
+              <p className="pl-local" aria-live="polite">
+                {waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+              </p>
+            )}
+            {error && <p role="alert">{error}</p>}
+          </details>
+        )}
         <details className="pl-set se-sm">
-          <summary>Guide the sound</summary>
-          <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
-            {REACTION_PAIRS.flat().map((k) => (
-              <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
+          <summary>Tell the AI what you heard</summary>
+          <p className="pl-local" style={{ marginTop: 10 }}>How does the sound read to you? The AI gets it as information, never as an order, in every mode.</p>
+          <div className="pl-reactions" role="group" aria-label="What you heard, told to the model">
+            {HEARD_KINDS.map((k) => (
+              <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{HEARD_LABELS[k]}</button>
             ))}
           </div>
-          {!live && (
+          {!(listener && live) && (
             <p className="pl-local" aria-live="polite">
-              {waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+              {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
             </p>
           )}
           {error && <p role="alert">{error}</p>}
         </details>
-      )}
-      <details className="pl-set se-sm">
-        <summary>Tell the AI what you heard</summary>
-        <p className="pl-local" style={{ marginTop: 10 }}>How does the sound read to you? The AI gets it as information, never as an order, in every mode.</p>
-        <div className="pl-reactions" role="group" aria-label="What you heard, told to the model">
-          {HEARD_KINDS.map((k) => (
-            <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{HEARD_LABELS[k]}</button>
-          ))}
-        </div>
-        {!(listener && live) && (
-          <p className="pl-local" aria-live="polite">
-            {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
-          </p>
-        )}
-        {error && <p role="alert">{error}</p>}
       </details>
     </>
   );
