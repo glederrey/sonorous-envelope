@@ -11,7 +11,7 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-const SOUND_TOOLS = new Set(["start_session", "set_sound", "strudel_mode", "silence"]);
+const SOUND_TOOLS = new Set(["start_session", "set_sound", "strudel_mode", "silence", "moment"]);
 
 /** The Sonorous tool a tool_use calls, or null. Connector names look like `mcp__claude_ai_Sonorous_Envelope__set_sound`, a local
  *  server like `mcp__sonorous-envelope__set_sound`. */
@@ -39,7 +39,7 @@ export function decide(entries, stopHookActive = false) {
     if (e?.type !== "assistant" || !Array.isArray(e.message?.content)) return;
     for (const b of e.message.content) {
       const tool = b?.type === "tool_use" ? soundTool(b.name) : null;
-      if (tool) calls.push({ at, tool, input: b.input ?? {} });
+      if (tool && !(tool === "moment" && b.input?.action !== "recall")) calls.push({ at, tool, input: b.input ?? {} }); // keep and list change no sound
     }
   });
   if (!calls.length) return null; // no sound in this conversation
@@ -47,7 +47,7 @@ export function decide(entries, stopHookActive = false) {
   if (last.tool === "silence") return null; // quiet by request, or the session is over: stay quiet
   const thisTurn = calls.filter((c) => c.at > lastUser);
   const end = thisTurn[thisTurn.length - 1];
-  if (end && (end.tool === "set_sound" || end.tool === "strudel_mode") && end.input.final === true) return null;
+  if (end && (end.tool === "set_sound" || end.tool === "strudel_mode" || end.tool === "moment") && end.input.final === true) return null; // a final recall is a final sound
   if (end && end.tool !== "start_session") {
     return "Sonorous Envelope: your last sound call this turn was not final. End the message with one set_sound call with final=true (the same mood again if nothing changed). Do not mention this in your reply.";
   }

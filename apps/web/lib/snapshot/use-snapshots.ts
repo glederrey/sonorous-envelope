@@ -87,10 +87,11 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     if (!isOwner || !started || !stateId) return;
     const arrived = performance.now(); // where this sound starts in the recording
     let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false; // a newer state took over: a capture still awaiting its upload must not schedule another round
     const capture = async () => {
       const l = live.current;
       const rec = recorderFor();
-      if (busy.current || !rec || !l.playing || !allowed()) return;
+      if (cancelled || busy.current || !rec || !l.playing || l.playing.id !== stateId || !allowed()) return;
       busy.current = true;
       try {
         const p = l.playing, c = p.state.colour;
@@ -107,7 +108,7 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
         if (image.length > MAX_IMAGE_CHARS) image = toJpegDataUrl(canvas, 0.5);
         if (image.length > MAX_IMAGE_CHARS) return;
         const { muted, volume } = controls.current;
-        const { error } = await supabase.rpc("put_snapshot", { p_session: sessionId, p_state: stateId, p_image: image, p_measured: rec.measured(arrived), p_volume: muted ? 0 : volume });
+        const { error } = await supabase.rpc("put_snapshot", { p_session: sessionId, p_state: l.playing.id, p_image: image, p_measured: rec.measured(arrived), p_volume: muted ? 0 : volume });
         if (error && debug) console.debug("snapshot not saved:", error.message);
       } catch (e) {
         if (debug) console.debug("snapshot failed:", e);
@@ -115,9 +116,9 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
         busy.current = false;
       }
     };
-    const run = async () => { await capture(); timer = setTimeout(() => void run(), REFRESH_MS); };
+    const run = async () => { await capture(); if (!cancelled) timer = setTimeout(() => void run(), REFRESH_MS); };
     // after a new state: let its transition finish and the sound settle, once; then refresh while it stays
     timer = setTimeout(() => void run(), Math.min(14, Math.max(6, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [isOwner, started, stateId, sessionId, supabase]);
 }
