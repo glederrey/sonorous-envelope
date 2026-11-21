@@ -321,7 +321,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   it("returns what the listener heard in every mode, apart from the reactions, once", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick()); // Self
-    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'calmer', now())`);
+    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${B}', 'heard_sad', now())`); // B's reading: not the owner's, dropped
     const peek = await svc.getFeedback(dbA, A, { session_id }, tick());
     expect(peek.heard).toEqual([expect.stringMatching(/^tense x2, /)]);
     expect(peek).not.toHaveProperty("reactions");

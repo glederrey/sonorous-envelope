@@ -101,21 +101,22 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
  *  and dropped (never shown, and they do not surface after a later switch). The player shows those buttons only in the listener modes;
  *  this also covers a row written straight through the API. `heard` ("What I heard", #129) is how the sound read to the listener: it
  *  never steers, so it comes back in every mode, Self included. */
-async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: number, face: Face): Promise<{ reactions: string[]; heard: string[] }> {
-  let rows: Array<{ kind: string; created_at: string }>;
+async function reactionsFor(db: Db, session: { id: string; owner_id: string }, claim: boolean, now: number, face: Face): Promise<{ reactions: string[]; heard: string[] }> {
+  const sessionId = session.id;
+  let rows: Array<{ kind: string; created_at: string; user_id?: string | null }>;
   if (claim) {
     const { data, error } = await db.rpc("claim_reactions", { p_session: sessionId });
     if (error) { console.error("claim_reactions failed:", error.message); return { reactions: [], heard: [] }; } // never break a call over a reaction
     rows = (data ?? []) as typeof rows;
   } else {
-    const { data, error } = await db.from("reactions").select("kind,created_at").eq("session_id", sessionId).is("delivered_at", null)
+    const { data, error } = await db.from("reactions").select("kind,created_at,user_id").eq("session_id", sessionId).is("delivered_at", null)
       .order("created_at", { ascending: false }).limit(50);
     if (error) return { reactions: [], heard: [] };
     rows = (data ?? []) as typeof rows;
   }
   return {
     reactions: forListener(face) ? describeReactions(rows.filter((r) => !isHeard(r.kind)), now) : [],
-    heard: describeReactions(rows.filter((r) => isHeard(r.kind)), now),
+    heard: describeReactions(rows.filter((r) => isHeard(r.kind) && r.user_id === session.owner_id), now), // the owner's only: a link listener's reading is claimed and dropped
   };
 }
 
@@ -417,7 +418,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const rest = restInfo(prev, settings, now, faceNow);
   const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  const said = await reactionsFor(db, session.id, true, now, sw.face);
+  const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
   if (g.note) notes.push(g.note);
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, ...said, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
@@ -512,7 +513,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
-  const said = await reactionsFor(db, session.id, true, now, face);
+  const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, switched);
   if (g.note) notes.push(g.note);
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, ...said, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
@@ -575,7 +576,7 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
-  const said = await reactionsFor(db, session.id, true, now, face);
+  const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, false);
   if (g.note) all.push(g.note);
   return withGuidance(buildFeedback({
@@ -601,7 +602,7 @@ export async function getFeedback(db: Db, userId: string, input: { session_id?: 
       ? `the owner stopped your Strudel pattern when they changed the mode; the mode is now ${faceName(faceNow)}, where Strudel is allowed: start it again with strudel_mode if it fits${silentSuffix}`
       : `the owner stopped your Strudel pattern (mode locked or code off), so the synth state plays. It is final: do not try to bring it back or comment on it. strudel_mode works again only if the owner allows it${silentSuffix}`;
   const g = await guide(db, session, faceOf(session), false);
-  const fb = feedbackFor(shown, p, [note, stopNote, g.note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session.id, false, now, faceOf(session)), faceLine(faceOf(session), parsePolicy(session.mode_policy)));
+  const fb = feedbackFor(shown, p, [note, stopNote, g.note, ...rest.notes].filter((x): x is string => Boolean(x)), rest.resting, await reactionsFor(db, session, false, now, faceOf(session)), faceLine(faceOf(session), parsePolicy(session.mode_policy)));
   const pattern = stopped ? undefined : await patternFeedback(db, state, p.players);
   return withGuidance(pattern ? { ...fb, pattern } : fb, g);
 }
