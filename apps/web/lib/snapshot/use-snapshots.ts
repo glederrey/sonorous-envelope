@@ -118,7 +118,7 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     };
     const run = async () => { await capture(); if (!cancelled) timer = setTimeout(() => void run(), REFRESH_MS); };
     // after a new state: let its transition finish and the sound settle, once; then refresh while it stays
-    timer = setTimeout(() => void run(), Math.min(14, Math.max(6, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
+    timer = setTimeout(() => void run(), Math.min(14, Math.max(8, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [isOwner, started, stateId, sessionId, supabase]);
 }

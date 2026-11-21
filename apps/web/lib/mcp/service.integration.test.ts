@@ -567,6 +567,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect((await svc.inspect(dbA, A, { session_id, what: "snapshot" }) as { of: string }).of).toMatch(/^an earlier sound/);
     });
 
+    it("marks the snapshot seen with a copy of the image, and only the owner can", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await dbA.rpc("put_snapshot", { p_session: session_id, p_state: null, p_image: jpeg, p_measured: {}, p_volume: 0.6 });
+      expect(sql(`select seen_at is null and seen_image is null from snapshots where session_id='${session_id}'`)).toBe("t");
+      await svc.inspect(dbA, A, { session_id, what: "snapshot" });
+      expect(sql(`select seen_at is not null and seen_image = image from snapshots where session_id='${session_id}'`)).toBe("t");
+      const other = await dbB.rpc("mark_snapshot_seen", { p_session: session_id });
+      expect(other.error?.message).toMatch(/only the session owner/);
+    });
+
     it("is refused to another user, and put_snapshot raises for them", async () => {
       const { session_id } = await svc.startSession(dbA, A, {}, tick());
       const put = await dbB.rpc("put_snapshot", { p_session: session_id, p_state: null, p_image: jpeg, p_measured: {}, p_volume: 0.5 });
@@ -913,7 +923,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   describe("tell_developers", () => {
     const text = (extra = "") => `The listen tool returned idle at once while a player was open, so I could not wait for presses. I expected it to wait. ${extra}`.padEnd(100, ".");
-    const note = (over: Record<string, unknown> = {}) => ({ kind: "bug" as const, text: text(), from: "model" as const, ...over });
+    let seq = 0; // every note differs: the same text within 7 days is refused as a duplicate (migration 0023)
+    const note = (over: Record<string, unknown> = {}) => ({ kind: "bug" as const, text: text(`note ${++seq}`), from: "model" as const, ...over });
     // one fresh user per test: the daily count is per user
     let n = 0;
     async function fresh() {
@@ -932,7 +943,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(count()).toBe(before + 1);
       expect(sql("select source||'/'||kind||'/'||mode||'/'||engine||'/'||status from dev_feedback order by id desc limit 1")).toBe("user/idea/self/synth/new");
       expect(sql("select app_version is not null and app_version <> '' from dev_feedback order by id desc limit 1")).toBe("t");
-      expect(sql("select created_at = date_trunc('hour', created_at) from dev_feedback order by id desc limit 1")).toBe("t");
+      expect(sql("select created_at = date_trunc('day', created_at) from dev_feedback order by id desc limit 1")).toBe("t");
       const cols = sql("select string_agg(column_name, ',') from information_schema.columns where table_schema='public' and table_name='dev_feedback'");
       expect(cols).not.toMatch(/user|session|owner/);
     });
@@ -967,13 +978,30 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(count()).toBe(before);
     });
 
-    it("stops at five notes a day and does not store the sixth", async () => {
+    it("stops at three notes a day and does not store the fourth", async () => {
       const u = await fresh();
       const before = count();
-      for (let i = 0; i < 5; i++) await svc.tellDevelopers(u.db, u.id, note({ text: text(`number ${i}`) }));
-      await expect(svc.tellDevelopers(u.db, u.id, note({ text: text("number 5") }))).rejects.toMatchObject({ code: "daily_limit" });
-      expect(count()).toBe(before + 5);
-      expect(sql(`select n from dev_feedback_quota where user_id='${u.id}'`)).toBe("5");
+      for (let i = 0; i < 3; i++) await svc.tellDevelopers(u.db, u.id, note({ text: text(`number ${i}`) }));
+      await expect(svc.tellDevelopers(u.db, u.id, note({ text: text("number 3") }))).rejects.toMatchObject({ code: "daily_limit" });
+      expect(count()).toBe(before + 3);
+      expect(sql(`select n from dev_feedback_quota where user_id='${u.id}'`)).toBe("3");
+    });
+
+    it("refuses a note sent in the last 7 days, whoever sends it, ignoring case and spaces at the ends", async () => {
+      const a = await fresh(), b = await fresh();
+      const body = text("a repeated note");
+      await svc.tellDevelopers(a.db, a.id, note({ text: body }));
+      const before = count();
+      await expect(svc.tellDevelopers(b.db, b.id, note({ text: `  ${body.toUpperCase()}  ` }))).rejects.toMatchObject({ code: "duplicate" });
+      expect(count()).toBe(before);
+      expect(sql(`select coalesce(sum(n), 0) from dev_feedback_quota where user_id='${b.id}'`)).toBe("0"); // a refused note costs nothing
+    });
+
+    it("forgets the daily counts from before today on every send", async () => {
+      const u = await fresh(), v = await fresh();
+      sql(`insert into dev_feedback_quota (user_id, day, n) values ('${u.id}', current_date - 1, 2)`);
+      await svc.tellDevelopers(v.db, v.id, note());
+      expect(sql("select count(*) from dev_feedback_quota where day < current_date")).toBe("0");
     });
 
     it("strips control characters, keeps newlines", async () => {

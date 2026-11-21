@@ -360,3 +360,50 @@ begin
 end $$;
 revoke execute on function public.send_dev_feedback(text, text, text, text, text, text) from public, anon;
 grant  execute on function public.send_dev_feedback(text, text, text, text, text, text) to authenticated;
+
+
+-- Tighter notes to the developers (migration 0023)
+alter table public.dev_feedback alter column created_at set default date_trunc('day', now());
+update public.dev_feedback set created_at = date_trunc('day', created_at);
+
+create or replace function public.send_dev_feedback(p_kind text, p_source text, p_body text, p_version text, p_mode text, p_engine text)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); clean text; used integer;
+begin
+  if uid is null then raise exception 'dev_feedback: sign in first'; end if;
+  if p_kind is null or p_kind not in ('bug', 'idea', 'confusion', 'worked') then raise exception 'dev_feedback: unknown kind'; end if;
+  if p_source is null or p_source not in ('model', 'user') then raise exception 'dev_feedback: unknown source'; end if;
+  -- control characters out (newlines and tabs stay), runs of blank lines folded, ends trimmed
+  clean := btrim(regexp_replace(regexp_replace(coalesce(p_body, ''), E'[\\x01-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]', '', 'g'), E'\\n{3,}', E'\n\n', 'g'));
+  if char_length(clean) < 80 then raise exception 'dev_feedback: too short'; end if;
+  if char_length(clean) > 1000 then raise exception 'dev_feedback: too long'; end if;
+  delete from public.dev_feedback_quota where day < current_date; -- yesterday's counts are gone
+  if (select count(*) from public.dev_feedback where created_at >= current_date) >= 50 then raise exception 'dev_feedback: global limit'; end if;
+  if exists (select 1 from public.dev_feedback where created_at >= current_date - 7 and lower(btrim(body)) = lower(clean)) then raise exception 'dev_feedback: duplicate'; end if;
+  insert into public.dev_feedback_quota (user_id, day, n) values (uid, current_date, 1)
+    on conflict (user_id, day) do update set n = public.dev_feedback_quota.n + 1 returning n into used;
+  if used > 3 then raise exception 'dev_feedback: daily limit'; end if; -- the raise rolls the count back too
+  insert into public.dev_feedback (kind, source, body, app_version, mode, engine)
+  values (p_kind, p_source, clean, left(p_version, 20),
+          case when p_mode in ('self', 'attuned', 'jukebox') then p_mode end,
+          case when p_engine in ('synth', 'strudel') then p_engine end);
+end $$;
+revoke execute on function public.send_dev_feedback(text, text, text, text, text, text) from public, anon;
+grant  execute on function public.send_dev_feedback(text, text, text, text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Snapshot seen (migration 0024)
+-- ---------------------------------------------------------------------------
+-- Snapshot seen (follows 0020): the owner can see what the model actually looked at. The live `image` is replaced every 30 s, so when the
+-- model asks for it with inspect("snapshot"), the server marks the row seen: `seen_image` is a copy of the image it was given and
+-- `seen_at` is when. Only the session owner can mark it (the model works with the owner's token); the owner's select policy already covers both columns.
+alter table public.snapshots add column if not exists seen_at timestamptz, add column if not exists seen_image text;
+
+create or replace function public.mark_snapshot_seen(p_session text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_session_owner(p_session) then raise exception 'only the session owner can mark a snapshot seen'; end if;
+  update public.snapshots set seen_at = now(), seen_image = image where session_id = p_session;
+end $$;
+revoke execute on function public.mark_snapshot_seen(text) from public, anon;
+grant  execute on function public.mark_snapshot_seen(text) to authenticated;

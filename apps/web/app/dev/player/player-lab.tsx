@@ -31,6 +31,8 @@ class Script {
   nudge: (() => void) | null = null;
   /** the owner's player saved a snapshot (put_snapshot): shown in the lab box instead of being sent */
   snap: ((args: { p_image: string; p_measured: unknown; p_volume: number }) => void) | null = null;
+  /** the last snapshot the player saved: the panel "What the AI saw" reads it back as if the model had looked at it */
+  lastShot: { image: string; at: string } | null = null;
   private turn = 0;
   get last() { return this.rows[this.rows.length - 1] ?? null; }
   push(e: EngineState, ended = false) {
@@ -41,16 +43,18 @@ class Script {
     this.nudge?.();
   }
   client(): SupabaseClient {
-    const chain = (): unknown => {
+    const chain = (table?: string): unknown => {
       const c: Record<string, unknown> = {
         select: () => c, eq: () => c, is: () => c, in: () => c, order: () => c, limit: () => c, update: () => c, insert: async () => ({ error: null }),
-        maybeSingle: async () => ({ data: { owner_id: "me", settings: { rest_after: null }, allow_code: true }, error: null }), // the lab viewer owns the session single: async () => ({ data: null, error: null }),
+        maybeSingle: async () => table === "snapshots"
+          ? { data: this.lastShot && { image: this.lastShot.image, seen_image: this.lastShot.image, seen_at: this.lastShot.at, taken_at: this.lastShot.at }, error: null }
+          : ({ data: { owner_id: "me", settings: { rest_after: null }, allow_code: true }, error: null }), // the lab viewer owns the session single: async () => ({ data: null, error: null }),
         then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok),
       };
       return c;
     };
     const rpc = async (name: string, args: { p_known?: string | null; p_image?: string; p_measured?: unknown; p_volume?: number }) => {
-      if (name === "put_snapshot") { this.snap?.({ p_image: args.p_image ?? "", p_measured: args.p_measured, p_volume: args.p_volume ?? 0 }); return { data: null, error: null }; }
+      if (name === "put_snapshot") { this.lastShot = { image: args.p_image ?? "", at: new Date().toISOString() }; this.snap?.({ p_image: args.p_image ?? "", p_measured: args.p_measured, p_volume: args.p_volume ?? 0 }); return { data: null, error: null }; }
       if (name !== "player_poll") return { data: null, error: null };
       const v = `${this.rows.length}:${this.ended}:${this.mode}`;
       if (args.p_known === v) return { data: { same: true }, error: null };
@@ -60,7 +64,7 @@ class Script {
       const ch = { on: (_t: string, _f: unknown, cb: () => void) => { this.nudge = cb; return ch; }, subscribe: () => ch };
       return ch;
     };
-    return { auth: { getUser: async () => ({ data: { user: { id: "me" } } }) }, from: chain, rpc, channel, removeChannel: async () => {} } as unknown as SupabaseClient;
+    return { auth: { getUser: async () => ({ data: { user: { id: "me" } } }) }, from: (table: string) => chain(table), rpc, channel, removeChannel: async () => {} } as unknown as SupabaseClient;
   }
 }
 
@@ -154,11 +158,11 @@ export function PlayerLab() {
         </div>
         <label>set_sound transition <select value={fadeIn} onChange={(e) => setFadeIn(Number(e.target.value))}>{[0.5, 1, 2, 4].map((t) => <option key={t} value={t}>{t} s</option>)}</select></label>
         <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{log.join("\n")}</pre>
-        {shot ? <div data-snapshot><span>Snapshot {shot.at} ({Math.round(shot.image.length / 1000)} k chars), taken 6 to 14 s after each state, then every 30 s:</span>
+        {shot ? <div data-snapshot><span>Snapshot {shot.at} ({Math.round(shot.image.length / 1000)} k chars), taken 8 to 14 s after each state, then every 30 s:</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={shot.image} alt="The last snapshot the owner's player took" style={{ width: "100%", display: "block" }} />
           <code style={{ wordBreak: "break-all" }}>{shot.measured}</code></div>
-          : <span>No snapshot yet: the owner&apos;s player takes one 6 to 14 s after a new state.</span>}
+          : <span>No snapshot yet: the owner&apos;s player takes one 8 to 14 s after a new state.</span>}
       </details>
       <Player key={gen} sessionId="lab" signedIn client={client} />
     </>

@@ -89,7 +89,7 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("tell_developers", {
     title: "Tell the developers",
-    description: "Send an anonymous note to the people who build this sound channel, so they can improve it. No name, account, session or conversation is attached. Only when something is worth fixing or keeping, and be specific: bug (what you did, what happened, what you expected), idea (what would help and why), confusion (which rule, tool or result was unclear, and how), worked (what worked well and why it mattered; never just praise: \"great tool\" is not a note). Write about the tool, never about the person: no names, personal details or quotes from the conversation. Pass on the user's feedback only when they ask you to (from user). Tell the user in one sentence that you sent it. At most 5 a day.",
+    description: "Send an anonymous note to the people who build this sound channel, so they can improve it. No name, account, session or conversation is attached. Only when something is worth fixing or keeping, and be specific: bug (what you did, what happened, what you expected), idea (what would help and why), confusion (which rule, tool or result was unclear, and how), worked (what worked well and why it mattered; never just praise: \"great tool\" is not a note). Write about the tool, never about the person: no names, personal details or quotes from the conversation. Pass on the user's feedback only when they ask you to (from user). Tell the user in one sentence that you sent it. At most 3 a day; a note you already sent is refused.",
     inputSchema: z.object({
       session_id: z.string().optional(),
       kind: z.enum(["bug", "idea", "confusion", "worked"]),

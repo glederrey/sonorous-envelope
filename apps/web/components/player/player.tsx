@@ -13,6 +13,7 @@ import { restedState } from "../../lib/rested-state";
 import { isSounding } from "../../lib/sounding";
 import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
+import { WhatAiSaw } from "./what-ai-saw";
 import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { ControlsMiddle } from "./controls-middle";
@@ -686,7 +687,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
               listeningUntil={listeningUntil} clockOffset={clockOffset.current}
             />}
-            extra={signedIn ? <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /> : null}
+            extra={signedIn ? <><WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /><WhatAiSaw supabase={supabase} sessionId={sessionId} /></> : null}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}
           />
         )}
