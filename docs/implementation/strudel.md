@@ -71,3 +71,5 @@ Collapsed "Strudel code" panel in the player: read-only code, **Copy code** (add
 
 ## Tests
 Unit: `lib/strudel/strudel.test.ts` (hap and report checks, banks, copy link, beat), `lib/mcp/strudel-code.test.ts`. Integration (real Postgres, `scripts/test-api.sh`): modes and locks, code off, syntax errors, engine switches and the beat, `set_sound` while Strudel is on, the report's permissions. Browser: `scripts/strudel-sandbox/check.py`.
+
+**Code on a fresh start (v0.22.1).** When a pattern starts from nothing (a reload, Strudel on; `VizStore.reset` bumps `resets`), the code view waits for the first sound: it fades in over 0.6 s once a mark or a drawing event has started (its cycle ≤ now), or after 4 s for code that marks nothing. New code over a playing pattern (`swap`) shows at once, as before. Tester report v0.22.0: the code showed before the music and drawings, which wait for the next bar.
