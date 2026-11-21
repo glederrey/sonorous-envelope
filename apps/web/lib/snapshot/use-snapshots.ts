@@ -22,6 +22,7 @@ function isBlank(c: HTMLCanvasElement): boolean {
   return true;
 }
 const REFRESH_MS = 30_000;
+const BACK_MS = 6_000; // after the page becomes visible again: a few seconds of sound recorded, the picture drawn again
 const MAX_IMAGE_CHARS = 340_000; // put_snapshot refuses more than 350000
 
 /** What the player is showing and playing, as far as a snapshot needs it. */
@@ -141,7 +142,15 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     const run = async () => { await capture(); if (!cancelled) timer = setTimeout(() => void run(), REFRESH_MS); };
     // after a new state: let its transition finish and the sound settle, once; then refresh while it stays
     timer = setTimeout(() => void run(), Math.min(14, Math.max(8, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
-    return () => { cancelled = true; clearTimeout(timer); };
+    // Pictures are taken only while this page is visible (a hidden page draws nothing). When it comes back (the owner was in the chat),
+    // take one a few seconds later rather than at the next 30 s tick, which they often missed (tester report v0.22.1, test 7).
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || cancelled) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void run(), BACK_MS);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [isOwner, started, stateId, sessionId, supabase]);
   return { isOwner }; // the player also uses it to say "Your AI" to the owner
 }

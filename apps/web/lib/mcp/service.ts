@@ -169,7 +169,7 @@ const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
 /** Told to the model on a final call while the owner's "Live tuning" switch is on: mode guidance reaches it only at the start or on a change, so a running session learns of the switch here. */
 function liveNote(settings: ListenerSettings, face: Face, final: boolean): string | undefined {
   if (!final || !forListener(face) || !settings.live) return undefined;
-  return "live tuning is on: the listener wants their buttons to reach you now. Once all your text is written and this final call has returned, call listen as your last call (never in the same batch); answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
+  return "live tuning is on: the listener wants their buttons to reach you now. Once all your text is written and this final call has returned, call listen as your last call (never in the same batch); answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle. Text before a tool call can be folded away in the chat: ask any question after the last listen";
 }
 
 /** Lazy guidance: what to do with the rules of a mode, given the mode whose rules the model last received (`guided`, null for
@@ -863,12 +863,15 @@ async function inspectSnapshot(db: Db, userId: string, input: { session_id?: str
   const m = /^data:([^;,]+);base64,(.*)$/s.exec(row.image);
   if (!m) fail("read the snapshot", { message: "stored image is not a base64 data URL" });
   // the owner's player shows what the model was given (a copy, since the live image is replaced every 30 s); never fails the tool
+  const age = Math.max(0, Math.round((now - new Date(row.taken_at).getTime()) / 1000));
   const { error: seenError } = await db.rpc("mark_snapshot_seen", { p_session: session.id });
   if (seenError) console.error("mark_snapshot_seen failed:", seenError.message);
   return {
     __image: { mime: m[1], base64: m[2] },
-    of: row.state_id === session.current_state_id ? "the current sound" : "an earlier sound: the current one is newer, ask again in about 10 s",
-    age_s: Math.max(0, Math.round((now - new Date(row.taken_at).getTime()) / 1000)),
+    of: row.state_id === session.current_state_id ? "the current sound"
+      : age > 45 ? `an earlier sound, ${age} s old: the owner's player takes pictures only while it is visible on their screen (not in a background tab). Ask them to look at the player, then ask again about 10 s later`
+      : "an earlier sound: the current one is newer, ask again in about 10 s",
+    age_s: age,
     measured: row.measured,
     listener_volume: row.volume,
     note: "a white line on the spectrogram marks where this sound began (left of it: the sound before); measured covers the sound after it. Levels are at the player's output, after the listener's volume (0.8 is their default): do not compensate for their volume",

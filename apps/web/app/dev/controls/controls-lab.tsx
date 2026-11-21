@@ -112,7 +112,7 @@ export function ControlsLab() {
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
               listeningUntil={listeningUntil}
             />}
-            extra={<>{playsPattern && <StrudelPanel code={CODE} bpm={110} />}{viewer !== "guest" && <details className="pl-set se-sm"><summary>What the model set</summary></details>}</>}
+            extra={<>{playsPattern && <StrudelPanel code={CODE} bpm={110} />}{viewer !== "guest" && <details className="pl-set se-sm"><summary>What the AI set</summary></details>}</>}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"
           />
         </div>

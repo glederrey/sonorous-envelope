@@ -1243,6 +1243,10 @@ html:has(.pl-field) .se-header {
    edge, over the rounded corners, when the rounded box scrolls itself. */
 .pl-panel-clip { overflow: hidden; display: flex; flex-direction: column; padding: 0; }
 .pl-panel-scroll { display: grid; gap: 16px; padding: 14px 16px 16px; min-height: 0; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+/* Chromium uses the standard properties as soon as one is set, and the page root sets scrollbar-color (inherited), which made it ignore the
+   ::-webkit-scrollbar rules below and draw arrows and a grey track (tester report v0.22.1). So the panel sets both: thin, no arrows, a soft
+   thumb on no track. Safari, which has no scrollbar-color, still takes the webkit rules. */
+.pl-panel-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--on-scrim) 28%, transparent) transparent; }
 /* The panel's own scrollbar: a slim rounded thumb on no track, kept clear of the rounded corners. Chromium and Safari take the
    ::-webkit-scrollbar rules (Chromium ignores them once scrollbar-width or scrollbar-color is set, so those go to Firefox only). */
 .pl-panel-scroll::-webkit-scrollbar, .pl-panel::-webkit-scrollbar { width: 10px; }

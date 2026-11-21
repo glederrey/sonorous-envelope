@@ -73,7 +73,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   // The picture's seed belongs to the session, not to a state: a state's own seed would move every item whenever any command arrives.
   const pictureSeed = useMemo(() => voiceSeedOf(sessionId) & 0xffff, [sessionId]);
   const [audioState, setAudioState] = useState<string>("running");
-  const [rested, setRested] = useState(false); // the sound has faded because the model has not updated for rest_after
+  const [rested, setRested] = useState(false); // the sound has faded because the AI has not updated for rest_after
   const [hidden, setHidden] = useState(false); // hides the panels so only the colour field is left
   // Fullscreen: only the picture (no header, panels or footer). The browser's own fullscreen where it has one (not on iPhone), the layout either way.
   const [full, setFull] = useState(false);
@@ -96,9 +96,9 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     window.addEventListener("keydown", key); document.addEventListener("fullscreenchange", change);
     return () => { window.removeEventListener("keydown", key); document.removeEventListener("fullscreenchange", change); delete document.documentElement.dataset.plFull; };
   }, [full, exitFull]);
-  const [face, setFace] = useState<Face>("internal"); // the mode playing now (the model switches it, or the owner locks it)
+  const [face, setFace] = useState<Face>("internal"); // the mode playing now (the AI switches it, or the owner locks it)
   const [policy, setPolicy] = useState<Policy>("auto");
-  const [listeningUntil, setListeningUntil] = useState<number | null>(null); // live tuning: the model's `listen` waits until then (the server's clock)
+  const [listeningUntil, setListeningUntil] = useState<number | null>(null); // live tuning: the AI's `listen` waits until then (the server's clock)
   // the moving picture (canvas): the listener can turn it off, and
   // ?field=css brings back the old CSS motion
   const [gradientOn, setGradientOn] = useState(true);
@@ -515,7 +515,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   useEffect(() => {
     if (!started || !("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
-    ms.metadata = new MediaMetadata({ title: "The model's sound", artist: "Sonorous Envelope", album: "Live session" });
+    ms.metadata = new MediaMetadata({ title: "The AI's sound", artist: "Sonorous Envelope", album: "Live session" });
     ms.setActionHandler("play", () => { setMuted(false); void audio.current?.resume(); reload.current(); });
     ms.setActionHandler("pause", () => { setMuted(true); audio.current?.pauseElement(); });
     // this is a live sound, not a 60 s track: no seeking, and no progress bar if the browser accepts an endless duration
@@ -684,7 +684,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               onGradient: () => { setGradientOn(!gradientOn); rememberPicture(!gradientOn, visualsOn); },
               onVisuals: () => { setVisualsOn(!visualsOn); rememberPicture(gradientOn, !visualsOn); },
             } : null}
-            middle={(picture) => <ControlsMiddle picture={picture}
+            middle={(picture) => <ControlsMiddle picture={picture} stateAt={playing?.at}
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
               pattern={codeNow}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
