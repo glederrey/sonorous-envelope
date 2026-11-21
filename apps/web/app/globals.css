@@ -720,7 +720,7 @@ html:has(.pl-field) .se-header {
 
 @media (min-width: 901px) {
   .lp-hero-body {
-    /* Just wide enough for "Let the model hum" (about 7.93em) on one line. */
+    /* Wide enough for "Let the model hum" (about 7.93em), the old headline; "Let the AI hum" is shorter and breaks the same way. */
     grid-template-columns: minmax(0, calc(var(--lp-h) * 8.1)) minmax(0, 1fr);
     column-gap: 56px;
     padding-top: 96px;
