@@ -19,7 +19,6 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
       ["You can", "Listen and tell what you heard. You have no say in the sound."],
       ["The AI talks about it", "No."],
       ["Engines", "Built-in synth"],
-      ["Between messages", "Fades after 15 minutes"],
     ],
   },
   {
@@ -30,7 +29,6 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
       ["You can", "Say what you need, press reactions, tell what you heard, tune live, say it is not helping."],
       ["The AI talks about it", "It may say what it plays and why."],
       ["Engines", "Synth or Strudel"],
-      ["Between messages", "Keeps playing"],
     ],
   },
   {
@@ -41,7 +39,6 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
       ["You can", "Ask for anything, press reactions, tell what you heard, tune live, ask for changes."],
       ["The AI talks about it", "Yes, freely. Playing an emotion here is acting."],
       ["Engines", "Synth or Strudel"],
-      ["Between messages", "Keeps playing"],
     ],
   },
 ];

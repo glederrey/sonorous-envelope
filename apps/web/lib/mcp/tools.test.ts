@@ -87,7 +87,7 @@ describe("MCP tools", () => {
     expect(synth.lfo.items.properties.rate.maximum).toBe(80);
     expect(synth).not.toHaveProperty("volume");
     expect(tool("set_sound").inputSchema.properties).toHaveProperty("voice");
-    expect(tool("set_sound").inputSchema.properties).toHaveProperty("rest_after");
+    expect(tool("set_sound").inputSchema.properties).not.toHaveProperty("rest_after"); // the sound never fades by itself
     expect(tool("silence").inputSchema.properties).toHaveProperty("end");
     expect(tool("set_sound").inputSchema.properties.mode.enum).toEqual(["self", "attuned", "jukebox"]);
     expect(tool("start_session").inputSchema.properties.mode.enum).toEqual(["auto", "self", "attuned", "jukebox"]);

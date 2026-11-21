@@ -4,6 +4,9 @@ Text lets the model soften what it says. Sound and colour reach the listener bef
 
 > **Current state (2026-11-09, Gael's decision).** The listener limits and the consent levels are removed for now. Claude decides how it sounds and looks: every synth parameter, the echo, the colour, the transitions. The listener controls the volume of their own device and nothing else. Limits are planned as a later, designed piece of work (what they protect, who sets them, how the model is told). The earlier design is in the git history (`limits.md` before this change, `packages/shared/src/limits.ts`).
 
+
+> **No fade (2026-11-21, Gael: "It always plays until the user closes the tabs or ends the session").** The sound never fades by itself in any mode: `effectiveRestAfter` returns null, `set_sound` and `strudel_mode` no longer take `rest_after` (an old client sending it is ignored), `start_session` returns no `settings`, `resting` never appears, and the player has no "Fade to silence after" control. A stored `settings.rest_after` is ignored. The text below about the fade is history.
+
 ## What the listener controls
 - The volume and mute of their own device, from the player. Claude cannot change the volume. The master volume is a constant in the mapping and the slider (0 to 100, up to +18 dB) is the only volume control.
 - Closing the page, and the fade to silence after 15 minutes without an update (`rest_after`, shared with Claude).

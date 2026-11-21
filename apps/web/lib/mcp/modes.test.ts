@@ -49,11 +49,8 @@ describe("modes", () => {
     expect(decideSwitch({ ...base, requested: "sandbox" })).toEqual({ change: "sandbox" });
     expect(decideSwitch({ ...base, current: "sandbox", requested: "external" })).toEqual({ change: "external" });
   });
-  it("the listener modes never fade by themselves", () => {
-    expect(effectiveRestAfter(900, "external")).toBeNull();
-    expect(effectiveRestAfter(900, "sandbox")).toBeNull();
-    expect(effectiveRestAfter(900, "internal")).toBe(900);
-    expect(effectiveRestAfter(null, "internal")).toBeNull();
+  it("no mode fades by itself, whatever the stored setting (2026-11-21)", () => {
+    for (const face of ["internal", "external", "sandbox"] as const) expect(effectiveRestAfter(900, face)).toBeNull();
   });
   it("tells the model the mode and when it is locked", () => {
     expect(faceLine("internal", "auto")).toBe("Self");

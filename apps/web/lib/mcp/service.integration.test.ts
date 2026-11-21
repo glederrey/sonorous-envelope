@@ -83,7 +83,6 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
 
   it("starts new sessions with no listener limits, and does not clamp extreme choices", async () => {
     const r = await svc.startSession(dbA, A, {}, tick());
-    expect(r.settings).toEqual({ rest_after: 900 });
     expect(sql(`select settings ? 'consent' from sessions where id='${r.session_id}'`)).toBe("f");
     const out = await svc.setSound(dbA, A, {
       session_id: r.session_id, mood: { warmth: 0, closeness: 0, joy: 0, calm: 0, spontaneity: 1 }, final: true,
@@ -171,29 +170,14 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sql(`select effective->'transition'->>'time' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("6");
   });
 
-  it("tells the model the sound faded, only when rest_after is on", async () => {
-    const { session_id } = await svc.startSession(dbA, A, {}, tick());
-    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
-    const late = clock + 901_000;
-    const fb = await svc.getFeedback(dbA, A, { session_id }, late);
-    expect(fb.resting).toBe(true);
-    expect(fb.notes).toEqual(expect.arrayContaining(["the sound faded after 15 min without an update from you"]));
-    // Claude turns it off: nothing is said any more
-    clock = late;
-    await svc.setSound(dbA, A, { session_id, mood, final: true, rest_after: null } as never, tick());
-    const fb2 = await svc.getFeedback(dbA, A, { session_id }, clock + 3_600_000);
-    expect(fb2.resting).toBeUndefined();
-  });
-
-  it("lets Claude change rest_after and nothing else in the settings", async () => {
+  it("never fades by itself, in Self too, and ignores a rest_after an old client sends (2026-11-21)", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const before = JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`));
     await svc.setSound(dbA, A, { session_id, mood, final: true, rest_after: 600 } as never, tick());
-    const after = JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`));
-    expect(after).toEqual({ ...before, rest_after: 600 });
-    // leaving it out keeps the value
-    await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
-    expect(JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`)).rest_after).toBe(600);
+    expect(JSON.parse(sql(`select settings::text from sessions where id='${session_id}'`))).toEqual(before);
+    const fb = await svc.getFeedback(dbA, A, { session_id }, clock + 3_600_000);
+    expect(fb.resting).toBeUndefined();
+    expect(JSON.stringify(fb)).not.toMatch(/faded/);
   });
 
   it("ends the session with silence end, keeping the layers on while the volume fades", async () => {
@@ -456,10 +440,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   });
 
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
-    const int = await svc.startSession(dbA, A, {}, tick()) as { mode: string; guidance: string; settings: { rest_after: number | null }; session_id: string };
-    expect(int.mode).toBe("Self"); expect(int.guidance).toMatch(/^Mode Self/); expect(int.guidance).toMatch(/on auto/); expect(int.settings.rest_after).toBe(900);
-    const ext = await svc.startSession(dbA, A, { mode: "outer" }, tick()) as { mode: string; guidance: string; session_id: string; settings: { rest_after: number | null } };
-    expect(ext.mode).toBe("Attuned"); expect(ext.guidance).toMatch(/^Mode Attuned/); expect(ext.settings.rest_after).toBeNull();
+    const int = await svc.startSession(dbA, A, {}, tick());
+    expect(int.mode).toBe("Self"); expect(int.guidance).toMatch(/^Mode Self/); expect(int.guidance).toMatch(/on auto/);
+    const ext = await svc.startSession(dbA, A, { mode: "outer" }, tick());
+    expect(ext.mode).toBe("Attuned"); expect(ext.guidance).toMatch(/^Mode Attuned/);
     expect(sql(`select mode || '/' || mode_policy from sessions where id = '${ext.session_id}'`)).toBe("external/auto");
     expect(sql(`select mode from sessions where id = '${int.session_id}'`)).toBe("internal");
   });

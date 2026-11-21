@@ -43,9 +43,11 @@ export function forListener(face: Face): boolean {
   return face !== "internal";
 }
 
-/** The listener-facing modes never fade by themselves: the sound is not a presence between turns there, it is for listening to. */
-export function effectiveRestAfter(restAfter: number | null, face: Face): number | null {
-  return forListener(face) ? null : restAfter;
+/** The sound never fades by itself (Gael, 2026-11-21: "It always plays until the user closes the tabs or ends the session"). Until then
+ *  Self faded after `rest_after` (default 15 min) and the listener modes never did. Kept as the one place that decides it, so the player
+ *  and the server agree; a stored `rest_after` is ignored. */
+export function effectiveRestAfter(_restAfter: number | null, _face: Face): number | null {
+  return null;
 }
 
 export interface SwitchInput { policy: Policy; current: Face; requested: Face | undefined }
