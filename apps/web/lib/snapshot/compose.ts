@@ -32,6 +32,9 @@ export interface ComposeOptions {
   floorDb?: number;
   ceilDb?: number;
   label?: string;
+  /** The Strudel view (`.pl-strudel`) as the listener sees it: its dark backdrop, the drawings at their opacity, and the code on top
+   *  (tester report v0.22.0: the model saw a bright pianoroll without the code or the dimming the listener saw). */
+  strudel?: HTMLElement | null;
   /** performance.now() ms when the current sound arrived: a thin line marks it on the spectrogram (older columns are the sound before) */
   markAt?: number;
 }
@@ -42,6 +45,57 @@ function drawCover(ctx: CanvasRenderingContext2D, src: HTMLCanvasElement, w: num
   const sw = w / scale;
   const sh = h / scale;
   ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, w, h);
+}
+
+const num = (v: string | null | undefined, d: number) => { const x = parseFloat(v ?? ""); return Number.isFinite(x) ? x : d; };
+
+/** Draws the Strudel view into the picture area, mapped the way `drawCover` maps a full-view canvas (cover, centred). */
+function drawStrudel(ctx: CanvasRenderingContext2D, root: HTMLElement, w: number, h: number) {
+  const view = root.getBoundingClientRect();
+  if (!view.width || !view.height) return;
+  const rootOp = num(root.style.opacity, 1);
+  if (rootOp <= 0.01 || root.style.visibility === "hidden") return;
+  const s = Math.max(w / view.width, h / view.height);
+  const cs = getComputedStyle(root), hue = num(cs.getPropertyValue("--pl-h"), 220), k = num(root.style.getPropertyValue("--sv-k"), 1);
+  ctx.save();
+  ctx.globalAlpha = rootOp;
+  // the backdrop: the same radial gradient as the CSS (.pl-strudel)
+  const g = ctx.createRadialGradient(w / 2, h * 0.3, 0, w / 2, h * 0.3, Math.max(w, h) * 0.9);
+  g.addColorStop(0, `hsl(${hue} 32% ${9 * k}%)`); g.addColorStop(1, `hsl(${hue} 36% ${4 * k}%)`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  const cv = root.querySelector<HTMLCanvasElement>(".pl-strudel-cv");
+  if (cv) { ctx.globalAlpha = rootOp * num(cv.style.opacity, 1); drawCover(ctx, cv, w, h); }
+  const pre = root.querySelector<HTMLElement>(".pl-strudel-code");
+  const codeOp = pre ? num(getComputedStyle(pre).opacity, 1) : 0; // the computed value already holds the inline fade
+  if (pre && codeOp > 0.01 && getComputedStyle(pre).display !== "none") {
+    ctx.globalAlpha = rootOp * codeOp;
+    const pcs = getComputedStyle(pre), px = num(pcs.fontSize, 14), box = pre.getBoundingClientRect();
+    // The code keeps its layout (lines, colours, dimming) but not the picture's crop and scale: on a wide screen the cover crop cut it off
+    // and shrank it to about 6 px. It sits at the top left, at 9 px or more, so the model can judge what it reads.
+    const cs2 = Math.max(s, 9 / px), cx = Math.max(4, num(pcs.paddingLeft, 12) * s), cy = Math.max(22, num(pcs.paddingTop, 8) * s); // below the turn label
+    ctx.font = `${px * cs2}px ${pcs.fontFamily}`;
+    ctx.textBaseline = "top"; ctx.textAlign = "left";
+    ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 8 * cs2; ctx.shadowOffsetY = cs2;
+    const range = document.createRange(), walk = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+    // each text node in runs of characters on one line, at the place the browser laid them out
+    for (let node = walk.nextNode() as Text | null; node; node = walk.nextNode() as Text | null) {
+      ctx.fillStyle = getComputedStyle(node.parentElement ?? pre).color;
+      const text = node.data;
+      let run = "", x0 = 0, y0 = 0;
+      const flush = () => { if (run.trim()) ctx.fillText(run, cx + (x0 - box.left - num(pcs.paddingLeft, 0)) * cs2, cy + (y0 - box.top - num(pcs.paddingTop, 0)) * cs2); run = ""; };
+      for (let i = 0; i < text.length; i++) {
+        range.setStart(node, i); range.setEnd(node, i + 1);
+        const r = range.getBoundingClientRect();
+        if (text[i] === "\n" || !r.width) { flush(); continue; }
+        if (cy + (r.top - box.top - num(pcs.paddingTop, 0)) * cs2 > h) break;
+        if (run && Math.abs(r.top - y0) > 2) flush();
+        if (!run) { x0 = r.left; y0 = r.top; }
+        run += text[i];
+      }
+      flush();
+    }
+  }
+  ctx.restore();
 }
 
 export function composeSnapshot(opts: ComposeOptions): HTMLCanvasElement {
@@ -64,6 +118,7 @@ export function composeSnapshot(opts: ComposeOptions): HTMLCanvasElement {
   ctx.fillStyle = opts.base;
   ctx.fillRect(0, 0, width, ph);
   for (const layer of opts.layers) if (layer) drawCover(ctx, layer, width, ph);
+  if (opts.strudel) drawStrudel(ctx, opts.strudel, width, ph);
 
   // Spectrogram
   ctx.fillStyle = "#04051a";

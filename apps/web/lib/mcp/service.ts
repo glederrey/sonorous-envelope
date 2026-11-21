@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // The tables are untyped here; generic params are loose so any client (including test clients) fits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
-import { midiToNoteName, noteToMidi, type EngineState } from "@sonorous/engine";
+import { midiToNoteName, noteToMidi, SCALES, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
@@ -58,6 +58,14 @@ function resolveMotif(session: SessionRow, m: NonNullable<SetSoundInput["motif"]
   if (m.name === undefined) return { notes, beats, label: undefined, store: undefined };
   if (!Object.hasOwn(saved, m.name) && names.length >= MAX_MOTIFS) throw new ToolError("motifs_full", "Twelve motifs are named. Keep this one under a name you already used to replace it.");
   return { notes, beats, label: m.name, store: { ...saved, [m.name]: { notes, beats, kept_at: new Date(now).toISOString(), turn } } };
+}
+
+/** A motif note outside the scale the voice plays in sounds "not in the tune" (tester report v0.22.0): say which, so it is a choice. */
+export function offScaleNote(notes: string[], state: Pick<EngineState, "arp">): string | undefined {
+  const { root, scale } = state.arp, steps = SCALES[scale];
+  if (!steps || steps.length === 12) return undefined;
+  const out = [...new Set(notes.filter((n) => n !== "-" && noteToMidi(n) !== undefined && !steps.includes((((noteToMidi(n)! - root) % 12) + 12) % 12)))];
+  return out.length ? `motif notes outside the voice's ${midiToNoteName(root).replace(/-?\d+$/, "")} ${scale.replaceAll("_", " ")}: ${out.join(" ")} (fine if you meant it)` : undefined;
 }
 
 function fail(action: string, error: { message: string } | null): never {
@@ -127,7 +135,9 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
  *  and dropped (never shown, and they do not surface after a later switch). The player shows those buttons only in the listener modes;
  *  this also covers a row written straight through the API. `heard` ("What I heard", #129) is how the sound read to the listener: it
  *  never steers, so it comes back in every mode, Self included. */
-async function reactionsFor(db: Db, session: { id: string; owner_id: string }, claim: boolean, now: number, face: Face): Promise<{ reactions: string[]; heard: string[] }> {
+/** `since` (peek only): also return presses made from then on that another call already marked read, so `listen` sees a press a final call
+ *  sent in the same batch claimed (tester report v0.22.0). */
+async function reactionsFor(db: Db, session: { id: string; owner_id: string }, claim: boolean, now: number, face: Face, since?: number): Promise<{ reactions: string[]; heard: string[] }> {
   const sessionId = session.id;
   let rows: Array<{ kind: string; created_at: string; user_id?: string | null }>;
   if (claim) {
@@ -135,8 +145,9 @@ async function reactionsFor(db: Db, session: { id: string; owner_id: string }, c
     if (error) { console.error("claim_reactions failed:", error.message); return { reactions: [], heard: [] }; } // never break a call over a reaction
     rows = (data ?? []) as typeof rows;
   } else {
-    const { data, error } = await db.from("reactions").select("kind,created_at,user_id").eq("session_id", sessionId).is("delivered_at", null)
-      .order("created_at", { ascending: false }).limit(50);
+    const base = db.from("reactions").select("kind,created_at,user_id").eq("session_id", sessionId);
+    const q = since === undefined ? base.is("delivered_at", null) : base.or(`delivered_at.is.null,created_at.gte.${new Date(since).toISOString()}`);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
     if (error) return { reactions: [], heard: [] };
     rows = (data ?? []) as typeof rows;
   }
@@ -158,7 +169,7 @@ const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
 /** Told to the model on a final call while the owner's "Live tuning" switch is on: mode guidance reaches it only at the start or on a change, so a running session learns of the switch here. */
 function liveNote(settings: ListenerSettings, face: Face, final: boolean): string | undefined {
   if (!final || !forListener(face) || !settings.live) return undefined;
-  return "live tuning is on: the listener wants their buttons to reach you now. Once all your text is written and this final call is made, call listen as your last call; answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
+  return "live tuning is on: the listener wants their buttons to reach you now. Once all your text is written and this final call has returned, call listen as your last call (never in the same batch); answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
 }
 
 /** Lazy guidance: what to do with the rules of a mode, given the mode whose rules the model last received (`guided`, null for
@@ -459,7 +470,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -735,6 +746,8 @@ const LISTEN_POLL_MS = 1500;
 /** Live tuning: wait inside the model's turn for a press in the player, so the model can answer within the same message. It only looks
  *  (`reactionsFor` never claims): if the user stops the turn while this runs, a claimed press would be lost. set_sound and strudel_mode
  *  stay the only claimers. `listening_until` tells the player. Clock and sleep are injectable for tests; `signal` is the request's abort. */
+const LISTEN_SKEW_MS = 1000;
+
 export async function listen(
   db: Db, userId: string, input: { session_id?: string; seconds: number },
   opts: { signal?: AbortSignal; now?: () => number; sleep?: (ms: number) => Promise<void> } = {},
@@ -753,7 +766,8 @@ export async function listen(
     players: p.players, ...(extra.mode ? { mode: extra.mode } : {}), ...(note ? { notes: [note] } : {}),
   });
   if (p.players === 0) return done("nobody_listening");
-  const first = await reactionsFor(db, session, false, started, face);
+  const since = started - LISTEN_SKEW_MS; // the database's clock stamps presses; allow a little skew against this server's
+  const first = await reactionsFor(db, session, false, started, face, since);
   if (first.reactions.length || first.heard.length) return done("reactions", first);
 
   const wasLive = parseSettings(session.settings).live;
@@ -773,7 +787,7 @@ export async function listen(
       if (!row || row.ended_at) return done("session_ended");
       const now = faceOf(row);
       if (!forListener(now)) return done("mode_changed", { mode: faceLine(now, parsePolicy(row.mode_policy)) });
-      const said = await reactionsFor(db, session, false, clock(), now);
+      const said = await reactionsFor(db, session, false, clock(), now, since);
       if (said.reactions.length || said.heard.length) return done("reactions", said);
       if (wasLive && !parseSettings(row.settings).live) return done("stopped");
     }

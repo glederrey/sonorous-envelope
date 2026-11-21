@@ -332,7 +332,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     const ext = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
     sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${ext.session_id}', '${A}', 'heard_reproach', now()), ('${ext.session_id}', '${A}', 'softer', now())`);
     const b = await svc.setSound(dbA, A, { session_id: ext.session_id, final: true } as never, tick());
-    expect(b.heard).toEqual([expect.stringMatching(/^reproach, /)]);
+    expect(b.heard).toEqual([expect.stringMatching(/^blaming, /)]);
     expect(b.reactions).toEqual([expect.stringMatching(/^softer, /)]);
   });
 
@@ -388,6 +388,19 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(sql(`select count(*) from reactions where session_id='${session_id}' and delivered_at is null`)).toBe("1"); // listen never claims
       const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick(5000));
       expect((a.reactions as string[]).join(" ")).toMatch(/calmer/);
+    });
+
+    it("returns a press made during the wait even when a call sent in the same batch already marked it read", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      beat(session_id);
+      // an old press set_sound delivered before the wait: never returned again
+      sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'darker', to_timestamp(${clock - 60_000} / 1000.0), now())`);
+      const f = fake((n) => {
+        if (n === 1) sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'calmer', to_timestamp(${clock + 1500} / 1000.0), now())`);
+      });
+      const r = await svc.listen(dbA, A, { session_id, seconds: 20 }, f);
+      expect(r.event).toBe("reactions");
+      expect(r.reactions).toEqual([expect.stringMatching(/^calmer, /)]);
     });
 
     it("returns presses that are already waiting without a wait", async () => {

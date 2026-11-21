@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../lib/mcp/modes";
 import { HEARD_KINDS, HEARD_LABELS, REACTION_KINDS, REACTION_LABELS, isHeard, type HeardKind, type ReactionKind } from "@sonorous/shared";
@@ -86,6 +86,19 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     const timer = setInterval(() => void loadPending(), listening ? 2_000 : 15_000);
     return () => clearInterval(timer);
   }, [loadPending, listening]);
+  // after a wait (tester report v0.22.0): a press made during it is being answered; a wait with no press ended, and presses now go
+  // with the next message. Live tuning stays on: it is the listener's standing wish.
+  const [afterWait, setAfterWait] = useState<"answering" | "idle" | null>(null);
+  const pressedInWait = useRef(false), wasListening = useRef(false);
+  useEffect(() => {
+    if (listening) { wasListening.current = true; setAfterWait(null); return; }
+    if (!wasListening.current) return;
+    wasListening.current = false;
+    const next = pressedInWait.current ? "answering" : "idle";
+    pressedInWait.current = false;
+    setAfterWait(next);
+    if (next === "answering") { const t = setTimeout(() => setAfterWait("idle"), 60_000); return () => clearTimeout(t); } // it did not listen again
+  }, [listening]);
   // the countdown of the line under the buttons
   useEffect(() => {
     if (listeningUntil === null) return;
@@ -110,6 +123,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
   const react = async (kind: Said) => {
     setError("");
     setPending((p) => [...p, { kind }]); // shown at once; every press counts, none is swallowed
+    if (listening) pressedInWait.current = true;
     const { error: e } = await supabase.from("reactions").insert({ session_id: sessionId, user_id: owner.id, kind });
     if (e) { setError("Could not send that. Try again."); void loadPending(); }
   };
@@ -175,7 +189,9 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           </div>
           <p className="pl-local" aria-live="polite">
             {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{waiting ? ` Sent: ${waiting}.` : ""}</>
-              : live ? "Live tuning is on: the AI listens after its next answer."
+              : live ? (afterWait === "answering" ? "The AI is answering your press…"
+                : afterWait === "idle" ? `Not listening now: your presses reach the AI with your next message.${waiting ? ` Sent: ${waiting}.` : ""}`
+                : "Live tuning is on: the AI listens after its next answer.")
               : waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these as soon as it listens (Live tuning), or on its next message, then changes the sound."}
           </p>
           {error && <p role="alert">{error}</p>}

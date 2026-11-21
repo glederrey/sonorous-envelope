@@ -232,3 +232,13 @@ describe("v0.19.3 report", () => {
     expect((r.clamped as string[]).join(" ")).toMatch(/pace held.*do not correct.*send it again now with a transition/);
   });
 });
+
+describe("offScaleNote", () => {
+  it("names the motif notes outside the voice's scale, once each, and ignores rests", async () => {
+    const { offScaleNote } = await import("./service");
+    const fs = { arp: { root: 54, scale: "lydian" } } as never; // F# lydian: F# G# A# C C# D# F
+    expect(offScaleNote(["E4", "G4", "A4", "C5", "B4", "-", "C4"], fs)).toBe("motif notes outside the voice's F# lydian: E4 G4 A4 B4 (fine if you meant it)");
+    expect(offScaleNote(["F#4", "G#4", "-", "C#5"], fs)).toBeUndefined();
+    expect(offScaleNote(["C4", "C#4"], { arp: { root: 60, scale: "chromatic" } } as never)).toBeUndefined();
+  });
+});

@@ -413,7 +413,7 @@ describe("reactions", () => {
   it("folds repeats and says how long ago", () => {
     const now = Date.parse("2026-11-10T10:00:00Z");
     const rows = [{ kind: "calmer", created_at: "2026-11-10T09:57:00Z" }, { kind: "calmer", created_at: "2026-11-10T09:59:30Z" }, { kind: "more_of_this", created_at: "2026-11-10T09:59:55Z" }];
-    expect(describeReactions(rows, now)).toEqual(["more of this, 5 s ago", "calmer x2, 30 s ago"]);
+    expect(describeReactions(rows, now)).toEqual(["more of this (go further in the direction of your last change), 5 s ago", "calmer x2, 30 s ago"]);
     expect(describeReactions([], now)).toEqual([]);
   });
 });

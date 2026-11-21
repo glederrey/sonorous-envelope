@@ -26,7 +26,10 @@ export class VizStore {
   /** bumps when new code's drawings replace the old ones: the view crossfades from its last frame of the old drawings */
   swaps = 0;
 
-  reset(code: string, bpm: number) { this.code = code; this.bpm = bpm; this.specs = []; this.draws = []; this.marks = []; this.colours.clear(); this.swapping = false; this.version++; }
+  /** bumps when a pattern starts from nothing (not on new code over a playing one): the code view waits for its first sound */
+  resets = 0;
+
+  reset(code: string, bpm: number) { this.resets++; this.code = code; this.bpm = bpm; this.specs = []; this.draws = []; this.marks = []; this.colours.clear(); this.swapping = false; this.version++; }
   /** New code on a pattern that plays: the code text changes at once, the lit parts go out, but the drawings keep running until the new code
    *  reports its own (`setSpecs`), so nothing blinks. */
   swap(code: string, bpm: number) { this.code = code; this.bpm = bpm; this.marks = []; this.swapping = true; this.version++; }

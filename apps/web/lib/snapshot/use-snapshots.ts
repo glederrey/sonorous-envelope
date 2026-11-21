@@ -119,7 +119,8 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
         if (cancelled) return;
         const canvas = composeSnapshot({
           base,
-          layers: [f?.querySelector<HTMLCanvasElement>(".pl-motion") ?? null, l.strudelDrawn ? f?.querySelector<HTMLCanvasElement>(".pl-strudel-cv") ?? null : null],
+          layers: [f?.querySelector<HTMLCanvasElement>(".pl-motion") ?? null],
+          strudel: l.strudelDrawn ? f?.querySelector<HTMLElement>(".pl-strudel") ?? null : null, // drawn as displayed: backdrop, drawings, code
           frames: rec.frames,
           label: `turn ${p.turn} · ${l.strudelPlays ? "strudel" : "synth"}`,
           markAt: arrived,

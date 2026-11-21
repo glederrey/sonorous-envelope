@@ -15,7 +15,14 @@ export const HEARD_KINDS = ["heard_calm", "heard_tender", "heard_warm", "heard_j
 export type HeardKind = (typeof HEARD_KINDS)[number];
 export const HEARD_LABELS: Record<HeardKind, string> = {
   heard_calm: "Calm", heard_tender: "Tender", heard_warm: "Warm", heard_joyful: "Joyful", heard_playful: "Playful",
-  heard_hesitant: "Hesitant", heard_sad: "Sad", heard_tense: "Tense", heard_anxious: "Anxious", heard_reproach: "Reproach",
+  heard_hesitant: "Hesitant", heard_sad: "Sad", heard_tense: "Tense", heard_anxious: "Anxious", heard_reproach: "Blaming", // "Reproach" was unclear to the tester (v0.22.0); the stored kind stays
+};
+/** How a press reads to the model: More/Less of this always ask for an audible change (tester report v0.22.0: "more of this" read as
+ *  "keep it" changed nothing), and a heard kind uses the word on its button. */
+const SAID: Record<string, string> = {
+  more_of_this: "more of this (go further in the direction of your last change)",
+  less_of_this: "less of this (take back part of your last change)",
+  heard_reproach: "blaming",
 };
 export const isHeard = (kind: string): boolean => kind.startsWith("heard_");
 
@@ -30,5 +37,5 @@ export function describeReactions(rows: Array<{ kind: string; created_at: string
     by.set(r.kind, { n: (e?.n ?? 0) + 1, last: Math.max(e?.last ?? 0, t) });
   }
   return [...by.entries()].sort((a, b) => b[1].last - a[1].last).slice(0, 8)
-    .map(([kind, v]) => `${(isHeard(kind) ? kind.slice(6) : kind).replaceAll("_", " ")}${v.n > 1 ? ` x${v.n}` : ""}, ${short(Math.max(0, (nowMs - v.last) / 1000))}`);
+    .map(([kind, v]) => `${SAID[kind] ?? (isHeard(kind) ? kind.slice(6) : kind).replaceAll("_", " ")}${v.n > 1 ? ` x${v.n}` : ""}, ${short(Math.max(0, (nowMs - v.last) / 1000))}`);
 }
