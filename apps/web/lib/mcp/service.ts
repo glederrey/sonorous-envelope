@@ -815,6 +815,9 @@ async function inspectSnapshot(db: Db, userId: string, input: { session_id?: str
   const row = snap as { state_id: string | null; image: string; measured: unknown; volume: number | null; taken_at: string };
   const m = /^data:([^;,]+);base64,(.*)$/s.exec(row.image);
   if (!m) fail("read the snapshot", { message: "stored image is not a base64 data URL" });
+  // the owner's player shows what the model was given (a copy, since the live image is replaced every 30 s); never fails the tool
+  const { error: seenError } = await db.rpc("mark_snapshot_seen", { p_session: session.id });
+  if (seenError) console.error("mark_snapshot_seen failed:", seenError.message);
   return {
     __image: { mime: m[1], base64: m[2] },
     of: row.state_id === session.current_state_id ? "the current sound" : "an earlier sound: the current one is newer, ask again in about 10 s",
@@ -873,7 +876,8 @@ export async function tellDevelopers(db: Db, userId: string, input: { session_id
     const m = error.message;
     if (m.includes("too short")) throw new ToolError("too_short", "Say what happened, what you expected and what would help: at least 80 characters. A note that only says it is good is not sent.");
     if (m.includes("too long")) throw new ToolError("too_long", "At most 1000 characters.");
-    if (m.includes("daily limit")) throw new ToolError("daily_limit", "Five notes a day at most: keep the rest for tomorrow, or fold it into one note.");
+    if (m.includes("daily limit")) throw new ToolError("daily_limit", "Three notes a day at most: keep the rest for tomorrow, or fold it into one note.");
+    if (m.includes("duplicate")) throw new ToolError("duplicate", "That note was already sent in the last 7 days.");
     if (m.includes("global limit")) throw new ToolError("busy", "Too many notes today from everyone. Try tomorrow.");
     fail("send the note", error);
   }
