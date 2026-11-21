@@ -20,6 +20,7 @@ You are building a remote MCP server that lets an LLM express itself through a s
    - `player-ui.md`: the session page and controls
    - `../design-system.md`: the visual design system (artifact link, tokens, logo). Follow it for all UI work.
    - `testing.md`: tests and acceptance criteria per milestone
+   - `stop-hook.md`: the Claude Code Stop hook that asks for a final `set_sound`
 5. `docs/emotion-to-sound.md` (the evidence behind the mapping), `docs/sound-model.md`, `docs/feedback.md`, `docs/safety.md`, `docs/mobile.md`: design background.
 6. `docs/roadmap.md`: build order. Work milestone by milestone.
 
