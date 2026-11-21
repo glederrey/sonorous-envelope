@@ -33,6 +33,7 @@ const tools = [
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
   { name: "inspect", text: "The last states and mode changes, for a closer look." },
+  { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. No name, account or conversation goes with it." },
 ];
 
 export default function HowItWorksPage() {

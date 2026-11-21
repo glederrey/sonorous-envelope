@@ -131,6 +131,38 @@ do $$ begin
 end $$;
 reset role;
 
+-- notes to the developers: neither table is reachable by anon or authenticated, and anon cannot send one
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+do $$ begin
+  begin perform 1 from public.dev_feedback; raise exception 'authenticated read dev_feedback';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.dev_feedback (kind, source, body) values ('bug', 'model', repeat('x', 80)); raise exception 'authenticated wrote dev_feedback';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.dev_feedback_quota; raise exception 'authenticated read dev_feedback_quota';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.dev_feedback_quota (user_id, day, n) values ('00000000-0000-0000-0000-00000000000a', current_date, 0); raise exception 'authenticated wrote dev_feedback_quota';
+  exception when insufficient_privilege then null; end;
+  perform public.send_dev_feedback('bug', 'model', repeat('x', 80), '0.0.0', null, null);
+end $$;
+reset role;
+do $$ begin assert (select count(*) from public.dev_feedback) = 1, 'the note arrived'; end $$;
+select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claims', '{}', false);
+set role anon;
+do $$ begin
+  begin perform 1 from public.dev_feedback; raise exception 'anon read dev_feedback';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.dev_feedback (kind, source, body) values ('bug', 'model', repeat('x', 80)); raise exception 'anon wrote dev_feedback';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.dev_feedback_quota; raise exception 'anon read dev_feedback_quota';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.dev_feedback_quota (user_id, day, n) values ('00000000-0000-0000-0000-00000000000a', current_date, 0); raise exception 'anon wrote dev_feedback_quota';
+  exception when insufficient_privilege then null; end;
+  begin perform public.send_dev_feedback('bug', 'model', repeat('x', 80), '0.0.0', null, null); raise exception 'anon sent a note';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 -- a flood from one leaked link is bounded
 do $$ begin
   for i in 1..60 loop

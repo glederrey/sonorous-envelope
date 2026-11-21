@@ -228,6 +228,20 @@ Input: `{ session_id: string, what: "history" | "snapshot" }` (default `history`
 - `history`: the last 8 states as one line each: turn, final, intent mood, reads_as, clamps count, and the note if there was one. Text only.
 - `snapshot`: what the owner's player shows and plays. If `settings.image_feedback` is `off`, the error `image_feedback_off` ("The listener turned off picture feedback in the player."). If the player has stored none yet: `{ snapshot: null, why }`. Otherwise an image content block (JPEG: the picture on top, a spectrogram of the last ~8 s of the player's output below, low notes at the bottom) and a text block with `of` ("the current sound", or "an earlier sound: the current one is newer, ask again in about 10 s"), `age_s`, `measured` (`seconds`, `loudness_db`, `peak_db`, `centroid_hz`, `brightness`, `onsets_per_s`, `quiet_share`), `listener_volume` (the owner's slider 0..1, 0 when muted) and a note that the levels are measured after the listener's volume. The base64 appears only in the image block, never in the text or `structuredContent`. The row comes from `put_snapshot` (database.md), read with the caller's token.
 
+## `tell_developers` (migration 0021)
+Input: `{ session_id?, kind: "bug" | "idea" | "confusion" | "worked", text: string /* 80 to 1000 */, from: "model" | "user" /* default model */ }`. An anonymous note to the people who build this tool, read at the start of a dev session (CLAUDE.md, "Notes from users and models"). It calls RPC `send_dev_feedback` with the caller's token (database.md).
+
+Guardrails:
+- Anonymous: the row has no user, no session and only the hour of the time; the per-user daily count is in a separate table that holds no text. The note says "from" the model or the user (`source`), nothing more.
+- Mode (`self`, `attuned`, `jukebox`) and engine (`synth`, `strudel`) come from the server (the caller's session and its current state), never from the model. No session is needed: without one, both are null. App version is the running release.
+- Zod checks the length first; the database checks everything again (kind, source, 80 to 1000 characters after cleaning), strips control characters (newlines and tabs stay) and folds runs of blank lines.
+- At most 5 notes per user per day and 200 per day overall. The text is only ever bound as a parameter, stored as text, and read back by developers as untrusted data.
+- Neither table is readable or writable by `anon` or `authenticated`; only the RPC (security definer, `authenticated` only) inserts.
+
+Errors: `too_short` ("Say what happened, what you expected and what would help: at least 80 characters. A note that only says it is good is not sent."), `too_long` ("At most 1000 characters."), `daily_limit` ("Five notes a day at most: keep the rest for tomorrow, or fold it into one note."), `busy` (global limit: "Too many notes today from everyone. Try tomorrow."), `server_error` for anything else.
+
+Result: `{ sent: true, note }`, where `note` tells the model to say in one short sentence that it sent an anonymous note.
+
 ## `silence`
 
 Input: `{ session_id: string, fade?: number /* seconds, default 4, max 30 */, final?: boolean, end?: boolean  }`.
@@ -249,4 +263,5 @@ Every tool except `start_session` takes `session_id`.
 - `listen`: "Attuned and Jukebox only. Wait up to `seconds` for the listener to press a button in the player and return as soon as they do ... It never changes the sound." (full text in `tools.ts`)
 - `get_feedback`: "Read what is playing and the listener's latest reactions without changing the sound."
 - `inspect`: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~8 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as)."
+- `tell_developers`: "Send an anonymous note to the people who build this sound channel ..." (full text in `tools.ts`)
 - `silence`: "Fade the sound to silence."
