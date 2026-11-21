@@ -319,6 +319,23 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b).not.toHaveProperty("reactions");
   });
 
+  it("returns what the listener heard in every mode, apart from the reactions, once", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick()); // Self
+    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'heard_tense', now()), ('${session_id}', '${A}', 'calmer', now())`);
+    const peek = await svc.getFeedback(dbA, A, { session_id }, tick());
+    expect(peek.heard).toEqual([expect.stringMatching(/^tense x2, /)]);
+    expect(peek).not.toHaveProperty("reactions");
+    const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick());
+    expect(a.heard).toEqual([expect.stringMatching(/^tense x2, /)]);
+    expect(a).not.toHaveProperty("reactions");
+    expect(await svc.setSound(dbA, A, { session_id, final: true } as never, tick())).not.toHaveProperty("heard");
+    const ext = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${ext.session_id}', '${A}', 'heard_reproach', now()), ('${ext.session_id}', '${A}', 'softer', now())`);
+    const b = await svc.setSound(dbA, A, { session_id: ext.session_id, final: true } as never, tick());
+    expect(b.heard).toEqual([expect.stringMatching(/^reproach, /)]);
+    expect(b.reactions).toEqual([expect.stringMatching(/^softer, /)]);
+  });
+
   it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'stormier', now())`);

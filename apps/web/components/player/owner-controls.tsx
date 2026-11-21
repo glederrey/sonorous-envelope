@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../lib/mcp/modes";
-import { REACTION_KINDS, REACTION_LABELS, type ReactionKind } from "@sonorous/shared";
+import { HEARD_KINDS, HEARD_LABELS, REACTION_KINDS, REACTION_LABELS, isHeard, type HeardKind, type ReactionKind } from "@sonorous/shared";
+
+type Said = ReactionKind | HeardKind;
+const LABEL: Record<Said, string> = { ...REACTION_LABELS, ...HEARD_LABELS };
 
 const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null }> = [
   { value: "300", label: "5 minutes", seconds: 300 }, { value: "900", label: "15 minutes", seconds: 900 },
@@ -49,14 +52,14 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
 export function OwnerControls({ supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays }: { supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
   const [rest, setRest] = useState("900");
-  const [pending, setPending] = useState<Array<{ kind: ReactionKind }>>([]);
+  const [pending, setPending] = useState<Array<{ kind: Said }>>([]);
   const [error, setError] = useState("");
   const [allowCode, setAllowCode] = useState(true);
 
   const loadPending = useCallback(async () => {
     const { data } = await supabase.from("reactions").select("kind").eq("session_id", sessionId).is("delivered_at", null)
-      .in("kind", REACTION_KINDS as unknown as string[]);
-    if (data) setPending(data as Array<{ kind: ReactionKind }>);
+      .in("kind", [...REACTION_KINDS, ...HEARD_KINDS] as string[]);
+    if (data) setPending(data as Array<{ kind: Said }>);
   }, [supabase, sessionId]);
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     if (e) { setAllowCode(!value); setError("Could not change that. Try again."); } else onChanged();
   };
 
-  const react = async (kind: ReactionKind) => {
+  const react = async (kind: Said) => {
     setError("");
     setPending((p) => [...p, { kind }]); // shown at once; every press counts, none is swallowed
     const { error: e } = await supabase.from("reactions").insert({ session_id: sessionId, user_id: owner.id, kind });
@@ -105,9 +108,10 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     if (e) setError("Could not save that. Try again."); else setOwner({ ...owner, raw });
   };
 
-  const counts = new Map<ReactionKind, number>();
+  const counts = new Map<Said, number>();
   for (const p of pending) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
-  const waiting = [...counts].map(([k, n]) => `${REACTION_LABELS[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
+  const waitingOf = (heard: boolean) => [...counts].filter(([k]) => isHeard(k) === heard).map(([k, n]) => `${LABEL[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
+  const waiting = waitingOf(false), heardWaiting = waitingOf(true);
   return (
     <>
       <div className="pl-owner se-sm">
@@ -138,6 +142,19 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           {error && <p role="alert">{error}</p>}
         </details>
       )}
+      <details className="pl-set se-sm">
+        <summary>What I heard</summary>
+        <p className="pl-local" style={{ marginTop: 10 }}>Tell the model how the sound reads to you. In every mode; it does not steer the sound.</p>
+        <div className="pl-reactions" role="group" aria-label="What you heard, told to the model">
+          {HEARD_KINDS.map((k) => (
+            <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{HEARD_LABELS[k]}</button>
+          ))}
+        </div>
+        <p className="pl-local" aria-live="polite">
+          {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
+        </p>
+        {error && <p role="alert">{error}</p>}
+      </details>
       {!listener && (
         <details className="pl-set se-sm">
           <summary>Settings</summary>

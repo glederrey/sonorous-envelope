@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -97,20 +97,26 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
 }
 
 /** Reactions the owner pressed that the model has not been told about. `claim` marks them delivered (set_sound); get_feedback only looks. */
-/** Reactions steer the sound, and nobody steers Self: there they are claimed and dropped (never shown, and they do not surface after a
- *  later switch). The player shows the buttons only in the listener modes; this also covers a row written straight through the API. */
-async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: number, face: Face): Promise<string[]> {
+/** What the owner pressed since the last call, split in two. `reactions` steer the sound, and nobody steers Self: there they are claimed
+ *  and dropped (never shown, and they do not surface after a later switch). The player shows those buttons only in the listener modes;
+ *  this also covers a row written straight through the API. `heard` ("What I heard", #129) is how the sound read to the listener: it
+ *  never steers, so it comes back in every mode, Self included. */
+async function reactionsFor(db: Db, sessionId: string, claim: boolean, now: number, face: Face): Promise<{ reactions: string[]; heard: string[] }> {
+  let rows: Array<{ kind: string; created_at: string }>;
   if (claim) {
     const { data, error } = await db.rpc("claim_reactions", { p_session: sessionId });
-    if (error) { console.error("claim_reactions failed:", error.message); return []; } // never break a call over a reaction
-    if (!forListener(face)) return [];
-    return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
+    if (error) { console.error("claim_reactions failed:", error.message); return { reactions: [], heard: [] }; } // never break a call over a reaction
+    rows = (data ?? []) as typeof rows;
+  } else {
+    const { data, error } = await db.from("reactions").select("kind,created_at").eq("session_id", sessionId).is("delivered_at", null)
+      .order("created_at", { ascending: false }).limit(50);
+    if (error) return { reactions: [], heard: [] };
+    rows = (data ?? []) as typeof rows;
   }
-  if (!forListener(face)) return [];
-  const { data, error } = await db.from("reactions").select("kind,created_at").eq("session_id", sessionId).is("delivered_at", null)
-    .order("created_at", { ascending: false }).limit(50);
-  if (error) return [];
-  return describeReactions((data ?? []) as Array<{ kind: string; created_at: string }>, now);
+  return {
+    reactions: forListener(face) ? describeReactions(rows.filter((r) => !isHeard(r.kind)), now) : [],
+    heard: describeReactions(rows.filter((r) => isHeard(r.kind)), now),
+  };
 }
 
 /** The fade is the owner's setting (shared with Claude): tell the model when a call arrives after it happened. */
@@ -218,12 +224,12 @@ async function insertState(
   return data.id as string;
 }
 
-function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, reactions: string[] = [], mode?: string) {
+function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, said: { reactions: string[]; heard: string[] } = { reactions: [], heard: [] }, mode?: string) {
   // states written before the analysis existed have none: measure them now (the engine is deterministic)
   const analysis = state.effective.engine === "strudel" ? null : state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
     turn: state.turn, intent: state.intent.mood ?? NEUTRAL_MOOD, effective: state.effective, clamps: state.clamps ?? [],
-    players: p.players, controls: p.controls, notes, resting, analysis, reactions, mode,
+    players: p.players, controls: p.controls, notes, resting, analysis, ...said, mode,
   });
 }
 
@@ -411,10 +417,10 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const rest = restInfo(prev, settings, now, faceNow);
   const notes = [note, sw.note, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
-  const reactions = await reactionsFor(db, session.id, true, now, sw.face);
+  const said = await reactionsFor(db, session.id, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
   if (g.note) notes.push(g.note);
-  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, reactions, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, ...said, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
 }
 
 /** Reads what the owner's player said about the Strudel code of a state (pattern_reports), in the words the model gets. */
@@ -506,10 +512,10 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
-  const reactions = await reactionsFor(db, session.id, true, now, face);
+  const said = await reactionsFor(db, session.id, true, now, face);
   const g = await guide(db, session, face, switched);
   if (g.note) notes.push(g.note);
-  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, reactions, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
+  return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes, ...said, mode: faceLine(face, parsePolicy(session.mode_policy)), ...(pattern ? { pattern } : {}) }), g);
 }
 
 /** Strudel on or off. Only this tool changes the engine; it needs a listener mode (external or sandbox) and the owner's permission. */
@@ -569,12 +575,12 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   if (before) notes.push(input.on ? (sameCode ? "pattern is the player's report on this code" : "pattern is the player's report on the code you replaced; the new code's report comes with get_feedback") : "pattern is the player's report on the code you just stopped, not on the synth");
   const all = [...notes, turn.missedFinal ? "no final update last turn" : "", ...rest.notes].filter(Boolean);
   const analysis = input.on || effective.volume <= 0.001 ? null : measureState(effective, ANALYSIS_SEED); // a silence has nothing to read, as with silence
-  const reactions = await reactionsFor(db, session.id, true, now, face);
+  const said = await reactionsFor(db, session.id, true, now, face);
   const g = await guide(db, session, face, false);
   if (g.note) all.push(g.note);
   return withGuidance(buildFeedback({
     turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps, players: p.players, controls: p.controls, notes: all, resting: rest.resting,
-    reactions, analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
+    ...said, analysis, mode: faceLine(face, policy), ...(before ? { pattern: before } : {}),
   }), g);
 }
 
