@@ -1,6 +1,7 @@
 -- Notes to the developers (tool `tell_developers`): a model, or a user through it, tells the people who build Sonorous Envelope what
 -- to fix or keep. Anonymous by design: a note carries no user, session or exact time (the hour only), and the per-user daily count
--- lives in a separate table that holds no text, so a note cannot be traced back to an account.
+-- lives in a separate table that holds no text. Honest limit: with few users, a note's hour and the quota's (user, day) row can be
+-- matched by date; only the service role can read either table, and quota rows older than 2 days are deleted.
 -- Guardrails: neither table is readable or writable by anon or authenticated (RLS on, no policies, no grants). The only way in is
 -- send_dev_feedback, a security definer function that only inserts, takes typed parameters (no SQL is built from the text), checks
 -- every field, strips control characters and enforces 5 notes per user per day and 200 per day overall. Developers read the rows

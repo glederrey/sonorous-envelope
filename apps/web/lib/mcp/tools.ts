@@ -93,7 +93,7 @@ export function registerTools(server: McpServer) {
     inputSchema: z.object({
       session_id: z.string().optional(),
       kind: z.enum(["bug", "idea", "confusion", "worked"]),
-      text: z.string().min(80).max(1000).describe("specific: what happened, what you expected, what would help"),
+      text: z.string().max(1000).describe("80 to 1000 characters, specific: what happened, what you expected, what would help"),
       from: z.enum(["model", "user"]).default("model").describe("user: the user asked you to pass this on, in their words or yours"),
     }),
   }, (args, ctx) => run(ctx as Ctx, (c) => tellDevelopers(c.db, c.userId, args)));

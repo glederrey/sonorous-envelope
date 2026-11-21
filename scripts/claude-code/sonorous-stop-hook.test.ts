@@ -40,6 +40,12 @@ describe("Sonorous Stop hook", () => {
     expect(decide([user("hi"), call("start_session"), result(), say()])).toMatch(/no final sound/);
   });
 
+  it("counts a final moment recall as the final sound, and ignores keep and list", () => {
+    expect(decide([user("hi"), call("set_sound", { final: true }), result(), user("back"), call("moment", { action: "recall", name: "a", final: true }), result(), say()])).toBeNull();
+    expect(decide([user("hi"), call("set_sound", { final: true }), result(), call("moment", { action: "keep", name: "a" }), result(), say()])).toBeNull();
+    expect(decide([user("hi"), call("set_sound", { final: true }), result(), user("more"), call("moment", { action: "list" }), result(), say()])).toMatch(/no final sound/);
+  });
+
   it("stays quiet after silence, and never blocks twice", () => {
     expect(decide([user("hi"), call("set_sound", { final: true }), result(), user("stop"), call("silence", { final: true }), result(), say(), user("thanks"), say()])).toBeNull();
     expect(decide([user("hi"), call("set_sound", { final: false }), result(), say()], true)).toBeNull();

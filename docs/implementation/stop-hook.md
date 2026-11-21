@@ -10,7 +10,7 @@ The server instructions ask the model to end every message with one `set_sound` 
 |---|---|
 | No Sonorous call in the conversation | stop |
 | The last Sonorous call is `silence` (quiet by request, or the session ended) | stop |
-| This turn ends with `set_sound` or `strudel_mode` with `final: true` | stop |
+| This turn ends with `set_sound`, `strudel_mode` or `moment` recall with `final: true` (`moment` keep and list change no sound and are ignored) | stop |
 | This turn's last sound call is not final | block: "your last sound call this turn was not final..." |
 | A session is open and this turn has no sound call (or only `start_session`) | block: "a sound session is open and this message has no final sound..." |
 | `stop_hook_active` is true (it already blocked once this turn) | stop |
