@@ -863,7 +863,7 @@ async function inspectSnapshot(db: Db, userId: string, input: { session_id?: str
   return {
     __image: { mime: m[1], base64: m[2] },
     of: row.state_id === session.current_state_id ? "the current sound"
-      : age > 45 ? `an earlier sound, ${age} s old: the owner's player takes pictures only while it is visible on their screen (not in a background tab). Ask them to look at the player, then ask again about 10 s later`
+      : age > 45 ? `an earlier sound, ${age} s old: the owner's player takes pictures only while it is on their screen (not minimized and not in a background tab). Ask them to look at the player, then ask again about 10 s later`
       : "an earlier sound: the current one is newer, ask again in about 10 s",
     age_s: age,
     measured: row.measured,

@@ -422,7 +422,14 @@ describe("analysis", () => {
     const eff = state({ joy: 0.1, calm: 0.2 });
     const an = analyze(eff, 3);
     const fb = buildFeedback({ turn: 1, intent: { ...neutral, joy: 1 }, effective: eff, clamps: [], players: 1, analysis: an }) as { reads_why?: Record<string, string> };
-    expect(fb.reads_why?.joy).toMatch(/^held down by \w+(, \w+)?$/);
+    expect(fb.reads_why?.joy).toMatch(/^held down by \w+(, \w+)?(: .*)?$/);
+    // when the scale is what holds joy down, the reading says how to move it (a higher joy number cannot)
+    const byMode = buildFeedback({ turn: 1, intent: { ...neutral, joy: 0.85 }, effective: eff, clamps: [], players: 1,
+      analysis: { ...an, reads_as: { ...an.reads_as, joy: 0.4 }, why: { ...an.why, joy: { low: "mode, smoothness", high: "tempo" } } } }) as { reads_why?: Record<string, string> };
+    expect(byMode.reads_why?.joy).toMatch(/^held down by mode, smoothness: your voice's scale sets joy.*brighter scale/);
+    const byTempo = buildFeedback({ turn: 1, intent: { ...neutral, joy: 0.85 }, effective: eff, clamps: [], players: 1,
+      analysis: { ...an, reads_as: { ...an.reads_as, joy: 0.4 }, why: { ...an.why, joy: { low: "tempo", high: "mode" } } } }) as { reads_why?: Record<string, string> };
+    expect(byTempo.reads_why?.joy).toBe("held down by tempo");
     const close = buildFeedback({ turn: 1, intent: { ...neutral, joy: an.reads_as.joy, calm: an.reads_as.calm, warmth: an.reads_as.warmth, closeness: an.reads_as.closeness, spontaneity: an.reads_as.spontaneity },
       effective: eff, clamps: [], players: 1, analysis: an });
     expect(close).not.toHaveProperty("reads_why");

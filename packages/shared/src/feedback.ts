@@ -77,6 +77,8 @@ export function buildFeedback(i: FeedbackInput) {
       const sent = (i.intent as Record<string, number>)[axis], w = i.analysis.why?.[axis];
       if (sent === undefined || !w || Math.abs(read - sent) < 0.25) continue;
       why[axis] = read < sent ? `held down by ${w.low}` : `lifted by ${w.high}`;
+      // a kept voice's scale holds joy whatever the mood says (tester report v0.22.4: 0.7 and then 0.85 both read about 0.4): say what moves it
+      if (axis === "joy" && read < sent && /\bmode\b/.test(w.low)) why[axis] += ": your voice's scale sets joy, so a higher joy number cannot lift it; to raise it, send a voice with a brighter scale (major, lydian, mixolydian)";
     }
     if (Object.keys(why).length) out.reads_why = why;
   }
