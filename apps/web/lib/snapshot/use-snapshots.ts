@@ -9,6 +9,17 @@ import { composeSnapshot, toJpegDataUrl } from "./compose";
 import { SoundRecorder } from "./sound-recorder";
 
 const SAMPLE_MS = 100;
+
+/** True when a canvas holds nothing yet (every pixel of a 16×9 reduction is transparent). */
+function isBlank(c: HTMLCanvasElement): boolean {
+  if (!c.width || !c.height) return true;
+  const t = document.createElement("canvas"); t.width = 16; t.height = 9;
+  const x = t.getContext("2d"); if (!x) return false;
+  x.drawImage(c, 0, 0, 16, 9);
+  const d = x.getImageData(0, 0, 16, 9).data;
+  for (let i = 3; i < d.length; i += 4) if (d[i] > 8) return false;
+  return true;
+}
 const REFRESH_MS = 30_000;
 const MAX_IMAGE_CHARS = 340_000; // put_snapshot refuses more than 350000
 
@@ -97,6 +108,15 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
         const p = l.playing, c = p.state.colour;
         const base = isSounding(p.state) ? `hsl(${((c.h % 360) + 360) % 360}deg ${c.s * 100}% ${c.l * 100}%)` : "#000";
         const f = field.current;
+        // The scenes canvas scales its resolution while the page settles, and a resize wipes it until the next frame is drawn: wait
+        // for a painted frame, and give a blank scene a few more frames (a scene that is truly empty is captured as it is).
+        const motion = f?.querySelector<HTMLCanvasElement>(".pl-motion") ?? null;
+        for (let i = 0; i < 6; i++) {
+          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+          if (!motion || !l.playing.state.colour.scene || l.playing.state.colour.scene === "none" || !isBlank(motion)) break;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+        if (cancelled) return;
         const canvas = composeSnapshot({
           base,
           layers: [f?.querySelector<HTMLCanvasElement>(".pl-motion") ?? null, l.strudelDrawn ? f?.querySelector<HTMLCanvasElement>(".pl-strudel-cv") ?? null : null],
@@ -121,4 +141,5 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     timer = setTimeout(() => void run(), Math.min(14, Math.max(8, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [isOwner, started, stateId, sessionId, supabase]);
+  return { isOwner }; // the player also uses it to say "Your AI" to the owner
 }

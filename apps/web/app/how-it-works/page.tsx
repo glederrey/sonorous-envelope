@@ -23,20 +23,20 @@ const know = [
   { title: "One session per conversation.", text: "Turn the connector on at the start of a conversation. After a week without sound the session ends." },
   { title: "The model is not there between messages.", text: `In ${SELF} the sound fades to silence after 15 minutes without an update, by default; the owner can change that under Settings. In ${ATTUNED} and ${JUKEBOX} it keeps playing.` },
   { title: "Share the link.", text: "Anyone with the player link can listen, with no account. Only you, the owner, can lock a mode, press reactions, tell the model what you heard, switch Live tuning, allow Strudel, decide whether the AI may see the picture, or end the session." },
-  { title: "The AI can see a picture.", text: "Your player takes a picture 8 to 14 s after each new sound, then every 30 s, while the page is open, playing and visible. It shows the screen and, below it, a spectrogram of the last 8 s of the player's sound output, with a few measured numbers. It does not use your microphone or camera. It is on by default; you can turn it off under Settings (\"Let the AI see the picture\"). \"What the AI saw\" shows you the exact image it was given and when." },
+  { title: "The AI can see a picture.", text: "Your player takes a picture 8 to 14 s after each new sound, then every 30 s, while the page is open, playing and visible. It shows the screen and, below it, a spectrogram of the last 8 s of the player's sound output, with a few measured numbers. It does not use your microphone or camera. It is on by default; you can turn it off under Settings (\"Let the AI see the picture\"). \"What the AI can see\" shows you the exact image it was given and when." },
   { title: "Live tuning.", text: `In ${ATTUNED} and ${JUKEBOX}, the owner can switch on Live tuning under \"Guide the sound\". The model then waits for your button presses at the end of its message and answers each at once. Press stop in the chat to end the wait; no press is lost.` },
 ];
 
 const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
-  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message. It can also send a motif: a short phrase of a few notes, played once over its sound a few seconds later, on a bar, in its voice. The model can name it and quote its first notes later." },
+  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message. It can add a motif, a short phrase of its own, and quote it again later." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
-  { name: "listen", text: `Waits for your button presses, in ${ATTUNED} and ${JUKEBOX}, so the model can answer at once (Live tuning). Only as the last call of a message. It waits up to 20 s by default, 45 s at most, and returns as soon as you press a button.` },
+  { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the model can answer them at once.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
-  { name: "moment", text: "Keeps the sound and picture playing now under a name (keep), brings it back later (recall), or lists them (list), the way a theme returns. Up to 12 per session. The list also shows named motifs." },
+  { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
-  { name: "inspect", text: "A closer look. History: the last 8 states. Snapshot: the picture and sound your player shows, as an image with numbers measured from its output." },
-  { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. No name, account or conversation goes with it. 80 to 1000 characters; 3 a day per person and 50 a day overall; the same note within a week is refused." },
+  { name: "inspect", text: "A closer look: the last few states, or a snapshot of what your player shows and plays." },
+  { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. At most 3 a day." },
 ];
 
 export default function HowItWorksPage() {
