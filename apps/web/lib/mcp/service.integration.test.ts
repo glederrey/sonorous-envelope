@@ -577,7 +577,9 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(r.measured).toEqual(measured);
       expect(r.listener_volume).toBeCloseTo(0.6);
       await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
-      expect((await svc.inspect(dbA, A, { session_id, what: "snapshot" }) as { of: string }).of).toMatch(/^an earlier sound/);
+      expect((await svc.inspect(dbA, A, { session_id, what: "snapshot" }) as { of: string }).of).toMatch(/^an earlier sound: the current one is newer/);
+      // a picture that is old as well: the player is probably hidden, and the model is told so
+      expect((await svc.inspect(dbA, A, { session_id, what: "snapshot" }, Date.now() + 120_000) as { of: string }).of).toMatch(/visible on their screen/);
     });
 
     it("marks the snapshot seen with a copy of the image, and only the owner can", async () => {

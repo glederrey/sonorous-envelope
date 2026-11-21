@@ -10,7 +10,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], v
 
 const TITLE = "Sonorous Envelope: let the model hum while it thinks";
 const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
-const DESCRIPTION = `A free MCP server that gives your AI model a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`;
+const DESCRIPTION = `A free MCP server that gives your AI a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

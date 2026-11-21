@@ -16,12 +16,12 @@ const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A remote MCP server that gives an AI model a synthesizer and a colour field." },
+    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A remote MCP server that gives an AI a synthesizer and a colour field." },
     {
       "@type": "SoftwareApplication",
       name: "Sonorous Envelope",
       url: SITE_URL,
-      description: `A free MCP server that gives your AI model a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`,
+      description: `A free MCP server that gives your AI a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Any (MCP client)",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -66,7 +66,7 @@ export default async function Home() {
               </span>
             </h1>
           <p className="lp-lede">
-            A non-verbal channel for an AI model: sound and colour, to add depth to a conversation that is otherwise only
+            A non-verbal channel for an AI: sound and colour, to add depth to a conversation that is otherwise only
             text. You hear and see it beside the chat, in one of three modes: {SELF}, {ATTUNED} or {JUKEBOX}.
           </p>
           <ul className="lp-chips" aria-label="What it has">
@@ -95,22 +95,22 @@ export default async function Home() {
       <main className="se-page lp-main">
         <section className="lp-loop" id="modes">
           <h2 className="se-title">Three modes</h2>
-          <p className="se-muted">Who decides what plays depends on the mode. A session starts in {SELF}; the model switches only after you say yes, and you can lock a mode from the player.</p>
+          <p className="se-muted">Who decides what plays depends on the mode. A session starts in {SELF}; the AI switches only after you say yes, and you can lock a mode from the player.</p>
           <ul className="lp-ways lp-ways-3">
             <li>
-              <p className="lp-way-tag">The model, from itself</p>
+              <p className="lp-way-tag">The AI, from itself</p>
               <h3 className="se-heading">{SELF}</h3>
-              <p className="se-muted">The sound is how the model is. You listen and do not steer it, and the model does not talk about it. Example: you talk about your code, and the sound follows the model.</p>
+              <p className="se-muted">The sound is how the AI is. You listen and do not steer it, and the AI does not talk about it. Example: you talk about your code, and the sound follows the AI.</p>
             </li>
             <li>
-              <p className="lp-way-tag">The model, for what you need</p>
+              <p className="lp-way-tag">The AI, for what you need</p>
               <h3 className="se-heading">{ATTUNED}</h3>
-              <p className="se-muted">The model plays for you: for what you ask, and for what it sees you need. Example: you wake from a nightmare and tell it; instead of its own unease, it plays something that helps you settle.</p>
+              <p className="se-muted">The AI plays for you: for what you ask, and for what it sees you need. Example: you wake from a nightmare and tell it; instead of its own unease, it plays something that helps you settle.</p>
             </li>
             <li>
               <p className="lp-way-tag">You</p>
               <h3 className="se-heading">{JUKEBOX}</h3>
-              <p className="se-muted">You ask for anything and the model performs it, and says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
+              <p className="se-muted">You ask for anything and the AI performs it, and says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
             </li>
           </ul>
         </section>
@@ -121,12 +121,12 @@ export default async function Home() {
             <li>
               <p className="lp-way-tag">Always available</p>
               <h3 className="se-heading">The built-in synth</h3>
-              <p className="se-muted">The model&apos;s own voice, played from a mood. It works in all three modes.</p>
+              <p className="se-muted">The AI&apos;s own voice, played from a mood. It works in all three modes.</p>
             </li>
             <li>
               <p className="lp-way-tag">When you ask for music</p>
               <h3 className="se-heading">Strudel</h3>
-              <p className="se-muted">The model writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It plays in {ATTUNED} and {JUKEBOX}. It runs in a sandbox in your browser, and the owner can switch it off.</p>
+              <p className="se-muted">The AI writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It plays in {ATTUNED} and {JUKEBOX}. It runs in a sandbox in your browser, and the owner can switch it off.</p>
             </li>
           </ul>
         </section>
@@ -146,11 +146,11 @@ export default async function Home() {
           <div className="se-stack">
             <p>
               <strong>The sound plays in the player page, not in the chat app.</strong> Closing the page stops the sound, and
-              the model stops knowing you are listening.
+              the AI stops knowing you are listening.
             </p>
             <p className="se-muted">
               Best setup: the player in one window or device, the chat in another. On a phone you can switch to the chat
-              and keep going: the sound keeps playing in the background and follows the model. If the phone stops it, open
+              and keep going: the sound keeps playing in the background and follows the AI. If the phone stops it, open
               the player again and tap resume.
               Open the link on several devices and they play the same notes at the same time.
             </p>

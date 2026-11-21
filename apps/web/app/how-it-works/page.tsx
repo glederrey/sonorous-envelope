@@ -21,17 +21,17 @@ const say = [
 const know = [
   { title: "Keep the player open.", text: "The sound plays in the player page, not in the chat app. Closing it stops the sound. On a phone it keeps playing when you switch to the chat." },
   { title: "One session per conversation.", text: "Turn the connector on at the start of a conversation. After a week without sound the session ends." },
-  { title: "The model is not there between messages.", text: `In ${SELF} the sound fades to silence after 15 minutes without an update, by default; the owner can change that under Settings. In ${ATTUNED} and ${JUKEBOX} it keeps playing.` },
-  { title: "Share the link.", text: "Anyone with the player link can listen, with no account. Only you, the owner, can lock a mode, press reactions, tell the model what you heard, switch Live tuning, allow Strudel, decide whether the AI may see the picture, or end the session." },
-  { title: "The AI can see a picture.", text: "Your player takes a picture 8 to 14 s after each new sound, then every 30 s, while the page is open, playing and visible. It shows the screen and, below it, a spectrogram of the last 8 s of the player's sound output, with a few measured numbers. It does not use your microphone or camera. It is on by default; you can turn it off under Settings (\"Let the AI see the picture\"). \"What the AI can see\" shows you the exact image it was given and when." },
-  { title: "Live tuning.", text: `In ${ATTUNED} and ${JUKEBOX}, the owner can switch on Live tuning under \"Guide the sound\". The model then waits for your button presses at the end of its message and answers each at once. Press stop in the chat to end the wait; no press is lost.` },
+  { title: "The AI is not there between messages.", text: `In ${SELF} the sound fades to silence after 15 minutes without an update, by default; the owner can change that in the player, under the mode. In ${ATTUNED} and ${JUKEBOX} it keeps playing.` },
+  { title: "Share the link.", text: "Anyone with the player link can listen, with no account. Only you, the owner, can lock a mode, press reactions, tell the AI what you heard, switch Live tuning, allow Strudel, decide whether the AI may see the picture, or end the session." },
+  { title: "The AI can see a picture.", text: "Your player takes a picture 8 to 14 s after each new sound, then every 30 s, while the page is open, playing and visible. It shows the screen and, below it, a spectrogram of the last 10 s of the player's sound output, with a few measured numbers. It does not use your microphone or camera. It is on by default; you can turn it off in the player (\"Let the AI see the picture\", under \"Feedback to the AI\"). \"What the AI can see\" shows you the exact image it was given and when." },
+  { title: "Live tuning.", text: `In ${ATTUNED} and ${JUKEBOX}, the owner can switch on Live tuning under \"Feedback to the AI\". The AI then waits for your button presses at the end of its message and answers each at once. Press stop in the chat to end the wait; no press is lost.` },
 ];
 
 const tools = [
   { name: "start_session", text: "Opens a session and gives you the player link." },
-  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the model writes and at the end of each message. It can add a motif, a short phrase of its own, and quote it again later." },
+  { name: "set_sound", text: "Sets the sound and the colour from a mood, while the AI writes and at the end of each message. It can add a motif, a short phrase of its own, and quote it again later." },
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
-  { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the model can answer them at once.` },
+  { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the AI can answer them at once.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
   { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
@@ -46,7 +46,7 @@ export default function HowItWorksPage() {
       <main className="doc-page">
         <div className="doc-head hw-head">
           <h1 className="doc-title">How it works</h1>
-          <p>Once the connector is <a href="/add">added</a>, the model uses it by itself. You just talk in plain words.</p>
+          <p>Once the connector is <a href="/add">added</a>, the AI uses it by itself. You just talk in plain words.</p>
         </div>
 
         <section className="gd-section" aria-labelledby="hw-say">
@@ -75,13 +75,13 @@ export default function HowItWorksPage() {
           <div className="gd-cards">
             <article className="gd-card">
               <h3 className="se-heading">The built-in synth</h3>
-              <p>The model&apos;s own voice, played from a mood, with a colour field and 30 scenes. It works in every mode.</p>
+              <p>The AI&apos;s own voice, played from a mood, with a colour field and 30 scenes. It works in every mode.</p>
             </article>
             <article className="gd-card" id="strudel">
               <h3 className="se-heading">Strudel</h3>
               <p>
                 Live-coded music, as on <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">strudel.cc</a>, in{" "}
-                {ATTUNED} and {JUKEBOX}. The model writes the code, your browser plays it in a sandbox, and you can copy it. The
+                {ATTUNED} and {JUKEBOX}. The AI writes the code, your browser plays it in a sandbox, and you can copy it. The
                 model cannot hear it, but if the owner allows it, it can see a picture of the output, Strudel included.
               </p>
               <p className="se-sm se-muted">

@@ -1,13 +1,17 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Face, Policy } from "../../lib/mcp/modes";
 import { OwnerControls, StrudelToggles } from "./owner-controls";
-import { StrudelPanel } from "./strudel-panel";
 
 /** The middle of the controls: the owner's block (mode, Allow Strudel, Strudel visuals, reactions, settings), or for a listener the
  *  Strudel visuals button while a pattern plays, and under either the Strudel code panel. Shared by the player and /dev/controls. */
-export function ControlsMiddle({ supabase, sessionId, signedIn, face, policy, onChanged, pattern, patternPlays, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, listeningUntil, clockOffset }: {
+export function ControlsMiddle({ picture, stateAt, supabase, sessionId, signedIn, face, policy, onChanged, pattern, patternPlays, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, listeningUntil, clockOffset }: {
+  /** the Gradient/Scenes toggles, shown in the "Visuals" section */
+  picture?: ReactNode;
+  /** when the sound playing now was written (the owner's pending presses are read again then) */
+  stateAt?: number;
   supabase: SupabaseClient; sessionId: string; signedIn: boolean; face: Face; policy: Policy; onChanged: () => void;
   /** the code that plays now, when Strudel does */
   pattern: { code: string; bpm: number } | null;
@@ -17,9 +21,8 @@ export function ControlsMiddle({ supabase, sessionId, signedIn, face, policy, on
   /** live tuning: see OwnerControls */
   listeningUntil?: number | null; clockOffset?: number;
 }) {
-  const code = pattern ? <StrudelPanel code={pattern.code} bpm={pattern.bpm} /> : null;
-  // the code sits right under the Mode block for the owner, and on its own for a listener
+  void pattern; // the code playing is shown in the info card (`extra`), with what the model set and what the AI can see
   return signedIn
-    ? <OwnerControls supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={onChanged} afterFace={code} strudelVisuals={strudelVisuals} onStrudelVisuals={onStrudelVisuals} strudelCode={strudelCode} onStrudelCode={onStrudelCode} patternPlays={patternPlays} listeningUntil={listeningUntil} clockOffset={clockOffset} />
-    : <>{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}{code}</>;
+    ? <OwnerControls picture={picture} stateAt={stateAt} supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={onChanged} strudelVisuals={strudelVisuals} onStrudelVisuals={onStrudelVisuals} strudelCode={strudelCode} onStrudelCode={onStrudelCode} patternPlays={patternPlays} listeningUntil={listeningUntil} clockOffset={clockOffset} />
+    : <details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details>;
 }

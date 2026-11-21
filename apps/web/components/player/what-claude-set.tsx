@@ -20,7 +20,7 @@ export function WhatClaudeSet({ supabase, sessionId, stateAt }: { supabase: Supa
   const d = describeSet(row);
   return (
     <details className="pl-set se-sm">
-      <summary>What the model set</summary>
+      <summary>What the AI set</summary>
       <dl>
         <dt>Mood sent</dt>
         <dd>{d.mood.map((m) => `${m.axis} ${m.value}`).join(" · ")}</dd>

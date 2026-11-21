@@ -9,6 +9,7 @@ import { composeSnapshot, toJpegDataUrl } from "./compose";
 import { SoundRecorder } from "./sound-recorder";
 
 const SAMPLE_MS = 100;
+const SPECTRO_S = 10; // the spectrogram and the numbers cover the last 10 s of output (Gael, v0.22.1; 8 s before)
 
 /** True when a canvas holds nothing yet (every pixel of a 16×9 reduction is transparent). */
 function isBlank(c: HTMLCanvasElement): boolean {
@@ -21,6 +22,7 @@ function isBlank(c: HTMLCanvasElement): boolean {
   return true;
 }
 const REFRESH_MS = 30_000;
+const BACK_MS = 6_000; // after the page becomes visible again: a few seconds of sound recorded, the picture drawn again
 const MAX_IMAGE_CHARS = 340_000; // put_snapshot refuses more than 350000
 
 /** What the player is showing and playing, as far as a snapshot needs it. */
@@ -33,7 +35,7 @@ export interface SnapshotSource {
 /**
  * The owner's player keeps the picture and the sound it produces for the model's `inspect("snapshot")`: it listens to a tap on
  * its own output every 100 ms, and shortly after each new state (and every 30 s after that) it saves one small JPEG (the picture
- * on top, a spectrogram of the last ~8 s below) with the numbers measured from that sound. Only while this browser is the
+ * on top, a spectrogram of the last ~10 s below) with the numbers measured from that sound. Only while this browser is the
  * session owner's, the audio runs, the page is visible and the owner has not turned picture feedback off. One capture at a time.
  */
 export function useSnapshots({ supabase, sessionId, signedIn, started, playing, audio, settings, field, controls, strudelPlays, strudelDrawn, debug }: {
@@ -82,7 +84,7 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
   const recorderFor = () => {
     const tap = audio.current?.tap;
     if (!tap) return null;
-    if (recorder.current?.tap !== tap) recorder.current = { tap, rec: new SoundRecorder(tap, { everyMs: SAMPLE_MS }) };
+    if (recorder.current?.tap !== tap) recorder.current = { tap, rec: new SoundRecorder(tap, { everyMs: SAMPLE_MS, seconds: SPECTRO_S }) };
     return recorder.current.rec;
   };
 
@@ -140,7 +142,15 @@ export function useSnapshots({ supabase, sessionId, signedIn, started, playing, 
     const run = async () => { await capture(); if (!cancelled) timer = setTimeout(() => void run(), REFRESH_MS); };
     // after a new state: let its transition finish and the sound settle, once; then refresh while it stays
     timer = setTimeout(() => void run(), Math.min(14, Math.max(8, (live.current.playing?.state.transition.time ?? 0) + 3)) * 1000);
-    return () => { cancelled = true; clearTimeout(timer); };
+    // Pictures are taken only while this page is visible (a hidden page draws nothing). When it comes back (the owner was in the chat),
+    // take one a few seconds later rather than at the next 30 s tick, which they often missed (tester report v0.22.1, test 7).
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || cancelled) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void run(), BACK_MS);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [isOwner, started, stateId, sessionId, supabase]);
   return { isOwner }; // the player also uses it to say "Your AI" to the owner
 }

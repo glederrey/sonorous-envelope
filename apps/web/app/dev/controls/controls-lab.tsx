@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
+import { StrudelPanel } from "../../../components/player/strudel-panel";
 import { ControlsMiddle } from "../../../components/player/controls-middle";
 import { CopyLink } from "../../../components/copy-link";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../../lib/mcp/modes";
@@ -105,13 +106,13 @@ export function ControlsLab() {
             audioState="running" muted={muted} onResume={() => {}} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
             picture={{ gradientOn, visualsOn, onGradient: () => setGradientOn((v) => !v), onVisuals: () => setVisualsOn((v) => !v) }}
-            middle={<ControlsMiddle key={viewer}
+            middle={(picture) => <ControlsMiddle key={viewer} picture={picture}
               supabase={supabase} sessionId="demo" signedIn={viewer !== "guest"} face={face} policy={policy} onChanged={() => {}}
               pattern={playsPattern ? { code: CODE, bpm: 110 } : null}
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
               listeningUntil={listeningUntil}
             />}
-            extra={viewer !== "guest" ? <details className="pl-set se-sm"><summary>What the model set</summary></details> : null}
+            extra={<>{playsPattern && <StrudelPanel code={CODE} bpm={110} />}{viewer !== "guest" && <details className="pl-set se-sm"><summary>What the AI set</summary></details>}</>}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"
           />
         </div>

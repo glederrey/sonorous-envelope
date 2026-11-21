@@ -25,8 +25,8 @@ export function StrudelPanel({ code, bpm }: { code: string; bpm: number }) {
   };
   return (
     <details className="pl-set se-sm pl-code">
-      <summary>Strudel code</summary>
-      <pre className="pl-code-pre" tabIndex={0} aria-label="The model's Strudel code, read only">{code}</pre>
+      <summary>The code playing</summary>
+      <pre className="pl-code-pre" tabIndex={0} aria-label="The AI's Strudel code, read only">{code}</pre>
       <div className="pl-actions">
         <button type="button" className="se-btn" onClick={() => void copy()}><Copy size={16} aria-hidden /> {copied ? "Copied" : "Copy code"}</button>
         <a className="se-btn" href={strudelUrl(full)} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} aria-hidden /> Open in Strudel</a>
