@@ -81,7 +81,7 @@ export function WhatAiSaw({ supabase, sessionId }: { supabase: SupabaseClient; s
           <p style={{ margin: "10px 0 0" }}>Taken {ago(row.taken_at, now)} ago. The AI has not looked yet.</p>
         </>
       ) : row ? (
-        <p style={{ margin: "10px 0 0" }}>{row.off ? "Turned off under Settings." : "Nothing yet: the player takes a picture 8 to 14 s after each new sound, then every 30 s, while this page is open and playing."}</p>
+        <p style={{ margin: "10px 0 0" }}>{row.off ? "Turned off under Feedback to the AI." : "Nothing yet: the player takes a picture 8 to 14 s after each new sound, then every 30 s, while this page is open and playing."}</p>
       ) : null}
     </details>
   );

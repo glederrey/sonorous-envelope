@@ -14,6 +14,7 @@ import { isSounding } from "../../lib/sounding";
 import { unwrapHue } from "../../lib/hue";
 import { WhatClaudeSet } from "./what-claude-set";
 import { WhatAiSaw } from "./what-ai-saw";
+import { StrudelPanel } from "./strudel-panel";
 import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { ControlsMiddle } from "./controls-middle";
@@ -613,6 +614,8 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     ? <CopyLink path={`/s/${sessionId}`} label="Copy link" />
     : <><a className="se-btn" href="/add">Add to your AI</a><CopyLink path={`/s/${sessionId}`} label="Copy link" /></>;
 
+  /** the code that plays now, when Strudel does: shown in the info card */
+  const codeNow = playing?.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at ? playing.state.pattern : null;
   return (
     <div
       ref={fieldRef} className="pl-field" style={fieldStyle} onPointerDown={full ? nudgeExit : undefined} onPointerMove={full && !exitShown ? nudgeExit : undefined}
@@ -683,11 +686,11 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             } : null}
             middle={<ControlsMiddle
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
-              pattern={playing?.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
+              pattern={codeNow}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
               listeningUntil={listeningUntil} clockOffset={clockOffset.current}
             />}
-            extra={signedIn ? <><WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /><WhatAiSaw supabase={supabase} sessionId={sessionId} /></> : null}
+            extra={<>{codeNow && <StrudelPanel code={codeNow.code} bpm={codeNow.bpm} />}{signedIn && <><WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /><WhatAiSaw supabase={supabase} sessionId={sessionId} /></>}</>}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}
           />
         )}

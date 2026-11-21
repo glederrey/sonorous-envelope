@@ -170,14 +170,25 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           ))}
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
+        {!listener && (
+          <div className="pl-setting" style={{ marginTop: 12 }}>
+            <div>
+              <label htmlFor="pl-fade" className="pl-setting-name">Fade to silence after</label>
+              <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
+            </div>
+            <select id="pl-fade" value={rest} onChange={(e) => void setFade(e.target.value)}>
+              {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+        )}
       </div>
       <StrudelToggles allow={{ on: allowCode, set: (v) => void chooseCode(v) }} visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />
       <p className="pl-local se-sm">The model may play live code. Visuals show it instead of the scenes.</p>
-      {afterFace}
-      {listener && (
-        // Live tuning covers both blocks below (a press in either reaches the AI while it listens), so it sits above them, in the
-        // listener modes only: in Self the AI never waits for presses.
-        <div className="pl-live">
+      {/* Feedback to the AI: everything here reaches the AI. Live tuning covers both blocks below (a press in either reaches it while it
+          listens), in the listener modes only: in Self the AI never waits for presses. */}
+      <div className="pl-live">
+        <p className="pl-owner-title">Feedback to the AI</p>
+        {listener && <>
           <button type="button" className="se-btn pl-toggle" aria-pressed={live} onClick={() => void setLive(!live)}
             title="After each answer the AI waits about 20 s for your presses and answers each at once; every press gives it 20 s more. While it waits the chat shows it working: press stop to type at once.">
             <span className="pl-check" aria-hidden />Live tuning
@@ -189,8 +200,14 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
                 : "Live tuning is on: after its next answer, the AI waits for you to guide the sound or tell it what you heard.")
               : "Turn it on and the AI waits after each answer for you to guide the sound or tell it what you heard, and answers at once."}
           </p>
-        </div>
-      )}
+        </>}
+        <button type="button" className="se-btn pl-toggle" style={{ marginTop: listener ? 12 : 0 }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
+          title="The AI can ask for a small picture of this player and a spectrogram of its last 8 s of sound output. Nothing from your camera or microphone.">
+          <span className="pl-check" aria-hidden />Let the AI see the picture
+        </button>
+        <p className="pl-local" style={{ marginTop: 10 }}>The AI can ask for a small picture of this player and its last seconds of sound.</p>
+        {error && <p role="alert">{error}</p>}
+      </div>
       {listener && (
         <details className="pl-set se-sm">
           <summary>Guide the sound</summary>
@@ -220,27 +237,6 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
             {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
           </p>
         )}
-        {error && <p role="alert">{error}</p>}
-      </details>
-      <details className="pl-set se-sm">
-        <summary>Settings</summary>
-        {!listener && (
-          <div className="pl-setting">
-            <div>
-              <label htmlFor="pl-fade" className="pl-setting-name">Fade to silence after</label>
-              <p className="pl-local">With no update from the model for this long, the sound fades. The model can change it too.</p>
-            </div>
-            <select id="pl-fade" value={rest} onChange={(e) => void setFade(e.target.value)}>
-              {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="pl-toggles">
-          <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
-            title="The AI can ask for a small picture of this player and a spectrogram of its last 8 s of sound output. Nothing from your camera or microphone.">
-            <span className="pl-check" aria-hidden />Let the AI see the picture
-          </button>
-        </div>
         {error && <p role="alert">{error}</p>}
       </details>
     </>

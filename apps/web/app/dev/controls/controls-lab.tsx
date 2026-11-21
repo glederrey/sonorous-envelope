@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
+import { StrudelPanel } from "../../../components/player/strudel-panel";
 import { ControlsMiddle } from "../../../components/player/controls-middle";
 import { CopyLink } from "../../../components/copy-link";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../../lib/mcp/modes";
@@ -111,7 +112,7 @@ export function ControlsLab() {
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
               listeningUntil={listeningUntil}
             />}
-            extra={viewer !== "guest" ? <details className="pl-set se-sm"><summary>What the model set</summary></details> : null}
+            extra={<>{playsPattern && <StrudelPanel code={CODE} bpm={110} />}{viewer !== "guest" && <details className="pl-set se-sm"><summary>What the model set</summary></details>}</>}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"
           />
         </div>

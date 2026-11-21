@@ -1314,6 +1314,11 @@ html:has(.pl-field) .se-header {
 .pl-owner { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-owner p { margin: 0; }
 .pl-owner-title { color: var(--on-scrim); }
+/* What the AI is doing: information, not controls. One quiet inset card, muted text and hairlines between its rows, no button look. */
+.pl-info { display: grid; gap: 12px; padding: 12px 14px 14px; border-radius: 12px; border: 1px solid var(--scrim-line); background: color-mix(in srgb, var(--on-scrim) 4%, transparent); color: var(--on-scrim-muted); }
+.pl-info:not(:has(details)) { display: none; }
+.pl-info-title { margin: 0; color: var(--on-scrim-muted); font-size: 13px; letter-spacing: 0.02em; }
+.pl-info > .pl-set { padding-top: 12px; }
 .pl-reactions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 10px; }
 .pl-react { min-height: 44px; width: 100%; padding: 0 12px; font-size: 14px; }
 .pl-react:disabled { opacity: 0.6; }

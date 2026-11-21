@@ -99,7 +99,9 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
       )}
 
       {p.middle}
-      {p.extra}
+      {/* What the AI is doing: information, not controls (the code playing, what the model set, what the AI can see), in one quiet
+          card so it does not read as more buttons. Hidden when none of its blocks renders. */}
+      {p.extra && <section className="pl-info" aria-label="What the AI is doing"><p className="pl-info-title">What the AI is doing</p>{p.extra}</section>}
 
       <div className="pl-share se-sm">
         <p>{p.shareText}</p>
