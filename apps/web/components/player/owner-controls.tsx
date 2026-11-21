@@ -157,6 +157,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
   for (const p of pending) counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1);
   const waitingOf = (heard: boolean) => [...counts].filter(([k]) => isHeard(k) === heard).map(([k, n]) => `${LABEL[k].toLowerCase()}${n > 1 ? ` ×${n}` : ""}`).join(", ");
   const waiting = waitingOf(false), heardWaiting = waitingOf(true);
+  const sent = [waiting, heardWaiting].filter(Boolean).join(", ");
   return (
     <>
       <div className="pl-owner se-sm">
@@ -174,6 +175,23 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
       <p className="pl-local se-sm">The model may play live code. Visuals show it instead of the scenes.</p>
       {afterFace}
       {listener && (
+        // Live tuning covers both blocks below (a press in either reaches the AI while it listens), so it sits above them, in the
+        // listener modes only: in Self the AI never waits for presses.
+        <div className="pl-live">
+          <button type="button" className="se-btn pl-toggle" aria-pressed={live} onClick={() => void setLive(!live)}
+            title="After each answer the AI waits about 20 s for your presses and answers each at once; every press gives it 20 s more. While it waits the chat shows it working: press stop to type at once.">
+            <span className="pl-check" aria-hidden />Live tuning
+          </button>
+          <p className="pl-local" aria-live="polite" style={{ marginTop: 10 }}>
+            {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{sent ? ` Sent: ${sent}.` : ""}</>
+              : live ? (afterWait === "answering" ? "The AI is answering your press…"
+                : afterWait === "idle" ? `Not listening now: your presses reach the AI with your next message.${sent ? ` Sent: ${sent}.` : ""}`
+                : "Live tuning is on: after its next answer, the AI waits for you to guide the sound or tell it what you heard.")
+              : "Turn it on and the AI waits after each answer for you to guide the sound or tell it what you heard, and answers at once."}
+          </p>
+        </div>
+      )}
+      {listener && (
         <details className="pl-set se-sm">
           <summary>Guide the sound</summary>
           <div className="pl-reactions" role="group" aria-label="Reactions the model will hear about">
@@ -181,19 +199,11 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
               <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{REACTION_LABELS[k]}</button>
             ))}
           </div>
-          <div className="pl-toggles">
-            <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={live} onClick={() => void setLive(!live)}
-              title="After each answer the AI waits about 20 s for your presses and answers each at once; every press gives it 20 s more. While it waits the chat shows it working: press stop to type at once.">
-              <span className="pl-check" aria-hidden />Live tuning
-            </button>
-          </div>
-          <p className="pl-local" aria-live="polite" style={{ marginTop: 10 }}>
-            {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{waiting ? ` Sent: ${waiting}.` : ""}</>
-              : live ? (afterWait === "answering" ? "The AI is answering your press…"
-                : afterWait === "idle" ? `Not listening now: your presses reach the AI with your next message.${waiting ? ` Sent: ${waiting}.` : ""}`
-                : "Live tuning is on: the AI listens after its next answer.")
-              : waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these as soon as it listens (Live tuning), or on its next message, then changes the sound."}
-          </p>
+          {!live && (
+            <p className="pl-local" aria-live="polite">
+              {waiting ? `Waiting for the AI: ${waiting}. It reads them on its next message.` : "The model reads these on its next message, then changes the sound."}
+            </p>
+          )}
           {error && <p role="alert">{error}</p>}
         </details>
       )}
@@ -205,9 +215,11 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
             <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{HEARD_LABELS[k]}</button>
           ))}
         </div>
-        <p className="pl-local" aria-live="polite">
-          {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this as soon as it listens (Live tuning), or on its next message, and compares it with what it meant."}
-        </p>
+        {!(listener && live) && (
+          <p className="pl-local" aria-live="polite">
+            {heardWaiting ? `Waiting for the AI: ${heardWaiting}. It reads them on its next message.` : "The model reads this on its next message and compares it with what it meant."}
+          </p>
+        )}
         {error && <p role="alert">{error}</p>}
       </details>
       <details className="pl-set se-sm">

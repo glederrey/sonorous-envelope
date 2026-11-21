@@ -1290,6 +1290,7 @@ html:has(.pl-field) .se-header {
 .pl-debug { white-space: pre-line; }
 .pl-local { margin: 0; color: var(--on-scrim-muted); font-size: 13px; }
 .pl-set { padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
+.pl-live { padding-top: 16px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); } /* Live tuning: its own section above the two blocks it covers */
 .pl-set summary { cursor: pointer; color: var(--on-scrim); min-height: 24px; }
 .pl-set dl { display: grid; gap: 4px; margin: 10px 0 0; }
 .pl-set dt { font-weight: 500; color: var(--on-scrim); margin-top: 6px; }
