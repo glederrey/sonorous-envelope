@@ -249,11 +249,9 @@ describe("rest_after", () => {
     expect(parseSettings({ consent: "ambient" }).rest_after).toBe(900);
     expect(parseSettings({ rest_after: null }).rest_after).toBeNull();
   });
-  it("tells undefined (keep) from null (off) in set_sound input", () => {
+  it("set_sound no longer takes rest_after: the sound never fades by itself (2026-11-21)", () => {
     const base = { mood: { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.5, spontaneity: 0.5 } };
-    expect(SetSoundInput.parse(base).rest_after).toBeUndefined();
-    expect(SetSoundInput.parse({ ...base, rest_after: null }).rest_after).toBeNull();
-    expect(SetSoundInput.safeParse({ ...base, rest_after: 10 }).success).toBe(false);
+    expect("rest_after" in SetSoundInput.parse({ ...base, rest_after: 600 })).toBe(false); // an old client sending it is not refused
   });
   it("words the resting note in minutes", () => {
     expect(restingNote(900)).toBe("the sound faded after 15 min without an update from you");

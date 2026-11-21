@@ -4,6 +4,9 @@
 
 `applyLimits({ mapped, transition? }) → { effective, clamps }` and `hardCaps(state)` in `packages/shared/src/limits.ts`. They run on the server for every update, and `hardCaps` runs again in the player on every state it receives. Both are pure, and `hardCaps` is idempotent.
 
+
+> **No fade (2026-11-21, Gael: "It always plays until the user closes the tabs or ends the session").** The sound never fades by itself in any mode: `effectiveRestAfter` returns null, `set_sound` and `strudel_mode` no longer take `rest_after` (an old client sending it is ignored), `start_session` returns no `settings`, `resting` never appears, and the player has no "Fade to silence after" control. A stored `settings.rest_after` is ignored. The text below about the fade is history.
+
 ## What still applies
 | Rule | Kind | Value |
 |---|---|---|

@@ -8,12 +8,6 @@ import { HEARD_KINDS, HEARD_LABELS, REACTION_KINDS, REACTION_LABELS, isHeard, ty
 type Said = ReactionKind | HeardKind;
 const LABEL: Record<Said, string> = { ...REACTION_LABELS, ...HEARD_LABELS };
 
-const FADE_CHOICES: Array<{ value: string; label: string; seconds: number | null }> = [
-  { value: "300", label: "5 minutes", seconds: 300 }, { value: "900", label: "15 minutes", seconds: 900 },
-  { value: "1800", label: "30 minutes", seconds: 1800 }, { value: "3600", label: "1 hour", seconds: 3600 },
-  { value: "never", label: "Never", seconds: null },
-];
-
 /** Opposites side by side; the last row is the like or dislike, not a direction. */
 const REACTION_PAIRS: ReactionKind[][] = [["slower", "faster"], ["darker", "brighter"], ["calmer", "stormier"], ["softer", "harsher"], ["less_of_this", "more_of_this"]];
 
@@ -47,12 +41,11 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
 
 /**
  * For the owner only. Reaction buttons, shown in the listener modes only (in the internal mode the sound is how the model feels,
- * and nobody steers that), and the "fade after" setting (the listener modes never fade, so it is hidden there).
+ * and nobody steers that). Nothing fades by itself (2026-11-21), so there is no "fade after" setting any more.
  */
 export function OwnerControls({ picture, stateAt, supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0 }: { picture?: ReactNode; /** when the sound playing now was written: a new one may have read the presses */ stateAt?: number; supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
   /** live tuning: when the model's `listen` call stops waiting (the server's clock, ms since the epoch; null when it does not wait), and the server's clock minus this device's */ listeningUntil?: number | null; clockOffset?: number }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
-  const [rest, setRest] = useState("900");
   const [pending, setPending] = useState<Array<{ kind: Said }>>([]);
   const [error, setError] = useState("");
   const [allowCode, setAllowCode] = useState(true);
@@ -75,8 +68,6 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
       const raw = data.settings && typeof data.settings === "object" ? (data.settings as Record<string, unknown>) : {};
       setOwner({ id: u.user.id, raw });
       setAllowCode(data.allow_code !== false);
-      const r = raw.rest_after;
-      setRest(r === null ? "never" : typeof r === "number" ? String(r) : "900");
       void loadPending();
     })();
     return () => { cancelled = true; };
@@ -129,13 +120,6 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
     const { error: e } = await supabase.from("reactions").insert({ session_id: sessionId, user_id: owner.id, kind });
     if (e) { setError("Could not send that. Try again."); void loadPending(); }
   };
-  const setFade = async (value: string) => {
-    setRest(value);
-    const seconds = FADE_CHOICES.find((c) => c.value === value)?.seconds ?? null;
-    const raw = { ...owner.raw, rest_after: seconds };
-    const { error: e } = await supabase.from("sessions").update({ settings: raw }).eq("id", sessionId);
-    if (e) setError("Could not save that. Try again."); else setOwner({ ...owner, raw });
-  };
 
   const live = owner.raw.live === true;
   const setLive = async (value: boolean) => {
@@ -172,17 +156,6 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
           ))}
         </div>
         <p className="pl-local">{POLICIES.find((o) => o.value === policy)?.hint}.</p>
-        {!listener && (
-          <div className="pl-setting" style={{ marginTop: 12 }}>
-            <div>
-              <label htmlFor="pl-fade" className="pl-setting-name">Fade to silence after</label>
-              <p className="pl-local">With no update from the AI for this long, the sound fades. The AI can change it too.</p>
-            </div>
-            <select id="pl-fade" value={rest} onChange={(e) => void setFade(e.target.value)}>
-              {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-        )}
       </div>
       {/* closed by default: a new listener sees Mute, Volume and Mode, and opens the rest when they want to */}
       <details className="pl-set se-sm pl-group">

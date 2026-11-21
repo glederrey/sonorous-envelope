@@ -335,7 +335,6 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     version: appVersion(), // the release this server runs, so a stale deploy shows at once (v0.19.2 tests)
     mode: faceLine(mode, "auto"),
     guidance: startGuidance(mode, "auto"),
-    settings: { rest_after: effectiveRestAfter(settings.rest_after, mode) },
     note: forListener(mode)
       ? "Give player_url to the user in your final reply text, after your last tool call of this turn (text between tool calls may be hidden), and tell them to open it and tap Start listening. Pass session_id in every call."
       : "Give player_url to the user in one short sentence in your final reply text, after your last tool call of this turn (text between tool calls may be hidden), and say nothing more about the sound. Pass session_id in every call.",
@@ -457,12 +456,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     effective, clamps: allClamps, seed, slow_mood: slow, analysis,
   });
   const title = input.title?.trim().slice(0, 80);
-  // Claude may change only rest_after here (an expression setting). Merge into the raw row so defaults are not frozen in.
-  const rawSettings = session.settings && typeof session.settings === "object" ? (session.settings as Record<string, unknown>) : {};
   const { error: uerr } = await db.from("sessions").update({
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final,
     turn: turn.sessionTurn(session.turn), ...(title ? { title } : {}),
-    ...(input.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: input.rest_after } } : {}),
     ...(input.voice !== undefined || held || adopted || scaleMoved || waveMoved ? { voice } : {}),
     ...(motif?.store ? { motifs: motif.store } : {}),
     sticky,
@@ -613,7 +609,7 @@ function applyPatternColour(e: EngineState, kept: Sticky["colour"], sent: SetSou
 /** A pattern state from the previous state: same synth fields (paused), the colour as the model set it, no tempo glide. */
 async function writePatternState(
   db: Db, session: SessionRow, prev: StateRow, now: number, turn: ReturnType<typeof planTurn>, final: boolean,
-  build: (e: EngineState) => void, intent: Record<string, unknown>, extra: { title?: string; sticky?: Sticky; rest_after?: number | null },
+  build: (e: EngineState) => void, intent: Record<string, unknown>, extra: { title?: string; sticky?: Sticky },
 ) {
   const copy: EngineState = JSON.parse(JSON.stringify(prev.effective));
   delete copy.motif;
@@ -625,11 +621,9 @@ async function writePatternState(
     session_id: session.id, turn: turn.stateTurn, final, intent: { mood: prev.intent.mood ?? NEUTRAL_MOOD, ...intent }, effective, clamps: mergeClamps(clamps),
     seed: randomSeed(), slow_mood: prev.slow_mood ?? NEUTRAL_MOOD,
   });
-  const rawSettings = session.settings && typeof session.settings === "object" ? (session.settings as Record<string, unknown>) : {};
   const { error } = await db.from("sessions").update({
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !final, turn: turn.sessionTurn(session.turn),
     ...(extra.title ? { title: extra.title } : {}), ...(extra.sticky ? { sticky: extra.sticky } : {}),
-    ...(extra.rest_after !== undefined ? { settings: { ...rawSettings, rest_after: extra.rest_after } } : {}),
   }).eq("id", session.id);
   if (error) fail("save the session", error);
   return { effective, clamps: mergeClamps(clamps), stateId };
@@ -640,7 +634,7 @@ async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, inpu
   const title = input.title?.trim().slice(0, 80);
   const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
     (e) => { applyPatternColour(e, sticky.colour, input.colour, prev.effective.pattern?.bpm, prev.intent.mood); },
-    { colour: input.colour, note: input.note, strudel: true }, { title, sticky, rest_after: input.rest_after });
+    { colour: input.colour, note: input.note, strudel: true }, { title, sticky });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
   const notes = [resolveNote, switchNote, input.motif ? "Strudel is on: the motif was not played; write the phrase in your code" : undefined, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]

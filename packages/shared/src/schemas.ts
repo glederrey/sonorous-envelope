@@ -155,7 +155,6 @@ export const SetSoundInput = z.object({
   voice: Voice.optional().describe("your voice: root, scale, chord, note order, octaves, wave. It stays from turn to turn; send a new one to change it, for instance when the conversation turns"),
   keep_voice: z.boolean().optional().describe("true: freeze the scale, root, note order and wave that play now as your voice. Without one, your first sound becomes your voice, and its scale mode follows joy"),
   mode: z.enum(["self", "attuned", "jukebox"]).optional().describe("switch the mode, only after the listener said yes or clearly asked (see the mode rules)"),
-  rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns; this is how the channel says so. Leave out to keep it"),
   motif: Motif.optional().describe("a short phrase of your own over the sound, played once, a few seconds later on a bar, in your voice: a few notes and their beats. Name it to quote it later (recall, first). It plays for this call only; the sound under it is unchanged"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
