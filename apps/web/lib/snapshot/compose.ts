@@ -55,7 +55,7 @@ function drawStrudel(ctx: CanvasRenderingContext2D, root: HTMLElement, w: number
   if (!view.width || !view.height) return;
   const rootOp = num(root.style.opacity, 1);
   if (rootOp <= 0.01 || root.style.visibility === "hidden") return;
-  const s = Math.max(w / view.width, h / view.height), ox = (w - view.width * s) / 2, oy = (h - view.height * s) / 2;
+  const s = Math.max(w / view.width, h / view.height);
   const cs = getComputedStyle(root), hue = num(cs.getPropertyValue("--pl-h"), 220), k = num(root.style.getPropertyValue("--sv-k"), 1);
   ctx.save();
   ctx.globalAlpha = rootOp;
@@ -66,25 +66,28 @@ function drawStrudel(ctx: CanvasRenderingContext2D, root: HTMLElement, w: number
   const cv = root.querySelector<HTMLCanvasElement>(".pl-strudel-cv");
   if (cv) { ctx.globalAlpha = rootOp * num(cv.style.opacity, 1); drawCover(ctx, cv, w, h); }
   const pre = root.querySelector<HTMLElement>(".pl-strudel-code");
-  const codeOp = pre ? num(pre.style.opacity, 1) * num(getComputedStyle(pre).opacity, 1) : 0;
+  const codeOp = pre ? num(getComputedStyle(pre).opacity, 1) : 0; // the computed value already holds the inline fade
   if (pre && codeOp > 0.01 && getComputedStyle(pre).display !== "none") {
     ctx.globalAlpha = rootOp * codeOp;
-    const pcs = getComputedStyle(pre);
-    ctx.font = `${num(pcs.fontSize, 14) * s}px ${pcs.fontFamily}`;
+    const pcs = getComputedStyle(pre), px = num(pcs.fontSize, 14), box = pre.getBoundingClientRect();
+    // The code keeps its layout (lines, colours, dimming) but not the picture's crop and scale: on a wide screen the cover crop cut it off
+    // and shrank it to about 6 px. It sits at the top left, at 9 px or more, so the model can judge what it reads.
+    const cs2 = Math.max(s, 9 / px), cx = Math.max(4, num(pcs.paddingLeft, 12) * s), cy = Math.max(22, num(pcs.paddingTop, 8) * s); // below the turn label
+    ctx.font = `${px * cs2}px ${pcs.fontFamily}`;
     ctx.textBaseline = "top"; ctx.textAlign = "left";
-    ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 8 * s; ctx.shadowOffsetY = s;
+    ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 8 * cs2; ctx.shadowOffsetY = cs2;
     const range = document.createRange(), walk = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
     // each text node in runs of characters on one line, at the place the browser laid them out
     for (let node = walk.nextNode() as Text | null; node; node = walk.nextNode() as Text | null) {
       ctx.fillStyle = getComputedStyle(node.parentElement ?? pre).color;
       const text = node.data;
       let run = "", x0 = 0, y0 = 0;
-      const flush = () => { if (run.trim()) ctx.fillText(run, ox + (x0 - view.left) * s, oy + (y0 - view.top) * s); run = ""; };
+      const flush = () => { if (run.trim()) ctx.fillText(run, cx + (x0 - box.left - num(pcs.paddingLeft, 0)) * cs2, cy + (y0 - box.top - num(pcs.paddingTop, 0)) * cs2); run = ""; };
       for (let i = 0; i < text.length; i++) {
         range.setStart(node, i); range.setEnd(node, i + 1);
         const r = range.getBoundingClientRect();
         if (text[i] === "\n" || !r.width) { flush(); continue; }
-        if (r.top > view.bottom) break;
+        if (cy + (r.top - box.top - num(pcs.paddingTop, 0)) * cs2 > h) break;
         if (run && Math.abs(r.top - y0) > 2) flush();
         if (!run) { x0 = r.left; y0 = r.top; }
         run += text[i];
