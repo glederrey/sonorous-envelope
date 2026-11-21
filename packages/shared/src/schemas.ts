@@ -130,6 +130,19 @@ export function parseSettings(raw: unknown): ListenerSettings {
   return r.success ? r.data : ListenerSettings.parse({});
 }
 
+/** A short phrase of the model's own, played once over the sound (roadmap #128). Note names like E4, `-` a rest; or `recall` a named one. */
+export const Motif = z.object({
+  notes: z.array(z.string().regex(/^([A-G](#|b)?[2-6]|-)$/)).min(1).max(8).optional().describe("the phrase: note names like E4, or - for a rest, 1 to 8"),
+  beats: z.array(z.number().min(0.25).max(4)).max(8).optional().describe("how long each note lasts, in beats (default 1 each)"),
+  name: z.string().trim().min(1).max(40).optional().describe("keep it under this name, to quote it later"),
+  recall: z.string().trim().min(1).max(40).optional().describe("play a motif you named earlier instead of notes"),
+  first: z.number().int().min(1).max(8).optional().describe("with recall: only its first notes, a quote"),
+  repeat: z.number().int().min(1).max(4).default(1),
+  level: z.number().min(0).max(1).default(0.6),
+}).refine((m) => Boolean(m.notes) !== Boolean(m.recall), "send notes or recall, not both")
+  .refine((m) => !m.beats || !m.notes || m.beats.length === m.notes.length, "beats needs one value per note");
+export type Motif = z.infer<typeof Motif>;
+
 export const SetSoundInput = z.object({
   session_id: z.string().optional().describe("from start_session; defaults to your latest session"),
   mood: Mood.optional().describe("leave it out to keep the mood of your last call: a synth, voice or colour change then does not move the voice the mood draws"),
@@ -143,6 +156,7 @@ export const SetSoundInput = z.object({
   keep_voice: z.boolean().optional().describe("true: freeze the scale, root, note order and wave that play now as your voice. Without one, your first sound becomes your voice, and its scale mode follows joy"),
   mode: z.enum(["self", "attuned", "jukebox"]).optional().describe("switch the mode, only after the listener said yes or clearly asked (see the mode rules)"),
   rest_after: z.number().min(60).max(3600).nullable().optional().describe("seconds without an update from you before the sound fades to silence; null = never fade. You are not there between turns; this is how the channel says so. Leave out to keep it"),
+  motif: Motif.optional().describe("a short phrase of your own over the sound, played once, a few seconds later on a bar, in your voice: a few notes and their beats. Name it to quote it later (recall, first). It plays for this call only; the sound under it is unchanged"),
 });
 export type SetSoundInput = z.infer<typeof SetSoundInput>;
 

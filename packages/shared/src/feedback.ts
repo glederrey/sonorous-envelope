@@ -47,6 +47,7 @@ function playingOf(e: EngineState) {
   if (!e.arp.on) p.arp = "off";
   if (e.osc.stack?.length) p.stack = e.osc.stack;
   if (e.pad?.on && e.pad.notes.length) p.pad = { notes: e.pad.notes.map(midiName), wave: e.pad.wave };
+  if (e.motif) p.motif = `${e.motif.notes.map((n) => (n < 0 ? "-" : midiName(n))).join(" ")} · beats ${e.motif.beats.join(" ")} · ×${e.motif.repeat}`;
   if (e.lfo.length) p.lfo = e.lfo.map((l) => `${l.target} ${r2(l.rate)}Hz depth ${r2(l.depth)} ${l.shape}`);
   p.echo = r2(e.fx.delay.mix); p.reverb = r2(e.fx.reverb.mix);
   // the picture, only when you set something beyond the mood: scene, its density and speed, and what it follows

@@ -803,6 +803,72 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(next.pattern).toMatchObject({ ran: "not reported yet", why: expect.stringMatching(/nobody is listening/) });
     });
   });
+  describe("motif", () => {
+    const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
+    const last = (sid: string) => JSON.parse(sql(`select effective from states where session_id='${sid}' order by created_at desc limit 1`));
+    const send = (session_id: string, motif: unknown, extra: object = {}) => svc.setSound(dbA, A, { session_id, mood: calm, final: true, motif, ...extra } as never, tick(25_000));
+
+    it("plays notes as midi with default beats, reports them in playing, and is not sticky", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      const r = await send(session_id, { notes: ["E4", "-", "G4"], repeat: 2, level: 0.6 });
+      const m = last(session_id).motif;
+      expect(m).toMatchObject({ notes: [64, -1, 67], beats: [1, 1, 1], repeat: 2, level: 0.6 });
+      expect(Number.isInteger(m.id) && m.id >= 0 && m.id < 2 ** 31).toBe(true);
+      expect((r.playing as { motif: string }).motif).toBe("E4 - G4 · beats 1 1 1 · ×2");
+      const next = await send(session_id, undefined);
+      expect(last(session_id).motif).toBeUndefined(); expect((next.playing as Record<string, unknown>).motif).toBeUndefined();
+      const log = (await svc.inspect(dbA, A, { session_id, what: "history" })).history;
+      expect(log[0]).toMatch(/ · motif$/); expect(log[1]).not.toMatch(/motif/);
+    });
+
+    it("names a motif, quotes its first notes, and lists names in moment list", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      expect((await send(session_id, { notes: ["E4", "G4", "A4", "C5"], beats: [1, 1, 2, 1], name: "hello", repeat: 1, level: 0.6 })).notes).toContain('motif kept as "hello"');
+      const q = await send(session_id, { recall: "hello", first: 3, repeat: 1, level: 0.5 });
+      expect(last(session_id).motif).toMatchObject({ notes: [64, 67, 69], beats: [1, 1, 2], level: 0.5 });
+      expect((q.playing as { motif: string }).motif).toBe("E4 G4 A4 · beats 1 1 2 · ×1");
+      const all = await send(session_id, { recall: "hello", repeat: 1, level: 0.6 });
+      expect((all.playing as { motif: string }).motif).toMatch(/^E4 G4 A4 C5/);
+      const l = await svc.moment(dbA, A, { session_id, action: "list", final: false }, tick());
+      expect(l.motifs).toEqual([{ name: "hello", notes: "E4 G4 A4 C5", turn: 1 }]);
+      const none = await svc.startSession(dbA, A, {}, tick());
+      expect((await svc.moment(dbA, A, { session_id: none.session_id, action: "list", final: false }, tick())).motifs).toBeUndefined();
+    });
+
+    it("an unknown recall says which names exist; the thirteenth name is refused, a used name is replaced", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await expect(send(session_id, { recall: "nope", repeat: 1, level: 0.6 })).rejects.toMatchObject({ code: "unknown_motif", message: expect.stringContaining("Named: none.") });
+      for (let i = 0; i < 12; i++) await send(session_id, { notes: ["C4"], name: `m${i}`, repeat: 1, level: 0.6 });
+      await expect(send(session_id, { recall: "constructor", repeat: 1, level: 0.6 })).rejects.toMatchObject({ code: "unknown_motif", message: expect.stringContaining("Named: m0, m1") });
+      await expect(send(session_id, { notes: ["D4"], name: "m12", repeat: 1, level: 0.6 })).rejects.toMatchObject({ code: "motifs_full" });
+      await send(session_id, { notes: ["D4"], name: "m3", repeat: 1, level: 0.6 });
+      expect(sql(`select count(*) from jsonb_object_keys((select motifs from sessions where id='${session_id}'))`)).toBe("12");
+      expect(sql(`select motifs->'m3'->>'notes' from sessions where id='${session_id}'`)).toBe('["D4"]');
+    });
+
+    it("is allowed in Self; with Strudel on it is ignored with a note", async () => {
+      const self = await svc.startSession(dbA, A, { mode: "self" }, tick());
+      await send(self.session_id, { notes: ["C4"], repeat: 1, level: 0.6 });
+      expect(last(self.session_id).motif).toBeDefined();
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await svc.strudelMode(dbA, A, { session_id, on: true, code: 'note("c3 e3 g3").s("sawtooth")', bpm: 100, final: true }, tick(25_000));
+      const r = await send(session_id, { notes: ["C4"], repeat: 1, level: 0.6 });
+      expect(last(session_id).motif).toBeUndefined();
+      expect((r.notes as string[]).join(" ")).toMatch(/Strudel is on: the motif was not played/);
+    });
+
+    it("a fade or a recalled moment does not carry the phrase", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await send(session_id, { notes: ["C4"], repeat: 1, level: 0.6 });
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "with", final: true, transition: undefined }, tick());
+      await svc.moment(dbA, A, { session_id, action: "recall", name: "with", final: true }, tick(25_000));
+      expect(last(session_id).motif).toBeUndefined();
+      await send(session_id, { notes: ["C4"], repeat: 1, level: 0.6 });
+      await svc.silence(dbA, A, { session_id, fade: 3, final: true }, tick(25_000));
+      expect(last(session_id).motif).toBeUndefined();
+    });
+  });
   describe("moment", () => {
     const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
     const loudMood = { warmth: 0.3, closeness: 0.6, joy: 0.3, calm: 0.05, spontaneity: 0.9, tension: 0.9 };

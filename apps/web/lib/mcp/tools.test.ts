@@ -27,7 +27,7 @@ describe("MCP tools", () => {
     expect(names).toEqual(["get_feedback", "inspect", "listen", "moment", "set_sound", "silence", "start_session", "strudel_mode", "tell_developers"]);
     const set = r.result.tools.find((t: { name: string }) => t.name === "set_sound");
     expect(set.inputSchema.properties).toHaveProperty("mood"); // optional: left out, the last mood stays
-    expect(JSON.stringify(set.inputSchema).length).toBeLessThan(9000);
+    expect(JSON.stringify(set.inputSchema).length).toBeLessThan(10500);
     const strudel = r.result.tools.find((t: { name: string }) => t.name === "strudel_mode");
     expect(strudel.inputSchema.required).toContain("on");
     expect(strudel.inputSchema.properties.code.maxLength).toBe(5000);

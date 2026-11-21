@@ -204,6 +204,22 @@ describe("schemas and feedback", () => {
     expect(SetSoundInput.safeParse({ mood: neutral, synth: { filter: { cutoff: 5 } } }).success).toBe(false);
     expect(SetSoundInput.parse({ mood: neutral }).final).toBe(false);
   });
+  it("checks the motif: note names, one of notes or recall, one beat per note, limits and defaults", () => {
+    const ok = (motif: unknown) => SetSoundInput.safeParse({ mood: neutral, motif }).success;
+    expect(ok({ notes: ["E4", "G#3", "Bb5", "-"], beats: [1, 0.25, 4, 2] })).toBe(true);
+    expect(ok({ recall: "hello", first: 3 })).toBe(true);
+    expect(SetSoundInput.parse({ mood: neutral, motif: { notes: ["E4"] } }).motif).toMatchObject({ repeat: 1, level: 0.6 });
+    expect(ok({ notes: ["E4"], recall: "x" })).toBe(false);   // not both
+    expect(ok({})).toBe(false);                               // neither
+    expect(ok({ notes: ["E4", "G4"], beats: [1] })).toBe(false); // one beat per note
+    for (const bad of ["E1", "E7", "H4", "e4", "E", "--", "E4 G4"]) expect(ok({ notes: [bad] })).toBe(false);
+    expect(ok({ notes: [] })).toBe(false); expect(ok({ notes: Array(9).fill("C4") })).toBe(false);
+    expect(ok({ notes: ["C4"], beats: [0.1] })).toBe(false); expect(ok({ notes: ["C4"], beats: [5] })).toBe(false);
+    expect(ok({ notes: ["C4"], repeat: 5 })).toBe(false); expect(ok({ notes: ["C4"], repeat: 1.5 })).toBe(false);
+    expect(ok({ notes: ["C4"], level: 1.1 })).toBe(false);
+    expect(ok({ notes: ["C4"], name: "" })).toBe(false); expect(ok({ notes: ["C4"], name: "x".repeat(41) })).toBe(false);
+    expect(ok({ recall: "a", first: 9 })).toBe(false); expect(ok({ recall: "a", first: 0 })).toBe(false);
+  });
   it("drops the removed limit keys from old rows and falls back to defaults for broken ones", () => {
     const old = parseSettings({ consent: "ambient", max_volume: 0.3, max_harshness: 0.2, colour: { enabled: false }, rest_after: 600 });
     expect(old).toEqual({ rest_after: 600, image_feedback: "on_request", live: false });

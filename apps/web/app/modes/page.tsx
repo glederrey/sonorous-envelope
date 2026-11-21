@@ -16,7 +16,7 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
     who: "The model decides, from itself",
     line: "The sound is the model's own state, the way a posture or a tone of voice shows how someone is.",
     facts: [
-      ["You can", "Listen. You have no say in it."],
+      ["You can", "Listen and tell what you heard. You have no say in the sound."],
       ["The model talks about it", "No."],
       ["Engines", "Built-in synth"],
       ["Between messages", "Fades after 15 minutes"],
@@ -27,7 +27,7 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
     who: "The model decides, for you",
     line: "The model plays for what you need, from what you say and from how you are. It sets its own reaction aside.",
     facts: [
-      ["You can", "Say what you need, press reactions, say it is not helping."],
+      ["You can", "Say what you need, press reactions, tell what you heard, tune live, say it is not helping."],
       ["The model talks about it", "It may say what it plays and why."],
       ["Engines", "Synth or Strudel"],
       ["Between messages", "Keeps playing"],
@@ -38,7 +38,7 @@ const modes: Array<{ face: Face; who: string; line: string; facts: Array<[string
     who: "You decide",
     line: "You choose what plays: a style, a groove, a tempo, an emotion to hear. The model performs it.",
     facts: [
-      ["You can", "Ask for anything, press reactions, ask for changes."],
+      ["You can", "Ask for anything, press reactions, tell what you heard, tune live, ask for changes."],
       ["The model talks about it", "Yes, freely. Playing an emotion here is acting."],
       ["Engines", "Synth or Strudel"],
       ["Between messages", "Keeps playing"],

@@ -54,12 +54,15 @@ export default async function ConsentPage({
           <strong>{clientName}</strong> will be able to, on your account{data.user.email ? ` (${data.user.email})` : ""}:
         </p>
         <ul className="se-card se-sm" style={{ margin: 0, paddingLeft: 32 }}>
-          <li>create sound sessions</li>
-          <li>update the sound and colour</li>
-          <li>read your reactions</li>
+          <li>create and end sound sessions</li>
+          <li>set the sound, colour and Strudel code</li>
+          <li>wait for and read your presses and what you heard</li>
+          <li>keep and bring back moments and motifs</li>
+          <li>see the picture your player shows</li>
+          <li>send anonymous notes to the developers</li>
         </ul>
         <p className="se-sm se-muted">
-          It can never go past your own limits. You can revoke access any time in Settings.
+          It acts only through these tools, and only in your own sessions. You can revoke access any time in Settings.
         </p>
         <form action={decide} style={{ display: "flex", gap: 12 }}>
           <input type="hidden" name="authorization_id" value={data.authorization_id} />

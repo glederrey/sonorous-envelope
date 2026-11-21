@@ -4,7 +4,7 @@ The model needs to know what it actually produced in order to update it. `set_so
 
 ## What comes back
 
-1. **What plays (`playing`).** Not an echo of what the model sent, but what is playing after the mood mapping and the limits, in the vocabulary the model can set, so it can check its choices arrived. While Strudel plays: `engine`, `bpm`, the code's length and the scene behind it. `clamped` lists what a rule changed (level held, the 0.9 volume cap).
+1. **What plays (`playing`).** Not an echo of what the model sent, but what is playing after the mood mapping and the limits, in the vocabulary the model can set, so it can check its choices arrived. When the call carried a motif (`set_sound` motif), `playing.motif` shows it as `"E4 G4 A4 · beats 1 1 2 · ×1"` (`-` a rest), so the model can check it arrived. While Strudel plays: `engine`, `bpm`, the code's length and the scene behind it. `clamped` lists what a rule changed (level held, the 0.9 volume cap).
 2. **Perceptual audio features (`sound`).** Computed from an offline render of a few seconds of the synth state: words for brightness, density and movement, numbers for loudness (`loudness_db`) and roughness. Not for Strudel: the server never runs the model's code, so a Strudel state has no `sound` and no `reads_as`.
 3. **Colour.** HSL rather than RGB, since hue, saturation and lightness map to perception, plus its motion (`still`, `drift`, `pulse`, `breathe`).
 4. **Listener reactions (`reactions`)** since the last call: what the owner pressed (calmer, softer, more of this...), one short line per kind with how long ago. Delivered once (`set_sound` and `strudel_mode` claim them; `get_feedback` only peeks). Only in Attuned and Jukebox: nobody steers Self, so reactions are never returned there.
