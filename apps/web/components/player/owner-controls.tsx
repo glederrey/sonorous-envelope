@@ -187,7 +187,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
               <span className="pl-check" aria-hidden />Live tuning
             </button>
           </div>
-          <p className="pl-local" aria-live="polite">
+          <p className="pl-local" aria-live="polite" style={{ marginTop: 10 }}>
             {listening ? <>The AI is listening: your presses reach it now<span aria-hidden>{` (${secondsLeft} s)`}</span>.{waiting ? ` Sent: ${waiting}.` : ""}</>
               : live ? (afterWait === "answering" ? "The AI is answering your press…"
                 : afterWait === "idle" ? `Not listening now: your presses reach the AI with your next message.${waiting ? ` Sent: ${waiting}.` : ""}`
