@@ -47,7 +47,8 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
   }, [onWidth]);
   const showWhen = width >= (p.whenMinWidth ?? WHEN_MIN_WIDTH);
   return (
-    <section ref={ref} className="pl-panel" aria-label="Listening controls">
+    <section ref={ref} className="pl-panel pl-panel-clip" aria-label="Listening controls">
+      <div className="pl-panel-scroll">
       {p.debug}
       <div className="pl-bar">
         <p className="pl-status se-sm">
@@ -106,6 +107,7 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
           {p.shareAction}
           <div className="pl-hide-phone"><QrLink path={p.qrPath} /></div>
         </div>
+      </div>
       </div>
     </section>
   );

@@ -62,23 +62,23 @@ export function WhatAiSaw({ supabase, sessionId }: { supabase: SupabaseClient; s
   }, [open]);
 
   if (!owner) return null;
-  const alt = "What the AI saw: the picture on top, the sound of the last seconds below";
+  const alt = "What the AI can see: the picture on top, the sound of the last seconds below";
   const media = { width: "100%", display: "block", borderRadius: 8, marginTop: 10 } as const;
   return (
     <details className="pl-set se-sm" onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>What the AI saw</summary>
+      <summary>What the AI can see</summary>
       {row?.seen_image ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={row.seen_image} alt={alt} style={media} />
           <p style={{ margin: "10px 0 0" }}>The AI looked at this {ago(row.seen_at, now)} ago.</p>
-          <p style={{ margin: "4px 0 0", opacity: 0.7 }}>Below the picture: the last seconds of sound, low notes at the bottom; the white line is where its latest sound began.</p>
+          <p style={{ margin: "4px 0 0", opacity: 0.7 }}>Below: the last seconds of sound, low notes at the bottom.</p>
         </>
       ) : row?.image ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={row.image} alt={alt} style={media} />
-          <p style={{ margin: "10px 0 0" }}>The latest picture the AI can ask for, taken {ago(row.taken_at, now)} ago. It has not looked yet.</p>
+          <p style={{ margin: "10px 0 0" }}>Taken {ago(row.taken_at, now)} ago. The AI has not looked yet.</p>
         </>
       ) : row ? (
         <p style={{ margin: "10px 0 0" }}>{row.off ? "Turned off under Settings." : "Nothing yet: the player takes a picture 8 to 14 s after each new sound, then every 30 s, while this page is open and playing."}</p>

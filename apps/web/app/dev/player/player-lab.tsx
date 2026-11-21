@@ -31,7 +31,7 @@ class Script {
   nudge: (() => void) | null = null;
   /** the owner's player saved a snapshot (put_snapshot): shown in the lab box instead of being sent */
   snap: ((args: { p_image: string; p_measured: unknown; p_volume: number }) => void) | null = null;
-  /** the last snapshot the player saved: the panel "What the AI saw" reads it back as if the model had looked at it */
+  /** the last snapshot the player saved: the panel "What the AI can see" reads it back as if the model had looked at it */
   lastShot: { image: string; at: string } | null = null;
   private turn = 0;
   get last() { return this.rows[this.rows.length - 1] ?? null; }

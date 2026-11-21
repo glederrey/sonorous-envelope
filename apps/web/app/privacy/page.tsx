@@ -27,7 +27,7 @@ export default function PrivacyPage() {
             <ul className="doc-list">
               <li>Your account: the email address you signed up with and, with Google sign-in, the name Google shares. Nothing else is read from your Google account.</li>
               <li>Your sessions: the title, the sounds and colours the model set, what the sound read as, the settings of the session, and the moments and motifs the model keeps.</li>
-              <li>Your presses in the player: reactions and \"What I heard\".</li>
+              <li>Your presses in the player: reactions (“Guide the sound”) and what you heard (“Tell the AI what you heard”).</li>
               <li>One snapshot per session: the picture the player shows and a spectrogram of its sound output (not your microphone or camera). It is replaced as it updates, and we also keep the copy the AI last looked at. You can turn it off under Settings.</li>
               <li>Who is listening: a device id and whether the sound is playing, muted or not started, while a player page is open. People who open a shared link without an account are not identified.</li>
               <li>Anonymous notes to the developers: the text only. No account, session or conversation is attached. A count of notes per account is kept for the day only, to enforce the daily limit.</li>

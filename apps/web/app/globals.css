@@ -1234,11 +1234,22 @@ html:has(.pl-field) .se-header {
 .pl-aside .pl-actions .se-btn, .pl-share .pl-actions .se-btn { width: 100%; justify-content: center; text-align: center; white-space: nowrap; padding-left: 10px; padding-right: 10px; font-size: 14px; }
 .pl-reveal { margin-top: auto; background: color-mix(in srgb, var(--scrim) 83%, transparent); color: var(--on-scrim); border-color: color-mix(in srgb, var(--on-scrim) 35%, transparent); backdrop-filter: blur(8px); } /* about 60% opaque, with a firmer border so it is still easy to find */
 .pl-panel {
-  width: min(480px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
+  width: min(520px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
   background: var(--scrim-panel); color: var(--on-scrim); border: 1px solid var(--scrim-line); /* more opaque than the other scrims: long code behind it must not make the buttons hard to read */
-  max-height: 100%; min-height: 0; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scrim-line) transparent;
+  max-height: 100%; min-height: 0; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain;
   backdrop-filter: blur(12px); /* unprefixed only: the CSS minifier adds the -webkit- copy. Written by hand after it, it made the minifier drop this line, and Chromium has no blur for the prefixed one */
 }
+/* The player's panel scrolls an inner wrapper inside a clipped, rounded box: a phone draws its scroll indicator at the scrolling box's
+   edge, over the rounded corners, when the rounded box scrolls itself. */
+.pl-panel-clip { overflow: hidden; display: flex; flex-direction: column; padding: 0; }
+.pl-panel-scroll { display: grid; gap: 16px; padding: 14px 16px 16px; min-height: 0; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+/* The panel's own scrollbar: a slim rounded thumb on no track, kept clear of the rounded corners. Chromium and Safari take the
+   ::-webkit-scrollbar rules (Chromium ignores them once scrollbar-width or scrollbar-color is set, so those go to Firefox only). */
+.pl-panel-scroll::-webkit-scrollbar, .pl-panel::-webkit-scrollbar { width: 10px; }
+.pl-panel-scroll::-webkit-scrollbar-track, .pl-panel::-webkit-scrollbar-track { background: transparent; margin-block: 14px; }
+.pl-panel-scroll::-webkit-scrollbar-thumb, .pl-panel::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--on-scrim) 24%, transparent); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+.pl-panel-scroll::-webkit-scrollbar-thumb:hover, .pl-panel::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--on-scrim) 40%, transparent); }
+@supports not selector(::-webkit-scrollbar) { .pl-panel, .pl-panel-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--on-scrim) 24%, transparent) transparent; } }
 .pl-panel .se-btn {
   background: color-mix(in srgb, var(--on-scrim) 8%, transparent); border-color: var(--scrim-line); color: var(--on-scrim);
   min-height: 40px; padding: 0 14px; font-size: 14px;

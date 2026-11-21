@@ -182,8 +182,8 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         </details>
       )}
       <details className="pl-set se-sm">
-        <summary>What I heard</summary>
-        <p className="pl-local" style={{ marginTop: 10 }}>Tell the model how the sound reads to you. In every mode; it does not steer the sound.</p>
+        <summary>Tell the AI what you heard</summary>
+        <p className="pl-local" style={{ marginTop: 10 }}>How does the sound read to you? The AI gets it as information, never as an order, in every mode.</p>
         <div className="pl-reactions" role="group" aria-label="What you heard, told to the model">
           {HEARD_KINDS.map((k) => (
             <button key={k} type="button" className="se-btn pl-react" onClick={() => void react(k)}>{HEARD_LABELS[k]}</button>
