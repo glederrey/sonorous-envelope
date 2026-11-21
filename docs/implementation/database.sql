@@ -100,6 +100,8 @@ create table public.reactions (
   kind         text not null check (kind in (
                  'calmer','softer','brighter','darker','slower','faster','stormier','harsher',
                  'more_of_this','less_of_this',
+                 'heard_calm','heard_tender','heard_warm','heard_joyful','heard_playful',   -- "What I heard" (0018)
+                 'heard_hesitant','heard_sad','heard_tense','heard_anxious','heard_reproach',
                  'volume','mute','unmute','limit_changed','consent_changed',
                  'gestures_off','gestures_on','image_feedback_changed')),
   value        jsonb,                      -- e.g. {"from":0.8,"to":0.5} for volume
