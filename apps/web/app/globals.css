@@ -1156,8 +1156,9 @@ html:has(.pl-field) .se-header {
       hsl(calc(var(--pl-h2) * 1deg) calc(var(--pl-s2) * 100%) calc(var(--pl-l2) * 100%)));
   transition: --pl-h var(--pl-t) ease-in-out, --pl-s var(--pl-t) ease-in-out, --pl-l var(--pl-t) ease-in-out,
               --pl-h2 var(--pl-t) ease-in-out, --pl-s2 var(--pl-t) ease-in-out, --pl-l2 var(--pl-t) ease-in-out;
-  overflow-x: hidden;
-  overflow-y: auto;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
 }
 /* shape: wash is the linear default above; glow is a radial light, sweep a slow conic turn */
 .pl-field[data-shape="glow"] {
@@ -1185,8 +1186,8 @@ html:has(.pl-field) .se-header {
 .pl-field[data-texture="soft_noise"]::before { opacity: 0.06; }
 /* The canvas that moves over the colours (visual-canvas.tsx). With it on, the CSS motion layers below are off (data-motion is "still"). */
 .pl-motion { position: sticky; top: 0; grid-area: 1 / 1; align-self: start; width: 100%; height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); pointer-events: none; z-index: 0; }
-/* the field scrolls when the panel is tall: the picture is pinned to the visible part, in the same grid cell as the stage, so it never scrolls away */
-.pl-field > .pl-stage { grid-area: 1 / 1; }
+/* the field never scrolls: the picture stays put and a tall panel scrolls inside itself (#127). The stage keeps a scroll only as a fallback for the start screen on a very short window. */
+.pl-field > .pl-stage { grid-area: 1 / 1; min-height: 0; overflow-y: auto; }
 /* after silence the whole field goes dark with the sound (the canvas fades its own part) */
 .pl-dim { grid-area: 1 / 1; background: #000; opacity: var(--pl-dim, 0); pointer-events: none; z-index: 0; }
 .pl-dim[data-animated="true"] { transition: opacity var(--pl-dim-t, var(--pl-t)) ease-in-out var(--pl-dim-delay, 0s); }
@@ -1235,6 +1236,7 @@ html:has(.pl-field) .se-header {
 .pl-panel {
   width: min(480px, 100%); display: grid; gap: 16px; padding: 14px 16px 16px; border-radius: 16px;
   background: var(--scrim-panel); color: var(--on-scrim); border: 1px solid var(--scrim-line); /* more opaque than the other scrims: long code behind it must not make the buttons hard to read */
+  max-height: 100%; min-height: 0; flex: 0 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scrim-line) transparent;
   backdrop-filter: blur(12px); /* unprefixed only: the CSS minifier adds the -webkit- copy. Written by hand after it, it made the minifier drop this line, and Chromium has no blur for the prefixed one */
 }
 .pl-panel .se-btn {
