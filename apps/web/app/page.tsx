@@ -59,9 +59,9 @@ export default async function Home() {
         <SiteHeader overlay />
         <div className="lp-hero-body">
           <div className="lp-hero-text">
-          <h1 className="lp-headline" aria-label="Let the model hum while it thinks.">
+          <h1 className="lp-headline" aria-label="Let the AI hum while it thinks.">
               <span aria-hidden="true">
-                Let the model <Letters text="hum" className="lp-hum" /> while{" "}
+                Let the AI <Letters text="hum" className="lp-hum" /> while{" "}
                 <Letters text="it thinks" className="lp-think" />.
               </span>
             </h1>

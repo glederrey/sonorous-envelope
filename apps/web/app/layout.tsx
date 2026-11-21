@@ -8,7 +8,7 @@ import "./globals.css";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-jetbrains" });
 
-const TITLE = "Sonorous Envelope: let the model hum while it thinks";
+const TITLE = "Sonorous Envelope: let the AI hum while it thinks";
 const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 const DESCRIPTION = `A free MCP server that gives your AI a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`;
 
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website", siteName: "Sonorous Envelope", title: TITLE, description: DESCRIPTION, url: "/",
-    images: [{ url: "/brand/og-image.png", width: 1200, height: 630, alt: "Sonorous Envelope: let the model hum while it thinks. An MCP server, a synthesizer and a colour field for your AI model." }],
+    images: [{ url: "/brand/og-image.png", width: 1200, height: 630, alt: "Sonorous Envelope: let the AI hum while it thinks. An MCP server, a synthesizer and a colour field for your AI model." }],
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/brand/og-image.png"] },
 };

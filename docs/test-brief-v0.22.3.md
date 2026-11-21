@@ -1,4 +1,4 @@
-# Test brief: Sonorous Envelope v0.22.2
+# Test brief: Sonorous Envelope v0.22.3 (covers v0.22.2 and v0.22.3)
 
 Read this whole file first. v0.22.2 reworks the player's control panel (Gael's feedback during the v0.22.1 test) and fixes what that test found (docs/archive/test-report-v0.22.1.md). Only what changed is tested.
 
@@ -14,7 +14,7 @@ Before you start: **reconnect the Sonorous Envelope connector** (the `listen` de
 
 - **The panel by sections.** Visible at first: Mute, Volume and Mode (with "Fade to silence after" in Self). Closed sections: **Visuals and Strudel** (Gradient, Scenes, the Strudel switches; a guest gets **Visuals**) and **Feedback to the AI** (Live tuning, "Let the AI see the picture", then "Guide the sound" and "Tell the AI what you heard"). Then a quiet card, **What the AI is doing**: "The code playing" (was "Strudel code"), "What the AI set" (was "What the model set") and "What the AI can see". The "Settings" block is gone. A pressed toggle has an orange tick on a soft teal box; the rows of toggles are evenly spaced.
 - **Live tuning lines**, one line each: "Off: your presses reach the AI with your next message." / "On: after each answer, the AI waits for your presses."
-- **"The AI", never "the model"**, in the player and on every page (the tagline "Let the model hum while it thinks" is unchanged for now).
+- **"The AI", never "the model"**, in the player and on every page (v0.22.3: the tagline too, "Let the AI hum while it thinks", with a redrawn share image).
 - **Before Start listening**, "You stay in control of the volume." is on its own line.
 - **The press line clears** as soon as the AI's answer arrives.
 - **Pictures:** the player takes one 6 s after it becomes visible again (it takes pictures only while visible), and `inspect` snapshot says so when the picture is old. The spectrogram covers the last 10 s.
@@ -39,4 +39,4 @@ Before you start: **reconnect the Sonorous Envelope connector** (the `listen` de
 
 ## Report
 
-Write the report as a Markdown file, `docs/test-report-v0.22.2.md`: a short header (date, session id, device and browser), one table (test, pass/fail/partial, what Gael saw or said), then any feedback for Claude Code, numbered. A press can appear twice (in `listen`, then in the next sound call, which marks it read): that is by design, not a failure.
+Write the report as a Markdown file, `docs/test-report-v0.22.3.md`: a short header (date, session id, device and browser), one table (test, pass/fail/partial, what Gael saw or said), then any feedback for Claude Code, numbered. A press can appear twice (in `listen`, then in the next sound call, which marks it read): that is by design, not a failure.
