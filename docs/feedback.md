@@ -12,7 +12,7 @@ The model needs to know what it actually produced in order to update it. `set_so
 5. **Listener controls (`controls`).** The owner's own player volume. Other listeners can only listen, so their settings are not reported. The same sound lands differently at volume 0.3 and 0.9, and the model should know which one it is dealing with.
 6. **Mood estimate on the same axes as the intent (`reads_as`, `reads_why`).** An independent estimate of how the sound reads, so the model can compare directly: "you aimed for warmth 0.8, it reads as 0.5". Where an axis is 0.25 or more away, `reads_why` names the two parts of the sound that pull it.
 7. **The Strudel report (`pattern`).** What the owner's player said about the code: whether it ran, its error, events per cycle.
-8. **Context.** `mode` (the mode playing, and whether the owner locked it), `players` (how many players are open), `resting` (the sound faded because the last update was minutes ago), and `notes` (e.g. "no final update last turn", tempo glides, voice changes). After a mode change the first result also carries the new mode's rules (`guidance`).
+8. **Context.** `mode` (the mode playing, and whether the owner locked it), `players` (how many players are open), `resting` (the sound faded because the last update was minutes ago), and `notes` (e.g. "no final update last turn", tempo glides, voice changes). After a mode change the first result also carries the new mode's rules (`guidance`). A `moment` recall returns the same feedback, with a note `recalled "name" (kept at turn N)`.
 
 ## Example
 

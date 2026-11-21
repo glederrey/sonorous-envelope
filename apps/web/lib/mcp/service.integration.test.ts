@@ -793,6 +793,124 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(next.pattern).toMatchObject({ ran: "not reported yet", why: expect.stringMatching(/nobody is listening/) });
     });
   });
+  describe("moment", () => {
+    const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
+    const loudMood = { warmth: 0.3, closeness: 0.6, joy: 0.3, calm: 0.05, spontaneity: 0.9, tension: 0.9 };
+    const last = (sid: string) => JSON.parse(sql(`select effective from states where session_id='${sid}' order by created_at desc limit 1`));
+    const ref = { transition: undefined, final: true } as const;
+    const voiceA = { root: "D3", scale: "dorian", wave: "triangle" } as never;
+
+    it("keeps a moment, and recall brings back the same state, the voice and the sticky settings", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { voice: voiceA }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, colour: { scene: "tide" }, note: "the quiet part", final: true } as never, tick(25_000));
+      const kept = last(session_id);
+      const sticky = sql(`select sticky from sessions where id='${session_id}'`);
+      const k = await svc.moment(dbA, A, { session_id, action: "keep", name: "quiet", ...ref }, tick());
+      expect(k).toMatchObject({ kept: "quiet", moments: ["quiet"] });
+      await svc.setSound(dbA, A, { session_id, mood: { ...calm, joy: 0.2 }, voice: { root: "A2", scale: "phrygian", wave: "square" }, colour: { scene: "stars" }, final: true } as never, tick(25_000));
+      expect(last(session_id).colour.scene).toBe("stars");
+      const r = await svc.moment(dbA, A, { session_id, action: "recall", name: "quiet", transition: { time: 3, curve: "smooth" }, final: true }, tick(25_000));
+      const now = last(session_id);
+      const { transition: t1, grid: g1, ...keptRest } = kept, { transition: t2, grid: g2, ...nowRest } = now;
+      expect(nowRest).toEqual(keptRest); // sound, voice and picture exactly as kept
+      expect(t2).toEqual({ time: 3, curve: "smooth" }); expect(t1).toBeDefined(); expect(g1).toBeDefined(); expect(g2).toBeDefined();
+      expect(sql(`select voice->>'scale' from sessions where id='${session_id}'`)).toBe("dorian");
+      expect(sql(`select sticky from sessions where id='${session_id}'`)).toBe(sticky);
+      expect(sql(`select pending_final from sessions where id='${session_id}'`)).toBe("f");
+      expect((r.notes as string[]).join(" ")).toMatch(/recalled "quiet" \(kept at turn 1\)/);
+      expect(sql(`select intent->>'recalled' from states where session_id='${session_id}' order by created_at desc limit 1`)).toBe("quiet");
+      const log = (await svc.inspect(dbA, A, { session_id, what: "history" })).history.join("\n");
+      expect(log).toMatch(/"recalled \"quiet\""/);
+      // the next set_sound moves on in the restored voice
+      const next = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      expect((next.playing as { scale: string }).scale).toBe("D dorian");
+    });
+
+    it("recall without a transition uses 6 s smooth", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "a", ...ref }, tick());
+      await svc.moment(dbA, A, { session_id, action: "recall", name: "a", final: true }, tick(25_000));
+      expect(last(session_id).transition).toEqual({ time: 6, curve: "smooth" });
+    });
+
+    it("lists names in the order they were kept, and an unknown name says which exist", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, note: "first one", final: true } as never, tick(25_000));
+      expect((await svc.moment(dbA, A, { session_id, action: "list", final: false }, tick())).moments).toEqual([]);
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "zeta", ...ref }, tick());
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "alpha", ...ref }, tick());
+      const l = (await svc.moment(dbA, A, { session_id, action: "list", final: false }, tick(5000))).moments as Array<Record<string, unknown>>;
+      expect(l.map((m) => m.name)).toEqual(["zeta", "alpha"]);
+      expect(l[0]).toMatchObject({ turn: 1, note: "first one", engine: "synth" }); expect(l[0].kept_s_ago).toBeGreaterThanOrEqual(5);
+      await expect(svc.moment(dbA, A, { session_id, action: "recall", name: "nope", final: true }, tick(25_000))).rejects.toMatchObject({ code: "unknown_moment", message: expect.stringContaining("Kept: zeta, alpha.") });
+      await expect(svc.moment(dbA, A, { session_id, action: "recall", name: "constructor", final: true }, tick(25_000))).rejects.toMatchObject({ code: "unknown_moment" });
+    });
+
+    it("stops at twelve names; a name already used is replaced", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      for (let i = 0; i < 12; i++) await svc.moment(dbA, A, { session_id, action: "keep", name: `m${i}`, ...ref }, tick());
+      await expect(svc.moment(dbA, A, { session_id, action: "keep", name: "m12", ...ref }, tick())).rejects.toMatchObject({ code: "moments_full" });
+      const again = await svc.moment(dbA, A, { session_id, action: "keep", name: "m3", ...ref }, tick());
+      expect(again.moments).toHaveLength(12);
+      expect(sql(`select count(*) from jsonb_object_keys((select moments from sessions where id='${session_id}'))`)).toBe("12");
+    });
+
+    it("keep needs a state, and a name", async () => {
+      const u = "00000000-0000-0000-0000-0000000000c1";
+      sql(`insert into auth.users (id, email) values ('${u}', 'c@example.com')`);
+      const { supabaseForToken } = await import("../supabase/bearer");
+      const db = supabaseForToken(await tokenFor(u));
+      const { session_id } = await svc.startSession(db, u, {}, tick());
+      sql(`update sessions set current_state_id = null where id='${session_id}'`);
+      await expect(svc.moment(db, u, { session_id, action: "keep", name: "x", ...ref }, tick())).rejects.toMatchObject({ code: "no_state" });
+      await expect(svc.moment(db, u, { session_id, action: "keep", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });
+    });
+
+    it("a Strudel moment does not come back in Self", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await svc.strudelMode(dbA, A, { session_id, on: true, code: 'note("c3 e3 g3").s("sawtooth")', bpm: 100, final: true }, tick(25_000));
+      expect((await svc.moment(dbA, A, { session_id, action: "list", final: false }, tick())).moments).toEqual([]);
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "pattern", ...ref }, tick());
+      expect((await svc.moment(dbA, A, { session_id, action: "list", final: false }, tick())).moments).toMatchObject([{ name: "pattern", engine: "strudel" }]);
+      // in a listener mode it plays again, with the code
+      await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(25_000));
+      const back = await svc.moment(dbA, A, { session_id, action: "recall", name: "pattern", final: true }, tick(25_000));
+      expect(back.playing).toMatchObject({ engine: "strudel" });
+      expect(back.pattern).toBeDefined();
+      expect(last(session_id).pattern.bpm).toBe(100);
+      // the owner locks Self: Strudel does not play there
+      expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
+      await expect(svc.moment(dbA, A, { session_id, action: "recall", name: "pattern", final: true }, tick(25_000))).rejects.toMatchObject({ code: "strudel_not_here" });
+    });
+
+    it("a synth moment recalled while Strudel plays replaces it", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "synth", ...ref }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*4")', bpm: 120, final: true }, tick(25_000));
+      const r = await svc.moment(dbA, A, { session_id, action: "recall", name: "synth", final: true }, tick(25_000));
+      expect(last(session_id).engine).toBeUndefined();
+      expect(r.playing).not.toMatchObject({ engine: "strudel" });
+    });
+
+    it("holds a loud moment recalled after a quiet state to +4 dB", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      for (let i = 0; i < 4; i++) await svc.setSound(dbA, A, { session_id, mood: loudMood, final: true } as never, tick(25_000));
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "loud", ...ref }, tick());
+      const loudDb = (await svc.getFeedback(dbA, A, { session_id }, clock)).sound as { loudness_db: number };
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      const quietDb = ((await svc.getFeedback(dbA, A, { session_id }, clock)).sound as { loudness_db: number }).loudness_db;
+      const r = await svc.moment(dbA, A, { session_id, action: "recall", name: "loud", final: true }, tick(25_000));
+      expect((r.clamped as string[]).join(" ")).toMatch(/level held/);
+      expect((r.sound as { loudness_db: number }).loudness_db - quietDb).toBeLessThanOrEqual(5);
+      expect(loudDb.loudness_db - quietDb).toBeGreaterThan(5);
+    });
+  });
+
   describe("tell_developers", () => {
     const text = (extra = "") => `The listen tool returned idle at once while a player was open, so I could not wait for presses. I expected it to wait. ${extra}`.padEnd(100, ".");
     const note = (over: Record<string, unknown> = {}) => ({ kind: "bug" as const, text: text(), from: "model" as const, ...over });
