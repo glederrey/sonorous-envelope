@@ -169,19 +169,23 @@ Steps 5 and 6 come before 7, so players start gliding while the analysis runs.
 ```json
 {"turn":12,
  "intent":{"warmth":0.8,"closeness":0.7,"joy":0.6,"calm":0.75,"spontaneity":0.3},
- "reads_as":{"warmth":0.55,"closeness":0.6,"joy":0.58,"calm":0.8,"spontaneity":0.25},
- "playing":{"scale":"D dorian","tempo":64,"wave":"triangle","cutoff":900,"volume":0.5,"drone":true,"gesture":"purr"},
- "clamped":["volume 0.7→0.5 (listener limit)"],
- "sound":{"loudness_db":-24,"brightness":"low","roughness":0.2,"density":"sparse","movement":"slow"},
+ "playing":{"scale":"D dorian","tempo":64,"wave":"triangle","cutoff":900,"resonance":0.2,"detune":4,"volume":0.5,"drone":true,"pattern":"up","rate":1,"octaves":1,"chord":false,"echo":0.3,"reverb":0.4},
+ "clamped":["level held: this sound would have been 6 dB louder than your last, so it was kept to +4 dB; send again to go further"],
  "colour":{"h":30,"s":0.4,"l":0.35,"motion":"drift"},
- "listener":["you: pressed calmer","you: volume 0.8→0.5"],
- "controls":{"volume":0.5,"delay":0.5},
+ "controls":{"volume":0.5},
+ "sound":{"brightness":"low","density":"sparse","movement":"slow","loudness_db":-24,"roughness":0.2},
+ "reads_as":{"warmth":0.55,"closeness":0.6,"joy":0.58,"calm":0.8,"spontaneity":0.25},
+ "reads_why":{"warmth":"held down by brightness, roughness"},
+ "reactions":["calmer, 40 s ago","softer x2, 2 min ago"],
+ "mode":"Attuned",
  "players":1,
  "notes":["no final update last turn"]}
 ```
 Rules:
-- Omit empty arrays and fields with nothing to say (`clamped`, `listener`, `notes`).
-- `playing` lists only the most informative effective parameters (scale, tempo, wave, cutoff, volume, drone on/off, gesture if any).
+- Key order as built: `turn`, `intent`, `playing`, `clamped`, `colour`, `controls`, `sound`, `reads_as`, `reads_why`, `pattern`, `reactions`, `mode`, `players`, `resting`, `notes`, then `guidance` once after a mode change.
+- Omit empty arrays and fields with nothing to say (`clamped`, `reads_why`, `pattern`, `reactions`, `resting`, `notes`).
+- `playing` mirrors what the model can set (scale, tempo, wave, cutoff, resonance, detune, volume, drone, the arpeggio, stack, pad, LFOs, echo and reverb, and the picture when the model chose a scene). While Strudel plays it is `engine`, `bpm`, the code's length and the scene; there is no `sound` or `reads_as` then, and `pattern` carries the player's report.
+- `reactions` are returned only in Attuned and Jukebox. In Self nobody steers the sound: pending reactions are claimed and dropped, so they do not surface after a later switch.
 - **Level step.** One call may raise the loudness (measured on the server, `sound.loudness_db`) by at most 4 dB over the previous state; a bigger jump is held to that step by scaling the master volume for that state only, and `clamped` says "level held" (so `inspect` shows it too). Going down is never held. The call that switches the session into Attuned (`mode: attuned` on auto, not an owner switch) is held to +0 dB: the first sound made for the listener starts no louder than what played, and `clamped` says so (v0.19.2; readings are whole dB, so the held sound is tightened again until it reads at most the step). Other switches keep the 4 dB step. The model can go on in the next call.
 - `playing` echoes `cutoff`, `resonance` and `detune` besides the notes, so a caller can confirm a timbre change arrived.
 - `sound.roughness` is the dissonance of the notes sounding together (from the note events, averaged over them). It does not hear timbre: cutoff, resonance, detune and drive do not move it, and a denser or faster pattern can lower it. "Harsher" shows in `sound.brightness` and in the settings echoed in `playing`, not in roughness.
@@ -192,7 +196,7 @@ Rules:
 - `notes` also says `tempo A to B: it glides over N s` (or `it changes at once when this state starts` when the transition is sudden or shorter than 0.5 s) when the tempo changed (no note and no glide when the state before was silent and its fade is over: after `silence` or an owner lock to Self, the old tempo was not heard, so the new state starts at its own: `nextGrid` writes `grid.glide` 0, which the player already follows), and `no full voice: the mood moved the voice from X to Y. Send keep_voice to hold it` when no complete voice is set and a call changed root, scale or wave. With an auto-adopted voice (no voice sent), the notes also say `your joy moved the mode of your voice` and `your warmth moved the wave of your voice` when a band changed.
 - `resting`: only when the owner's `rest_after` setting is on. `true` when this call arrives more than `rest_after` seconds after the previous state, with the note `"the sound faded after N min without an update from you"`.
 - `players: 0` adds the note `"no player open: nobody is hearing this"`.
-- `listener` entries are human-readable, prefixed with the listener label, oldest first, at most 10 (then `"…and N more"`).
+- `reactions` entries are one line per kind, newest first, at most 8: the kind, `xN` when pressed more than once, and how long ago.
 - If `pending_final` was still true when this turn started (the previous turn ended without a final call), add the note `"no final update last turn"`. Detect a "new turn" as: the previous state was non-final and more than 20 s old, or the previous state was final.
 - With `image_feedback: "every_turn"` and `final: true`, append the spectrogram image block.
 

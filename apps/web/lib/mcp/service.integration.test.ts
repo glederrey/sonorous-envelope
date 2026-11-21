@@ -309,7 +309,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
   });
 
   it("tells the model what the owner pressed, once, and get_feedback only looks", async () => {
-    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
     sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'calmer', now()), ('${session_id}', '${A}', 'more_of_this', now())`);
     const peek = await svc.getFeedback(dbA, A, { session_id }, tick());
     expect((peek.reactions as string[]).join(" ")).toMatch(/calmer x2/);
@@ -317,6 +317,15 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect((a.reactions as string[]).join(" ")).toMatch(/calmer x2.*more of this|more of this.*calmer x2/);
     const b = await svc.setSound(dbA, A, { session_id, final: true } as never, tick());
     expect(b).not.toHaveProperty("reactions");
+  });
+
+  it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick());
+    sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'stormier', now())`);
+    expect(await svc.getFeedback(dbA, A, { session_id }, tick())).not.toHaveProperty("reactions");
+    expect(await svc.setSound(dbA, A, { session_id, final: true } as never, tick())).not.toHaveProperty("reactions");
+    const sw = await svc.setSound(dbA, A, { session_id, mode: "attuned", final: true } as never, tick());
+    expect(sw).not.toHaveProperty("reactions");
   });
 
   it("starts on auto and the internal face by default, or on the external face when asked (old names still work)", async () => {
@@ -616,6 +625,14 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       // the next call shows what the player said about the code that played until then
       const next = await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*2")', bpm: 100, final: true }, tick(5000));
       expect(next.pattern).toMatchObject({ ran: false });
+    });
+
+    it("says nobody is listening when the replaced code was never run because no player was open", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "external" }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      const next = await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*2")', bpm: 100, final: true }, tick(5000));
+      expect(next.players).toBe(0);
+      expect(next.pattern).toMatchObject({ ran: "not reported yet", why: expect.stringMatching(/nobody is listening/) });
     });
   });
 });
