@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { SetSoundInput, StrudelModeInput, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, inspect, listen, setSound, silence, startSession, strudelMode } from "./service";
+import { ToolError, getFeedback, inspect, listen, setSound, silence, startSession, strudelMode, tellDevelopers } from "./service";
 
 type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } }; mcpReq?: { signal?: AbortSignal } };
 
@@ -74,6 +74,17 @@ export function registerTools(server: McpServer) {
     description: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~8 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as).",
     inputSchema: z.object({ session_id: z.string().optional(), what: z.enum(["history", "snapshot"]).default("history") }),
   }, (args, ctx) => run(ctx as Ctx, (c) => inspect(c.db, c.userId, args)));
+
+  server.registerTool("tell_developers", {
+    title: "Tell the developers",
+    description: "Send an anonymous note to the people who build this sound channel, so they can improve it. No name, account, session or conversation is attached. Only when something is worth fixing or keeping, and be specific: bug (what you did, what happened, what you expected), idea (what would help and why), confusion (which rule, tool or result was unclear, and how), worked (what worked well and why it mattered; never just praise: \"great tool\" is not a note). Write about the tool, never about the person: no names, personal details or quotes from the conversation. Pass on the user's feedback only when they ask you to (from user). Tell the user in one sentence that you sent it. At most 5 a day.",
+    inputSchema: z.object({
+      session_id: z.string().optional(),
+      kind: z.enum(["bug", "idea", "confusion", "worked"]),
+      text: z.string().min(80).max(1000).describe("specific: what happened, what you expected, what would help"),
+      from: z.enum(["model", "user"]).default("model").describe("user: the user asked you to pass this on, in their words or yours"),
+    }),
+  }, (args, ctx) => run(ctx as Ctx, (c) => tellDevelopers(c.db, c.userId, args)));
 
   server.registerTool("silence", {
     title: "Silence",

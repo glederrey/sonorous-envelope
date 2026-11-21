@@ -770,3 +770,27 @@ export function inspect(db: Db, userId: string, input: { session_id?: string; wh
 export function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" | "snapshot" }, now = Date.now()): Promise<object> {
   return input.what === "snapshot" ? inspectSnapshot(db, userId, input, now) : inspectHistory(db, userId, input);
 }
+
+/** An anonymous note to the developers. Mode and engine come from the server, never from the model; a session is not needed. The database
+ *  (`send_dev_feedback`, migration 0021) checks and cleans the text and keeps the count of notes per user per day. */
+export async function tellDevelopers(db: Db, userId: string, input: { session_id?: string; kind: "bug" | "idea" | "confusion" | "worked"; text: string; from: "model" | "user" }) {
+  let mode: string | null = null, engine: string | null = null;
+  try {
+    const { session } = await resolveSession(db, userId, input.session_id);
+    mode = MODE_ID[faceOf(session)];
+    const state = await currentState(db, session);
+    if (state) engine = state.effective.engine === "strudel" ? "strudel" : "synth";
+  } catch (e) {
+    if (!(e instanceof ToolError) || !["no_session", "session_ended", "unknown_session"].includes(e.code)) throw e;
+  }
+  const { error } = await db.rpc("send_dev_feedback", { p_kind: input.kind, p_source: input.from, p_body: input.text, p_version: appVersion(), p_mode: mode, p_engine: engine });
+  if (error) {
+    const m = error.message;
+    if (m.includes("too short")) throw new ToolError("too_short", "Say what happened, what you expected and what would help: at least 80 characters. A note that only says it is good is not sent.");
+    if (m.includes("too long")) throw new ToolError("too_long", "At most 1000 characters.");
+    if (m.includes("daily limit")) throw new ToolError("daily_limit", "Five notes a day at most: keep the rest for tomorrow, or fold it into one note.");
+    if (m.includes("global limit")) throw new ToolError("busy", "Too many notes today from everyone. Try tomorrow.");
+    fail("send the note", error);
+  }
+  return { sent: true, note: "Tell the user in one short sentence that you sent a note to the developers (anonymous: no name, account or conversation attached)." };
+}

@@ -793,4 +793,92 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(next.pattern).toMatchObject({ ran: "not reported yet", why: expect.stringMatching(/nobody is listening/) });
     });
   });
+  describe("tell_developers", () => {
+    const text = (extra = "") => `The listen tool returned idle at once while a player was open, so I could not wait for presses. I expected it to wait. ${extra}`.padEnd(100, ".");
+    const note = (over: Record<string, unknown> = {}) => ({ kind: "bug" as const, text: text(), from: "model" as const, ...over });
+    // one fresh user per test: the daily count is per user
+    let n = 0;
+    async function fresh() {
+      const id = `00000000-0000-0000-0000-0000000d${String(++n).padStart(4, "0")}`;
+      sql(`insert into auth.users (id, email) values ('${id}', 'dev${n}@example.com')`);
+      const { supabaseForToken } = await import("../supabase/bearer");
+      return { id, db: supabaseForToken(await tokenFor(id)) };
+    }
+    const count = () => Number(sql("select count(*) from dev_feedback"));
+
+    it("stores a note with the server's mode, engine and version, and nothing that links it to the user", async () => {
+      const u = await fresh();
+      await svc.startSession(u.db, u.id, {}, tick());
+      const before = count();
+      expect(await svc.tellDevelopers(u.db, u.id, note({ kind: "idea", from: "user" }))).toMatchObject({ sent: true });
+      expect(count()).toBe(before + 1);
+      expect(sql("select source||'/'||kind||'/'||mode||'/'||engine||'/'||status from dev_feedback order by id desc limit 1")).toBe("user/idea/self/synth/new");
+      expect(sql("select app_version is not null and app_version <> '' from dev_feedback order by id desc limit 1")).toBe("t");
+      expect(sql("select created_at = date_trunc('hour', created_at) from dev_feedback order by id desc limit 1")).toBe("t");
+      const cols = sql("select string_agg(column_name, ',') from information_schema.columns where table_schema='public' and table_name='dev_feedback'");
+      expect(cols).not.toMatch(/user|session|owner/);
+    });
+
+    it("takes the mode from the session and the engine from its current state", async () => {
+      const u = await fresh();
+      await svc.startSession(u.db, u.id, { mode: "external" }, tick());
+      await svc.tellDevelopers(u.db, u.id, note());
+      expect(sql("select mode||'/'||engine from dev_feedback order by id desc limit 1")).toBe("attuned/synth");
+    });
+
+    it("keeps notes out of reach of the API: no select, insert or update, for the user or anyone", async () => {
+      const u = await fresh();
+      await svc.tellDevelopers(u.db, u.id, note());
+      for (const t of ["dev_feedback", "dev_feedback_quota"]) {
+        const r = await u.db.from(t).select("*");
+        expect(r.error !== null || (r.data ?? []).length === 0).toBe(true);
+      }
+      const ins = await u.db.from("dev_feedback").insert({ kind: "bug", source: "model", body: text() });
+      expect(ins.error).not.toBeNull();
+      const before = count();
+      const upd = await u.db.from("dev_feedback").update({ status: "done" }).eq("status", "new");
+      expect(upd.error !== null || (upd.data ?? []).length === 0).toBe(true);
+      expect(sql("select count(*) from dev_feedback where status <> 'new'")).toBe("0");
+      expect(count()).toBe(before);
+    });
+
+    it("refuses a note under 80 characters", async () => {
+      const u = await fresh();
+      const before = count();
+      await expect(svc.tellDevelopers(u.db, u.id, note({ text: "x".repeat(79) }))).rejects.toMatchObject({ code: "too_short" });
+      expect(count()).toBe(before);
+    });
+
+    it("stops at five notes a day and does not store the sixth", async () => {
+      const u = await fresh();
+      const before = count();
+      for (let i = 0; i < 5; i++) await svc.tellDevelopers(u.db, u.id, note({ text: text(`number ${i}`) }));
+      await expect(svc.tellDevelopers(u.db, u.id, note({ text: text("number 5") }))).rejects.toMatchObject({ code: "daily_limit" });
+      expect(count()).toBe(before + 5);
+      expect(sql(`select n from dev_feedback_quota where user_id='${u.id}'`)).toBe("5");
+    });
+
+    it("strips control characters, keeps newlines", async () => {
+      const u = await fresh();
+      await svc.tellDevelopers(u.db, u.id, note({ text: text("a\u0007b\u001b[31mred\nnext line") }));
+      const body = sql("select replace(body, E'\\n', '<nl>') from dev_feedback order by id desc limit 1");
+      expect(body).toContain("ab[31mred<nl>next line");
+      expect(body).not.toMatch(/[\u0007\u001b]/);
+    });
+
+    it("works without a session, with no mode", async () => {
+      const u = await fresh();
+      await expect(svc.getFeedback(u.db, u.id, {}, clock)).rejects.toMatchObject({ code: "no_session" });
+      await svc.tellDevelopers(u.db, u.id, note());
+      expect(sql("select mode is null and engine is null from dev_feedback order by id desc limit 1")).toBe("t");
+    });
+
+    it("stores SQL-looking text verbatim as text", async () => {
+      const u = await fresh();
+      const evil = "'); drop table public.sessions; --".padEnd(90, " x");
+      await svc.tellDevelopers(u.db, u.id, note({ text: evil }));
+      expect(sql("select body from dev_feedback order by id desc limit 1")).toBe(evil.trim());
+      expect(sql("select to_regclass('public.sessions') is not null")).toBe("t");
+    });
+  });
 });
