@@ -42,7 +42,7 @@ export function ControlsLab() {
   const [face, setFace] = useState<Face>("external");
   const [width, setWidth] = useState(390), [measured, setMeasured] = useState(0), [whenMin, setWhenMin] = useState(WHEN_MIN_WIDTH);
   const [muted, setMuted] = useState(false), [volume, setVolume] = useState(0.8);
-  const [gradientOn, setGradientOn] = useState(true), [visualsOn, setVisualsOn] = useState(true), [strudelVisuals, setStrudelVisuals] = useState(true);
+  const [gradientOn, setGradientOn] = useState(true), [visualsOn, setVisualsOn] = useState(true), [strudelVisuals, setStrudelVisuals] = useState(true), [strudelCode, setStrudelCode] = useState(true);
   const [note, setNote] = useState("");
   const [behind, setBehind] = useState<Behind>("scene"), [sample, setSample] = useState(SCENE_STATES[0].id);
   const [epoch] = useState(() => Date.now());
@@ -106,7 +106,7 @@ export function ControlsLab() {
             middle={<ControlsMiddle key={viewer}
               supabase={supabase} sessionId="demo" signedIn={viewer !== "guest"} face={face} policy={policy} onChanged={() => {}}
               pattern={playsPattern ? { code: CODE, bpm: 110 } : null}
-              patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals}
+              patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
             />}
             extra={viewer !== "guest" ? <details className="pl-set se-sm"><summary>What the model set</summary></details> : null}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"

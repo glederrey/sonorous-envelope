@@ -103,6 +103,9 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   // "Strudel visuals" (on by default, per device): while Strudel plays, the picture is the code and its drawings, not the scenes
   const [strudelVisuals, setStrudelVisuals] = useState(true);
   const strudelPref = useRef(true);
+  // "Strudel code" (on by default, per device): off hides the code over the picture and leaves only its drawings
+  const [strudelCode, setStrudelCode] = useState(true);
+  const codePref = useRef(true);
   const [stSeen, setStSeen] = useState(false); // a Strudel state has shown: the view is loaded
   const [stShown, setStShown] = useState(false); // the Strudel picture is the one showing (it stays through a silence, and fades with the level)
   const vizStore = useMemo(() => new VizStore(), []);
@@ -147,14 +150,16 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   // the picture's own settings, per device: ?field=css keeps the old CSS motion
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; strudel?: boolean };
+      const v = JSON.parse(localStorage.getItem("se:picture") ?? "{}") as { still?: boolean; gradient?: boolean; visuals?: boolean; strudel?: boolean; code?: boolean };
       setStrudelVisuals(v.strudel !== false); strudelPref.current = v.strudel !== false;
+      setStrudelCode(v.code !== false); codePref.current = v.code !== false;
       setGradientOn(v.still ? false : v.gradient !== false); setVisualsOn(v.still ? false : v.visuals !== false);
     } catch { /* private window */ }
     if (new URLSearchParams(window.location.search).get("field") === "css") setCanvasOk(false);
   }, []);
-  const rememberPicture = (gradient: boolean, visuals: boolean) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, strudel: strudelPref.current })); } catch { /* private window */ } };
+  const rememberPicture = (gradient: boolean, visuals: boolean) => { try { localStorage.setItem("se:picture", JSON.stringify({ gradient, visuals, strudel: strudelPref.current, code: codePref.current })); } catch { /* private window */ } };
   const chooseStrudelVisuals = (on: boolean) => { setStrudelVisuals(on); strudelPref.current = on; rememberPicture(gradientOn, visualsOn); };
+  const chooseStrudelCode = (on: boolean) => { setStrudelCode(on); codePref.current = on; rememberPicture(gradientOn, visualsOn); };
   const pictureLatency = useCallback(() => (audio.current ? audio.current.latency : 0), []);
   const failCanvas = useCallback(() => setCanvasOk(false), []);
 
@@ -614,7 +619,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         />
       )}
       {canvasOk && !reduced && stSeen && (
-        <StrudelView store={vizStore} output={() => strudel.current} level={vizLevel} beats={vizBeats} shown={strudelOn} opacity={vizOpacity} hue={colour?.h ?? 220} />
+        <StrudelView store={vizStore} output={() => strudel.current} level={vizLevel} beats={vizBeats} shown={strudelOn} opacity={vizOpacity} hue={colour?.h ?? 220} showCode={strudelCode} />
       )}
       <main className="pl-stage">
         {phase === "joining" && <p className="pl-note" role="status">Opening the player…</p>}
@@ -671,7 +676,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             middle={<ControlsMiddle
               supabase={supabase} sessionId={sessionId} signedIn={signedIn} face={face} policy={policy} onChanged={() => reload.current()}
               pattern={playing?.state.engine === "strudel" && playing.state.pattern && forListener(face) && allowCode && blockedAt !== playing.at ? playing.state.pattern : null}
-              patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals}
+              patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
             />}
             extra={signedIn ? <WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /> : null}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}
