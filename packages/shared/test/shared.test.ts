@@ -206,9 +206,9 @@ describe("schemas and feedback", () => {
   });
   it("drops the removed limit keys from old rows and falls back to defaults for broken ones", () => {
     const old = parseSettings({ consent: "ambient", max_volume: 0.3, max_harshness: 0.2, colour: { enabled: false }, rest_after: 600 });
-    expect(old).toEqual({ rest_after: 600, image_feedback: "off", live: false });
-    expect(parseSettings({ rest_after: "nope" })).toEqual({ rest_after: 900, image_feedback: "off", live: false });
-    expect(parseSettings(undefined)).toEqual({ rest_after: 900, image_feedback: "off", live: false });
+    expect(old).toEqual({ rest_after: 600, image_feedback: "on_request", live: false });
+    expect(parseSettings({ rest_after: "nope" })).toEqual({ rest_after: 900, image_feedback: "on_request", live: false });
+    expect(parseSettings(undefined)).toEqual({ rest_after: 900, image_feedback: "on_request", live: false });
   });
   it("builds a compact feedback object that omits empty fields", () => {
     const eff = moodToEngineState(neutral);

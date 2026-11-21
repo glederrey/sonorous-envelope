@@ -19,7 +19,7 @@ Clamps from these rules are reported in the feedback (`clamped`), usually empty.
 ```ts
 const ListenerSettings = z.object({
   rest_after: z.number().min(60).max(3600).nullable().default(900), // seconds without an update before the fade; null = never
-  image_feedback: z.enum(["off","on_request","every_turn"]).default("off"),
+  image_feedback: z.enum(["off","on_request","every_turn"]).default("on_request"), // the owner's "Let the AI see the picture"; every_turn is not built
 });
 ```
 Old rows still carry `consent`, `max_volume`, `max_harshness`, `min_transition`, `mood_floor`, `gestures`, `max_delay_mix` and `colour`; zod strips them on read, and nothing reads them. `rest_after` is shared: Claude can change it with `set_sound`, and the owner will be able to from the owner panel (roadmap step 5).

@@ -17,6 +17,7 @@ import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { ControlsMiddle } from "./controls-middle";
 import { ControlsPanel } from "./controls-panel";
+import { useSnapshots } from "../../lib/snapshot/use-snapshots";
 import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
 import { MODE_HINT, MODE_LABEL, effectiveRestAfter, forListener, normalizeFace, parsePolicy, type Face, type Policy } from "../../lib/mcp/modes";
@@ -579,6 +580,11 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     if (started && forListener(face) && allowCode) { void import("./strudel-view"); void import("../../lib/strudel/output"); }
   }, [started, face, allowCode]);
 
+  const fieldRef = useRef<HTMLDivElement>(null);
+  useSnapshots({
+    supabase, sessionId, signedIn, started, playing, audio, settings, field: fieldRef, controls, strudelPlays: patternShows, strudelDrawn: strudelOn && patternShows, debug,
+  });
+
   const colour = playing?.state.colour;
   // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
   const hue = unwrapHue(lastHue.current.h, colour?.h ?? 220);
@@ -608,7 +614,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
 
   return (
     <div
-      className="pl-field" style={fieldStyle} onPointerDown={full ? nudgeExit : undefined} onPointerMove={full && !exitShown ? nudgeExit : undefined}
+      ref={fieldRef} className="pl-field" style={fieldStyle} onPointerDown={full ? nudgeExit : undefined} onPointerMove={full && !exitShown ? nudgeExit : undefined}
       data-motion={reduced || stillPicture || canvasOk ? "still" : colour?.motion ?? "still"} data-canvas={canvasOk && !reduced ? "on" : "off"} data-texture={colour?.texture ?? "flat"} data-shape={colour?.shape ?? "wash"}
     >
       <div className="pl-dim" data-animated={dimAnimated} aria-hidden />

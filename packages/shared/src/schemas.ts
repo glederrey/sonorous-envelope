@@ -118,7 +118,7 @@ export type Transition = z.infer<typeof Transition>;
 export const ListenerSettings = z.object({
   // Shared with Claude (limits.md, "Who can change what"): seconds without an update before the sound fades; null = never.
   rest_after: z.number().min(60).max(3600).nullable().default(900),
-  image_feedback: z.enum(["off", "on_request", "every_turn"]).default("off"),
+  image_feedback: z.enum(["off", "on_request", "every_turn"]).default("on_request"),
   // The owner's "Live tuning" switch: Attuned and Jukebox only. When on, the model waits for the listener's presses with `listen` after its final call.
   live: z.boolean().default(false),
 });

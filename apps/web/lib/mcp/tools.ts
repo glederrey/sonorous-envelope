@@ -14,9 +14,14 @@ function caller(ctx: Ctx) {
 }
 
 /** Run a tool body: compact JSON out, readable errors as tool results (never protocol errors). */
-async function run(ctx: Ctx, body: (c: ReturnType<typeof caller>) => Promise<object>) {
+export async function run(ctx: Ctx, body: (c: ReturnType<typeof caller>) => Promise<object>) {
   try {
     const result = await body(caller(ctx));
+    // A body may hand back an image as `__image`: it goes out as an image block, never inside the text or structuredContent.
+    const { __image: image, ...rest } = result as { __image?: { mime: string; base64: string } };
+    if (image) {
+      return { content: [{ type: "image" as const, data: image.base64, mimeType: image.mime }, { type: "text" as const, text: JSON.stringify(rest) }], structuredContent: rest as Record<string, unknown> };
+    }
     return { content: [{ type: "text" as const, text: JSON.stringify(result) }], structuredContent: result as Record<string, unknown> };
   } catch (e) {
     const err = e instanceof ToolError ? e : new ToolError("server_error", "Something went wrong. Try again.");
@@ -51,10 +56,10 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("listen", {
     title: "Listen for the listener's buttons",
-    description: "Attuned and Jukebox only. Wait up to `seconds` for the listener to press a button in the player and return as soon as they do (event reactions, with what they pressed), so you can answer within the same message. Call it after a final set_sound when live tuning is on (a note says so) or when the listener asks you to listen. On reactions: answer with one final call (set_sound, or strudel_mode while Strudel plays; it marks the presses as read), then listen again. On idle, stopped, mode_changed or nobody_listening: stop listening and end your message. It never changes the sound.",
+    description: "Attuned and Jukebox only. Wait up to `seconds` for the listener to press a button in the player and return as soon as they do (event reactions, with what they pressed), so you can answer within the same message. Call it only as the very last call of your message, after all your text and your final set_sound, when live tuning is on (a note says so) or when the listener asks you to listen; never in the middle of an answer. On reactions: answer with one final call (set_sound, or strudel_mode while Strudel plays; it marks the presses as read), then listen again. On idle, stopped, mode_changed or nobody_listening: stop listening and end your message. It never changes the sound.",
     inputSchema: z.object({
       session_id: z.string().optional(),
-      seconds: z.number().int().min(5).max(45).default(40).describe("how long to wait at most"),
+      seconds: z.number().int().min(5).max(45).default(20).describe("how long to wait at most; keep the default: a message the user types waits until this returns"),
     }),
   }, (args, ctx) => run(ctx as Ctx, (c) => listen(c.db, c.userId, args, { signal: (ctx as Ctx).mcpReq?.signal })));
 
@@ -65,9 +70,9 @@ export function registerTools(server: McpServer) {
   }, (args, ctx) => run(ctx as Ctx, (c) => getFeedback(c.db, c.userId, args)));
 
   server.registerTool("inspect", {
-    title: "Recent history",
-    description: "The last 8 states as one line each: what you sent, what it read as, clamps and your note. Text only.",
-    inputSchema: z.object({ session_id: z.string().optional(), what: z.enum(["history"]).default("history") }),
+    title: "Recent history or a snapshot",
+    description: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~8 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as).",
+    inputSchema: z.object({ session_id: z.string().optional(), what: z.enum(["history", "snapshot"]).default("history") }),
   }, (args, ctx) => run(ctx as Ctx, (c) => inspect(c.db, c.userId, args)));
 
   server.registerTool("silence", {

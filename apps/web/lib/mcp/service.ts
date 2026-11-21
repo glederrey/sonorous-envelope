@@ -132,7 +132,7 @@ const faceOf = (s: { mode?: string }): Face => normalizeFace(s.mode);
 /** Told to the model on a final call while the owner's "Live tuning" switch is on: mode guidance reaches it only at the start or on a change, so a running session learns of the switch here. */
 function liveNote(settings: ListenerSettings, face: Face, final: boolean): string | undefined {
   if (!final || !forListener(face) || !settings.live) return undefined;
-  return "live tuning is on: the listener wants their buttons to reach you now. After this final call, call listen; answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
+  return "live tuning is on: the listener wants their buttons to reach you now. Once all your text is written and this final call is made, call listen as your last call; answer what it returns with one final set_sound (or strudel_mode while Strudel plays), then listen again, until it says idle";
 }
 
 /** Lazy guidance: what to do with the rules of a mode, given the mode whose rules the model last received (`guided`, null for
@@ -719,8 +719,30 @@ export async function silence(db: Db, userId: string, input: { session_id?: stri
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: prev.intent.mood ?? NEUTRAL_MOOD, effective, clamps: [], players: p.players, controls: p.controls, notes, resting: rest.resting, mode: faceLine(faceOf(session), parsePolicy(session.mode_policy)) }), g);
 }
 
+/** What the owner's player showed and played, as one image and the numbers measured from its output (put_snapshot, from the player). */
+async function inspectSnapshot(db: Db, userId: string, input: { session_id?: string }, now: number) {
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  if (parseSettings(session.settings).image_feedback === "off") throw new ToolError("image_feedback_off", "The listener turned off picture feedback in the player.");
+  const { data: snap, error: snapError } = await db.from("snapshots").select("state_id,image,measured,volume,taken_at").eq("session_id", session.id).maybeSingle();
+  if (snapError) fail("read the snapshot", snapError);
+  const notes = note ? { notes: [note] } : {};
+  if (!snap) return { snapshot: null, why: "no snapshot yet: the owner's player takes one a few seconds after each new sound, while it is open, playing and visible", ...notes };
+  const row = snap as { state_id: string | null; image: string; measured: unknown; volume: number | null; taken_at: string };
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(row.image);
+  if (!m) fail("read the snapshot", { message: "stored image is not a base64 data URL" });
+  return {
+    __image: { mime: m[1], base64: m[2] },
+    of: row.state_id === session.current_state_id ? "the current sound" : "an earlier sound: the current one is newer, ask again in about 10 s",
+    age_s: Math.max(0, Math.round((now - new Date(row.taken_at).getTime()) / 1000)),
+    measured: row.measured,
+    listener_volume: row.volume,
+    note: "a white line on the spectrogram marks where this sound began (left of it: the sound before); measured covers the sound after it. Levels are at the player's output, after the listener's volume (0.8 is their default): do not compensate for their volume",
+    ...notes,
+  };
+}
+
 /** The last states, one line each: what was sent, what it read as, clamps and the note. Text only. */
-export async function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" }, _now = Date.now()) {
+async function inspectHistory(db: Db, userId: string, input: { session_id?: string }) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   const { data, error } = await db.from("states").select("turn,final,created_at,intent,clamps,analysis")
     .eq("session_id", session.id).order("created_at", { ascending: false }).limit(9);
@@ -740,4 +762,11 @@ export async function inspect(db: Db, userId: string, input: { session_id?: stri
   const faces = ((changes ?? []) as Array<{ turn: number; to_mode: string; by: string; created_at: string }>).reverse()
     .map((c) => `turn ${c.turn} ${new Date(c.created_at).toISOString().slice(11, 19)} · ${c.by === "owner" ? (c.to_mode === "auto" ? "owner set auto" : `owner locked ${MODE_LABEL[normalizeFace(c.to_mode)]}`) : `you switched to ${MODE_LABEL[normalizeFace(c.to_mode)]}`}`);
   return { history: lines, ...(faces.length ? { face_changes: faces } : {}), ...(note ? { notes: [note] } : {}) };
+}
+
+/** `history`: the last states as text. `snapshot`: what the owner's player shows and plays (an image and numbers). */
+export function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" }, now?: number): ReturnType<typeof inspectHistory>;
+export function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" | "snapshot" }, now?: number): Promise<object>;
+export function inspect(db: Db, userId: string, input: { session_id?: string; what: "history" | "snapshot" }, now = Date.now()): Promise<object> {
+  return input.what === "snapshot" ? inspectSnapshot(db, userId, input, now) : inspectHistory(db, userId, input);
 }
