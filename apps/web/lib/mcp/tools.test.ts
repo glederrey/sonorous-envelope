@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMcpHandler } from "mcp-handler";
-import { registerTools } from "./tools";
+import { registerTools, run } from "./tools";
 import { SERVER_INSTRUCTIONS } from "./instructions";
 import { INTERNAL_GUIDANCE } from "./guidance/internal";
+
+// the image test runs a tool body without a database: the caller's client is never used
+vi.mock("../supabase/bearer", () => ({ supabaseForToken: () => ({}) }));
 
 const handler = createMcpHandler((s) => registerTools(s), { serverInfo: { name: "t", version: "0" }, instructions: SERVER_INSTRUCTIONS });
 
@@ -93,5 +96,19 @@ describe("MCP tools", () => {
     expect(tool("set_sound").inputSchema.properties.colour.description).toMatch(/stays until you change it/);
     expect(JSON.stringify(tool("set_sound").inputSchema).length).toBeLessThan(11000);
   });
-});
 
+  it("sends an image from a tool body as an image block, never inside the text", async () => {
+    const ctx = { http: { authInfo: { token: "t", extra: { userId: "u" } } } };
+    const r = await run(ctx, async () => ({ __image: { mime: "image/jpeg", base64: "QUJDRA==" }, of: "the current sound" }));
+    expect(r.content[0]).toEqual({ type: "image", data: "QUJDRA==", mimeType: "image/jpeg" });
+    expect(r.content[1]).toEqual({ type: "text", text: JSON.stringify({ of: "the current sound" }) });
+    expect(JSON.stringify(r.structuredContent)).not.toContain("QUJDRA");
+    expect(r.content.map((c) => ("text" in c ? c.text : "")).join("")).not.toContain("QUJDRA");
+  });
+
+  it("lists the snapshot choice on inspect", async () => {
+    const r = await rpc("tools/list");
+    const inspect = r.result.tools.find((t: { name: string }) => t.name === "inspect");
+    expect(inspect.inputSchema.properties.what.enum).toEqual(["history", "snapshot"]);
+  });
+});

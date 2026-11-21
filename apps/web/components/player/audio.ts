@@ -21,7 +21,7 @@ export class AudioOutput {
   readonly events: string[] = [];
   /** True while we paused the keep-alive file on purpose (mute): the auto-resume must leave it alone. */
   private heldPaused = false;
-  private constructor(private ctx: AudioContext, private node: AudioWorkletNode, private keepAlive: HTMLAudioElement, readonly strudelBus: GainNode) {}
+  private constructor(private ctx: AudioContext, private node: AudioWorkletNode, private keepAlive: HTMLAudioElement, readonly strudelBus: GainNode, readonly tap: AnalyserNode) {}
   /** The audio context, for the Strudel output, which plays into the same graph (strudelBus: the listener's volume). */
   get context() { return this.ctx; }
 
@@ -62,8 +62,12 @@ export class AudioOutput {
     // Strudel plays into this node, which carries the listener's volume like the synth's own gain does
     const strudelBus = new GainNode(ctx);
     strudelBus.connect(ctx.destination);
+    // Read-only tap on the player's real output (after the listener's volume), for the snapshot; it has no output
+    const tap = new AnalyserNode(ctx, { fftSize: 2048, smoothingTimeConstant: 0 });
+    node.connect(tap);
+    strudelBus.connect(tap);
     await ctx.resume();
-    return new AudioOutput(ctx, node, keepAlive, strudelBus);
+    return new AudioOutput(ctx, node, keepAlive, strudelBus, tap);
   }
 
   setState(state: EngineState, seed: number, delay = 0, elapsed?: number) { this.node.port.postMessage({ type: "state", state, seed, delay, elapsed }); }
@@ -102,6 +106,6 @@ export class AudioOutput {
     void this.keepAlive.play().catch(() => {});
   }
   async close() {
-    try { this.keepAlive.pause(); this.keepAlive.srcObject = null; this.node.disconnect(); this.strudelBus.disconnect(); await this.ctx.close(); } catch { /* already closed */ }
+    try { this.keepAlive.pause(); this.keepAlive.srcObject = null; this.node.disconnect(); this.strudelBus.disconnect(); this.tap.disconnect(); await this.ctx.close(); } catch { /* already closed */ }
   }
 }

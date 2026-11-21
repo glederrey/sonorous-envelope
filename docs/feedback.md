@@ -61,19 +61,15 @@ The other three need heuristics built from audio features:
 2. Add an Essentia model for `joy` and `calm` and compare with the heuristics on our own sounds.
 3. Keep the estimate clearly labelled as an estimate, so it informs the model instead of steering it.
 
-## Spectrogram image (opt-in)
+## Snapshot: the picture and the sound at the player
 
-The model can read images in tool results, and a picture of the sound shows patterns that numbers flatten: the arpeggio's shape, the filter sweep, how dense or empty it is. But images cost tokens, so feedback starts without them.
+*Built 2026-11-21 (roadmap step 10).* The model can read images in tool results, and a picture of the sound shows what numbers flatten: the arpeggio's shape, the filter sweep, how dense or empty it is. The server never renders it: the owner's player takes it from what it really shows and plays, so it also covers Strudel (which has no `reads_as`) and the listener's own output.
 
-Session setting `image_feedback`, changeable in the player (with the token cost shown next to it):
-- `off` (default): no images.
-- `on_request`: the model can call `inspect("spectrogram")`.
-- `every_turn`: an image comes back with every final update.
-
-Image format:
-- A mel spectrogram of the last ~8 seconds, small (around 512×256).
-- A strip underneath showing the colour field over the same time span, so one image covers both channels.
-- Optional extras: chromagram (which notes are present), loudness curve.
+- **What it is.** One small JPEG (512 px wide): the picture the player shows on top (the base colour, the scenes canvas, and Strudel's drawings while they are what shows), a spectrogram of the last ~8 s of the player's output below (40 Hz to 12 kHz, low notes at the bottom), and the numbers measured from that output (`seconds`, `loudness_db`, `peak_db`, `centroid_hz`, `brightness`, `onsets_per_s`, `quiet_share`). The level is measured after the listener's volume (the tap sits at the player's output), so the result says not to compensate for it, and carries `listener_volume`.
+- **Who takes it.** Only the owner's browser, while the audio runs and the page is visible, a few seconds after each new sound (its transition plus 3 s, between 6 and 14 s) and every 30 s after that. It is stored as one row per session (`snapshots`, replaced each time); only the owner can read it.
+- **How the model asks.** `inspect` with `what: "snapshot"`. The result says whether it is of the current sound or of an earlier one. Nothing comes back with `set_sound`: `every_turn` is not built.
+- **Setting.** `image_feedback`: `on_request` (default) or `off`; the owner switches it with "Let the AI see the picture" under Settings in the player. With `off` the player takes nothing and `inspect` answers `image_feedback_off`. (`every_turn` stays in the schema, unused.) The default was `off` until this step; Gael reviews the change.
+- **Not the camera or the microphone.** The image is drawn from the player's own canvases and its audio output.
 
 ## Tracking over time
 

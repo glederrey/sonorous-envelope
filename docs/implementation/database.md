@@ -62,5 +62,8 @@ The service role key is not needed for normal operation. Use it only for mainten
 ## Live tuning (migration 0019)
 `sessions.listening_until` (timestamptz, null when nobody waits): set by the MCP tool `listen` to the end of its wait and cleared when the wait ends. `get_player_state` returns it, `player_poll` includes it in the version, and the `sessions_broadcast` trigger fires when it changes, so the player shows "Claude is listening" at once. The revert is `supabase/revert/0019_listening.down.sql`.
 
+## Snapshots (migration 0020)
+Table `snapshots`, one row per session (`session_id` primary key, `state_id`, `image` a JPEG data URL, `measured` jsonb, `volume`, `taken_at`), replaced on every capture. RLS: only the session owner can select it; nobody writes it directly. The owner's player writes through RPC `put_snapshot(p_session, p_state, p_image, p_measured, p_volume)`, which checks that the caller owns the session, that the image is a `data:image/jpeg;base64,` URL of at most 350000 characters, that the state belongs to the session, and that `measured` is a small object; an ended session takes no more. The MCP `inspect` tool reads it with the caller's token. The revert is `supabase/revert/0020_snapshots.down.sql`.
+
 ## Strudel (migration 0010)
 `sessions.allow_code` (owner's switch, default true; RPC `set_allow_code`), table `pattern_reports` (one row per Strudel state: `ok`, `error`, `events_per_cycle`, `notes`) written only by RPC `report_pattern`, which checks that the caller owns the session and keeps the first report. `get_player_state` also returns `allow_code` and the state `id`. The states themselves need no migration: the pattern is `effective.engine` and `effective.pattern` inside the existing jsonb.

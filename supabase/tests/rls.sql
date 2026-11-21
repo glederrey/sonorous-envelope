@@ -107,6 +107,30 @@ set role authenticated;
 do $$ begin assert (select count(*) from public.player_heartbeats) = 0, 'stranger sees no heartbeats'; end $$;
 reset role;
 
+-- snapshots: the owner writes through put_snapshot and reads the row; a stranger and anon can do neither
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+select public.put_snapshot('sess1', (select current_state_id from public.sessions where id = 'sess1'), 'data:image/jpeg;base64,QUJDRA==', '{"seconds":8}', 0.5);
+do $$ begin assert (select count(*) from public.snapshots) = 1, 'owner sees the snapshot'; end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+do $$ begin
+  assert (select count(*) from public.snapshots) = 0, 'stranger sees no snapshot';
+  begin perform public.put_snapshot('sess1', null, 'data:image/jpeg;base64,QUJDRA==', '{}', 0.5); raise exception 'stranger saved a snapshot';
+  exception when raise_exception then if sqlerrm not like 'only the session owner%' then raise; end if; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claims', '{}', false);
+set role anon;
+do $$ begin
+  begin perform public.put_snapshot('sess1', null, 'data:image/jpeg;base64,QUJDRA==', '{}', 0.5); raise exception 'anon saved a snapshot';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.snapshots; raise exception 'anon read snapshots';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 -- a flood from one leaked link is bounded
 do $$ begin
   for i in 1..60 loop

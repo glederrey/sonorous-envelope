@@ -549,6 +549,50 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await expect(svc.inspect(dbB, B, { session_id, what: "history" })).rejects.toMatchObject({ code: "unknown_session" });
   });
 
+  describe("inspect snapshot", () => {
+    const jpeg = "data:image/jpeg;base64,QUJDRA==";
+    const stateOf = (id: string) => sql(`select current_state_id from sessions where id='${id}'`);
+    const measured = { seconds: 7.9, loudness_db: -24.1, brightness: "mid" };
+
+    it("returns the owner's picture as an image part and says it is of the current sound", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      const put = await dbA.rpc("put_snapshot", { p_session: session_id, p_state: stateOf(session_id), p_image: jpeg, p_measured: measured, p_volume: 0.6 });
+      expect(put.error).toBeNull();
+      const r = await svc.inspect(dbA, A, { session_id, what: "snapshot" }) as { __image: { mime: string; base64: string }; of: string; measured: unknown; listener_volume: number };
+      expect(r.__image).toEqual({ mime: "image/jpeg", base64: "QUJDRA==" });
+      expect(r.of).toBe("the current sound");
+      expect(r.measured).toEqual(measured);
+      expect(r.listener_volume).toBeCloseTo(0.6);
+      await svc.setSound(dbA, A, { session_id, mood, final: true } as never, tick());
+      expect((await svc.inspect(dbA, A, { session_id, what: "snapshot" }) as { of: string }).of).toMatch(/^an earlier sound/);
+    });
+
+    it("is refused to another user, and put_snapshot raises for them", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      const put = await dbB.rpc("put_snapshot", { p_session: session_id, p_state: null, p_image: jpeg, p_measured: {}, p_volume: 0.5 });
+      expect(put.error?.message).toMatch(/only the session owner/);
+      await expect(svc.inspect(dbB, B, { session_id, what: "snapshot" })).rejects.toMatchObject({ code: "unknown_session" });
+    });
+
+    it("says so when the owner turned picture feedback off", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      sql(`update sessions set settings = settings || '{"image_feedback":"off"}'::jsonb where id='${session_id}'`);
+      await expect(svc.inspect(dbA, A, { session_id, what: "snapshot" })).rejects.toMatchObject({ code: "image_feedback_off" });
+    });
+
+    it("returns snapshot null while the player has taken none", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      expect(await svc.inspect(dbA, A, { session_id, what: "snapshot" })).toMatchObject({ snapshot: null, why: expect.stringMatching(/no snapshot yet/) });
+    });
+
+    it("refuses an image that is not a JPEG data URL", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      const put = await dbA.rpc("put_snapshot", { p_session: session_id, p_state: null, p_image: "data:image/png;base64,QUJDRA==", p_measured: {}, p_volume: 0.5 });
+      expect(put.error?.message).toMatch(/small JPEG/);
+      expect(sql(`select count(*) from snapshots where session_id='${session_id}'`)).toBe("0");
+    });
+  });
+
   it("writes the shared timeline into every state: the step counters keep counting from one state to the next", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     const grid = () => JSON.parse(sql(`select effective->'grid' from states where session_id='${session_id}' order by created_at desc limit 1`));

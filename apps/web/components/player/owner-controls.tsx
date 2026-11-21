@@ -129,6 +129,14 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
     const { error: e } = await supabase.from("sessions").update({ settings: raw }).eq("id", sessionId);
     if (e) { setOwner(owner); setError("Could not save that. Try again."); }
   };
+  const seeing = owner.raw.image_feedback !== "off"; // on_request is the default
+  const setSeeing = async (value: boolean) => {
+    setError("");
+    const raw = { ...owner.raw, image_feedback: value ? "on_request" : "off" };
+    setOwner({ ...owner, raw });
+    const { error: e } = await supabase.from("sessions").update({ settings: raw }).eq("id", sessionId);
+    if (e) { setOwner(owner); setError("Could not save that. Try again."); }
+  };
   const secondsLeft = listening ? Math.max(1, Math.ceil((listeningUntil! - Date.now() - clockOffset) / 1000)) : 0;
 
   const counts = new Map<Said, number>();
@@ -161,7 +169,7 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
           </div>
           <div className="pl-toggles">
             <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={live} onClick={() => void setLive(!live)}
-              title="After each answer the AI waits up to 45 s for your presses and answers them at once. While it waits, the chat shows it working: stop it or wait to type.">
+              title="After each answer the AI waits about 20 s for your presses and answers each at once; every press gives it 20 s more. While it waits the chat shows it working: press stop to type at once.">
               <span className="pl-check" aria-hidden />Live tuning
             </button>
           </div>
@@ -186,9 +194,9 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
         </p>
         {error && <p role="alert">{error}</p>}
       </details>
-      {!listener && (
-        <details className="pl-set se-sm">
-          <summary>Settings</summary>
+      <details className="pl-set se-sm">
+        <summary>Settings</summary>
+        {!listener && (
           <div className="pl-setting">
             <div>
               <label htmlFor="pl-fade" className="pl-setting-name">Fade to silence after</label>
@@ -198,9 +206,15 @@ export function OwnerControls({ supabase, sessionId, face, policy, onChanged, af
               {FADE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
-          {error && <p role="alert">{error}</p>}
-        </details>
-      )}
+        )}
+        <div className="pl-toggles">
+          <button type="button" className="se-btn pl-toggle" style={{ gridColumn: "1 / -1" }} aria-pressed={seeing} onClick={() => void setSeeing(!seeing)}
+            title="The AI can ask for a small picture of what you see and of the last 8 s of sound, taken by this player. Nothing from your camera or microphone.">
+            <span className="pl-check" aria-hidden />Let the AI see the picture
+          </button>
+        </div>
+        {error && <p role="alert">{error}</p>}
+      </details>
     </>
   );
 }
