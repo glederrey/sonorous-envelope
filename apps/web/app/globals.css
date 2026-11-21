@@ -1296,6 +1296,7 @@ html:has(.pl-field) .se-header {
 .pl-group > summary { font-weight: 500; }
 .pl-group[open] > :not(summary) { margin-top: 12px; }
 .pl-group[open] > .pl-set { margin-top: 14px; }
+.pl-group[open] > .pl-toggles + .pl-toggles { margin-top: 8px; } /* one even grid of buttons: the gap inside a row of toggles */
 .pl-set dl { display: grid; gap: 4px; margin: 10px 0 0; }
 .pl-set dt { font-weight: 500; color: var(--on-scrim); margin-top: 6px; }
 .pl-set dd { margin: 0; overflow-wrap: anywhere; }
