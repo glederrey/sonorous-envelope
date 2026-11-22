@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 import { SignJWT } from "jose";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { voiceSeedOf } from "@sonorous/shared";
 import type { supabaseForToken } from "../supabase/bearer";
 
 const REST = process.env.SONOROUS_TEST_REST_URL;
@@ -941,6 +942,38 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       sql(`update sessions set current_state_id = null where id='${session_id}'`);
       await expect(svc.moment(db, u, { session_id, action: "keep", name: "x", ...ref }, tick())).rejects.toMatchObject({ code: "no_state" });
       await expect(svc.moment(db, u, { session_id, action: "keep", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });
+    });
+
+    it("saves a moment as a keepsake: the state is copied on the server, human or ai, the AI capped at three", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { voice: voiceA }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await svc.silence(dbA, A, { session_id, fade: 3, final: true }, tick(25_000));
+      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "silent", ...ref }, tick())).rejects.toMatchObject({ code: "nothing_playing" });
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      const playing = last(session_id);
+      const states = sql(`select count(*) from states where session_id='${session_id}'`);
+      const r = await svc.moment(dbA, A, { session_id, action: "save", name: "  First light ", ...ref }, tick());
+      expect(r).toMatchObject({ saved: "First light", by: "you", url: expect.stringMatching(/^https:\/\/app\.example\/m\/[A-Za-z0-9_-]{22}$/) });
+      expect(Object.keys(r).sort()).toEqual(["by", "saved", "url"]);
+      const id = String(r.url).split("/m/")[1];
+      expect(sql(`select saved_by from saved_moments where id='${id}'`)).toBe("ai");
+      expect(sql(`select owner_id from saved_moments where id='${id}'`)).toBe(A);
+      expect(sql(`select voice_seed from saved_moments where id='${id}'`)).toBe(String(voiceSeedOf(session_id)));
+      const saved = JSON.parse(sql(`select effective from saved_moments where id='${id}'`));
+      expect(saved.volume).toBe(playing.volume);
+      expect(saved.transition.delay).toBeUndefined();
+      expect(sql(`select count(*) from states where session_id='${session_id}'`)).toBe(states); // nothing was written to the session
+      const asked = await svc.moment(dbA, A, { session_id, action: "save", name: "Asked for", listener_asked: true, ...ref }, tick());
+      expect(asked.by).toBe("listener");
+      expect(sql(`select saved_by from saved_moments where id='${String(asked.url).split("/m/")[1]}'`)).toBe("human");
+      await svc.moment(dbA, A, { session_id, action: "save", name: "Two", ...ref }, tick());
+      await svc.moment(dbA, A, { session_id, action: "save", name: "Three", ...ref }, tick());
+      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "Four", ...ref }, tick())).rejects.toMatchObject({ code: "ai_saves_full" });
+      const again = await svc.moment(dbA, A, { session_id, action: "save", name: "Four, asked", listener_asked: true, ...ref }, tick());
+      expect(again.by).toBe("listener");
+      // another account cannot save into this session, and a name is needed
+      await expect(svc.moment(dbB, B, { session_id, action: "save", name: "mine", ...ref }, tick())).rejects.toMatchObject({ code: "unknown_session" });
+      await expect(svc.moment(dbA, A, { session_id, action: "save", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });
     });
 
     it("a Strudel moment does not come back in Self", async () => {

@@ -474,8 +474,22 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, ...said, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
 }
 
-/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. */
-export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list"; name?: string; transition?: Transition; final: boolean }, now = Date.now()) {
+/** What the model is told when `save_moment` (migration 0027) refuses: the code is the text after "saved_moment: " in the error. */
+export function saveMomentError(message: string): ToolError | null {
+  switch (/saved_moment: (\w+)/.exec(message)?.[1]) {
+    case "ai_saves_full": return new ToolError("ai_saves_full", "You saved 3 moments on your own in this session, the limit. The listener can still save one from the player.");
+    case "saves_full": return new ToolError("saves_full", "The owner has 200 saved moments, the limit. They can delete some in Saved.");
+    case "too_fast": return new ToolError("too_fast", "Too many saves this minute. Try again in a minute.");
+    case "nothing_playing": return new ToolError("nothing_playing", "Nothing is playing to save: the sound is silent. Call set_sound first.");
+    case "bad_input": return new ToolError("bad_input", "save needs a name of 1 to 40 characters.");
+    case "not_owner": return new ToolError("unknown_session", "No session with that id. Call start_session to make one.");
+    default: return null;
+  }
+}
+
+/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. `save` is a
+ *  keepsake outside the session (a public link, frozen): it plays nothing and is not a sound update. */
+export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list" | "save"; name?: string; transition?: Transition; listener_asked?: boolean; final: boolean }, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   assertOpen(session);
   const kept = session.moments ?? {};
@@ -497,6 +511,17 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   if (!name) throw new ToolError("bad_input", `${input.action} needs a name.`);
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
+
+  if (input.action === "save") {
+    const { data, error } = await db.rpc("save_moment", { p_session: session.id, p_name: name, p_by: input.listener_asked ? "human" : "ai", p_voice_seed: voiceSeedOf(session.id), p_app_version: appVersion() });
+    if (error) {
+      const refused = saveMomentError(error.message);
+      if (refused) throw refused;
+      fail("save the moment", error);
+    }
+    const saved = data as { id: string; name: string };
+    return { saved: saved.name, by: input.listener_asked ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(note ? { notes: [note] } : {}) };
+  }
 
   if (input.action === "keep") {
     const isNew = !Object.hasOwn(kept, name);

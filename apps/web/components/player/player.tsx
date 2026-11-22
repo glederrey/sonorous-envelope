@@ -9,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { sliderToGain } from "../../lib/volume";
+import { remember, stored } from "../../lib/player-prefs";
+import { appVersion } from "../../lib/version";
 import { restedState } from "../../lib/rested-state";
 import { isSounding } from "../../lib/sounding";
 import { unwrapHue } from "../../lib/hue";
@@ -33,16 +35,6 @@ interface Playing { state: EngineState; seed: number; turn: number; final: boole
 const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
 
-function stored(id: string) {
-  const fallback = { muted: false, volume: 0.8 };
-  try {
-    const raw = localStorage.getItem(`se:player:${id}`);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
-  } catch { return fallback; }
-}
-function remember(id: string, value: object) {
-  try { localStorage.setItem(`se:player:${id}`, JSON.stringify(value)); } catch { /* private window */ }
-}
 function deviceId() {
   try {
     let d = localStorage.getItem("se:device");
@@ -587,6 +579,32 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     supabase, sessionId, signedIn, started, playing, audio, settings, field: fieldRef, controls, strudelPlays: patternShows, strudelDrawn: strudelOn && patternShows, debug,
   });
 
+  // Save this moment (owner only): the database copies the state that plays, so only the name and the seed of the session go up
+  const [saveDone, setSaveDone] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string } | null>(null);
+  const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => saveTimers.current.forEach(clearTimeout), []);
+  const saveMoment = async () => {
+    setSaveBusy(true);
+    try {
+      const { data: s } = await supabase.from("sessions").select("title").eq("id", sessionId).maybeSingle();
+      const hhmm = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const { data, error } = await supabase.rpc("save_moment", {
+        p_session: sessionId, p_name: `${(s?.title ?? "Moment").slice(0, 70)} · ${hhmm}`, p_by: "human", p_voice_seed: voiceSeedOf(sessionId), p_app_version: appVersion(),
+      });
+      const m = error?.message ?? "";
+      if (error || !data) {
+        setSaveNote({ error: m.includes("nothing_playing") ? "Nothing is playing to save." : m.includes("too_fast") ? "Too many saves. Try again in a minute." : m.includes("saves_full") ? "You have 200 saved moments. Delete some in Saved." : "Could not save this moment. Try again." });
+      } else {
+        const saved = data as { id: string; name: string };
+        setSaveNote({ id: saved.id, name: saved.name }); setSaveDone(true);
+        saveTimers.current.push(setTimeout(() => setSaveDone(false), 3000));
+      }
+      saveTimers.current.push(setTimeout(() => setSaveNote(null), 8000));
+    } finally { setSaveBusy(false); }
+  };
+
   const colour = playing?.state.colour;
   // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
   const hue = unwrapHue(lastHue.current.h, colour?.h ?? 220);
@@ -676,6 +694,12 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               : "Waiting for the first sound"}
             onHide={() => setHidden(true)}
             onFullscreen={enterFull}
+            save={isOwner ? { onSave: () => void saveMoment(), done: saveDone, busy: saveBusy } : undefined}
+            notice={saveNote && (
+              <p className="se-sm pl-save-note" role="status" style={{ margin: 0 }}>
+                {"error" in saveNote ? saveNote.error : <>Saved as “{saveNote.name}” · <a href={`/m/${saveNote.id}`}>Open</a> · <CopyLink path={`/m/${saveNote.id}`} label="Copy link" /></>}
+              </p>
+            )}
             audioState={audioState} muted={muted}
             onResume={() => void audio.current?.resume()} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
