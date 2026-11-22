@@ -19,7 +19,7 @@ export function AppTabs({ url }: { url: string }) {
   const apps: App[] = [
     {
       id: "claude", name: "Claude", tested: true,
-      intro: "On claude.ai, in the web, desktop and mobile apps of the same account.",
+      intro: "On claude.ai, in the web, desktop and mobile apps of the same account, and in Claude Code signed in with it.",
       steps: [
         <>Open <strong>Settings → Customize → Connectors</strong>, then choose <strong>Add</strong> and <strong>Add custom connector</strong>.</>,
         <>Name it <strong>Sonorous Envelope</strong>, paste the connector URL into <strong>MCP server URL</strong>, and choose <strong>Continue</strong>.</>,
@@ -29,7 +29,7 @@ export function AppTabs({ url }: { url: string }) {
       ],
     },
     {
-      id: "claude-code", name: "Claude Code", tested: false,
+      id: "claude-code", name: "Claude Code", tested: true,
       intro: "Claude Code in a terminal or an editor.",
       steps: [
         <>In a terminal, run the command below. Keep the name <strong>sonorous</strong>: the Stop hook only recognises tools from a server whose name contains it.</>,
@@ -38,7 +38,7 @@ export function AppTabs({ url }: { url: string }) {
         <>Ask for a session. The AI gives you a player link: open it and tap <strong>Start listening</strong>.</>,
       ],
       code: `claude mcp add --transport http sonorous ${url}`,
-      note: "We have not tried this one yet.",
+      note: "Already added it in the Claude app? Claude Code signed in with the same account has it too: it shows in /mcp as claude.ai Sonorous Envelope, and the Stop hook recognises it. Skip steps 1 and 2.",
     },
     {
       id: "chatgpt", name: "ChatGPT", tested: true,
