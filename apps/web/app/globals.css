@@ -1155,9 +1155,13 @@ html:has(.pl-field) .se-header {
 }
 .se-grant-last,
 .se-grant:last-child { padding-bottom: 0; border-bottom: 0; } /* the section divider follows: no second line */
-.se-grant-last > .se-btn { min-width: 10.5em; justify-content: center; } /* Delete account… and Cancel keep one width, so the text does not reflow */
 .se-grant-when > span { white-space: nowrap; }
 /* phone: "last connected" on its own line, the delete button centred under its warning */
+/* a centred card over the page (delete account): Esc, a click outside or Cancel closes it */
+.se-dialog { border: 1px solid var(--line-strong); border-radius: 16px; padding: 24px; background: var(--surface); color: var(--ink); width: min(92vw, 440px); margin: auto; }
+.se-dialog-body { display: grid; gap: 16px; }
+.se-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.se-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 @media (max-width: 560px) {
   .se-grant-when > span { display: block; }
   .se-grant-when > .se-grant-dot { display: none; }
