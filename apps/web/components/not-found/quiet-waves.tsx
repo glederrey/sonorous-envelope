@@ -1,115 +1,93 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { ATTACK_S, releaseOf, VIBRATO, WOMP, WOMP_S } from "./trombone";
 
-// The 404's line: a small cousin of the hero's Envelope (components/envelope.tsx). Five lines, the centre one carrying the pulses
-// (fast attack, slow release, widening as they travel right), the others repeating it a little later and flatter the further out they
-// are. Calm, it is teal with rare, small pulses. While the trombone plays, an "agitation" level rises: the pulses that enter from the
-// left are big, frequent and trembling, and amber. The colour and the tremble travel with them: a point x of the line shows the
-// agitation there was when the wave passing it entered ((x - ENTRY) / FRONT seconds ago), so the amber arrives from the left behind a teal-to-amber
-// front, and when the sound ends teal and calm come back the same way while the last amber pulses run out to the right.
-const X0 = 2, X1 = 598, SAMPLES = 90;
+// The 404's lines: five standing waves in place, the centre one the strongest, the others a little later and flatter the further out
+// they are (like the hero's lines). Calm, they are teal and barely move. When the trombone is heard they follow its score (trombone.ts):
+// each note swells the waves with a shape of its own (fewer loops as the pitch falls), the held last note trembles at the vibrato's
+// 6 Hz, and they settle when the sound stops. Amber spreads from the centre to the edges while it plays and draws back after.
+const X0 = 2, X1 = 598, L = X1 - X0, SAMPLES = 120;
 const BASELINES = [34, 58, 82, 106, 130];
 const MAIN = 2;
-const CAP_UP = 30, CAP_DOWN = 7; // a line's copy stays under its neighbour: 30 x 0.7 up plus 7 down is under the 24 px between lines
+const CAP = 28; // the centre line's largest excursion; the others are scaled by GAIN, so neighbours move together and never cross
 const OPACITY = [0.22, 0.5, 1, 0.5, 0.22];
 const GAIN = OPACITY.map((o, i) => (i === MAIN ? 1 : Math.sqrt(o)));
-const DELAY_S = 0.11;
-const BREATH_PX = 0.5;
-const FRONT = 150; // px/s: how fast the colour and the tremble travel, about the speed of the pulses
-const STOPS = 16;  // gradient stops along the width
-// Pulses are born here, inside the faded left edge (the mask is clear from 14%, x 84), not off the line: they reach the visible part in
-// about 0.2 s, the time the trombone takes to sound (it starts 250 ms after the press), so the waves and the sound start together.
-const ENTRY = 50;
+const LAG_S = 0.05;   // each line away from the centre follows the sound this much later
+const SWAY_HZ = 1.6;  // how fast a swollen wave rocks
+const HALF = 300;     // the centre, where the amber starts
+const STOPS = 16;
 
-type Pulse = { t0: number; speed: number; w0: number; grow: number; amp: number; biphasic: boolean };
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+// the four notes in loops across the width: the pitch falls, the waves get longer
+const LOOPS = WOMP.map((n) => 2.5 * (n.hz / WOMP[WOMP.length - 1].hz) + 0.5);
+const SIZE = [1, 0.9, 0.82, 1];
 
-const rand = (a: number, b: number) => a + Math.random() * (b - a);
-const mix = (a: number, b: number, m: number) => a + (b - a) * m;
-const bump = (u: number) => (u < 0 ? Math.exp(-((u / 0.55) ** 2)) : Math.exp(-(u ** 2)));
-
-/** A pulse; `m` is the agitation when it enters (0 calm, 1 while the trombone plays). */
-function spawn(t: number, m: number): Pulse {
-  const r = Math.random();
-  const dip = r > 0.55 && r <= 0.72;
-  const size = mix(rand(0.12, 0.28), rand(0.8, 1.15), m);
-  return {
-    t0: t, speed: mix(rand(120, 150), rand(145, 160), m), w0: mix(rand(40, 70), rand(18, 34), m), grow: rand(0.02, 0.08),
-    amp: (dip ? -CAP_DOWN * 1.4 : CAP_UP) * size, biphasic: r > 0.72,
-  };
+/** How loud the trombone is `s` seconds after it is heard (0 to 1), which note, and how far into it. */
+function score(s: number): { level: number; note: number; into: number } {
+  for (let k = 0; k < WOMP.length; k++) {
+    const n = WOMP[k], into = s - n.at;
+    if (into < 0 || into > n.len) continue;
+    const rel = releaseOf(n.len);
+    const level = Math.min(clamp01(into / ATTACK_S), clamp01((n.len - into) / rel));
+    return { level: level * SIZE[k], note: k, into };
+  }
+  return { level: 0, note: -1, into: 0 };
 }
 
-function value(p: Pulse, x: number, t: number) {
-  const age = t - p.t0, w = p.w0 * (1 + p.grow * age);
-  const u = (x - (ENTRY - 0.5 * p.w0 + p.speed * age)) / w;
-  const g = p.biphasic ? bump(u) - 0.8 * bump(u + 1.6) : bump(u);
-  return p.amp * (g - 0.13 * Math.exp(-(((u + 2.4) / 0.9) ** 2)));
-}
-
-/** `heat(x)` is the agitation that reached x: it scales the vibrato there. */
-function path(i: number, pulses: Pulse[], t: number, heat: (x: number) => number) {
-  const te = t - DELAY_S * Math.abs(i - MAIN), up = CAP_UP * GAIN[i], down = CAP_DOWN * GAIN[i];
+/** Line i at time t (seconds on the page clock); `heard` is when the sound started on that clock, or null. */
+function path(i: number, t: number, heard: number | null) {
+  const s = heard === null ? -1 : t - heard - LAG_S * Math.abs(i - MAIN);
+  const { level, note, into } = score(s);
+  const ph = 2 * Math.PI * (SWAY_HZ * s + 0.08 * i), sway = Math.cos(ph), sway2 = Math.sin(ph); // two shapes in turn: never flat mid-note
+  const shake = note === WOMP.length - 1 && into > VIBRATO.from ? Math.sin(2 * Math.PI * VIBRATO.hz * s) : 0;
   let d = "";
   for (let k = 0; k <= SAMPLES; k++) {
-    const x = X0 + ((X1 - X0) * k) / SAMPLES;
-    let s = 0;
-    for (const p of pulses) s += GAIN[i] * value(p, x, te);
-    const disp = s >= 0 ? up * Math.tanh(s / up) : down * Math.tanh(s / down);
-    const h = heat(x);
-    const wobble = BREATH_PX * Math.sin(2 * Math.PI * (x / 310 + t / (7 + i) + i * 0.37))
-      + (h > 0.01 ? 2.6 * h * Math.sin(2 * Math.PI * (x / 47 - t * 2.3 + i * 0.61)) * Math.sin(2 * Math.PI * (x / 190 + t * 0.7)) : 0); // the vibrato
-    d += `${k ? "L" : "M"}${x.toFixed(1)} ${(BASELINES[i] - disp + wobble).toFixed(1)} `;
+    const x = X0 + (L * k) / SAMPLES, u = (x - X0) / L, win = Math.sin(Math.PI * u);
+    // calm: two slow standing shapes, a pixel or two
+    let y = 1.4 * win * (Math.sin(2 * Math.PI * (1.15 * u + 0.37 * i)) * Math.cos(2 * Math.PI * (t / 6.5 + 0.11 * i))
+      + 0.6 * Math.sin(2 * Math.PI * (2.3 * u + 0.71 * i)) * Math.cos(2 * Math.PI * (t / 4.1 + 0.3 + 0.07 * i)));
+    if (level > 0.001) {
+      const loops = LOOPS[note];
+      y += CAP * 0.85 * level * win * (Math.sin(Math.PI * loops * u) * sway + 0.55 * Math.sin(Math.PI * (loops + 1) * u) * sway2);
+      y += CAP * 0.18 * level * win * shake * Math.sin(Math.PI * 11 * u); // the vibrato: a fast ripple on the held note
+    }
+    const cap = CAP * GAIN[i];
+    d += `${k ? "L" : "M"}${x.toFixed(1)} ${(BASELINES[i] - cap * Math.tanh((GAIN[i] * y) / cap)).toFixed(1)} `;
   }
   return d;
 }
 
-// oklab keeps the teal-to-amber front from passing through a muddy olive
+// oklab keeps the teal-to-amber edge from passing through a muddy olive
 const stopColour = (h: number) => `color-mix(in oklab, var(--glow) ${Math.round(h * 100)}%, var(--tide))`;
-const still = () => 0;
 
-export function QuietWaves({ busy }: { busy: boolean }) {
+export function QuietWaves({ heardAt }: { heardAt: number | null }) {
   const paths = useRef<(SVGPathElement | null)[]>([]);
   const stops = useRef<(SVGStopElement | null)[]>([]);
   const grad = `nf-waves-${useId().replace(/:/g, "")}`;
-  const busyRef = useRef(busy);
-  useEffect(() => { busyRef.current = busy; }, [busy]);
+  const heardRef = useRef(heardAt);
+  useEffect(() => { heardRef.current = heardAt; }, [heardAt]);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      // one small pulse held in the middle (speed 1 px/s: its centre reaches x 300 at t = 300 - ENTRY + w0 / 2)
-      const held: Pulse = { t0: 0, speed: 1, w0: 50, grow: 0, amp: CAP_UP * 0.3, biphasic: false };
-      paths.current.forEach((el, i) => el?.setAttribute("d", path(i, [held], 300 - ENTRY + 25 + DELAY_S * Math.abs(i - MAIN), still)));
+      paths.current.forEach((el, i) => el?.setAttribute("d", path(i, 1, null)));
       return;
     }
-    const start = performance.now();
-    let pulses: Pulse[] = [], next = 0.4, frame = 0, m = 0, last = 0;
-    const hist: { t: number; m: number }[] = []; // the agitation over the last few seconds, oldest first
+    let frame = 0, spread = 0, last = performance.now();
     const shown: number[] = Array(STOPS).fill(0);
-    /** The agitation `ago` seconds back (0 before the page started). */
-    const past = (now: number, ago: number) => {
-      const at = now - ago;
-      for (let j = hist.length - 1; j >= 0; j--) if (hist[j].t <= at) return hist[j].m;
-      return 0;
-    };
-    const tick = (nowMs: number) => {
-      const t = (nowMs - start) / 1000, dt = Math.min(0.1, t - last);
-      last = t;
-      const target = busyRef.current ? 1 : 0;
-      m += (target - m) * (1 - Math.exp(-dt / (target ? 0.12 : 0.35))); // the front of colour is a few tenths of a second wide
-      hist.push({ t, m });
-      while (hist.length > 2 && hist[1].t < t - (X1 / FRONT + 1)) hist.shift();
-      if (next - t > mix(5, 0.4, m)) next = t + rand(0, 0.15); // a calm wait no longer holds back the first big pulse
-      if (t >= next) {
-        pulses.push(spawn(t, m));
-        next = t + mix(rand(2.5, 5), rand(0.16, 0.4), m);
-      }
-      pulses = pulses.filter((p) => ENTRY - 0.5 * p.w0 + p.speed * (t - p.t0 - DELAY_S * 2) - 2.5 * p.w0 * (1 + p.grow * (t - p.t0)) < X1);
-      const heat = (x: number) => past(t, Math.max(0, x - ENTRY) / FRONT);
+    const tick = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      const h = heardRef.current, heard = h === null ? null : h / 1000, t = now / 1000;
+      const sounding = heard !== null && t >= heard && t <= heard + WOMP_S;
+      // the amber spreads from the centre while it sounds (about 0.3 s to the edges) and draws back after (about 0.8 s)
+      spread += ((sounding ? 1 : 0) - spread) * (1 - Math.exp(-dt / (sounding ? 0.1 : 0.3)));
+      const radius = spread * (HALF + 120);
       for (let s = 0; s < STOPS; s++) {
-        const h = heat((600 * s) / (STOPS - 1));
-        if (Math.abs(h - shown[s]) > 0.01 || (h === 0 && shown[s] !== 0)) { shown[s] = h; stops.current[s]?.style.setProperty("stop-color", stopColour(h)); }
+        const v = clamp01((radius - Math.abs((600 * s) / (STOPS - 1) - HALF)) / 120);
+        if (Math.abs(v - shown[s]) > 0.01 || (v === 0 && shown[s] !== 0)) { shown[s] = v; stops.current[s]?.style.setProperty("stop-color", stopColour(v)); }
       }
-      paths.current.forEach((el, i) => el?.setAttribute("d", path(i, pulses, t, heat)));
+      paths.current.forEach((el, i) => el?.setAttribute("d", path(i, t, heard)));
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -129,7 +107,7 @@ export function QuietWaves({ busy }: { busy: boolean }) {
         <path
           key={i}
           ref={(el) => { paths.current[i] = el; }}
-          d={path(i, [], 0, still)}
+          d={path(i, 0, null)}
           stroke={`url(#${grad})`}
           strokeWidth={3}
           strokeOpacity={OPACITY[i]}
