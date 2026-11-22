@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { CopyLink } from "../../components/copy-link";
 import { deleteMoment, renameMoment } from "./actions";
 
@@ -55,22 +55,22 @@ export function SavedList({ moments }: { moments: SavedRow[] }) {
         <input id="saved-search" type="search" className="se-input sv-search" placeholder="Search by name" value={query}
           onChange={(e) => setQuery(e.target.value)} autoComplete="off" spellCheck={false} />
         <label className="se-visually-hidden" htmlFor="saved-month">Month</label>
-        <select id="saved-month" className="se-input" value={month} onChange={(e) => setMonth(e.target.value)}>
+        <span className="sv-select"><select id="saved-month" className="se-input" value={month} onChange={(e) => setMonth(e.target.value)}>
           <option value="all">All dates</option>
           {months.map((k) => <option key={k} value={k}>{monthLabel(k)}</option>)}
-        </select>
+        </select><ChevronDown size={16} aria-hidden /></span>
         <label className="se-visually-hidden" htmlFor="saved-engine">Engine</label>
-        <select id="saved-engine" className="se-input" value={engine} onChange={(e) => setEngine(e.target.value as typeof engine)}>
+        <span className="sv-select"><select id="saved-engine" className="se-input" value={engine} onChange={(e) => setEngine(e.target.value as typeof engine)}>
           <option value="all">All sounds</option>
           <option value="synth">Synth</option>
           <option value="strudel">Strudel</option>
-        </select>
+        </select><ChevronDown size={16} aria-hidden /></span>
         <label className="se-visually-hidden" htmlFor="saved-by">Saved by</label>
-        <select id="saved-by" className="se-input" value={by} onChange={(e) => setBy(e.target.value as typeof by)}>
+        <span className="sv-select"><select id="saved-by" className="se-input" value={by} onChange={(e) => setBy(e.target.value as typeof by)}>
           <option value="all">By anyone</option>
           <option value="human">By you</option>
           <option value="ai">By the AI</option>
-        </select>
+        </select><ChevronDown size={16} aria-hidden /></span>
       </div>
       <p className="se-sm se-muted sv-count" aria-live="polite">
         {shown.length === moments.length ? `${moments.length} saved` : `${shown.length} of ${moments.length}`}

@@ -9,7 +9,7 @@ const WOMP: { hz: number; at: number; len: number }[] = [
   { hz: 233.08, at: 0, len: 0.42 },    // B♭3
   { hz: 220.0, at: 0.48, len: 0.42 },  // A3
   { hz: 207.65, at: 0.96, len: 0.42 }, // A♭3
-  { hz: 196.0, at: 1.44, len: 1.3 },   // G3, held
+  { hz: 196.0, at: 1.44, len: 1.6 },   // G3, held, with a long fade
 ];
 
 function womp() {
@@ -20,8 +20,10 @@ function womp() {
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 2;
   lp.connect(ac.destination);
+  let lastOsc: OscillatorNode | null = null;
   for (const n of WOMP) {
     const o = ac.createOscillator(), g = ac.createGain();
+    const release = n.len > 1 ? 0.6 : 0.12; // the last note dies away instead of stopping
     o.type = "sawtooth";
     o.frequency.setValueAtTime(n.hz * 1.02, t0 + n.at);
     o.frequency.exponentialRampToValueAtTime(n.hz, t0 + n.at + 0.08); // a small slide into each note, like a slide trombone
@@ -33,14 +35,15 @@ function womp() {
     }
     g.gain.setValueAtTime(0.0001, t0 + n.at);
     g.gain.exponentialRampToValueAtTime(0.12, t0 + n.at + 0.04);
-    g.gain.setValueAtTime(0.12, t0 + n.at + n.len - 0.12);
+    g.gain.setValueAtTime(0.12, t0 + n.at + n.len - release);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.at + n.len);
     o.connect(g).connect(lp);
     o.start(t0 + n.at); o.stop(t0 + n.at + n.len + 0.02);
+    lastOsc = o;
   }
-  const total = WOMP[WOMP.length - 1].at + WOMP[WOMP.length - 1].len;
-  setTimeout(() => void ac.close().catch(() => {}), (total + 0.3) * 1000);
-  return total;
+  // close when the last note has really ended: the audio clock can start a little after this code runs, so a timer cut the tail
+  if (lastOsc) lastOsc.onended = () => void ac.close().catch(() => {});
+  return WOMP[WOMP.length - 1].at + WOMP[WOMP.length - 1].len;
 }
 
 /** The site's 404: "this page went quiet". The 0 of 404 is a rippling ring (the visuals' ripples), a flat sound line runs under the text

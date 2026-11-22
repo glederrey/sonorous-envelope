@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
@@ -35,9 +35,9 @@ const PREFS_KEY = "moment"; // one volume for every saved moment on this device
 /**
  * The page of a saved moment: one frozen state plays, from the start, in the same engine, the same Strudel sandbox frame and the same
  * picture as the session player, with the same player-side caps. It has no poll, no heartbeat and no owner controls: the listener has
- * Mute, Volume, Share and the QR code. `rename` is the owner's form, passed in by the page (a server component).
+ * Mute, Volume, Share and the QR code. Renaming is on /moments only: this page is for listening.
  */
-export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; mine: boolean; rename?: ReactNode }) {
+export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boolean }) {
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
@@ -150,7 +150,6 @@ export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; min
             <h1 className="se-heading" style={{ margin: 0, overflowWrap: "anywhere" }}>{moment.name}</h1>
             <p className="se-sm" style={{ margin: "4px 0 0", color: "var(--on-scrim-muted)" }}>Saved by {by} · {date} · {pattern ? "Strudel" : "Synth"}</p>
           </div>
-          {rename}
           {!started ? (
             <>
               <button type="button" className="se-btn se-btn-primary pl-start-btn" onClick={start} disabled={starting}>

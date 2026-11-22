@@ -39,7 +39,6 @@ export function MomentLab() {
         key={kind}
         mine={mine}
         moment={{ id: "A".repeat(22), name: `${kind === "synth" ? "Tender" : "Pattern"} · 14:32`, savedBy: mine ? "human" : "ai", createdAt: "2026-11-22T14:32:00Z", effective, seed: 1234, voiceSeed: 98765 }}
-        rename={mine ? <button type="button" className="se-btn" style={{ justifySelf: "start" }}>Rename (the form of the real page)</button> : undefined}
       />
     </>
   );

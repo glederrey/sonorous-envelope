@@ -1557,7 +1557,10 @@ html:has(.pl-field) .se-header {
 .ss-actions form { display: contents; }
 /* /moments: a name search, then month, engine and who saved; one row per moment */
 .sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 8px; }
-.sv-filters select.se-input { width: auto; min-width: 0; }
+/* the filters draw their own arrow, 12 px from the right edge (the native one sits too close to it) */
+.sv-select { position: relative; display: grid; min-width: 0; }
+.sv-select select.se-input { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0 36px 0 12px; }
+.sv-select svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); }
 .sv-count { margin: 0 0 16px; }
 .sv-name { overflow-wrap: anywhere; }
 .sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1566,7 +1569,8 @@ html:has(.pl-field) .se-header {
 @media (max-width: 560px) {
   .sv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sv-filters .sv-search { grid-column: 1 / -1; }
-  .sv-filters select.se-input { width: 100%; padding: 0 8px; }
+  .sv-select select.se-input { width: 100%; padding: 0 26px 0 8px; font-size: 14px; }
+  .sv-select svg { right: 8px; width: 14px; height: 14px; }
   .sv-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sv-actions .se-btn { justify-content: center; }
 }
