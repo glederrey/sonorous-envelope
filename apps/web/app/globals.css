@@ -1670,8 +1670,9 @@ html:has(.pl-field) .se-header {
   .add-tab:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
-  /* the hero chips stay content-sized on a phone: they are not buttons, so they must not look like the buttons below */
-  .lp-chips { margin-top: 0; }
+  /* the hero chips sit 2x2 on a phone (Gael, after v1.0.3), each column as wide as its longer chip: not full width, so they do not look like the buttons below */
+  .lp-chips { margin-top: 0; display: grid; grid-template-columns: repeat(2, max-content); }
+  .lp-chips li { text-align: center; }
 }
 
 /* ---- the Strudel picture (components/player/strudel-view.tsx) ---- */
