@@ -2,7 +2,7 @@
 
 The model needs to know what it actually produced in order to update it. `analyze(effective, seed) → Analysis` in `packages/shared/src/analysis.ts` renders the state offline and measures it. `set_sound` calls it before the state is stored; the result is in `states.analysis`, and `sound` and `reads_as` go into the feedback (the feedback object is in [mcp-tools.md](mcp-tools.md)). States stored without an analysis are measured on the fly by `get_feedback`. Silence states have none, and neither has a Strudel state: the server never runs the model's code, so it has no `sound` and no `reads_as`. On any failure the call still returns, with the note `analysis unavailable this time`.
 
-Everything stays in TypeScript: the heuristics below are the estimate. There is no external or Python emotion model (Gael's decision, #153 closed as not planned); calibration continues in #166.
+Everything stays in TypeScript: the heuristics below are the estimate. There is no external or Python emotion model (Gael's decision, #153 closed as not planned).
 
 ## Render
 - `renderOffline` of the steady state (the analysis ignores the tempo glide: it measures the target, not the transition), at 22 050 Hz with a fixed seed, so it needs no player and does not depend on one. The first second is skipped. The length fits about ten arpeggio steps, between 6 and 14 s, so slow sounds have enough onsets to read.
@@ -15,7 +15,7 @@ Everything stays in TypeScript: the heuristics below are the estimate. There is 
 | Feature | Computation | Reported as |
 |---|---|---|
 | Loudness | RMS over the render → dBFS: `20·log10(rms)` | `loudness_db`, integer |
-| Brightness | Spectral centroid per frame (Hz), median over frames | words: < 400 very low, < 900 low, < 1800 medium, < 3500 high, else very high |
+| Brightness | Spectral centroid per frame (Hz), median over frames | words: < 250 very low, < 500 low, < 900 medium, < 1500 high, else very high |
 | Roughness | From the note events, not the audio. At every second note event the set is the notes sounding within 0.4 s plus the held ones (drone, pad), each with the partials of its own wave (up to the 6th). Plomp–Levelt dissonance (Sethares) of every pair, in units of a minor second at mid register on a sawtooth; the pairs add up and saturate: `1 − exp(−sum)` per set, averaged over the sets. Two held notes in a consonant interval (octave, third, fourth, fifth, sixth) do not count against each other | `roughness`, 0–1 |
 | Density | Note events per second | words: 0 silent, < 2 sparse, < 6 medium, else dense |
 | Movement | Mean spectral flux (positive differences of normalised frames over 32 log-spaced bands) | words: still, slow, moving, busy |

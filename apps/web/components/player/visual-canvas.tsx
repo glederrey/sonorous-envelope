@@ -252,6 +252,7 @@ export function VisualCanvas({ source, clockOffset, latency, active, play = true
         // Nothing shows: forget the scene that was showing, so a scene that comes in later fades in from nothing and never cross-fades from the old one.
         if (lvl === 0) { curSig = null; curScene = null; fromScene = null; }
         // A change of scene (or of its density or speed) is a crossfade of at least 1.5 s, never a swap: the old picture fades out as the new one comes in.
+        // The one exception is after a silence: the fade is 0.6 s (see quietBefore below).
         const sig = `${c.scene ?? "none"}|${c.density ?? 0.4}|${c.speed ?? 0.4}`;
         if (lvl > 0 && sig !== curSig) { // nothing shows at level 0: no scene starts there (it logged and counted a new scene every frame of a silence)
           if (curSig !== null && curScene) {

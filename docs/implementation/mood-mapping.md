@@ -52,7 +52,7 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Notes per cycle:** `N = 3 + round(3·(1−k))`: 3 when calm, 6 when urgent, but never fewer than the chord has. The `chord` is extended to N degrees by continuing past the top (`[1,3,5,7]` with N=6 gives `[1,3,5,7,8,10]`). `octaves` then repeats that list upward, so the cycle is N × octaves long. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
 - **Density:** `lerp(1.0, 0.6, s)` × `lerp(0.75, 1.0, 1−k)` (calm = sparser), clamp [0.35, 1].
 - **Swing:** `0.4 · s`.
-- **Jitter:** `min(30, lerp(0, 25, s) + 5·(1−j)·k)` ms. Sadness (low joy, calm) adds a small tremor; tenderness stays regular.
+- **Jitter:** `min(150, lerp(0, 0.18·stepMs, s) + 5·(1−j)·k)` ms (the looseness is a share of the step, so a slow sound still loosens). Sadness (low joy, calm) adds a small tremor; tenderness stays regular.
 - **Gate:** `lerp(0.3, 0.95, 0.6·k + 0.4·w)` (calm and warm = legato; urgent and cold = staccato).
 - **Arp on:** always. (It used to switch off when `k > 0.9 and j < 0.3`, which left nothing for the spontaneity reading to measure; the model can still turn it off with `synth.arp.on = false`.)
 

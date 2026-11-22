@@ -38,7 +38,6 @@ class Engine {
   constructor(sampleRate: number, seed: number);
   setState(state: EngineState, seed: number): void;   // starts glide from current to target
   setListenerGain(gain: number): void;                // local volume/mute, 0 to 8 (1 = as mapped, 8 = +18 dB), 20 ms smoothing, inside the soft limiter
-  setListenerDelay(amount: number, maxMix?: number): void; // local echo control 0–1 (0.5 = as mapped, 0 = no echo): delay mix × 2·amount, capped at maxMix (default 0.6)
   recordEvents(into: NoteEvent[]): void;             // offline analysis: collect every scheduled note
   process(left: Float32Array, right: Float32Array, frames: number): void;
 }

@@ -3,7 +3,7 @@ import { oscSample } from "./oscillator";
 import { arpPlan, RATE_BEATS } from "./ramp";
 import type { EngineState, NoteEvent, Wave } from "./types";
 
-// Motifs (roadmap #128): a short phrase the model plays over the sound, once, on the first bar at least 2.5 s after the state, in the state's own wave. Like a gesture
+// Motifs (#128): a short phrase the model plays over the sound, once, on the first bar at least 2.5 s after the state, in the state's own wave. Like a gesture
 // it is a one-shot with a single id: a state carries it, every device plays it at the same moment on the shared timeline, a device
 // that arrives late plays nothing (never half, never again). The phrase is mixed after the filter and before the fx.
 

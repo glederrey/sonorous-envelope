@@ -106,7 +106,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const vizStore = useMemo(() => new VizStore(), []);
   const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
   const [canvasOk, setCanvasOk] = useState(true);
-  // Strudel (roadmap #18): the model's code plays in a sandbox in a listener mode, if the owner allows it. The listener may stop it here.
+  // Strudel (#18): the model's code plays in a sandbox in a listener mode, if the owner allows it. The listener may stop it here.
   const [allowCode, setAllowCode] = useState(true);
   const strudel = useRef<StrudelOutput | null>(null);
   const engineCtl = useRef({ face: "internal" as Face, allowCode: true });

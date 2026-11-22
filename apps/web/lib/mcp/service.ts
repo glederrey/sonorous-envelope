@@ -299,7 +299,7 @@ async function answeredPresses(db: Db, sessionId: string, prev: StateRow | null)
   return n;
 }
 
-/** The listener's level (#170): each "softer" lowers it 2 dB and it holds, down to -10 dB; each "harsher" or "stormier" raises it 2 dB back
+/** The listener's level (#170): each "softer" lowers it 3 dB and it holds, down to -12 dB; each "harsher" or "stormier" raises it 3 dB back
  *  toward 0. Only the listener's presses move it: the model has no volume. A "softer" also keeps that call at least 2 dB under the last one,
  *  and a "calmer" keeps it no louder (holdLevel), since a calmer mood carries its own sound, which can measure louder. */
 function listenerLevel(was: number | undefined, p: Record<"softer" | "calmer" | "harsher" | "stormier", number>) {
@@ -395,7 +395,7 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     const { error } = await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("id", old.id);
     if (error) console.error("ending an old session failed:", error.message);
   }
-  // a session with no sound for a week is over (roadmap: sessions lifecycle); done here so no scheduled job is needed
+  // a session with no sound for a week is over; done here so no scheduled job is needed
   const { error: eerr } = await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("owner_id", userId).is("ended_at", null)
     .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
   if (eerr) console.error("ending stale sessions failed:", eerr.message);

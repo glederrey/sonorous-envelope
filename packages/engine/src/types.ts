@@ -50,17 +50,17 @@ export interface EngineState {
   pan: { width: number };
   volume: number;
   colour: ResolvedColour;
-  /** The shared timeline (roadmap #34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
+  /** The shared timeline (#34): the step counters of the arpeggio and the bass layer, as fractions, at the moment the state
    *  was written. The server fills it in; with the state's creation time every device knows where each step is. */
   grid?: { arp: number; bass: number; /** beats (quarter notes at the arpeggio's tempo) counted from the start of the session; unlike `arp` it stays continuous when the rate changes between states. Drives the visuals. */ beat?: number; /** the tempo (BPM) that played when this state was written: the arpeggio's tempo glides from it to this state's own */ fromTempo?: number; /** the arpeggio rate that played when this state was written: while the state glides, the rate steps from it to this state's own through the straight rates between (see `arpPlan`) */ fromRate?: Rate; /** seconds the glide lasts (the transition the state was written with); the ramp must not depend on `transition`, which the player rewrites when a sound rests */ glide?: number };
   /** Which engine makes the sound. Absent or `synth`: the built-in synth above. `strudel`: the listener's browser runs `pattern.code` (Strudel,
-   *  listener modes only (Attuned and Jukebox), roadmap #18) at `pattern.bpm`, and the synth fields below are the paused synth state that `strudel_mode on:false` brings back. */
+   *  listener modes only (Attuned and Jukebox), #18) at `pattern.bpm`, and the synth fields below are the paused synth state that `strudel_mode on:false` brings back. */
   engine?: "synth" | "strudel";
   pattern?: { code: string; bpm: number };
   /** The listener's level (dB, -10 to 0) from their "softer", "harsher" and "stormier" presses (#170). The synth's `volume` already includes it;
    *  a Strudel pattern, which has no volume of its own, is played at this gain in the browser. Absent: 0. */
   listenerDb?: number;
-  /** A short phrase of the model's own, played once, on the first bar at least 2.5 s after the state was written, in the voice's wave (roadmap #128).
+  /** A short phrase of the model's own, played once, on the first bar at least 2.5 s after the state was written, in the voice's wave (#128).
    *  `id` tells devices whether they have played it already; `notes` are MIDI (-1 a rest), `beats` the length of each, `level` 0 to 1. */
   motif?: { id: number; notes: number[]; beats: number[]; repeat: number; level: number };
   /** `delay`: seconds to wait before this state starts (set by `silence` with `end`, so the closing sound plays out first). */

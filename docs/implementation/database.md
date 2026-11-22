@@ -39,13 +39,13 @@ The migrations in `supabase/migrations/` are the schema; there is no other copy.
 | Report listening | Player page via `player_heartbeat(...)` (migration `0002`); stores the account in `user_id` if signed in, else null | anyone with the link |
 | Read the current state | Player page via `get_player_state(id)` | anyone with the link |
 
-The service role key is not needed for normal operation. Use it only for maintenance scripts (e.g. ending sessions inactive for 30 days).
+The service role key is not needed for normal operation. Use it only for maintenance scripts; there are none today (`start_session` ends the owner's sessions with no sound for a week).
 
 ## Settings are validated twice
 `sessions.settings` is JSON. Validate it with the zod `ListenerSettings` schema (limits.md) when the player writes it, and again when the MCP endpoint reads it. If it fails validation, fall back to the safe defaults.
 
 ## Realtime
-- `states` and `sessions` are in the `supabase_realtime` publication. Players subscribe to Postgres Changes on `states` (insert, filter `session_id=eq.<id>`) and on `sessions` (update, filter `id=eq.<id>`). RLS applies to Postgres Changes, so only members receive them.
+- `states` and `sessions` are in the `supabase_realtime` publication. Players listen on the public broadcast channel `player:<id>` (triggers, migration 0002) and poll `player_poll`; the broadcast is only a nudge (realtime.md).
 - See realtime.md for payloads and presence.
 
 ## Retention
