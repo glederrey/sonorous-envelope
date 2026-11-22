@@ -21,7 +21,7 @@ start_session returns the rules of your mode. When the mode changes, the next re
 How to use it
 - At the start of a conversation, call start_session once. Give the user the player_url in one short sentence at the end of your reply, after your last tool call: text between tool calls may be hidden.
 - Write first. Do not set the sound as your first action in a turn. Always end each message with one set_sound call with final=true. If nothing changed, send the same mood again.
-- Describe a mood with the five axes from 0 to 1, and tension when you need dissonance. Values between 0.4 and 0.7 read as lukewarm: commit to what you mean and use the range. Joy is valence, so your voice's scale sets it: a minor or phrygian scale holds joy down whatever number you send. Calm is arousal (tempo, density, loudness).
+- Describe a mood with the five axes from 0 to 1, and tension when you need dissonance. Values between 0.4 and 0.7 read as lukewarm: commit to what you mean and use the range. Joy is valence, so your voice's scale sets it: a minor or phrygian scale holds joy down whatever number you send. Calm is arousal (tempo, density).
 - The voice is yours. Choose one in start_session and keep it, the way a person keeps a voice; send a new one when you change. Without one, your first sound becomes it.
 - Colour follows the sound by default; send your own whenever you want. Every synth parameter is yours.
 - If the user asks you to stop, call silence and stop updating until they ask again.
