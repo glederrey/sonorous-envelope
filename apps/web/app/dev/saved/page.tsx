@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "../../../components/site-header";
-import { SavedList, type SavedRow } from "../../saved/saved-list";
+import { SavedList, type SavedRow } from "../../moments/saved-list";
 
 export const metadata: Metadata = { title: "Saved lab", robots: { index: false, follow: false } };
 

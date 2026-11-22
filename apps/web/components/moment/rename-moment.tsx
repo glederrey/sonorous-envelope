@@ -1,6 +1,6 @@
-import { renameMoment } from "../../app/saved/actions";
+import { renameMoment } from "../../app/moments/actions";
 
-/** The owner's rename form for a saved moment (on /m and in the /saved list). Only the name can change. */
+/** The owner's rename form for a saved moment (on /m and in the /moments list). Only the name can change. */
 export function RenameMoment({ id, name }: { id: string; name: string }) {
   return (
     <details>

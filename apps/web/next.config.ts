@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/faces", destination: "/modes", permanent: true },
       { source: "/guide", destination: "/how-it-works", permanent: true },
+      { source: "/saved", destination: "/moments", permanent: true }, // the saved moments page, /saved in v0.23.0 and v0.23.1
     ];
   },
   async headers() {
