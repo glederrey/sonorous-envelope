@@ -8,7 +8,7 @@ const WINDOW_MS = 30 * 60_000;
 const REFRESH_MS = 30_000;
 const DEBOUNCE_MS = 1500;
 
-/** For the owner: what guests pressed in the last 30 min, as a card of its own with one tile per emoji (big glyph, count under it).
+/** For the owner: what guests pressed in the last 30 min, as a small card of its own with one pill per emoji (glyph and count side by side).
  *  A tile pops when its count goes up (its key carries the count, so it mounts again). Reads the table through RLS (the owner's only).
  *  `nudge` changes on each emoji broadcast: the count is read again a moment later, so a burst is one read. Hidden when there is nothing. */
 export function GuestCount({ supabase, sessionId, nudge }: { supabase: SupabaseClient; sessionId: string; nudge: number }) {
