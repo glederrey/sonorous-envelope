@@ -98,7 +98,7 @@ export function ControlsLab() {
         <p className="se-sm" style={{ margin: 0 }}>Measured panel width: {Math.round(measured)} px. The turn text shows from {whenMin} px up.</p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <button type="button" className="se-btn pl-seg-btn" onClick={() => { for (const [i, k] of GUEST_EMOJI_KEYS.entries()) setTimeout(() => floatEmoji(k), i * 150); }}>Float some emojis</button>
-          <span className="se-sm">Pressing a React button as a guest or a signed-in listener floats it too. The owner&apos;s count line shows made-up counts.</span>
+          <span className="se-sm">Pressing a React button as a guest or a signed-in listener floats it too. The owner&apos;s Guest reactions card shows made-up counts.</span>
         </div>
         {note && <p className="se-sm" role="status" style={{ margin: 0 }}>{note}</p>}
       </div>

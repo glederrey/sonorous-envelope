@@ -1479,8 +1479,16 @@ html:has(.pl-field) .se-header {
 .pl-emoji-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; } /* one row of 7, also at 390 px (about 43 px each) */
 .pl-emoji-btn, .pl-panel .pl-emoji-btn { min-height: 44px; min-width: 0; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
 .pl-emoji-btn:disabled { opacity: 0.5; }
-.pl-guest-count { margin-bottom: 4px; }
-.pl-guest-count span { white-space: nowrap; }
+/* the owner's guest reactions: a card of its own, one tile per emoji pressed in the last 30 min; a tile pops when its count goes up */
+.pl-reacts { display: grid; gap: 10px; padding: 12px 14px 14px; border-radius: 12px; border: 1px solid var(--scrim-line); background: color-mix(in srgb, var(--on-scrim) 6%, transparent); }
+.pl-reacts-title { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-scrim); }
+.pl-reacts-when { font-weight: 400; color: var(--on-scrim-muted); white-space: nowrap; }
+.pl-reacts-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.pl-react-tile { display: grid; justify-items: center; gap: 2px; padding: 6px 0 4px; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 7%, transparent); animation: pl-react-pop 360ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+.pl-react-glyph { font-size: 24px; line-height: 1.1; }
+.pl-react-n { font-size: 13px; font-weight: 600; color: var(--on-scrim); font-variant-numeric: tabular-nums; }
+@keyframes pl-react-pop { from { transform: scale(0.8); } }
+@media (prefers-reduced-motion: reduce) { .pl-react-tile { animation: none; } }
 /* Inside the stage so it sits above the controls panel and below the fullscreen exit button (z-index 5, same stacking context). Fixed to the
    picture's own box (the same height as .pl-field), and it never takes a touch. */
 .pl-emojis { position: fixed; left: 0; right: 0; top: var(--se-header-h); height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); z-index: 4; pointer-events: none; overflow: hidden; }
