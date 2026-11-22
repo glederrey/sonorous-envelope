@@ -111,6 +111,7 @@ export function ControlsLab() {
             when="Turn 3 · 12 s ago"
             onHide={() => setNote("Hide controls pressed")}
             onFullscreen={() => setNote("Fullscreen pressed (the player hides everything but the picture)")}
+            save={viewer === "owner" ? { onSave: () => setNote("Save pressed (the player saves this moment)"), done: false, busy: false } : undefined}
             audioState="running" muted={muted} onResume={() => {}} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
             picture={{ gradientOn, visualsOn, onGradient: () => setGradientOn((v) => !v), onVisuals: () => setVisualsOn((v) => !v) }}

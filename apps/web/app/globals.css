@@ -1435,8 +1435,8 @@ html:has(.pl-field) .se-header {
 .pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
 
 /* guest emojis (#152). The React row for everyone who is not the owner, the owner's count line, and the emojis that float over the picture. */
-.pl-emoji-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 4px; }
-.pl-emoji-btn { min-height: 44px; min-width: 44px; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
+.pl-emoji-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; } /* one row of 7, also at 390 px (about 43 px each) */
+.pl-emoji-btn, .pl-panel .pl-emoji-btn { min-height: 44px; min-width: 0; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
 .pl-emoji-btn:disabled { opacity: 0.5; }
 .pl-guest-count { margin-bottom: 4px; }
 .pl-guest-count span { white-space: nowrap; }
