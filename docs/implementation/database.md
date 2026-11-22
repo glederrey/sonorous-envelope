@@ -15,7 +15,7 @@ The migrations in `supabase/migrations/` are the schema; there is no other copy.
 | `emoji_reactions` | Emoji presses from listeners who are not the owner (migration 0028, below). |
 
 ## Migration `0002_player_access.sql`
-- Listeners need no account. Two security-definer functions, executable by `anon`, are their only door: `get_player_state(id)` (current state and settings, or null) and `player_heartbeat(...)` (bounded: at most 50 devices per session in 5 minutes, values validated and clamped). The tables stay closed to `anon`.
+- Listeners need no account. Two security-definer functions, executable by `anon`, are their only door: `get_player_state(id)` (current state and settings, or null) and `player_heartbeat(...)` (bounded: at most 50 devices per session in 5 minutes, values validated and clamped; each call first deletes the session's rows last seen more than a day ago, migration 0030). The tables stay closed to `anon`.
 - Triggers broadcast a small nudge on the public channel `player:<id>` when a state is inserted or a session ends or changes settings. The payload is only a hint; players always fetch the real state with `get_player_state`, so a forged broadcast cannot push content.
 - `invites` and `redeem_invite` are dropped.
 - `states.slow_mood jsonb`: the slow mood after this state (mood-mapping.md, "Background (bass) layer"). Null on the first state means "start from this mood".

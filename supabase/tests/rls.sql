@@ -443,6 +443,22 @@ do $$ begin
 end $$;
 reset role;
 
+-- player_heartbeat prunes the session's rows last seen over a day ago, and only that session's (0030)
+insert into public.sessions (id, owner_id, settings) values ('sess-hb', '00000000-0000-0000-0000-00000000000a', '{}'), ('sess-hb2', '00000000-0000-0000-0000-00000000000a', '{}');
+select public.player_heartbeat('sess-hb', 'hb-old', 'playing', 0.5, 0.5);
+select public.player_heartbeat('sess-hb', 'hb-new', 'playing', 0.5, 0.5);
+select public.player_heartbeat('sess-hb2', 'hb-other', 'playing', 0.5, 0.5);
+alter table public.player_heartbeats disable trigger player_heartbeats_touch; -- seen_at is the database clock: switch it off to backdate
+update public.player_heartbeats set seen_at = now() - interval '2 days' where device_id in ('hb-old', 'hb-other');
+alter table public.player_heartbeats enable trigger player_heartbeats_touch;
+select public.player_heartbeat('sess-hb', 'hb-now', 'playing', 0.5, 0.5);
+do $$ begin
+  assert not exists (select 1 from public.player_heartbeats where device_id = 'hb-old'), 'a heartbeat over a day old is pruned';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-new'), 'a recent heartbeat stays';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-now'), 'the new heartbeat is written';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-other'), 'another session is not touched';
+end $$;
+
 -- deleting a session (the sessions page): the owner can, a stranger cannot; its rows cascade and its saved moments stay with no session
 update public.saved_moments set created_at = created_at - interval '2 minutes'; -- earlier saves must not trip the 10 a minute cap
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');

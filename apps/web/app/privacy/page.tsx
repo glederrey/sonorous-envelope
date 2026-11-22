@@ -28,7 +28,7 @@ export default function PrivacyPage() {
               <li>Your presses in the player: reactions (“Guide the sound”) and what you heard (“Tell the AI what you heard”).</li>
               <li>One snapshot per session: the picture the player shows and a spectrogram of its sound output (not your microphone or camera). It is replaced as it updates, and we also keep the copy the AI last looked at. You can turn it off in the player, under “Feedback to the AI”.</li>
               <li>Who is listening: a device id and whether the sound is playing, muted or not started, while a player page is open. People who open a shared link without an account are not identified.</li>
-              <li>Anonymous notes to the developers: the text only. No account, session or conversation is attached. A count of notes per account is kept for the day only, to enforce the daily limit.</li>
+              <li>Anonymous notes to the developers: the text, its kind, and the app version and mode it was sent from. No account, session or conversation is attached. A count of notes per account is kept for the day only, to enforce the daily limit.</li>
             </ul>
           </li>
           <li className="doc-row">
