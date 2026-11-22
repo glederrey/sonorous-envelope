@@ -442,16 +442,16 @@ html:has(.pl-field) .se-header {
     radial-gradient(35% 40% at 55% 20%, color-mix(in srgb, var(--glow) var(--lp-glow-soft), transparent), transparent 70%);
   animation: lp-drift 70s ease-in-out infinite alternate;
 }
-/* On the light page the same washes read fainter: a little more of each (Gael, before v1.0.0). */
+/* On the light page the washes read fainter: a little more amber; the teal behind the waves a little less, so the lines stay clear (Gael, before v1.0.0). */
 :root[data-theme="light"] .lp-field {
   --lp-glow: 45%;
-  --lp-tide: 40%;
+  --lp-tide: 30%;
   --lp-glow-soft: 20%;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) .lp-field {
     --lp-glow: 45%;
-    --lp-tide: 40%;
+    --lp-tide: 30%;
     --lp-glow-soft: 20%;
   }
 }
