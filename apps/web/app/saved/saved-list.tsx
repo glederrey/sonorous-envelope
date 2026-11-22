@@ -119,11 +119,13 @@ export function SavedList({ moments }: { moments: SavedRow[] }) {
         {deleting ? (
           <form className="se-dialog-body" action={async (fd) => { await deleteMoment(fd); setDeleting(null); }}>
             <input type="hidden" name="id" value={deleting.id} />
-            <h2 id="delete-moment-title" className="se-heading" style={{ margin: 0 }}>Delete “{deleting.name}”?</h2>
-            <p className="se-muted" style={{ margin: 0 }}>Its link stops working for everyone you shared it with. This cannot be undone.</p>
+            <h2 id="delete-moment-title" className="se-heading" style={{ margin: 0 }}>Delete “{deleting.name}” for good?</h2>
+            <p className="se-muted" style={{ margin: 0 }}>
+              The moment is gone for good. Anyone who opens its link, you included, lands on a “not found” page (404). This cannot be undone.
+            </p>
             <div className="se-dialog-actions">
               <button type="button" className="se-btn" onClick={() => setDeleting(null)}>Cancel</button>
-              <button type="submit" className="se-btn se-btn-danger se-btn-danger-solid">Delete</button>
+              <button type="submit" className="se-btn se-btn-danger se-btn-danger-solid">Delete for good</button>
             </div>
           </form>
         ) : null}

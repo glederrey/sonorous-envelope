@@ -1634,3 +1634,31 @@ html[data-pl-full] .se-header, html[data-pl-full] .se-footer { display: none; }
   background: color-mix(in srgb, var(--hc) calc(var(--lv) * 34%), transparent);
   outline: 1px solid color-mix(in srgb, var(--hc) calc(var(--lv) * 80%), transparent);
   text-shadow: 0 0 calc(var(--lv) * 0.8em) var(--hc), 0 1px 8px rgba(0, 0, 0, 0.5); }
+
+/* 404: "this page went quiet". The 0 is a ring with two ripples, a flat line with one blip passing, a sad trombone on a press */
+.nf { max-width: 640px; margin: 0 auto; padding: clamp(40px, 10vh, 96px) 16px 64px; display: grid; justify-items: center; text-align: center; gap: 20px; }
+.nf-code { display: flex; align-items: center; gap: 0.06em; font-size: clamp(96px, 22vw, 176px); font-weight: 600; line-height: 1; letter-spacing: -0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.nf-ring { width: 0.86em; height: 0.86em; overflow: visible; margin: 0 0.04em; }
+.nf-code > span:last-child { margin-left: -0.06em; }
+.nf-zero { fill: none; stroke: var(--tide); stroke-width: 9; }
+.nf-ripple { fill: none; stroke: var(--tide); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; animation: nf-ripple 3.2s ease-out infinite; }
+.nf-ripple-2 { animation-delay: 1.6s; }
+@keyframes nf-ripple { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.7); } }
+.nf[data-playing] .nf-ripple { animation-duration: 0.9s; stroke: var(--glow); }
+.nf[data-playing] .nf-zero { stroke: var(--glow); animation: nf-droop 0.48s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes nf-droop { to { transform: scale(0.92, 0.86) translateY(4px); } }
+.nf-title { margin: 8px 0 0; font-size: clamp(26px, 4vw, 36px); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+.nf-text { margin: 0; max-width: 46ch; text-wrap: pretty; }
+.nf-line { width: min(100%, 520px); height: 40px; overflow: hidden; }
+.nf-line path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.nf-flat { stroke: var(--line-strong); }
+.nf-blip path { stroke: var(--tide); }
+.nf-blip { animation: nf-blip 4s linear infinite; }
+@keyframes nf-blip { from { transform: translateX(-80px); } to { transform: translateX(620px); } }
+.nf[data-playing] .nf-blip path { stroke: var(--glow); }
+.nf-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+@media (max-width: 560px) { .nf-actions { display: grid; width: min(100%, 320px); } .nf-actions .se-btn { justify-content: center; } }
+@media (prefers-reduced-motion: reduce) {
+  .nf-ripple, .nf-blip, .nf[data-playing] .nf-zero { animation: none; }
+  .nf-blip { transform: translateX(265px); }
+}

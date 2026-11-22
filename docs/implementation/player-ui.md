@@ -15,11 +15,12 @@ Visual design (colours, type, components, logo): follow the [Sonorous Envelope d
 | `/login` | Email magic link (Google/GitHub optional), supports `?next=`. Only the person who connects Claude needs it | public |
 | `/oauth/consent` | OAuth consent (auth.md) | login |
 | `/sessions` | The user's sessions: title, created, last active, turns, open / end / delete | login |
-| `/saved` | The user's saved moments, newest first (up to 200), with a name search and three filters: month ("All dates" or a month that has moments), sound ("All sounds", Synth, Strudel) and who saved ("By anyone", "By you", "By the AI"); filtered in the browser, "N of M" shown. Each row: Open, Copy link, Rename (an inline form) and a red Delete that opens a centred confirm card (Cancel, Delete); on a phone the four buttons sit two by two. Empty: "Nothing saved yet. Press the bookmark in a session's controls, or ask your AI to save the moment." The account menu lists it between Sessions and Settings | login |
+| `/saved` | The user's saved moments, newest first (up to 200), with a name search and three filters: month ("All dates" or a month that has moments), sound ("All sounds", Synth, Strudel) and who saved ("By anyone", "By you", "By the AI"); filtered in the browser, "N of M" shown. Each row: Open, Copy link, Rename (an inline form) and a red Delete that opens a centred confirm card ("Delete “name” for good?", saying its link then answers with the not-found page, 404; Cancel, Delete for good; nothing to type); on a phone the four buttons sit two by two. Empty: "Nothing saved yet. Press the bookmark in a session's controls, or ask your AI to save the moment." The account menu lists it between Sessions and Settings | login |
 | `/m/[id]` | A saved moment (see below). Opens for anyone with the link, no account. The signed-in owner can rename it | link only |
 | `/s/[id]` | The player. Opens for anyone with the link, no account. Signed-in viewers also get the share link; everyone else gets a link to add the connector | link only |
 | `/s/[id]/details` | History: states, intent vs reads_as, clamps, reactions, notes | link only (members) |
 | `/settings` | Connected apps (OAuth grants grouped per app, one Revoke each) and Delete account (auth.md) | login |
+| any unknown path (`app/not-found.tsx`) | The 404, "This page went quiet.": the 0 of 404 is a teal ring with ripples, a flat line with one blip passing, "Back to the start" and "Play a sad trombone" (four falling notes in Web Audio, peak gain 0.12, only on a press; the ring turns amber and droops while it plays). Also what a deleted `/m/<id>` shows. No motion under reduced motion | - |
 | `/dev/mood` | Five sliders → live mapped sound; for tuning (dev builds only) | login |
 
 ## The landing page (`/`)
