@@ -121,10 +121,11 @@ export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; min
   const source = useMemo(() => (started ? { state, at, seed: pictureSeed } : null), [started, state, at, pictureSeed]);
   const strudelOn = Boolean(pattern) && canvasOk && !reduced;
   const colour = state.colour;
+  // black until Start, then the colour fades in with the sound (lightness 0 is black whatever the hue)
   const fieldStyle = {
-    "--pl-h": colour.h, "--pl-s": colour.s, "--pl-l": colour.l,
-    "--pl-h2": colour.secondary?.h ?? colour.h + 25, "--pl-s2": colour.secondary?.s ?? colour.s, "--pl-l2": colour.secondary?.l ?? Math.max(0, colour.l - 0.08),
-    "--pl-t": "1s", "--pl-pulse": colour.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
+    "--pl-h": colour.h, "--pl-s": colour.s, "--pl-l": started ? colour.l : 0,
+    "--pl-h2": colour.secondary?.h ?? colour.h + 25, "--pl-s2": colour.secondary?.s ?? colour.s, "--pl-l2": started ? colour.secondary?.l ?? Math.max(0, colour.l - 0.08) : 0,
+    "--pl-t": "2.5s", "--pl-pulse": colour.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
   const by = moment.savedBy === "ai" ? "the AI" : mine ? "you" : "a listener";
   const date = new Date(moment.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
