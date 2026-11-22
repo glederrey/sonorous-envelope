@@ -3,11 +3,13 @@
 import type { ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Face, Policy } from "../../lib/mcp/modes";
+import type { GuestEmoji } from "@sonorous/shared";
+import { GuestReact } from "./guest-react";
 import { OwnerControls, StrudelToggles } from "./owner-controls";
 
 /** The middle of the controls: the owner's block (mode, Allow Strudel, Strudel visuals, reactions, settings), or for a listener the
  *  Strudel visuals button while a pattern plays, and under either the Strudel code panel. Shared by the player and /dev/controls. */
-export function ControlsMiddle({ picture, stateAt, supabase, sessionId, signedIn, face, policy, onChanged, pattern, patternPlays, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, listeningUntil, clockOffset }: {
+export function ControlsMiddle({ picture, stateAt, supabase, sessionId, signedIn, face, policy, onChanged, pattern, patternPlays, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, listeningUntil, clockOffset, onEmoji, emojiNudge }: {
   /** the Gradient/Scenes toggles, shown in the "Visuals" section */
   picture?: ReactNode;
   /** when the sound playing now was written (the owner's pending presses are read again then) */
@@ -20,9 +22,11 @@ export function ControlsMiddle({ picture, stateAt, supabase, sessionId, signedIn
   strudelCode: boolean; onStrudelCode: (v: boolean) => void;
   /** live tuning: see OwnerControls */
   listeningUntil?: number | null; clockOffset?: number;
+  /** guest emojis (#152): float the one a guest presses on their own screen; `emojiNudge` changes on each broadcast (the owner reads the counts again) */
+  onEmoji?: (e: GuestEmoji) => void; emojiNudge?: number;
 }) {
   void pattern; // the code playing is shown in the info card (`extra`), with what the model set and what the AI can see
   return signedIn
-    ? <OwnerControls picture={picture} stateAt={stateAt} supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={onChanged} strudelVisuals={strudelVisuals} onStrudelVisuals={onStrudelVisuals} strudelCode={strudelCode} onStrudelCode={onStrudelCode} patternPlays={patternPlays} listeningUntil={listeningUntil} clockOffset={clockOffset} />
-    : <details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details>;
+    ? <OwnerControls picture={picture} stateAt={stateAt} supabase={supabase} sessionId={sessionId} face={face} policy={policy} onChanged={onChanged} strudelVisuals={strudelVisuals} onStrudelVisuals={onStrudelVisuals} strudelCode={strudelCode} onStrudelCode={onStrudelCode} patternPlays={patternPlays} listeningUntil={listeningUntil} clockOffset={clockOffset} onEmoji={onEmoji} emojiNudge={emojiNudge} />
+    : <>{onEmoji && <GuestReact supabase={supabase} sessionId={sessionId} onSent={onEmoji} />}<details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details></>;
 }

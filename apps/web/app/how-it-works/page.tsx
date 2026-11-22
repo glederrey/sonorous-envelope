@@ -22,7 +22,7 @@ const know = [
   { title: "Keep the player open.", text: "The sound plays in the player page, not in the chat app. Closing it stops the sound. On a phone it keeps playing when you switch to the chat." },
   { title: "One session per conversation.", text: "Turn the connector on at the start of a conversation. After a week without sound the session ends." },
   { title: "It plays until you stop it.", text: "The last sound keeps playing between messages, in every mode, until you close the player or the session ends. Mute is always one tap away." },
-  { title: "Share the link.", text: "Anyone with the player link can listen, with no account. Only you, the owner, can lock a mode, press reactions, tell the AI what you heard, switch Live tuning, allow Strudel, decide whether the AI may see the picture, or end the session." },
+  { title: "Share the link.", text: "Anyone with the player link can listen, with no account, and can send emoji reactions that float over your picture and that the AI hears about as counts. Only you, the owner, can lock a mode, press reactions, tell the AI what you heard, switch Live tuning, allow Strudel, decide whether the AI may see the picture, or end the session." },
   { title: "The AI can see a picture.", text: "Your player takes a picture 8 to 14 s after each new sound, then every 30 s, while the page is open, playing and visible. It shows the screen and, below it, a spectrogram of the last 10 s of the player's sound output, with a few measured numbers. It does not use your microphone or camera. It is on by default; you can turn it off in the player (\"Let the AI see the picture\", under \"Feedback to the AI\"). \"What the AI can see\" shows you the exact image it was given and when." },
   { title: "Live tuning.", text: `In ${ATTUNED} and ${JUKEBOX}, the owner can switch on Live tuning under \"Feedback to the AI\". The AI then waits for your button presses at the end of its message and answers each at once. Press stop in the chat to end the wait; no press is lost.` },
 ];
@@ -33,7 +33,7 @@ const tools = [
   { name: "strudel_mode", text: `Switches between the synth and Strudel, in ${ATTUNED} and ${JUKEBOX}.` },
   { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the AI can answer them at once.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
-  { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns." },
+  { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns. With save, it keeps one as a frozen keepsake with its own link, in Saved." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
   { name: "inspect", text: "A closer look: the last few states, or a snapshot of what your player shows and plays." },
   { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. At most 3 a day." },

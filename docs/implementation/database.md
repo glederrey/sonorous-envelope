@@ -12,6 +12,8 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `listeners` | The owner gets a row with role `owner` and label `you` when the session is created. Link-only listeners have no row: they are not accounts. |
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
+| `saved_moments` | Frozen keepsakes of one state, with a public link (migration 0027, below). |
+| `emoji_reactions` | Emoji presses from listeners who are not the owner (migration 0028, below). |
 
 ## Migration `0002_player_access.sql`
 Never edit the applied `0001_init.sql`; add changes in a new migration.
@@ -33,6 +35,8 @@ Never edit the applied `0001_init.sql`; add changes in a new migration.
 | Insert state, update session | MCP `set_sound` | caller's OAuth token |
 | Claim reactions | MCP tools via `claim_reactions` RPC | caller's OAuth token |
 | Insert reaction | Player page, owner only for now | owner's browser session |
+| Guest emoji | Player page via `send_emoji(...)` (migration `0028`) | anyone with the link |
+| Claim guest emojis | MCP tools via `claim_emojis` RPC | caller's OAuth token |
 | Change settings | Player page (owner only) updates `sessions.settings` and inserts a `limit_changed`/`consent_changed` reaction | owner's browser session |
 | Report listening | Player page via `player_heartbeat(...)` (migration `0002`); stores the account in `user_id` if signed in, else null | anyone with the link |
 | Read the current state | Player page via `get_player_state(id)` | anyone with the link |
@@ -81,3 +85,16 @@ Tables `dev_feedback` (`id`, `created_at` truncated to the day (the hour until m
 
 ## Delete account (migration 0026)
 RPC `delete_my_account()` (security definer, `authenticated` only, `search_path` empty) deletes the caller's own row in `auth.users`; with no signed-in user it raises `not signed in` (42501). Every table with user data references `auth.users` on delete cascade, so this removes the profile, every session with its states, reactions, moments, snapshots and motifs, the listener rows, the player heartbeats, the developer-note quota, and the OAuth consents and grants. Shared links stop working with the sessions. The app still does not use the service role: this definer function is how account deletion works. Settings has the button (server action `deleteAccount`). The revert is `supabase/revert/0026_delete_account.down.sql`.
+
+## Saved moments (migration 0027)
+`saved_moments` (#151): a keepsake of one thing playing, outside the session. Columns: `id` (22 characters of base64url from a uuid, unguessable like a session id), `owner_id` (references `auth.users`, on delete cascade), `session_id` (references `sessions`, on delete set null; never returned publicly), `name` (1 to 80), `saved_by` (`human`: the button, or the AI saving because the listener asked in words; `ai`: the AI on its own), `effective` (jsonb, a frozen copy of the state), `seed` (the state's own seed), `voice_seed` (`voiceSeedOf(session id)`, which drives the grid's per-step randomness and the picture's seed, so the replay matches), `app_version`, `turn` (the state's turn in its session), `fingerprint` (md5 of the frozen state, the voice seed and the state seed; the seed is left out for a Strudel pattern, which does not use it), `created_at`. A unique index on `(owner_id, fingerprint)`: one owner saves a moment once. RLS: the owner reads, renames and deletes. The grants allow `update (name)` only, so the sound can never change, the AI included; there is no insert grant. Two functions:
+- `save_moment(p_session, p_name, p_by, p_voice_seed, p_app_version) returns { id, name, saved_by, already }` (security definer, `search_path` empty, `authenticated` only): the one write path for the button and the `moment` tool. The state is copied on the server from `current_state_id`; the client never sends state JSON or code. It needs the caller to own the session (`not_owner`), a state that sounds (`nothing_playing`: volume above 0.001, or a Strudel pattern), a trimmed name of 1 to 80 characters and `p_by` of `human` or `ai` (`bad_input`). Saving what is already saved (same fingerprint) writes nothing and returns the first save with `already: true`, before any cap. Caps: the AI's own saves are spaced by at least 5 turns of the session, so a long session allows more than a short one (`ai_too_soon`); the listener's saves have no per-session cap (one per state at most, by the fingerprint); 200 per owner (`saves_full`), 10 per owner per minute (`too_fast`). Errors are `raise exception 'saved_moment: <code>'`. It freezes the copy: no one-shot `motif`, no `transition.delay`, no `grid.fromTempo`, `grid.glide` or `grid.fromRate`.
+- `get_saved_moment(p_id) returns { name, saved_by, created_at, effective, seed, voice_seed, app_version }` or null (security definer, `anon` and `authenticated`): the public read behind `/m/<id>`. It never returns `owner_id` or `session_id`: the session id is the live player's only credential.
+"Exactly the same" holds while the engine does not change: `app_version` is stored with each moment so a later change can be traced. The revert is `supabase/revert/0027_saved_moments.down.sql` (it deletes every saved moment).
+
+## Guest emojis (migration 0028)
+`emoji_reactions` (#152): `id`, `session_id` (cascade), `device_id` (4 to 40 characters), `emoji` (a key checked against the list in `packages/shared/src/emojis.ts`: change both together), `created_at`, `delivered_at`. RLS: only the session's owner can select, and update `delivered_at` (column grant); there is no insert or delete grant, so only the function writes. Kept apart from `reactions` so `claim_reactions` and `heard` never see a guest.
+- `send_emoji(p_session, p_device, p_emoji) returns { ok } or { ok: false, reason: 'slow_down' }` (security definer, `search_path` empty, `anon` and `authenticated`). Caps: 1 per 2 s and 10 per minute per device, 60 per minute per session. Raises for a bad emoji or device id, or a missing or ended session. Deletes the session's rows older than a day on each insert.
+- A trigger on insert broadcasts `{ emoji }` on `player:<session id>`, event `emoji` (no device id).
+- `claim_emojis(p_session) returns table (emoji, created_at)` (security invoker, owner only through RLS): marks undelivered rows delivered and returns them, like `claim_reactions`.
+The revert is `supabase/revert/0028_guest_emojis.down.sql`.

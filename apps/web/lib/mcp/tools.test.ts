@@ -106,6 +106,14 @@ describe("MCP tools", () => {
     expect(r.content.map((c) => ("text" in c ? c.text : "")).join("")).not.toContain("QUJDRA");
   });
 
+  it("offers save on moment, with the listener_asked flag", async () => {
+    const r = await rpc("tools/list");
+    const moment = r.result.tools.find((t: { name: string }) => t.name === "moment");
+    expect(moment.inputSchema.properties.action.enum).toEqual(["keep", "recall", "list", "save"]);
+    expect(moment.inputSchema.properties.listener_asked.type).toBe("boolean");
+    expect(moment.description).toMatch(/listener_asked/);
+  });
+
   it("lists the snapshot choice on inspect", async () => {
     const r = await rpc("tools/list");
     const inspect = r.result.tools.find((t: { name: string }) => t.name === "inspect");

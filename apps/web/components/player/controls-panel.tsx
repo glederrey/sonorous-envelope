@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { EyeOff, Lock, Maximize2, Play, Volume2, VolumeX } from "lucide-react";
+import { Bookmark, BookmarkCheck, EyeOff, Lock, Maximize2, Play, Volume2, VolumeX } from "lucide-react";
 import { QrLink } from "../qr-link";
 
 /** The listening controls of the player, as a plain component: everything it shows comes in as props, so the player fills it from a live
@@ -16,6 +16,10 @@ export interface ControlsPanelProps {
   when: string;
   onHide: () => void;
   onFullscreen: () => void;
+  /** the owner's "Save this moment" button (the bookmark); left out for everyone else. `done`: the icon shows a check for a moment after a save */
+  save?: { onSave: () => void; done: boolean; busy: boolean };
+  /** a one-line notice under the top row (the result of a save) */
+  notice?: ReactNode;
   audioState: string;
   muted: boolean;
   onResume: () => void;
@@ -81,6 +85,11 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
         </p>
         {showWhen ? <p className="pl-when se-sm">{p.when}</p> : <span className="pl-when" />}
         <div className="pl-bar-btns">
+          {p.save && (
+            <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={p.save.onSave} disabled={p.save.busy} aria-label="Save this moment" title="Save this moment">
+              {p.save.done ? <BookmarkCheck size={18} aria-hidden /> : <Bookmark size={18} aria-hidden />}
+            </button>
+          )}
           <button type="button" className="se-btn se-btn-icon pl-icon-btn" onClick={p.onFullscreen} aria-label="Fullscreen" title="Only the picture: no header, controls or footer. Touch the picture to show the exit button; Esc leaves too.">
             <Maximize2 size={18} aria-hidden />
           </button>
@@ -89,6 +98,7 @@ export function ControlsPanel(p: ControlsPanelProps & { /** the width under whic
           </button>
         </div>
       </div>
+      {p.notice}
 
       {p.audioState !== "running" && !p.muted ? (
         <button type="button" className="se-btn se-btn-primary pl-mute" onClick={p.onResume}>
