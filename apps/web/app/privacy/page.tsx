@@ -49,7 +49,7 @@ export default function PrivacyPage() {
           <li className="doc-row">
             <h2 className="se-heading">Your data</h2>
             <p style={{ margin: 0 }}>
-              You can end any of your sessions from the sessions page. Ending a session keeps its data. Deleting it removes the session with its snapshot, moments and motifs. A note to the developers cannot be found or removed per person, because it carries no account. You can delete your account, with all its data, from Settings at any time. For a copy of your data,
+              You can end any of your sessions from the sessions page. Ending a session keeps its data. Deleting it removes the session with its snapshot, the moments kept in it and its motifs; saved moments stay on your Moments page. A note to the developers cannot be found or removed per person, because it carries no account. You can delete your account, with all its data, from Settings at any time. For a copy of your data,
               open an issue on <a href={issues} rel="noopener">GitHub</a>.
             </p>
           </li>
