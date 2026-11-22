@@ -495,6 +495,23 @@ describe("analysis", () => {
     for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeGreaterThan(levels[i - 1] + 0.05);
     expect(moodToEngineState(stretchMood({ ...neutral, tension: 0.9 }), base, 7).osc.stack).toEqual([1, 6, 11]);
   });
+  it("roughness: a calm consonant drone under a sparse arpeggio reads smooth, tension reads rough (issue #155)", () => {
+    // D dorian and F# lydian, triangle wave, drone on, one note a beat, no tension: it read 0.56 to 1.0 (the mean over the pairs of a few
+    // sets, dominated by the low interval of the drone)
+    const sparse = (scale: string, tension: number, joy = 0.5) => {
+      const mood = { ...neutral, calm: 0.9, warmth: 0.3, joy, tension };
+      const s = moodToEngineState(stretchMood(mood), stretchMood(mood), voiceSeedOf("a"));
+      s.arp.scale = scale as never; s.arp.rate = "1/4"; s.osc.wave = "triangle"; s.drone.on = true;
+      return s;
+    };
+    // joy 0.2 puts a minor third in the drone, joy 0.5 a fifth
+    for (const [scale, joy] of [["dorian", 0.5], ["lydian", 0.5], ["dorian", 0.2], ["lydian", 0.2]] as const) {
+      const calm = analyze(sparse(scale, 0, joy), 1).features.roughness, tense = analyze(sparse(scale, 0.9, joy), 1).features.roughness;
+      expect(calm).toBeLessThanOrEqual(0.35);
+      expect(tense).toBeGreaterThanOrEqual(0.6);
+      expect(tense).toBeGreaterThan(calm + 0.3);
+    }
+  });
   it("is deterministic and does not change the state it measures", () => {
     const s = state(); const copy = JSON.stringify(s);
     expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);

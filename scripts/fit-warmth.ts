@@ -3,10 +3,10 @@
 import { alignToVoice, applyOverride, voiceToSynth, BAND_SCALE, nextBand, nextWaveBand, measure, moodToEngineState, stretchMood, voiceSeedOf, type Mood } from "@sonorous/shared";
 type F = ReturnType<typeof measure>;
 const SETS: Record<string, (f: F) => number[]> = {
-  "ln c, rough, wrough": (f) => [Math.log(Math.max(60, f.centroidHz)), f.roughness, f.waveRoughness],
-  "ln c, ln(c/pitch), rough, wrough": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness, f.waveRoughness],
-  "ln(c/pitch), rough, wrough": (f) => [Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness, f.waveRoughness],
-  "ln(c/pitch), wrough": (f) => [Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.waveRoughness],
+  "ln c, ln(c/pitch), rough, richness": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness, f.waveRichness],
+  "ln c, ln(c/pitch), rough, hf": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness, f.highFreqRatio],
+  "ln c, ln(c/pitch), rough, rough2": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness, f.roughness ** 2],
+  "ln c, ln(c/pitch)": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz))],
   "ln(c/pitch), rough": (f) => [Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness],
   "ln c, ln(c/pitch), rough": (f) => [Math.log(Math.max(60, f.centroidHz)), Math.log(Math.max(1, f.centroidHz) / Math.max(30, f.pitchHz)), f.roughness],
 };
