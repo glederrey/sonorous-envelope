@@ -240,7 +240,13 @@ const PATTERN_HEARD_MS = 30_000;
 const RATE_ORDER: EngineState["arp"]["rate"][] = ["1/4", "1/8", "1/8t", "1/16"];
 
 /** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
-const LEVEL_PRESS_DB = 2, LEVEL_FLOOR_DB = -10;
+const LEVEL_PRESS_DB = 3, LEVEL_FLOOR_DB = -12;
+/** Self plays at the usual level and the listener modes at the listener's: say so when a mode change moves it (v0.23.5 report). */
+function levelSwitchNote(prev: StateRow | null | undefined, now: EngineState): string | undefined {
+  const was = prev?.effective.listenerDb ?? 0, is = now.listenerDb ?? 0;
+  if (was === is) return undefined;
+  return is === 0 ? `level: Self plays at the usual level; the listener's ${was} dB comes back in a listener mode` : `level: the listener's ${is} dB applies again`;
+} // 2 dB was heard but felt small (v0.23.5 report): 3 dB a press, four presses to the floor
 const dbGain = (db: number) => 10 ** (db / 20);
 
 function measureState(effective: EngineState, seed: number): Compact | null {
@@ -494,6 +500,8 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   }
   // a new voice, or a new mode, is a big change: without a transition of its own it gets a long one
   const transition = (input.voice !== undefined || scaleMoved || waveMoved) && !input.transition ? { curve: "smooth" as const, time: 8 } : input.transition;
+  // the call after a pace hold may move on, but a big tempo step out of the hold glides over 10 s, not the default 4 (v0.23.5 report: 76 to 142 in 4 s)
+  const afterHold = Boolean(prev?.clamps?.some((c) => c.startsWith("pace held")));
   let { state: overridden, overridden: fields } = mapSound(session.id, mood, slow, voice, sticky, input.synth);
   let adopted = false;
   if (!complete(voice)) {
@@ -520,6 +528,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     mapped: overridden, transition,
   });
   const allClamps = mergeClamps(clamps);
+  if (afterHold && !input.transition && prev && effective.arp.tempo > prev.effective.arp.tempo * 1.25) effective.transition = { time: 10, curve: "smooth" };
   // The call that switches into Attuned is the first sound made for the listener: like the level (below), it is no faster and no busier
   // than what they hear now. Tempo, step rate and note density are held at what played; the model can move them on its next calls.
   // Just after Strudel (strudel_mode off, within PATTERN_HEARD_MS), what they heard was the pattern: its tempo is the one to hold to (#170).
@@ -528,7 +537,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     const synthHeard = tempoHeard(prev, now);
     const was = prev.effective.arp, held: string[] = [];
     const wasTempo = synthHeard ? was.tempo : patternBpm!;
-    if (effective.arp.tempo > wasTempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(wasTempo)} bpm`); effective.arp.tempo = wasTempo; }
+    if (effective.arp.tempo > wasTempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(wasTempo)} bpm${synthHeard ? "" : ", the tempo of the Strudel pattern that just played; its step rate and density cannot be compared with the synth's, so only the tempo is held"}`); effective.arp.tempo = wasTempo; }
     if (synthHeard && RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
     if (synthHeard && effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
     if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); reads_as reads the held sound, so its calm is higher than sent: do not correct for that. If the listener asked for more energy, send it again now with a transition of 8 s or more, so it rises to the pace they asked for`);
@@ -564,7 +573,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), expiredNote(prev, effective, fields), lv.note, analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), expiredNote(prev, effective, fields), lv.note ?? levelSwitchNote(prev, effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -678,7 +687,7 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
 
   const rest = restInfo(prev, settings, now, face);
   // like set_sound: say when the tempo glides and the rate steps on the way back (v0.23.2 report)
-  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, strudel ? undefined : tempoNote(prev, effective, now), strudel ? undefined : rateNote(effective), lv.note, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, strudel ? undefined : tempoNote(prev, effective, now), strudel ? undefined : rateNote(effective), lv.note ?? levelSwitchNote(prev, effective), turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, false);
