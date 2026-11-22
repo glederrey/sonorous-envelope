@@ -14,7 +14,7 @@ export async function renameMoment(formData: FormData) {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return;
   await supabase.from("saved_moments").update({ name }).eq("id", id).eq("owner_id", data.user.id);
-  revalidatePath("/saved");
+  revalidatePath("/moments");
   revalidatePath(`/m/${id}`);
 }
 
@@ -26,6 +26,6 @@ export async function deleteMoment(formData: FormData) {
   const { data } = await supabase.auth.getUser();
   if (!data.user) return;
   await supabase.from("saved_moments").delete().eq("id", id).eq("owner_id", data.user.id);
-  revalidatePath("/saved");
+  revalidatePath("/moments");
   revalidatePath(`/m/${id}`);
 }

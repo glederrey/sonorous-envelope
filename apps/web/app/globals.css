@@ -1433,12 +1433,20 @@ html:has(.pl-field) .se-header {
 .pl-set dd { margin: 0; overflow-wrap: anywhere; }
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
-.pl-save-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--on-scrim); }
-.pl-save-note a, .pl-save-note .se-link { color: var(--on-scrim); }
-.pl-save-name { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
-.pl-save-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
-.pl-save-rename .se-input { flex: 1 1 200px; min-width: 0; width: auto; }
+/* the card after a save: a tick and the name, then three small buttons; it fades in, and out before it goes */
+.pl-save-note { display: grid; gap: 10px; padding: 10px 12px 12px; border: 1px solid var(--scrim-line); border-radius: 12px; background: color-mix(in srgb, var(--on-scrim) 6%, transparent); color: var(--on-scrim); animation: pl-note-in 180ms ease-out; transition: opacity 300ms ease-in, transform 300ms ease-in; }
+.pl-save-note[data-leaving] { opacity: 0; transform: translateY(-4px); }
+@keyframes pl-note-in { from { opacity: 0; transform: translateY(-4px); } }
+.pl-save-head { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
+.pl-save-head svg { flex: none; color: var(--tide); }
+.pl-save-what { flex: none; color: var(--on-scrim-muted); }
+.pl-save-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.pl-save-error { margin: 0; }
+.pl-save-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pl-panel .pl-save-note .se-btn { min-height: 34px; padding: 0 8px; font-size: 13px; gap: 6px; justify-content: center; white-space: nowrap; }
+.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pl-save-rename .se-input { flex: 1 1 160px; min-width: 0; width: auto; min-height: 34px; }
+@media (prefers-reduced-motion: reduce) { .pl-save-note { animation: none; transition: none; } }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */
@@ -1471,8 +1479,17 @@ html:has(.pl-field) .se-header {
 .pl-emoji-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; } /* one row of 7, also at 390 px (about 43 px each) */
 .pl-emoji-btn, .pl-panel .pl-emoji-btn { min-height: 44px; min-width: 0; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
 .pl-emoji-btn:disabled { opacity: 0.5; }
-.pl-guest-count { margin-bottom: 4px; }
-.pl-guest-count span { white-space: nowrap; }
+/* the owner's guest reactions: a card of its own, one tile per emoji pressed in the last 30 min; a tile pops when its count goes up */
+.pl-reacts { display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--scrim-line); background: color-mix(in srgb, var(--on-scrim) 6%, transparent); }
+.pl-reacts-title { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; color: var(--on-scrim); }
+.pl-reacts-when { font-weight: 400; color: var(--on-scrim-muted); white-space: nowrap; }
+/* seven equal columns, one per emoji of the set: all seven fill the card's width (in one row even in a 390 px panel), one pill takes a seventh */
+.pl-reacts-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.pl-react-tile { display: flex; justify-content: center; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 999px; background: color-mix(in srgb, var(--on-scrim) 7%, transparent); animation: pl-react-pop 360ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+.pl-react-glyph { font-size: 17px; line-height: 1.2; }
+.pl-react-n { font-size: 13px; font-weight: 600; color: var(--on-scrim); font-variant-numeric: tabular-nums; }
+@keyframes pl-react-pop { from { transform: scale(0.8); } }
+@media (prefers-reduced-motion: reduce) { .pl-react-tile { animation: none; } }
 /* Inside the stage so it sits above the controls panel and below the fullscreen exit button (z-index 5, same stacking context). Fixed to the
    picture's own box (the same height as .pl-field), and it never takes a touch. */
 .pl-emojis { position: fixed; left: 0; right: 0; top: var(--se-header-h); height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); z-index: 4; pointer-events: none; overflow: hidden; }
@@ -1539,12 +1556,29 @@ html:has(.pl-field) .se-header {
 /* session list actions: one line on a phone (Open player, Copy link, End session), wrapping only on very narrow screens */
 .ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ss-actions form { display: contents; }
-/* /saved: name search and month filter */
-.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
-.sv-filters select.se-input { width: auto; min-width: 16ch; }
-.sv-count { margin: 0 0 16px; }
+/* /moments: a name search, then month, engine and who saved; one row per moment */
+.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 16px; }
+/* the count sits inside the search field, flush right (the native clear button would collide with it) */
+.sv-search { position: relative; display: grid; min-width: 0; }
+.sv-search .se-input { padding-right: 88px; }
+.sv-search .se-input::-webkit-search-cancel-button { display: none; }
+/* the filters draw their own arrow, 12 px from the right edge (the native one sits too close to it) */
+.sv-select { position: relative; display: grid; min-width: 0; }
+.sv-select select.se-input { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0 36px 0 12px; }
+.sv-select svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); }
+.sv-count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sv-name { overflow-wrap: anywhere; }
 .sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-@media (max-width: 560px) { .sv-filters { grid-template-columns: minmax(0, 1fr); } .sv-filters select.se-input { width: 100%; } }
+.sv-rename { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-rename .se-input { flex: 1 1 220px; min-width: 0; width: auto; }
+@media (max-width: 560px) {
+  .sv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sv-filters .sv-search { grid-column: 1 / -1; }
+  .sv-select select.se-input { width: 100%; padding: 0 26px 0 8px; font-size: 14px; }
+  .sv-select svg { right: 8px; width: 14px; height: 14px; }
+  .sv-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .sv-actions .se-btn { justify-content: center; }
+}
 @media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn { padding: 0 12px; font-size: 14px; } }
 @media (max-width: 400px) { .ss-actions .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }
 
@@ -1616,3 +1650,28 @@ html[data-pl-full] .se-header, html[data-pl-full] .se-footer { display: none; }
   background: color-mix(in srgb, var(--hc) calc(var(--lv) * 34%), transparent);
   outline: 1px solid color-mix(in srgb, var(--hc) calc(var(--lv) * 80%), transparent);
   text-shadow: 0 0 calc(var(--lv) * 0.8em) var(--hc), 0 1px 8px rgba(0, 0, 0, 0.5); }
+
+/* 404: "this page went quiet". The 0 is a ring with two ripples, a flat line with one blip passing, a sad trombone on a press */
+.nf { max-width: 640px; margin: 0 auto; padding: clamp(40px, 10vh, 96px) 16px 64px; display: grid; justify-items: center; text-align: center; gap: 20px; }
+.nf-code { display: flex; align-items: center; gap: 0.06em; font-size: clamp(96px, 22vw, 176px); font-weight: 600; line-height: 1; letter-spacing: -0.04em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.nf-ring { width: 0.86em; height: 0.86em; overflow: visible; margin: 0 0.04em; }
+.nf-code > span:last-child { margin-left: -0.06em; }
+.nf-zero { fill: none; stroke: var(--tide); stroke-width: 9; }
+.nf-ripple { fill: none; stroke: var(--tide); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; animation: nf-ripple 3.2s ease-out infinite; }
+.nf-ripple-2 { animation-delay: 1.6s; }
+.nf-ripple-3 { display: none; }
+.nf[data-playing] .nf-ripple-3 { display: inline; }
+@keyframes nf-ripple { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.7); } }
+.nf[data-playing] .nf-ripple { animation-duration: 0.9s; stroke: var(--glow); }
+.nf[data-playing] .nf-zero { stroke: var(--glow); }
+.nf[data-playing] .nf-ripple-2 { animation-delay: 0.3s; }
+.nf[data-playing] .nf-ripple-3 { animation-delay: 0.6s; }
+.nf-title { margin: 8px 0 0; font-size: clamp(26px, 4vw, 36px); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+.nf-text { margin: 0; max-width: 46ch; text-wrap: pretty; }
+/* the hero's lines in small (QuietWaves): the stroke is a gradient the component eases from teal to amber and back */
+.nf-waves { width: min(100%, 520px); height: auto; -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent); }
+.nf-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+@media (max-width: 560px) { .nf-actions { display: grid; width: min(100%, 320px); } .nf-actions .se-btn { justify-content: center; } }
+@media (prefers-reduced-motion: reduce) {
+  .nf-ripple { animation: none; }
+}

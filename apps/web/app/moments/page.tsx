@@ -8,7 +8,7 @@ export const metadata = { title: "Saved moments" };
 export default async function SavedPage() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) redirect("/login?next=%2Fsaved");
+  if (!data.user) redirect("/login?next=%2Fmoments");
 
   const { data: rows } = await supabase.from("saved_moments").select("id,name,saved_by,created_at,engine:effective->>engine")
     .eq("owner_id", data.user.id).order("created_at", { ascending: false }).limit(200);

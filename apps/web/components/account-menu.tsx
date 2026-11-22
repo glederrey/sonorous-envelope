@@ -55,7 +55,7 @@ export function AccountMenu() {
       <ul id={id} className="se-account-list" data-open={open} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}>
         <li className="se-account-label">Account</li>
         {row("/sessions", "Sessions")}
-        {row("/saved", "Saved")}
+        {row("/moments", "Moments")}
         {row("/settings", "Settings")}
         <li className="se-account-sep" aria-hidden />
         <li className="se-account-item se-account-item-signout">

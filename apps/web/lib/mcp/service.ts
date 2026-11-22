@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // The tables are untyped here; generic params are loose so any client (including test clients) fits.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, any, any>;
-import { midiToNoteName, noteToMidi, SCALES, type EngineState } from "@sonorous/engine";
+import { midiToNoteName, noteToMidi, ratePath, SCALES, steppedFromRate, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
   alignToVoice, analyze, BAND_SCALE, callSynth, describeEmojis, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
@@ -277,6 +277,14 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState, at: numb
   return glides ? `tempo ${a} to ${b}: it glides over ${Math.round(t.time * 10) / 10} s` : `tempo ${a} to ${b}: it changes at once when this state starts (the transition is sudden or very short)`;
 }
 
+/** The arpeggio's rate steps through the straight rates in between over the glide (engine/src/ramp.ts): say so, like the tempo note. */
+function rateNote(now: EngineState): string | undefined {
+  const from = steppedFromRate(now);
+  if (!from) return undefined;
+  const path = ratePath(from, now.arp.rate);
+  return `rate ${from} to ${now.arp.rate}: it steps${path.length > 2 ? ` through ${path.slice(1, -1).join(", ")}` : ""} over ${Math.round((now.grid?.glide ?? 0) * 10) / 10} s`;
+}
+
 /** Without a voice of its own, scale, root and wave follow the mood and move from call to call: say so when they did. */
 function voiceNote(prev: StateRow | null | undefined, now: EngineState, voice: Voice | null | undefined, held: boolean, adopted = false): string | undefined {
   if (adopted) return "your first sound is now your voice: root, note order and octaves stay. Its scale mode follows your joy (phrygian low, dorian middle, lydian high) and its wave follows your warmth (square, sawtooth, triangle, sine) until you send a voice";
@@ -490,7 +498,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -501,7 +509,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
 /** What the model is told when `save_moment` (migration 0027) refuses: the code is the text after "saved_moment: " in the error. */
 export function saveMomentError(message: string): ToolError | null {
   switch (/saved_moment: (\w+)/.exec(message)?.[1]) {
-    case "ai_too_soon": return new ToolError("ai_too_soon", "You saved one on your own less than 5 turns ago. The listener can still save from the player, or ask you to.");
+    case "ai_too_soon": return new ToolError("ai_too_soon", "You saved one on your own less than 5 messages ago. The listener can still save from the player, or ask you to.");
     case "saves_full": return new ToolError("saves_full", "The owner has 200 saved moments, the limit. They can delete some in Saved.");
     case "too_fast": return new ToolError("too_fast", "Too many saves this minute. Try again in a minute.");
     case "nothing_playing": return new ToolError("nothing_playing", "Nothing is playing to save: the sound is silent. Call set_sound first.");

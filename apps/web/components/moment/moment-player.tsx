@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
@@ -35,9 +35,9 @@ const PREFS_KEY = "moment"; // one volume for every saved moment on this device
 /**
  * The page of a saved moment: one frozen state plays, from the start, in the same engine, the same Strudel sandbox frame and the same
  * picture as the session player, with the same player-side caps. It has no poll, no heartbeat and no owner controls: the listener has
- * Mute, Volume, Share and the QR code. `rename` is the owner's form, passed in by the page (a server component).
+ * Mute, Volume, Share and the QR code. Renaming is on /moments only: this page is for listening.
  */
-export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; mine: boolean; rename?: ReactNode }) {
+export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boolean }) {
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [message, setMessage] = useState("");
@@ -121,10 +121,11 @@ export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; min
   const source = useMemo(() => (started ? { state, at, seed: pictureSeed } : null), [started, state, at, pictureSeed]);
   const strudelOn = Boolean(pattern) && canvasOk && !reduced;
   const colour = state.colour;
+  // black until Start, then the colour fades in with the sound (lightness 0 is black whatever the hue)
   const fieldStyle = {
-    "--pl-h": colour.h, "--pl-s": colour.s, "--pl-l": colour.l,
-    "--pl-h2": colour.secondary?.h ?? colour.h + 25, "--pl-s2": colour.secondary?.s ?? colour.s, "--pl-l2": colour.secondary?.l ?? Math.max(0, colour.l - 0.08),
-    "--pl-t": "1s", "--pl-pulse": colour.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
+    "--pl-h": colour.h, "--pl-s": colour.s, "--pl-l": started ? colour.l : 0,
+    "--pl-h2": colour.secondary?.h ?? colour.h + 25, "--pl-s2": colour.secondary?.s ?? colour.s, "--pl-l2": started ? colour.secondary?.l ?? Math.max(0, colour.l - 0.08) : 0,
+    "--pl-t": "2.5s", "--pl-pulse": colour.pulseHz ? `${1 / Math.min(3, colour.pulseHz)}s` : "0s",
   } as CSSProperties;
   const by = moment.savedBy === "ai" ? "the AI" : mine ? "you" : "a listener";
   const date = new Date(moment.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -149,7 +150,6 @@ export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; min
             <h1 className="se-heading" style={{ margin: 0, overflowWrap: "anywhere" }}>{moment.name}</h1>
             <p className="se-sm" style={{ margin: "4px 0 0", color: "var(--on-scrim-muted)" }}>Saved by {by} · {date} · {pattern ? "Strudel" : "Synth"}</p>
           </div>
-          {rename}
           {!started ? (
             <>
               <button type="button" className="se-btn se-btn-primary pl-start-btn" onClick={start} disabled={starting}>

@@ -68,7 +68,7 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("save_moment", {
     title: "Save a moment",
-    description: "Save the sound and picture playing now as a keepsake outside the session, with a link (url) the listener can open and share later; the sound is frozen, nobody can change it. When the listener asks you to save, pass listener_asked true; you may also save on your own when something feels worth keeping (at most once every 5 turns), and say so in words. Saving what is already saved returns the first save (already). It changes nothing that plays and is not a sound update.",
+    description: "Save the sound and picture playing now as a keepsake outside the session, with a link (url) the listener can open and share later; the sound is frozen, nobody can change it. When the listener asks you to save, pass listener_asked true; you may also save on your own when something feels worth keeping (at most once every 5 messages), and say so in words. It saves what plays now: call it after the set_sound for that sound has returned, never in the same batch. Saving what is already saved returns the first save (already). It changes nothing that plays and is not a sound update.",
     inputSchema: z.object({
       session_id: z.string().optional(),
       name: z.string().trim().min(1).max(40).describe("a short title for the keepsake; the listener can rename it"),

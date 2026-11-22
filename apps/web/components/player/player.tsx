@@ -590,7 +590,16 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string; already: boolean } | null>(null);
   const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const hideNoteLater = () => { clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setSaveNote(null), 8000); };
+  const [noteLeaving, setNoteLeaving] = useState(false); // the last 300 ms: the card fades out before it goes
+  const hideNoteLater = () => {
+    clearTimeout(noteTimer.current); setNoteLeaving(false);
+    noteTimer.current = setTimeout(() => {
+      setNoteLeaving(true);
+      noteTimer.current = setTimeout(() => { setSaveNote(null); setNoteLeaving(false); }, 300);
+    }, 7700);
+  };
+  const keepNote = () => { clearTimeout(noteTimer.current); setNoteLeaving(false); };
+  const noteEditing = useRef(false); // while the name is typed, or the pointer rests on the card, it stays
   useEffect(() => () => { saveTimers.current.forEach(clearTimeout); clearTimeout(noteTimer.current); }, []);
   // rename from the line under the controls: RLS lets the owner change the name only (migration 0027)
   const renameSaved = async (id: string, name: string) => {
@@ -713,11 +722,12 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             onFullscreen={enterFull}
             save={isOwner ? { onSave: () => void saveMoment(), done: saveDone, busy: saveBusy } : undefined}
             notice={saveNote && (
-              <div className="se-sm pl-save-note" role="status">
-                {"error" in saveNote ? saveNote.error : (
+              <div className="se-sm pl-save-note" role="status" data-leaving={noteLeaving || undefined}
+                onPointerEnter={keepNote} onPointerLeave={() => { if (!noteEditing.current) hideNoteLater(); }}>
+                {"error" in saveNote ? <p className="pl-save-error">{saveNote.error}</p> : (
                   <SaveNotice key={saveNote.id} id={saveNote.id} name={saveNote.name} already={saveNote.already}
                     onRename={(n) => renameSaved(saveNote.id, n)}
-                    onEditing={(on) => (on ? clearTimeout(noteTimer.current) : hideNoteLater())} />
+                    onEditing={(on) => { noteEditing.current = on; if (on) keepNote(); else hideNoteLater(); }} />
                 )}
               </div>
             )}

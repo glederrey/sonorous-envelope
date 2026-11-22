@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import type { EngineState } from "@sonorous/engine";
 import { SiteHeader } from "../../../components/site-header";
 import { MomentPlayer } from "../../../components/moment/moment-player";
-import { RenameMoment } from "../../../components/moment/rename-moment";
 import { hasSupabaseEnv } from "../../../lib/env";
 import { createClient } from "../../../lib/supabase/server";
 
@@ -39,7 +38,6 @@ export default async function MomentPage({ params }: { params: Promise<{ id: str
       <MomentPlayer
         mine={mine}
         moment={{ id, name: saved.name, savedBy: saved.saved_by, createdAt: saved.created_at, effective: saved.effective, seed: Number(saved.seed), voiceSeed: Number(saved.voice_seed) }}
-        rename={mine ? <RenameMoment id={id} name={saved.name} /> : undefined}
       />
     </>
   );

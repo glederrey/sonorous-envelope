@@ -4,7 +4,7 @@ import { SITE_URL } from "../lib/site";
 // Public pages can be indexed. Player links are private by obscurity (anyone with the link listens), so they stay out of search.
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/s/", "/m/", "/sessions", "/saved", "/settings", "/auth/", "/oauth/", "/login"] },
+    rules: { userAgent: "*", allow: "/", disallow: ["/api/", "/s/", "/m/", "/sessions", "/moments", "/settings", "/auth/", "/oauth/", "/login"] },
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }
