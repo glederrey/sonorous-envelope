@@ -225,7 +225,8 @@ async function switchFace(db: Db, session: SessionRow, requested: Face | undefin
   if (d.change === null) return { face: current, note: d.note };
   const { error: e1 } = await db.from("sessions").update({ mode: d.change }).eq("id", session.id);
   if (e1) fail("switch the face", e1);
-  await db.from("mode_changes").insert({ session_id: session.id, turn: stateTurn, to_mode: d.change, by: "model", created_at: new Date(now).toISOString() });
+  const { error: e2 } = await db.from("mode_changes").insert({ session_id: session.id, turn: stateTurn, to_mode: d.change, by: "model", created_at: new Date(now).toISOString() });
+  if (e2) console.error("mode_changes insert failed:", e2.message); // the log only: the switch itself worked
   return { face: d.change, note: `switched to ${faceName(d.change)}: say so in one short sentence` };
 }
 
@@ -391,11 +392,13 @@ export async function startSession(db: Db, userId: string, input: { title?: stri
     .order("last_active_at", { ascending: false });
   if (aerr) fail("check your sessions", aerr);
   for (const old of (active ?? []).slice(MAX_ACTIVE_SESSIONS - 1)) {
-    await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("id", old.id);
+    const { error } = await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("id", old.id);
+    if (error) console.error("ending an old session failed:", error.message);
   }
   // a session with no sound for a week is over (roadmap: sessions lifecycle); done here so no scheduled job is needed
-  await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("owner_id", userId).is("ended_at", null)
+  const { error: eerr } = await db.from("sessions").update({ ended_at: new Date(now).toISOString() }).eq("owner_id", userId).is("ended_at", null)
     .lt("last_active_at", new Date(now - ENDED_AFTER_S * 1000).toISOString());
+  if (eerr) console.error("ending stale sessions failed:", eerr.message);
 
   const { data: profile } = await db.from("profiles").select("default_settings").eq("id", userId).maybeSingle();
   // a session starts on the internal mode unless the listener asked for sound; it is on auto until the owner locks a face
@@ -700,7 +703,8 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
 
 /** Reads what the owner's player said about the Strudel code of a state (pattern_reports), in the words the model gets. */
 async function patternReport(db: Db, stateId: string): Promise<Record<string, unknown> | null> {
-  const { data } = await db.from("pattern_reports").select("ok,error,events_per_cycle,notes").eq("state_id", stateId).maybeSingle();
+  const { data, error } = await db.from("pattern_reports").select("ok,error,events_per_cycle,notes").eq("state_id", stateId).maybeSingle();
+  if (error) console.error("pattern_reports read failed:", error.message);
   if (!data) return null;
   const r = data as { ok: boolean; error: string | null; events_per_cycle: number | null; notes: unknown };
   const notes = Array.isArray(r.notes) ? r.notes.filter((n): n is string => typeof n === "string").slice(0, 8).map((n) => n.slice(0, 120)) : [];
@@ -1045,7 +1049,8 @@ async function inspectHistory(db: Db, userId: string, input: { session_id?: stri
     const mo = r.intent.motif ? ` · motif${r.intent.motif.name ? ` "${r.intent.motif.name}"` : ""}` : "";
     return `turn ${r.turn}${r.final ? " final" : ""} ${time} · ${sent}${reads}${clamps}${n}${mo}`;
   });
-  const { data: changes } = await db.from("mode_changes").select("turn,to_mode,by,created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(5);
+  const { data: changes, error: cerr } = await db.from("mode_changes").select("turn,to_mode,by,created_at").eq("session_id", session.id).order("created_at", { ascending: false }).limit(5);
+  if (cerr) console.error("mode_changes read failed:", cerr.message);
   const faces = ((changes ?? []) as Array<{ turn: number; to_mode: string; by: string; created_at: string }>).reverse()
     .map((c) => `turn ${c.turn} ${new Date(c.created_at).toISOString().slice(11, 19)} · ${c.by === "owner" ? (c.to_mode === "auto" ? "owner set auto" : `owner locked ${MODE_LABEL[normalizeFace(c.to_mode)]}`) : `you switched to ${MODE_LABEL[normalizeFace(c.to_mode)]}`}`);
   return { history: lines, ...(faces.length ? { face_changes: faces } : {}), ...(note ? { notes: [note] } : {}) };
