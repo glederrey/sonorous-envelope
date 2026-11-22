@@ -1722,3 +1722,6 @@ html[data-pl-full] .se-header, html[data-pl-full] .se-footer { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .nf-ripple { animation: none; }
 }
+
+/* /v1 easter egg: fireworks over the home page, which stays usable underneath */
+.fw-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }

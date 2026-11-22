@@ -3,6 +3,7 @@ import { SiteHeader } from "../components/site-header";
 import { CopyField } from "../components/copy-field";
 import { Envelope } from "../components/envelope";
 import { SamplePlayer } from "../components/sample-player";
+import { Fireworks } from "../components/fireworks";
 import { mcpResourceUrl } from "../lib/env";
 import { FACES, MODE_LABEL } from "../lib/mcp/modes";
 import { getLiveCount, liveSentence } from "../lib/live-count";
@@ -55,6 +56,7 @@ export default async function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <Fireworks />
       <div className="lp-hero">
         <div className="lp-field" aria-hidden />
         <SiteHeader overlay />
