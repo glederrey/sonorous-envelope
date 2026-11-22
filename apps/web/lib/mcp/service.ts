@@ -268,14 +268,16 @@ function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Comp
   return { analysis, note: `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further` };
 }
 
-/** "softer" or "calmer" reached the model since the last state (in that call's result, or through listen): the answer to it must not
- *  come back louder. The model has no volume of its own, and a calmer mood carries its own level, which could rise (v0.23.2 report). */
+/** A "softer" or "calmer" this call answers must not come back louder. The model has no volume of its own, and a calmer mood carries its
+ *  own level, which could rise (v0.23.2 report). This call answers the presses it delivers now (still pending: the normal path, they show in
+ *  its own `reactions`) and the ones pressed after the last state and delivered through listen. A press made before the last state was
+ *  pending then, so that state already answered it (v0.23.3 report: the rule fired one call late, and twice). */
 async function askedQuieter(db: Db, sessionId: string, prev: StateRow | null): Promise<"softer" | "calmer" | undefined> {
   if (!prev) return undefined;
-  // delivered_at is the database's clock and created_at this server's: 1 s of slack, so a claim made by the last call is not missed
-  const since = new Date(new Date(prev.created_at).getTime() - 1000).toISOString();
+  const since = new Date(prev.created_at).toISOString();
   try { // never break a call over a reaction
-    const { data, error } = await db.from("reactions").select("kind").eq("session_id", sessionId).in("kind", ["softer", "calmer"]).gte("delivered_at", since).limit(10);
+    const { data, error } = await db.from("reactions").select("kind").eq("session_id", sessionId).in("kind", ["softer", "calmer"])
+      .or(`delivered_at.is.null,created_at.gt.${since}`).limit(10);
     if (error || !data?.length) return undefined;
     const kinds = (data as Array<{ kind: string }>).map((r) => r.kind);
     return kinds.includes("softer") ? "softer" : "calmer";
@@ -297,7 +299,8 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState, at: numb
 function expiredNote(prev: StateRow | null | undefined, now: EngineState, fields: string[]): string | undefined {
   const before = (prev?.intent.overridden ?? []).filter((f) => !f.includes(":") && !/^(osc\.stack|pad\.|lfo)/.test(f));
   const at = (s: EngineState, path: string) => path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], s);
-  const fmt = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : typeof v === "string" || typeof v === "boolean" ? String(v) : null);
+  // whole numbers from 10 up (tempo, cutoff), like the tempo note and playing; two decimals below (resonance, levels)
+  const fmt = (v: unknown) => (typeof v === "number" ? String(Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 100) / 100) : typeof v === "string" || typeof v === "boolean" ? String(v) : null);
   const moved = before.filter((f) => !fields.includes(f)).flatMap((f) => {
     const a = fmt(at(prev!.effective, f)), b = fmt(at(now, f));
     return a !== null && b !== null && a !== b ? [`${f} ${a} to ${b}`] : [];

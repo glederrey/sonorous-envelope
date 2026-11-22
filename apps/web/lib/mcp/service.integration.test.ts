@@ -321,26 +321,28 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b.reactions).toEqual([expect.stringMatching(/^softer, /)]);
   });
 
-  it("keeps the answer to softer quieter, and to calmer no louder, than the last sound", async () => {
+  it("keeps the answer to softer quieter, and to calmer no louder, on the call that delivers the press, once", async () => {
     const quiet = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
     const loud = { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.45, spontaneity: 0.4 };
     const db = (sid: string) => JSON.parse(sql(`select analysis->'sound'->'loudness_db' from states where session_id='${sid}' order by created_at desc limit 1`));
+    const press = (sid: string, kind: string) => sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${sid}', '${A}', '${kind}', to_timestamp(${clock - 5_000} / 1000.0))`);
     const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
     await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
     await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+    // the press is pending: this call delivers it (it shows in its reactions) and answers it at once
     const was = db(session_id);
-    // the model read "softer" with its last result: the database's clock says when (delivered_at), here on the test's clock
-    sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'softer', to_timestamp(${clock - 20_000} / 1000.0), to_timestamp(${clock + 100} / 1000.0))`);
+    press(session_id, "softer");
     const r = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    expect(r.reactions).toEqual([expect.stringMatching(/^softer, /)]);
     expect(db(session_id)).toBeLessThanOrEqual(was - 2);
     expect((r.clamped as string[]).join(" ")).toMatch(/level lowered: the listener asked for softer/);
+    // the next call does not answer it again
+    const again = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    expect(((again.clamped as string[] | undefined) ?? []).join(" ")).not.toMatch(/asked for/);
     const was2 = db(session_id);
-    sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'calmer', to_timestamp(${clock - 20_000} / 1000.0), to_timestamp(${clock + 100} / 1000.0))`);
-    await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    press(session_id, "calmer");
+    await svc.setSound(dbA, A, { session_id, mood: { ...loud, calm: 0.3 }, final: true } as never, tick(25_000));
     expect(db(session_id)).toBeLessThanOrEqual(was2);
-    // no request since: the usual step applies again
-    const free = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
-    expect(((free.clamped as string[] | undefined) ?? []).join(" ")).not.toMatch(/asked for/);
   });
 
   it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {
@@ -770,14 +772,13 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect((fb.playing as { engine?: string }).engine).not.toBe("strudel");
       expect(fb.pattern).toBeUndefined();
       expect(state(session_id).volume).toBe(0); // the owner turned it off: sound and picture end, no leftover synth state
-      // allowing it again does not bring the old pattern back: the playing state is the synth until the model sends Strudel again
+      // allowing it again on the same state brings the pattern back, as the player does (0029, v0.23.3 report): no "stopped" note
       expect((await dbA.rpc("set_allow_code", { p_session: session_id, p_allow: true })).error).toBeNull();
-      expect(state(session_id).engine).toBeUndefined(); expect(state(session_id).pattern).toBeUndefined();
+      expect(state(session_id).engine).toBe("strudel"); expect(state(session_id).volume).toBeGreaterThan(0);
       const again = await svc.getFeedback(dbA, A, { session_id }, clock);
-      expect((again.playing as { engine?: string }).engine).not.toBe("strudel");
-      expect(JSON.stringify(again.notes)).toMatch(/owner stopped your Strudel pattern/); // still said after the owner allows it again
-      // the same for the face lock
-      await svc.strudelMode(dbA, A, { session_id, on: true, code, bpm: 100, final: true }, tick(5000));
+      expect((again.playing as { engine?: string }).engine).toBe("strudel");
+      expect(JSON.stringify(again.notes ?? [])).not.toMatch(/owner stopped your Strudel pattern/);
+      // a face lock is final
       expect(state(session_id).engine).toBe("strudel");
       expect((await dbA.rpc("set_mode_policy", { p_session: session_id, p_policy: "internal" })).error).toBeNull();
       expect(state(session_id).engine).toBeUndefined();
@@ -865,6 +866,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(((next.notes as string[] | undefined) ?? []).join(" ")).not.toMatch(/rate 1\/4 to 1\/16/);
       // the rate sent in synth lasted one call: the note says so
       expect(((next.notes as string[] | undefined) ?? []).join(" ")).toMatch(/your last synth settings lasted one call, so the mood's values are back: arp\.rate 1\/16 to 1\/4/);
+      // a tempo is whole, like the tempo note
+      await svc.setSound(dbA, A, { session_id, mood: calm, synth: { arp: { tempo: 120 } }, final: true } as never, tick(25_000));
+      const back = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      expect(((back.notes as string[] | undefined) ?? []).join(" ")).toMatch(/arp\.tempo 120 to \d+(,|\.\s|$)/);
     });
   });
   describe("motif", () => {
