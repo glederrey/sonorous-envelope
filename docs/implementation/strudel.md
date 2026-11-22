@@ -1,4 +1,4 @@
-# Strudel (roadmap #18)
+# Strudel (#18)
 
 The model has two engines. The **built-in synth** is its own voice (Self, Attuned or Jukebox). **Strudel** is live-coded music as on strudel.cc, **listener modes only (Attuned and Jukebox)**, switched on and off with the tool `strudel_mode`. Decisions by Gael (2026-11-11): tool named `strudel_mode`; samples in v1 so it works as on strudel.cc; the owner's "allow code" switch is on by default; **no sound safety on Strudel** (no loudness governor, no parameter clamps, no 0.9 cap, only the listener's volume); the code is shown collapsed with Copy code and a link to strudel.cc, and cannot be edited on sonorous; the hero page and the guide explain both engines; only `strudel_mode` switches engines (`set_sound` never does).
 

@@ -1,10 +1,25 @@
 # Mood mapping
 
-`moodToEngineState(mood: Mood): EngineState` in `packages/shared/src/mood-mapping.ts`. Pure and deterministic. The result is then overridden by the model's `synth` fields and finally passed through limits.
+`moodToEngineState(mood: Mood): EngineState` in `packages/shared/src/mood-mapping.ts`. Pure and deterministic. The result is then overridden by the model's `synth` fields and finally passed through the safety rules (limits.md).
 
-These formulas are a first guess, grounded in the cues in [emotion-to-sound.md](../emotion-to-sound.md). They must be tuned by listening. Keep them in one file with named constants so tuning is easy, and add a dev page (`/dev/mood`) with five sliders that plays the mapped result live.
+These formulas are a first guess, grounded in the cues in [emotion-to-sound.md](../emotion-to-sound.md). They must be tuned by listening. Keep them in one file with named constants so tuning is easy.
 
-> **Built (first outside test, 2026-11-09), tune by ear.** The mapping below makes every instance that sends only the five axes sound alike: the same four notes, going up, a bit hesitant. The cause is arithmetic, not taste. At the values instances actually send (0.45 to 0.72 on every axis) the formulas give: chord `[1,3,5,7]` (joy ≥ 0.55, calm ≥ 0.5), `N = 3 + round(3·(1−k))` = 4 notes at calm 0.6, `octaves = 1 + round(2·s·(1−k))` = 1, pattern `up` or `up_down` (`random` needs spontaneity > 0.75), rate `1/8`, and density `lerp(1, 0.6, s) × lerp(0.75, 1, 1−k)` ≈ 0.68, so about a third of the steps are skipped, which is the hesitation people hear. Thresholds and rounding collapse the whole middle band onto one shape. The sections "Stretch" and "Voice" at the end, and the marked changes to Rhythm below, are the fix. Tune all numbers by ear.
+## The axes
+The model describes a mood, not a sequence of notes. Each axis goes from 0 to 1 (the schema is in mcp-tools.md).
+
+| Axis | 0 | 1 | Mainly drives |
+|---|---|---|---|
+| `warmth` | cold | warm | waveform, filter cutoff, detune, added 7ths, reverb colour |
+| `closeness` | distant | close | dry vs reverb, stereo width, register |
+| `joy` | despair | joy | scale and chord quality, arpeggio contour, register, attack, brightness |
+| `calm` | urgency | calm | tempo, note rate, number of notes, LFO speed, attack, density (the inverse of arousal: serenity and urgency are activation levels, not emotions) |
+| `spontaneity` | measured | spontaneous | pattern randomness, swing, step probability, timing jitter |
+
+Two readings of the axes are worth keeping in mind. Joy and anger share tempo, register and contour; roughness and brightness separate them, so anger is "low joy, urgent, rough", not a separate axis (`tension` below adds dissonance). Sadness and tenderness differ almost only in regularity: both are slow, low and soft, and sadness adds a small timing and pitch tremor.
+
+Mood and affect are different things: a mood lasts, an affect answers the moment. The sound has two layers for them: the foreground arpeggio reacts to every update (the affect), and a slow background arpeggio follows a slow mood that moves a fraction of the way to the model's mood at each final update (see "Background (bass) layer").
+
+The mapping alone gave nearly the same skeleton to every instance that sent middling values (the same four rising notes). The fix is two measures, "Stretch" and "Voice" below, and the rhythm rules that vary pattern, notes per cycle and octaves.
 
 Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in [0,1]. `lerp(a,b,t) = a + (b−a)·t`. `pick(list, t)` = `list[min(len−1, floor(t·len))]`.
 
@@ -23,18 +38,17 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
   | `j < 0.4` and `k < 0.5` | `locrian`, `[1,3,5]` | diminished: fear (anger once roughness is added, see Timbre) |
   | none of the above | base scale; `j < 0.25 → [1,3,5]`, `j < 0.6 → [1,3,5,7]`, else `[1,3,5,9]` | a blend |
 
-  No consent levels any more: every scale is allowed as mapped.
 - **Suspension:** add degree 4 if `s > 0.7`. This is a hypothesis to test: sus2 and sus4 are not in the chord study.
-- **Octaves:** `1 + round(3·(1−c)·(0.5 + 0.5·s))`, min 1, max 4 (was `1 + round(2·s·(1−k))`, max 3). Closeness narrows or widens the span: close and measured gives 1 octave, distant and spontaneous gives 3 to 4.
+- **Octaves:** `1 + round(3·(1−c)·(0.5 + 0.5·s))`, min 1, max 4. Closeness narrows or widens the span: close and measured gives 1 octave, distant and spontaneous gives 3 to 4.
 - **Open voicing:** if `c < 0.4`, spread the chord: a `[1,3,5,7]` becomes `[1,5,7,10]` (the third moves up an octave), so the arpeggio does not stay a tight block of four neighbours.
 
 ## Rhythm (mainly calm, spontaneity)
 - **Tempo:** `lerp(150, 56, k)` BPM, then `× lerp(0.9, 1.1, j)`.
 - **Rate:** `k > 0.75 → "1/4"`, `k > 0.45 → "1/8"`, else `"1/16"`. Triplets (`"1/8t"`) if `s > 0.6` and `k > 0.45`.
 - **Pattern** (spontaneity chooses the family, joy the contour inside the measured one):
-  - `s ≤ 0.4`: contour follows joy, as before: `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`.
+  - `s ≤ 0.4`: contour follows joy: `j ≥ 0.6 → "up"`, `j ≤ 0.4 → "down"`, else `"up_down"`.
   - `0.4 < s ≤ 0.6`: `"as_played"` over a chord order permuted once from the session's voice seed (below), so the notes do not simply climb and do not reorder on every update (the per-state `seed` changes each time).
-  - `s > 0.6`: `"random"` (was `s > 0.75`).
+  - `s > 0.6`: `"random"`.
 - **Notes per cycle:** `N = 3 + round(3·(1−k))`: 3 when calm, 6 when urgent, but never fewer than the chord has. The `chord` is extended to N degrees by continuing past the top (`[1,3,5,7]` with N=6 gives `[1,3,5,7,8,10]`). `octaves` then repeats that list upward, so the cycle is N × octaves long. (Tempo and rate above give about 1 note per second when calm and 10 when urgent, matching the cue table.)
 - **Density:** `lerp(1.0, 0.6, s)` × `lerp(0.75, 1.0, 1−k)` (calm = sparser), clamp [0.35, 1].
 - **Swing:** `0.4 · s`.
@@ -43,16 +57,16 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Arp on:** always. (It used to switch off when `k > 0.9 and j < 0.3`, which left nothing for the spontaneity reading to measure; the model can still turn it off with `synth.arp.on = false`.)
 
 ## Timbre (mainly warmth)
-- **Wave (v0.19.3):** four even bands of the sent warmth, lower edge included: below 0.25 `"square"`, to 0.5 `"sawtooth"`, to 0.75 `"triangle"`, else `"sine"`. On the stretched `w` the edges are 0.1, 0.5 and 0.9 (`WAVE_EDGES`, `waveIndex` in `voice-band.ts`). Before v0.19.3: `w > 0.66` sine, `> 0.4` triangle, `> 0.2` sawtooth, so sawtooth only covered a sent 0.31 to 0.44 and 0.3 was already square.
+- **Wave:** four even bands of the sent warmth, lower edge included: below 0.25 `"square"`, to 0.5 `"sawtooth"`, to 0.75 `"triangle"`, else `"sine"`. On the stretched `w` the edges are 0.1, 0.5 and 0.9 (`WAVE_EDGES`, `waveIndex` in `voice-band.ts`).
 - **Voices / detune:** `voices = w > 0.5 ? 2 : 1`; `detune = lerp(2, 14, w)` cents (gentle chorus warmth).
 - **Filter:** lowpass. `cutoff = 2^lerp(log2(400), log2(6000), 0.5·(1−w) + 0.35·j + 0.15·(1−k))` Hz. `resonance = lerp(0.7, 6, (1−w)·(1−k))`.
 - **Envelope:** `attack = lerp(0.005, 0.3, k·(0.6 + 0.4·w))` (fast for joy and anger, 100 ms or more for sadness and tenderness); `decay = lerp(0.5, 0.15, j)` (joy: short decay); `sustain = lerp(0.2, 0.65, 0.5·w + 0.5·k)` (tenderness: high sustain); `release = min(2, lerp(0.1, 1.5, k) · lerp(1, 1.3, 1−j))` (lingering for sadness).
-- **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8 · max(0, 0.6−j)/0.6 · max(0, 0.6−k)/0.6 · max(0, 0.9−w)/0.9`, so it is exactly 0 whenever joy ≥ 0.6, calm ≥ 0.6 or warmth ≥ 0.9. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Counted in harshness (limits.md), so only "expressive" and "anything" allow it. Detune also widens: `detune += 10·drive` cents.
+- **Roughness (`osc.drive`, 0 to 1, soft saturation before the filter):** `drive = 0.8 · max(0, 0.6−j)/0.6 · max(0, 0.6−k)/0.6 · max(0, 0.9−w)/0.9`, so it is exactly 0 whenever joy ≥ 0.6, calm ≥ 0.6 or warmth ≥ 0.9. Anger is low joy, urgent, cold and rough; the same corner with warmth stays fearful (darker, no drive). Detune also widens: `detune += 10·drive` cents.
 
 ## Space (mainly closeness)
-- **Volume:** the constant `MASTER_VOLUME` (0.5), whatever the mood: calm moves tempo and density, not loudness (the server instructions say so). Loudness belongs to the listener: their slider, and the listener's level (#170): each "softer" a call answers lowers the session's level 3 dB and it holds, down to -12 dB; each "harsher" or "stormier" raises it 3 dB back toward 0 (2 dB until v0.23.5: heard, but felt small). Self plays at the usual level, and a mode change that moves the level says so (`level: Self plays at the usual level; …` or `level: the listener's -N dB applies again`). Only presses move it, never the model. It lives in `sessions.sticky.levelDb`; every state carries it as `effective.listenerDb` (absent at 0): the synth's `volume` is `MASTER_VOLUME` times its gain, and a Strudel pattern plays at that gain in the browser (a gain node after the pattern's fade, `StrudelOutput.setLevel`, gliding over about a second). `recall` plays a kept moment at the session's level now, not the one it was kept at.
+- **Volume:** the constant `MASTER_VOLUME` (0.5), whatever the mood: calm moves tempo and density, not loudness (the server instructions say so). Loudness belongs to the listener: their slider, and the listener's level (#170): each "softer" a call answers lowers the session's level 3 dB and it holds, down to -12 dB; each "harsher" or "stormier" raises it 3 dB back toward 0. Self plays at the usual level, and a mode change that moves the level says so (`level: Self plays at the usual level; …` or `level: the listener's -N dB applies again`). Only presses move it, never the model. It lives in `sessions.sticky.levelDb`; every state carries it as `effective.listenerDb` (absent at 0): the synth's `volume` is `MASTER_VOLUME` times its gain, and a Strudel pattern plays at that gain in the browser (a gain node after the pattern's fade, `StrudelOutput.setLevel`, gliding over about a second). `recall` plays a kept moment at the session's level now, not the one it was kept at.
 - **Reverb:** `mix = lerp(0.5, 0.12, c)`, `size = lerp(0.9, 0.5, c)`.
-- **Delay:** `time = min(0.75, 60/tempo · 0.75)` s (dotted eighth), `feedback = min(0.6, lerp(0.45, 0.15, c))`, `mix = lerp(0.35, 0.1, c) · (0.5 + 0.5·k)`. The delay amplifies the emotion that is present instead of adding one, so it is not tied to a single axis. The caps keep the resonance from becoming unpleasant. The listener's own delay control is added on top (limits.md).
+- **Delay:** `time = min(0.75, 60/tempo · 0.75)` s (dotted eighth), `feedback = min(0.6, lerp(0.45, 0.15, c))`, `mix = lerp(0.35, 0.1, c) · (0.5 + 0.5·k)`. The delay amplifies the emotion that is present instead of adding one, so it is not tied to a single axis. The caps keep the resonance from becoming unpleasant. 
 - **Width:** `lerp(1.0, 0.3, c)` (close = narrower, centred).
 
 ## Movement (LFOs)
@@ -66,32 +80,32 @@ Notation: `w` warmth, `c` closeness, `j` joy, `k` calm, `s` spontaneity, all in 
 - **Wave:** `"sine"` if `w > 0.5` else `"triangle"`. **Level:** `lerp(0.1, 0.3, k)`.
 
 ## Background (bass) layer
-A low, slow arpeggio for the background mood (sound-model.md, "Two arpeggios"). It is the mood; the foreground arpeggio above is the affect.
-- **Slow mood** (follows the stretched values, like everything else after step 0 of limits.md): per axis, `slow = lerp(slow, mood, 0.25)`, updated on every `final: true` update and not on mid-turn ones, starting from the first mood of the session. Stored on the state row (`slow_mood`). 0.25 is a starting value: it takes about four responses to cover most of a change. It barely moves by design.
+A low, slow arpeggio for the background mood (see "The axes"). It is the mood; the foreground arpeggio above is the affect.
+- **Slow mood** (follows the stretched values, like everything else): per axis, `slow = lerp(slow, mood, 0.25)`, updated on every `final: true` update and not on mid-turn ones, starting from the first mood of the session. Stored on the state row (`slow_mood`). 0.25 is a starting value: it takes about four responses to cover most of a change. It barely moves by design.
 - **Chord:** the chord-quality rules applied to `slow`, at root − 12.
 - **Steps:** one note every `lerp(1, 2, slow.calm)` s, pattern `up_down`, gate 1, wave `sine` if `slow.warmth > 0.5` else `triangle`, level `lerp(0.1, 0.25, slow.calm)`.
 - If the bass layer and the drone sound muddy together, drop the mapped drone (it stays available through the override). Check by ear.
 
 ## Colour (follow mode)
 `ResolvedColour = { h, s, l, secondary?, motion, shape?, texture, pulseHz, scene?, sceneAuto?, density?, speed?, sync?, feel? }`
-- **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue. One exception (2026-11-13, a decision for Gael): anger (tension above 0.35 with low joy and low calm) pulls the hue the short way round to red (356°) and adds up to 0.35 saturation. Saturated red gets no brightness pulse (safety.md), so the anger shows in the form of its scene.
+- **Hue:** a walk round the wheel, no emotion attached: `t = 0.45·w + 0.3·j + 0.25·(1−k)`, `h = (250 − 300·t) mod 360` (blue, cyan, green, yellow, orange, red, magenta), so moods that sound different also look different. It is only a default; Claude can send any hue (0 to 360). Low joy desaturates rather than changing hue. One exception: anger (tension above 0.35 with low joy and low calm) pulls the hue the short way round to red (356°) and adds up to 0.35 saturation. The anger shows in the form of its scene as well.
 - **Saturation:** `lerp(0.15, 0.6, 0.5·j + 0.5·(1−k))`.
 - **Lightness:** `lerp(0.12, 0.45, 0.6·j + 0.4·(cutoff normalised))`. The page stays dark overall; never above 0.6.
 - **Secondary:** hue + 25°, lightness − 0.08, for a slow gradient.
-- **Motion:** `k > 0.7 → "breathe"`, `k > 0.45 → "drift"`, else `"pulse"` (changed 2026-11-11: the motion is safe at any tempo, so no mood is still; `"still"` only when the model sends it). The motion follows the beat clock, not the LFO (visuals.md); `pulseHz = min(LFO1.rate, 1.0)` is kept for the legacy CSS pulse, still capped at 3 Hz by `hardCaps`. An `amp` LFO at audio-like rates (20 to 80 Hz, planned) is sound only and never drives the colour.
-- **Scene (`moodToScene`, 2026-11-13):** when the model sets none, the strongest emotion region of the axes (stretched by `stretchMood`) picks one, and below a score of 0.3 none. The regions and the scene each emotion gets are in the table in visuals.md and in `mood-mapping.ts`; the pick is only a suggestion, and any scene the model sets wins.
+- **Motion:** `k > 0.7 → "breathe"`, `k > 0.45 → "drift"`, else `"pulse"` (no mood is still; `"still"` only when the model sends it). The motion follows the beat clock, not the LFO (visuals.md); `pulseHz = min(LFO1.rate, 1.0)` is kept for the legacy CSS pulse, still capped at 3 Hz by `hardCaps`. An `amp` LFO at audio-like rates (20 to 80 Hz) is sound only and never drives the colour.
+- **Scene (`moodToScene`):** when the model sets none, the strongest emotion region of the axes (stretched by `stretchMood`) picks one, and below a score of 0.3 none. The regions and the scene each emotion gets are in the table in visuals.md and in `mood-mapping.ts`; the pick is only a suggestion, and any scene the model sets wins.
 - **Feel (`moodToFeel`, how the mood shapes the motion):** `depth = 1 − 0.75·k`, `lift = j`, `jitter = tension`, `soft = w`, `near = c`, `irreg = s`. What each does is in visuals.md. Starting values, tune by eye on `/dev/visuals`.
 - **Texture:** `"grain"` if `w < 0.3`, else `"soft_noise"` if `s > 0.6`, else `"flat"`.
 
-In `own` mode, the model's HSL values replace hue/saturation/lightness; motion and pulse limits still apply.
+In `own` mode, the model's HSL values replace hue/saturation/lightness. These mappings are cultural defaults, not universal truths: colour is atmosphere, not a fixed code.
 
 ## Tension (optional sixth control)
-Added after the third outside test, where anger had no tool of its own. `tension` is 0 to 1, left out means 0, and 0 gives exactly the sound the five axes gave before (a test checks it). It is not stretched. Above 0.12 every arp note gets a stacked interval, in five levels: a minor seventh (above 0.12), a tritone (above 0.3), a tritone and a major seventh (above 0.5), a semitone, a tritone and a major seventh (above 0.7). Detune grows by up to 24 cents, drive by up to 0.4, the filter resonance by up to 4, voices go to at least 2 above 0.3. (Until 2026-11-10 the top level was a semitone and a tritone, and 0.6 to 0.9 was heard as a small step.) A voice or a call's own `osc.stack` replaces the mapped stack. `reads_as.tension` is the summed clash weight of the simultaneous note pairs (semitone 1, tritone 0.8, major seventh 1, minor seventh and tone 0.25), divided neither by pairs nor by notes, so each added clashing note raises it and a consonant partner never lowers it (`clash` in analysis.ts, rescaled from 1.5 to 6.5). It is measured with one fixed seed and the step counters at zero, so the same sound always reads the same. Tension adds drive and level, so calm reads a little lower as tension rises even when the calm sent is held: that is the sound, not a fault.
+Anger has no axis of its own, so `tension` is 0 to 1, left out means 0, and 0 gives exactly the sound the five axes gave before (a test checks it). It is not stretched. Above 0.12 every arp note gets a stacked interval, in five levels: a minor seventh (above 0.12), a tritone (above 0.3), a tritone and a major seventh (above 0.5), a semitone, a tritone and a major seventh (above 0.7). Detune grows by up to 24 cents, drive by up to 0.4, the filter resonance by up to 4, voices go to at least 2 above 0.3. A voice or a call's own `osc.stack` replaces the mapped stack. `reads_as.tension` is the summed clash weight of the simultaneous note pairs (semitone 1, tritone 0.8, major seventh 1, minor seventh and tone 0.25), divided neither by pairs nor by notes, so each added clashing note raises it and a consonant partner never lowers it (`clash` in analysis.ts, rescaled from 1.5 to 6.5). It is measured with one fixed seed and the step counters at zero, so the same sound always reads the same. Tension adds drive and level, so calm reads a little lower as tension rises even when the calm sent is held: that is the sound, not a fault.
 
 ## Stretch
 Instances send cautious values, mostly between 0.4 and 0.7, so they all land on the same stretch of the mapping. Two measures, both needed:
-- **Stretch the middle.** Before mapping, each axis goes through `stretch(x) = clamp(0.5 + 1.6·(x − 0.5), 0, 1)`: 0.4 becomes 0.34, 0.7 becomes 0.82. It is monotonic and keeps 0.5 where it is. It runs before the mood floor (limits.md step 1), so a floor is never lowered by it. The feedback `intent` still shows the values the model sent.
-- **Ask for the full range.** The server instructions tell the model that 0.4 to 0.7 reads as lukewarm and that it should commit to its values (server-instructions.md, planned wording).
+- **Stretch the middle.** Before mapping, each axis goes through `stretch(x) = clamp(0.5 + 1.6·(x − 0.5), 0, 1)`: 0.4 becomes 0.34, 0.7 becomes 0.82. It is monotonic and keeps 0.5 where it is. The feedback `intent` still shows the values the model sent.
+- **Ask for the full range.** The server instructions tell the model that 0.4 to 0.7 reads as lukewarm and that it should commit to its values (server-instructions.md).
 
 ## Voice
 A voice is the part of the sound that says who is playing, as opposed to how it is doing: root note, scale, chord shape, note order, number of octaves and wave. It makes instances differ from one another, which the five axes alone cannot do.
@@ -99,14 +113,13 @@ A voice is the part of the sound that says who is playing, as opposed to how it 
 - **It persists by default** from turn to turn, which gives the unity of a voice. The axes keep driving everything else (tempo, rate, filter, envelope, space).
 - **It is never a prison.** `set_sound` can replace it at any time, for instance when the conversation turns (anger, disrespect, a change of subject). A replacement uses a longer transition, like any big change.
 - **Voice seed:** `voiceSeed = hash(session id)`, fixed for the session. It drives the fallback voice and the `as_played` permutation. It is separate from the per-state seed of `set_sound`, which only drives the engine's randomness.
-- **Fallback when the instance chooses none:** a default voice drawn from the voice seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule and the consent fallbacks; an explicit voice does not.
-- **Merge order:** mapped → voice → `synth` of this call → limits. Only the safety rules in limits.md apply afterwards (no consent ceilings any more).
-- **Limits do not change.** Safety is enforced after the merge, as before. A voice is expressive freedom, not a way around a listener's settings.
+- **Fallback when the instance chooses none:** a default voice drawn from the voice seed, so two instances that send the same axes still differ: root offset of up to ±3 semitones, one of a few chord shapes (closed, open, with a 9th, suspended), a note order and an octave count. The fallback keeps the joy contour rule; an explicit voice does not.
+- **Merge order:** mapped → voice → `synth` of this call → limits. Only the safety rules in limits.md apply afterwards.
 
 ### Voice bands (auto-drawn voices only)
-**Wave (v0.19.2):** the wave of an auto-drawn voice follows warmth in four bands, the same edges as the mapping (v0.19.3: even bands of the sent warmth, 0.25, 0.5 and 0.75, see Wave above; before, `≤0.2` square, `≤0.4` sawtooth, `≤0.66` triangle on the stretched warmth; `nextWaveBand` in `voice-band.ts`, stored in `sticky.waveBand`), with a 0.05 margin of hysteresis. Before, the wave was fixed at the first sound, and since it is what carries warmth in the mapping, the warmth reading had a floor near 0.67 (sent 0.3 read 0.67). Now, at joy 0.3 with an adopted voice, warmth 0.3 reads 0.25 to 0.31 and 0.8 reads 0.71 to 0.74. Changing wave is noted in `notes` (`your warmth moved the wave of your voice from X to Y`) and uses the same 8 s transition as a scale change. A wave sent in a voice (`start_session`, `set_sound`, `keep_voice`) stays fixed. Sessions adopted before v0.19.2 have no `waveBand` and keep their wave.
+**Wave:** the wave of an auto-drawn voice follows warmth in four bands, the same edges as the mapping (even bands of the sent warmth: 0.25, 0.5 and 0.75; `nextWaveBand` in `voice-band.ts`, stored in `sticky.waveBand`), with a 0.05 margin of hysteresis. The wave carries warmth in the mapping, so a wave fixed at the first sound would put a floor under the warmth reading. Changing wave is noted in `notes` (`your warmth moved the wave of your voice from X to Y`) and uses the same 8 s transition as a scale change. A wave sent in a voice (`start_session`, `set_sound`, `keep_voice`) stays fixed.
 
-A voice the server drew itself (the first sound adopted as the voice) takes its scale from joy, in three bands: low `phrygian`, mid `dorian`, high `lydian` (`BAND_SCALE`). `nextBand` has hysteresis (enter high at 0.7, leave below 0.55; enter low at 0.3, leave above 0.45, on the stretched joy), so a joy hovering at an edge does not flip the mode. Changing band is noted in `notes` and uses an 8 s transition. A voice the model sent (`voice` or `keep_voice`) is never touched. `alignToVoice` puts the bass and drone in the voice's root and scale (bass chord `[1,3,5]`), so the harmony under the arpeggio agrees with it and `reads_as.joy` follows the band (measured at neutral axes with the v0.19.1 reading: sent 0.2, 0.4, 0.6, 0.8 read 0.29, 0.54, 0.57, 0.81; a dorian voice at joy 0.6 reads 0.57, it read 0.27 before the tonic was taken from the arp root and the sixth counted). `mixolydian` was tried for the mid band and read 0.70, too bright for a sent 0.4.
+A voice the server drew itself (the first sound adopted as the voice) takes its scale from joy, in three bands: low `phrygian`, mid `dorian`, high `lydian` (`BAND_SCALE`). `nextBand` has hysteresis (enter high at 0.7, leave below 0.55; enter low at 0.3, leave above 0.45, on the stretched joy), so a joy hovering at an edge does not flip the mode. Changing band is noted in `notes` and uses an 8 s transition. A voice the model sent (`voice` or `keep_voice`) is never touched. `alignToVoice` puts the bass and drone in the voice's root and scale (bass chord `[1,3,5]`), so the harmony under the arpeggio agrees with it and `reads_as.joy` follows the band (measured at neutral axes: sent 0.2, 0.4, 0.6, 0.8 read 0.29, 0.54, 0.57, 0.81). `mixolydian` was tried for the mid band and read 0.70, too bright for a sent 0.4.
 
 ## Override merge
 Deep-merge the model's `synth` object over the mapped state, field by field. Arrays (`chord`, `lfo`, `drone.notes`) replace, not merge. Note names convert to MIDI. Record which fields were overridden in the state's `intent` (for the session details page).
@@ -118,11 +131,11 @@ Deep-merge the model's `synth` object over the mapped state, field by field. Arr
 - Chord quality: for each row of the table, a mood inside its region gives the listed scale and degrees; boundaries use the first matching row.
 - Contour: with `spontaneity ≤ 0.4`, `joy ≥ 0.6` never gives a falling pattern and `joy ≤ 0.4` never gives a rising one. (Above 0.4 spontaneity chooses `as_played` or `random`, so the contour test no longer applies.)
 - Variety: 200 random moods drawn from [0.4, 0.7]^5 must not all give the same (chord, pattern, octaves) triple; at least 6 distinct triples. This is the regression test for "four rising notes".
-- Stretch: `stretch` is monotonic, fixes 0.5, and stays in [0,1]; a mood floor is still met after stretch.
+- Stretch: `stretch` is monotonic, fixes 0.5, and stays in [0,1].
 - Voice: a session voice survives later `set_sound` calls that send no voice; a new voice replaces it; the seeded fallback is deterministic per session id and differs between ids.
 - Roughness: `drive` is 0 whenever `joy ≥ 0.6`, `calm ≥ 0.6` or `warmth ≥ 0.9`.
 - Background layer: the slow mood moves exactly 25 % of the remaining distance per final update, never changes on a non-final update, and converges to a constant mood.
 - Release and attack stay inside their ranges at every corner of the cube.
 
-## What is built (v0.1.3)
-`stretchMood` runs in `set_sound` before the mood floor; the transition-distance check stretches the previous mood too. The voice is stored in `sessions.voice` (migration 0004), sent with `start_session` or replaced with `set_sound` (`{}` clears it; a replacement gets a transition of at least 8 s). Mapping order in `service.ts` (`mapSound`): `moodToEngineState(stretched mood, slow mood, voiceSeed)` → voice → the call's `synth` → limits. The fallback character (`characterFor`: root ±3, chord shape closed/open/ninth/suspended, octaves ±1) applies inside `moodToEngineState` whenever a seed is given, and the explicit voice overrides it field by field. `as_played` shuffles the chord once from the voice seed. The `/dev/mood` page is not built.
+## How `set_sound` uses it
+`stretchMood` runs in `set_sound` before the mapping; the transition-distance check stretches the previous mood too. The voice is stored in `sessions.voice` (migration 0004), sent with `start_session` or replaced with `set_sound` (`{}` clears it; a replacement gets a transition of at least 8 s). Mapping order in `service.ts` (`mapSound`): `moodToEngineState(stretched mood, slow mood, voiceSeed)` → voice → the call's `synth` → the safety rules. The fallback character (`characterFor`: root ±3, chord shape closed/open/ninth/suspended, octaves ±1) applies inside `moodToEngineState` whenever a seed is given, and the explicit voice overrides it field by field. `as_played` shuffles the chord once from the voice seed.

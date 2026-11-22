@@ -19,11 +19,11 @@ A hack worth one test: routing Web Audio into an `<audio>` element through `Medi
 
 ## Dictation: the sound nearly disappears when the mic opens
 
-Found in the first outside test (2026-11-09, phone). While the user dictates a message, the player's sound drops to something very faint and far away. Before the background fix, the sound stayed audible during dictation; the cost was that changes only arrived on returning to the page. The point of the whole setup includes dictating with Claude's sound in the background, so this matters.
+Found in the first outside test (phone). While the user dictates a message, the player's sound drops to something very faint and far away. Dictating with Claude's sound in the background is part of the point of the setup, so this matters.
 
-**Likely cause: the phone, not the page.** When the microphone opens, Android and iOS give priority to the recording and lower ("duck") or pause other audio sources. A web page has little say in that. The keep-alive file (roadmap, "Phone: music follows Claude in the background") makes Chrome treat the page as media, which also means it takes part in the system's audio focus and can be ducked or paused when something else takes focus.
+**Likely cause: the phone, not the page.** When the microphone opens, Android and iOS give priority to the recording and lower ("duck") or pause other audio sources. A web page has little say in that. The keep-alive file (`/keepalive.wav`, played from `components/player/audio.ts`) makes Chrome treat the page as media, which also means it takes part in the system's audio focus and can be ducked or paused when something else takes focus.
 
-**What we can check from the page** (implemented on branch `listening-player-side`, none of it verified on a phone yet):
+**What the page does** (implemented in `components/player/audio.ts`; not yet verified on a phone):
 - Listen to the `AudioContext` `statechange` event as well as `visibilitychange`, and call `resume()` when the state is `suspended` or `interrupted` (iOS reports `interrupted`), without waiting for a tap. A context that was interrupted does not always restart by itself.
 - Listen to the `pause` event of the keep-alive element. If we did not pause it (mute pauses it on purpose), call `play()` again. It may need user activation; the page had one at start, so try it.
 - On iOS, test the `navigator.audioSession.type` value (`playback`, `ambient`, `play-and-record`) to see whether one lets the sound coexist with the dictation mic. This is a thing to test, not a known fix.
@@ -32,4 +32,4 @@ Found in the first outside test (2026-11-09, phone). While the user dictates a m
 **If the system forces it**, it cannot be worked around from a web page. Fallback to document in the guide: open the player on another device (computer, speaker) and dictate on the phone. That is option 1 above.
 
 ### How to test it (dev server)
-Open the player with `?debug=1`. A "Live" line shows the engine state, the keep-alive state, the audio session type and the last events with timestamps. The page now calls `resume()` / `play()` by itself on a `statechange` away from `running` and on a keep-alive `pause` (unless muted). Dictate once and read the events. To try another iOS audio session type, add `&audiosession=ambient` (or `play-and-record`, `auto`); the default is `playback`.
+Open the player with `?debug=1`. A "Live" line shows the engine state, the keep-alive state, the audio session type and the last events with timestamps. The page calls `resume()` / `play()` by itself on a `statechange` away from `running` and on a keep-alive `pause` (unless muted). Dictate once and read the events. To try another iOS audio session type, add `&audiosession=ambient` (or `play-and-record`, `auto`); the default is `playback`.

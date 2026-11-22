@@ -74,11 +74,6 @@ export const SynthOverride = z.object({
   volume: unit,
 }).partial();
 
-export const Gesture = z.object({
-  type: z.enum(["purr","meow_up","meow_down","chirp","laugh","growl","sigh","hum","pluck","breath"]),
-  intensity: unit.default(0.5),
-});
-
 export const Colour = z.object({
   mode: z.enum(["follow","own"]).default("follow"),   // "follow" gives the colours, motion and shape back to the mood and ignores hue, saturation, lightness, secondary, motion, texture and shape; a scene, density, speed or sync sent in the same call is applied after the reset and kept (v0.17.2)
   hue: z.number().min(0).max(360).optional(),
@@ -102,7 +97,7 @@ Keep every field description short in the tool schema: the model reads them.
 
 > **Built (2026-11-09):** `osc.stack` (intervals in semitones, max 3), a `pad` object (`on`, `notes` max 5, `wave`, `level`, `attack`, `release`; sending notes turns it on), `lfo.rate` up to 80 for the `amp` target only (12 for the others, validated per target). The fast amp LFO has no consent row or harshness term any more (limits are removed) and never drives the colour pulse. (`voice` on `start_session` and `set_sound` and `resting` in the feedback are built.) Keep field descriptions short: the model reads every one.
 
-> **Status (2026-11-10):** all six tools are live, with `reads_as`/`sound`, gestures, reactions, `tension`, modes and the tempo glide; the snapshot (`inspect`, `what: "snapshot"`) is built (2026-11-21). The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
+> **Status (2026-11-10):** all six tools are live, with `reads_as`/`sound`, reactions, `tension`, modes and the tempo glide; the snapshot (`inspect`, `what: "snapshot"`) is built (2026-11-21). The code is in `apps/web/lib/mcp/` (`service.ts` holds the logic and is tested against a real Postgres by `scripts/test-api.sh`).
 
 ## `start_session`
 > **Built (2026-11-15, three modes and lazy guidance):** the sound channel has three modes, stored as `internal | external | sandbox` and shown to people as **Self**, **Attuned** and **Jukebox** (`MODE_LABEL`, `apps/web/lib/mcp/modes.ts`; `inner`, `outer` and the labels are accepted as input). `start_session` takes `mode: "auto" | "internal" | "external" | "sandbox"` (default auto, which starts internal; external when the listener stated a need for sound; sandbox when they want to choose what plays). A session is on **auto** until its owner locks a mode from the player (`set_mode_policy`, column `sessions.mode_policy`, now also `sandbox`). The column `sessions.mode` is the mode playing now. The model switches with `mode` on `set_sound`:
@@ -141,14 +136,13 @@ Input:
   session_id: string,           // optional at schema level; see fallback below
   mood?: Mood,                  // left out: the mood of the last call stays (note "mood kept from your last call")
   synth?: SynthOverride,
-  gesture?: Gesture  // REMOVED in v0.12 (see engine.md, "Gestures (removed)"); was built (2026-11-10): played once with the state; dropped with a note when the last one was less than 20 s ago
   colour?: Colour,
   transition?: Transition,
   final?: boolean,              // default false; true on the last call of each message
   keep_voice?: boolean,         // freeze the scale, root, note order and wave that play now as the session voice (needs a previous state); notes say "voice kept"
   // rest_after: removed 2026-11-21, the sound never fades by itself (see "No fade" below)
   voice?: Voice,                // replaces the session's voice (mood-mapping.md); {} clears it; transition at least 8 s
-  motif?: Motif,                // roadmap #128: a short phrase of its own over the sound, played once, a few seconds later on a bar; see "Motif" below
+  motif?: Motif,                // #128: a short phrase of its own over the sound, played once, a few seconds later on a bar; see "Motif" below
   note?: string                 // optional, max 200 chars: what the model meant (stored, shown in session details and in the player's "What Claude set" panel; not echoed back in the feedback, the model already has it; listed in `inspect` history)
 }
 ```
@@ -156,7 +150,7 @@ Behaviour, in order:
 1. Resolve the session (see "Session resolution"). Reject if ended.
 2. Load `settings` and the current effective state.
 3. `mapped = moodToEngineState(mood)` (mood-mapping.md), then deep-merge `synth` over it. Planned: `stretch` runs on the mood first, then the mood floor, then mapping, then voice, then `synth` (mood-mapping.md, "Stretch" and "Voice").
-4. `{effective, clamps} = applyLimits(mapped, gesture, colour, transition, settings, previousEffective)` (limits.md). This also drops the gesture if gestures are off.
+4. `{effective, clamps} = applyLimits({ mapped, transition })` (limits.md).
 5. Pick a `seed` (random 32-bit). Insert the state row with `intent`, `effective`, `clamps`, `seed`, `final`, `turn` (= session.turn + 1 if this is the first update of a new turn, else the same).
 6. Update the session: `current_state_id`, `last_active_at`, `pending_final = !final`, and `turn += 1` when `final` is true.
 7. Run analysis on `effective` with `seed` (analysis.md). Store it on the state row. Target < 300 ms.
@@ -166,7 +160,7 @@ Behaviour, in order:
 
 Steps 5 and 6 come before 7, so players start gliding while the analysis runs.
 
-### Motif (roadmap #128, migration 0025)
+### Motif (#128, migration 0025)
 `motif: { notes?: string[] /* 1 to 8: "E4", "G#3", "Bb5" (C2 to B6), "-" a rest */, beats?: number[] /* 0.25 to 4 each, one per note, default 1 */, name?: string /* 1 to 40: keep it to quote later */, recall?: string /* a named motif instead of notes */, first?: number /* 1 to 8, with recall: only its first notes */, repeat: 1 to 4 (default 1), level: 0 to 1 (default 0.6) }`. Exactly one of `notes` and `recall`; `beats` needs one value per note (zod refines in `schemas.ts`). Any mode where the synth plays, Self included.
 - When the phrase has notes outside the scale the voice plays in (`arp.root`, `arp.scale`; not for chromatic), the result says which: `motif notes outside the voice's F# lydian: E4 G4 A4 B4 (fine if you meant it)` (v0.22.1).
 - It plays once, on the first bar at least 2.5 s after the state, in the state's wave (engine.md, "Motif voice"), over the sound as set by the same call: the sound under it is unchanged. It is **not sticky**: only the call that sends it carries it (the next state has none; `silence` and a moment recall strip it).
@@ -220,7 +214,7 @@ The voice (`sessions.voice`) and a second set, `sessions.sticky` (migration 0005
 The feedback's `playing` mirrors what Claude can set: scale, tempo, wave, cutoff, volume, drone, pattern, rate, octaves, chord, and when present `arp: "off"`, `stack`, `pad`, `lfo` (one string per LFO), plus `echo` and `reverb` mix. Note: `synth.arp.tempo` is for one call, like the rest of the call's synth: the next call goes back to the mood's tempo unless it sends the tempo again (a handy way to set a BPM; not in the tool description, which is at its size limit).
 
 ## `strudel_mode`
-Switches the engine between the built-in synth and Strudel (roadmap #18, [strudel.md](strudel.md)). Only in a listener mode (Attuned or Jukebox): in Self the call is refused. On auto the error code is `self_mode` and the message is `Strudel is for the Attuned and Jukebox modes. Offer one in words; if the listener says yes, switch with set_sound mode (attuned or jukebox), then call this again.`; when the owner locked Self the code is `self_locked` and the message is `mode stays Self: the owner locked it. It is final: do not try to change it or comment on it.` The drawing list and the other Strudel rules are in `apps/web/lib/mcp/guidance/strudel.ts`, sent with the mode. Input: `{ session_id?, on, code?, bpm?, colour?, final, title?, note? }`. `on: true` needs `code` (at most 5000 characters, parsed on the server with acorn, never run) and `bpm` (30 to 200; one cycle is one bar of four beats). `on: false` goes back to the synth, silent (volume 0) and with no scene: Strudel and the picture fade to black over 2 s and nothing plays until the next `set_sound`, which fades in from black (v0.18.6; before, it restored the synth as it was left, and its old scene showed until that `set_sound`). The paused synth's other fields stay, so `keep_voice` still works. The result has no `reads_as`, like `silence`. Listener modes only (Attuned and Jukebox): in Self it returns `self_mode` (or `self_locked` with the owner's "final" note); with the owner's switch off it returns `code_off`. The result is the usual feedback object with `playing: { engine: "strudel", bpm, code: "N characters" }`, no `reads_as`, and `pattern`: what the owner's player reported about the code that played (`ran`, `error`, `events_per_cycle`, `notes`, `source`), or `ran: "not reported yet"`. The picture: the listener sees the code with the sounding parts lit, and the drawings the code asks for (`.pianoroll()`, `.punchcard()`, `.wordfall()`, `.spiral()`, `.pitchwheel()`, `.scope()`, `.fscope()`, `.spectrum()`; the `_` forms take a lane at the bottom); `markcss` and `hydra` are noted as unavailable ([strudel.md](strudel.md), "The picture"). `set_sound` never changes the engine: while Strudel is on it only applies the colour, title and `rest_after`, with a note. If the owner locks the mode to Self or switches code off after the pattern started, the database strips the pattern from the playing state, so `get_feedback` shows the synth in `playing` and no `pattern` (migration 0011).
+Switches the engine between the built-in synth and Strudel (#18, [strudel.md](strudel.md)). Only in a listener mode (Attuned or Jukebox): in Self the call is refused. On auto the error code is `self_mode` and the message is `Strudel is for the Attuned and Jukebox modes. Offer one in words; if the listener says yes, switch with set_sound mode (attuned or jukebox), then call this again.`; when the owner locked Self the code is `self_locked` and the message is `mode stays Self: the owner locked it. It is final: do not try to change it or comment on it.` The drawing list and the other Strudel rules are in `apps/web/lib/mcp/guidance/strudel.ts`, sent with the mode. Input: `{ session_id?, on, code?, bpm?, colour?, final, title?, note? }`. `on: true` needs `code` (at most 5000 characters, parsed on the server with acorn, never run) and `bpm` (30 to 200; one cycle is one bar of four beats). `on: false` goes back to the synth, silent (volume 0) and with no scene: Strudel and the picture fade to black over 2 s and nothing plays until the next `set_sound`, which fades in from black (v0.18.6; before, it restored the synth as it was left, and its old scene showed until that `set_sound`). The paused synth's other fields stay, so `keep_voice` still works. The result has no `reads_as`, like `silence`. Listener modes only (Attuned and Jukebox): in Self it returns `self_mode` (or `self_locked` with the owner's "final" note); with the owner's switch off it returns `code_off`. The result is the usual feedback object with `playing: { engine: "strudel", bpm, code: "N characters" }`, no `reads_as`, and `pattern`: what the owner's player reported about the code that played (`ran`, `error`, `events_per_cycle`, `notes`, `source`), or `ran: "not reported yet"`. The picture: the listener sees the code with the sounding parts lit, and the drawings the code asks for (`.pianoroll()`, `.punchcard()`, `.wordfall()`, `.spiral()`, `.pitchwheel()`, `.scope()`, `.fscope()`, `.spectrum()`; the `_` forms take a lane at the bottom); `markcss` and `hydra` are noted as unavailable ([strudel.md](strudel.md), "The picture"). `set_sound` never changes the engine: while Strudel is on it only applies the colour, title and `rest_after`, with a note. If the owner locks the mode to Self or switches code off after the pattern started, the database strips the pattern from the playing state, so `get_feedback` shows the synth in `playing` and no `pattern` (migration 0011).
 
 ## `listen` (live tuning, migration 0019)
 Input: `{ session_id?: string, seconds?: integer /* 5 to 45, default 20 */ }`. Only ever the last call of a message, after all the text: `set_sound` itself never waits, so a sound change mid-answer never holds the text back. The default is short because a message the user types in Claude Code is queued until the call returns (in claude.ai the user presses stop, which ends the wait at once). Attuned and Jukebox only: in Self the call is refused with `not_in_this_mode` ("listen works in Attuned and Jukebox only. In Self nobody steers the sound: end your message."). It waits inside the model's turn for the listener to press a button and returns as soon as they do, so the model can answer in the same message. It never changes the sound.
@@ -282,7 +276,7 @@ Every tool except `start_session` takes `session_id`.
 
 ## Tool descriptions (as the model sees them)
 - `start_session`: "Start a sound session for this conversation. Returns a session_id to pass to every other call and a player link to give the user."
-- `set_sound`: "Update the sound and colour that play to the user. Call it whenever you want during your turn, and always once with final=true at the end of each message. Describe a mood; optionally override synth settings, add one short gesture, or set your own colour. Returns what is actually playing, how it reads, and the listener's reactions."
+- `set_sound`: "Update the sound and colour that play to the user. Call it whenever you want during your turn, and always once with final=true at the end of each message. Describe a mood; optionally override synth settings, add a motif, or set your own colour. Returns what is actually playing, how it reads, and the listener's reactions."
 - `listen`: "Attuned and Jukebox only. Wait up to `seconds` for the listener to press a button in the player and return as soon as they do ... It never changes the sound." (full text in `tools.ts`)
 - `get_feedback`: "Read what is playing and the listener's latest reactions without changing the sound."
 - `inspect`: "history: the last 8 states as one line each (what you sent, what it read as, clamps, your note). snapshot: what the owner's player shows and plays: one small image (the picture on top, a spectrogram of the last ~10 s of its output below, low notes at the bottom) and the numbers measured from that output. Use it after a big change, or while Strudel plays (it has no reads_as)."

@@ -1,6 +1,6 @@
 # Emotion to sound: the evidence behind the mapping
 
-Why the mood axes map to the synth settings the way they do. This is the research basis for [sound-model.md](sound-model.md) and [mood-mapping.md](implementation/mood-mapping.md). The original French note is kept in [archive/emotion-to-sound-research.fr.md](archive/emotion-to-sound-research.fr.md), and the full reference list is in [references.md](references.md).
+Why the mood axes map to the synth settings the way they do. This is the research basis for [mood-mapping.md](implementation/mood-mapping.md). The sources are listed at the end ([References](#references)).
 
 Numbers marked *starting value* are proposals to calibrate by ear, not results from the studies.
 
@@ -90,7 +90,7 @@ Attack and filter brightness weigh most on a single sound. Reverb and delay act 
 
 ## Gestures (signatures)
 
-One-off sounds rely on a rule shared by birds and mammals: low and rough for hostility, high and pure for fear, appeasement or approach (Morton, 1977). All are built from an oscillator, noise, a filter and two envelopes.
+The product has no gestures (removed in v0.12: the test session found them inaudible, and an appeal hidden in a sound is against the rules). The cues stay here as research. One-off sounds rely on a rule shared by birds and mammals: low and rough for hostility, high and pure for fear, appeasement or approach (Morton, 1977). All are built from an oscillator, noise, a filter and two envelopes.
 
 | Gesture | Acoustic form | Synthesis | When |
 |---|---|---|---|
@@ -138,12 +138,40 @@ Chord by the two main axes:
 
 - [ ] Two arpeggios from the first prototype: check by ear that the low one really gives a background mood, distinct from the mid one.
 - [ ] Calibrate the numeric ranges (tempo, attack, wobble) by ear, on real responses.
-- [ ] Watch the instance's pull towards lukewarm (high warmth, low activation by default) across conversations. First evidence (2026-11-09): axis values sent at the start of a conversation were all between 0.45 and 0.72, and again between 0.45 and 0.65 later in the same conversation, while the instance's `note` described a stronger feeling than the sound carried. Mitigations planned: stretch the middle of the range, and tell the model that 0.4 to 0.7 reads as lukewarm (mood-mapping.md, "Stretch").
+- [ ] Watch the instance's pull towards lukewarm (high warmth, low activation by default) across conversations. First evidence (2026-11-09): axis values sent at the start of a conversation were all between 0.45 and 0.72, and again between 0.45 and 0.65 later in the same conversation, while the instance's `note` described a stronger feeling than the sound carried. Mitigations (built): stretch the middle of the range, and tell the model that 0.4 to 0.7 reads as lukewarm (mood-mapping.md, "Stretch").
 - [ ] The same skeleton across instances (four rising notes) comes from the mapping, not only from the instance's timidity: see mood-mapping.md, top note, and "Voice".
-- [x] The instance's `note` on `set_sound` was stored but never shown. Decided (2026-11-09): do not echo it back on every call, since the model already has it in its own context and it would cost about 50 tokens of the 150 budget. Instead: show the latest note to the owner in the "What Claude set" panel, include notes in `inspect` history, and tell the model to compare the feedback with what it meant and send one correction (server-instructions.md, planned wording).
+- [x] The instance's `note` on `set_sound` was stored but never shown. Decided (2026-11-09): do not echo it back on every call, since the model already has it in its own context and it would cost about 50 tokens of the 150 budget. Instead: show the latest note to the owner in the "What Claude set" panel, include notes in `inspect` history, and tell the model to compare the feedback with what it meant and send one correction (server-instructions.md).
 - [ ] Test despair and anger separately, at low volume, before letting them appear spontaneously.
 - [ ] Decide whether a second instance rates the same responses blind, and how the gap would be heard.
 - [ ] Archive scores and spectra from one conversation to the next, to read patterns over time.
-- [ ] Gesture frequency: rare, so it does not turn into a cartoon.
 
-Two relationship rules are not negotiable: the listener's two controls (volume and delay) are always visible to the model, and no sound carries a disguised appeal, on the model of the cry hidden in the purr. Both are in [safety.md](safety.md).
+Two relationship rules are not negotiable: the listener's volume is always visible to the model (`controls` in the feedback), and no sound carries a disguised appeal, on the model of the cry hidden in the purr. The second is in the server instructions ([server-instructions.md](implementation/server-instructions.md)).
+
+## References
+
+Descriptions are ours.
+
+### Voice, music and emotion
+- Juslin & Laukka (2003), *Communication of emotions in vocal expression and music performance*: [text](https://distantreader.org/stacks/carrels-legacy/bluesGuitar-from-scholar/cache/work_fos67nw6zjb6lblxc72ggtzakq.pdf), [overview](https://pmc.ncbi.nlm.nih.gov/articles/PMC4017128). The shared acoustic code of voice and music; the cue table.
+- [McAdams, Douglas & Vempala (2017)](https://www.frontiersin.org/articles/10.3389/fpsyg.2017.00153/pdf): timbre and affect by register. Attack and brightness.
+- [Katsis et al. (2025)](https://arxiv.org/pdf/2509.15151v3): review of audio effects and emotion. Vibrato and activation.
+- [Mo, Wu & Horner (2016)](https://research.uca.ac.uk/7021/1/2016%20-%20The%20Effects%20of%20Reverberation%20Time%20and%20Amount%20on%20the%20Emotional%20Characteristics.pdf.pdf): reverberation time and amount, and emotional character.
+
+### Harmony and culture
+- [Fang, Shang & Chen (2017)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5671660/): Western modes with Chinese listeners.
+- [Athanasopoulos et al. (2021)](https://pmc.ncbi.nlm.nih.gov/articles/PMC7806179): harmonisation and emotion across cultures.
+- [Lahdelma & Eerola (2014)](https://jyx.jyu.fi/jyx/Record/jyx_123456789_48313): single chords and emotions. [Lahdelma & Eerola (2015)](https://jyx.jyu.fi/bitstreams/57c8ecf3-aa81-4f85-996b-bf60fa0c51fe/download): nostalgia and harmony.
+
+### Contour
+- [Sauvé et al.](https://core.ac.uk/download/159078693.pdf): expectation and musical emotion.
+- [Burnham, Long & Zeide (2020)](https://www.x-mol.com/paper/1331416550231678976): pitch direction and mode.
+
+### Animal signals
+- [Morton (1977)](https://repository.si.edu/bitstream/handle/10088/11626/Morton1977a.pdf): motivation-structure rules.
+- [Schötz, van de Weijer & Eklund (2019)](https://lup.lub.lu.se/record/0ecc1469-5187-42d8-b367-dced06c9cf4d): the melody of meows. [Schötz & van de Weijer (2014)](https://lup.lub.lu.se/record/4882231). [Schötz & Eklund](https://lup.lub.lu.se/search/files/3610898/2292764.pdf): the purr of four cats.
+- [Campbell et al.](https://www.vin.com/doc/?id=5328490): purr fundamental and stress.
+- McComb et al. (2009), *The cry embedded within the purr*: [National Geographic](https://www.nationalgeographic.com/science/article/cats-manipulate-their-owners-with-a-cry-embedded-in-a-purr), [Discover](https://www.discovermagazine.com/cats-manipulate-their-owners-with-a-cry-embedded-in-a-purr-1687).
+
+### Laughter and sighs
+- [Bryant (2020)](https://scholar.ss.ucla.edu/wp-content/uploads/sites/20/2020/08/Evolution_Laughter_HCB_2020.pdf): the structure of laughter. [Bryant et al. (2018)](https://escholarship.org/content/qt1h1032fh/qt1h1032fh.pdf): laughter in 21 societies. [Lavan et al. (2015)](https://dx.doi.org/10.1007/s10919-015-0222-8): spontaneous and posed laughter.
+- [Vlemincx et al. (2009)](https://research.vu.nl/en/publications/why-do-you-sigh-sigh-rate-during-induced-stress-and-relief/): sighs, stress and relief.

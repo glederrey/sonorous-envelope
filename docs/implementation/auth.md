@@ -2,7 +2,7 @@
 
 Three kinds of identity use the same Supabase users:
 - **Web app login** (consent page, sessions, settings): normal Supabase Auth with cookies (`@supabase/ssr`). Only the person who connects Claude needs it.
-- **Listeners** (the player at `/s/<id>`): no login and no Supabase user at all. The link is the credential. The browser calls two functions as the `anon` role, `get_player_state(id)` and `player_heartbeat(...)`, and follows a public Realtime Broadcast channel `player:<id>` (see realtime.md). Anonymous sign-ins stay **off**. Only the signed-in owner can change anything about a session (see hosting-and-auth.md, "Owner and listeners").
+- **Listeners** (the player at `/s/<id>`): no login and no Supabase user at all. The link is the credential. The browser calls two functions as the `anon` role, `get_player_state(id)` and `player_heartbeat(...)`, and follows a public Realtime Broadcast channel `player:<id>` (see realtime.md). Anonymous sign-ins stay **off**. Only the signed-in owner can change anything about a session (see "Owner and listeners" below).
 - **MCP connector** (claude.ai and other MCP clients): OAuth 2.1, with Supabase Auth as the authorization server and our `/api/mcp` as the protected resource.
 
 ## Roles in OAuth terms
@@ -17,7 +17,7 @@ Three kinds of identity use the same Supabase users:
 ## Supabase setup (dashboard)
 1. Authentication → OAuth Server: enable the OAuth 2.1 server.
 2. Set the authorization path / URL to our consent page, `https://<app>/oauth/consent`. Supabase sends the user there with an `authorization_id` query parameter.
-3. Enable dynamic client registration (claude.ai registers itself).
+3. Enable dynamic client registration (claude.ai registers itself). Dynamic registration lets any MCP client register, so watch the list of registered clients.
 4. Use asymmetric JWT signing keys (so tokens can be verified with the public JWKS). Check what the project currently uses.
 5. Auth providers for the web login: email magic link to start; Google and GitHub optional.
 6. URL configuration: site URL = `PUBLIC_BASE_URL`; add `${PUBLIC_BASE_URL}/auth/callback` to redirect URLs.
@@ -114,6 +114,50 @@ claude.ai's callback for custom connectors has been `https://claude.ai/api/mcp/a
 - List connected apps with `supabase.auth.oauth.listGrants()`. claude.ai registers a new OAuth client each time the connector is added again (dynamic registration), so one person collects many grants named "Claude". The page groups grants by client name: one row per app, "Since <first> · Last connected <last>" (two lines on a phone).
 - Revoke with `supabase.auth.oauth.revokeGrant({ clientId })`, once per client id in the row: Revoke disconnects every connection of that app.
 - Delete account (migration 0026): the warning with a red "Delete account" button on its right; it opens a centred card (a modal `<dialog>`: Esc, a click outside or Cancel closes it) whose filled red "Delete my account" stays off until `delete` is typed. Sign out is in the account menu only.
+
+## Owner and listeners
+Two kinds of people use a session, and they are not equal on purpose.
+
+| | **Owner** (signed in) | **Listener** (only the link) |
+|---|---|---|
+| Hears the sound, sees the colour | yes | yes |
+| Volume and mute on their own device | yes | yes, and they only change what that person hears |
+| Share link and "Your sessions" | yes | no (they get a link to add the connector to their own Claude) |
+| Mode lock, settings, end the session | yes (owner panel) | no |
+| Reaction buttons (calmer, softer, ...) | yes | no |
+| Emoji reactions (`send_emoji`) | no (they are the owner) | yes |
+| Their volume is shown to Claude | yes (`controls`) | no: they only count as a player |
+| Can start or change a session | no (Claude does, through the connector) | no |
+
+- **The link is the credential.** `/s/<id>` opens for anyone who has it, with no account and no sign-in. The 24-character id is random (144 bits), so it cannot be guessed; anyone who sees the link, for example in a shared chat, can listen. The content is sound and colour only.
+- Listeners never touch the database tables. They read through `get_player_state(id)` and report that they are listening through `player_heartbeat(...)`, and press emojis through `send_emoji(...)`: three functions that return or store nothing else. The tables are closed to the `anon` role.
+- Everyone on the session hears the same sound: all players follow the same broadcast channel and read the same state.
+- **Several conversations:** each conversation gets its own session from `start_session`, with its own id and page. Two chats mean two sessions, kept apart.
+- **Several users:** each user signs in through OAuth and only ever sees their own sessions. Everything is scoped by user id with Row Level Security.
+- **The owner** (signed in with the account that connected Claude) has "Your sessions", with a share link for each. Default settings live in `profiles.default_settings` and are copied into each new session; per-session settings live in `sessions.settings`, changed from the player.
+- **A listener** has no account, no sessions list and no settings. Volume and mute are stored in their browser, per session (`localStorage`).
+- If the owner opens their own player link while signed in, they get the owner view. Anyone else gets the listener view.
+
+## Auth emails
+Supabase sends these: sign-up confirmation, password reset, magic link, email change and the re-authentication code. Their HTML lives in `emails/dist/`, built from `emails/build.mjs`.
+
+Install or update them in Supabase (Authentication -> Emails -> Templates). For each row, set the subject and paste the file:
+
+| Supabase template | Subject | File |
+|---|---|---|
+| Confirm sign up | Confirm your email for Sonorous Envelope | `emails/dist/confirmation.html` |
+| Reset password | Reset your Sonorous Envelope password | `emails/dist/recovery.html` |
+| Magic link | Your Sonorous Envelope sign-in link | `emails/dist/magic_link.html` |
+| Change email address | Confirm your new email address | `emails/dist/email_change.html` |
+| Reauthentication | Your Sonorous Envelope code | `emails/dist/reauthentication.html` |
+
+Not used: "Invite user" (nobody is invited). Templates are not part of `supabase db push`, so a change needs a manual paste.
+
+To change a template, edit `emails/build.mjs`, run `pnpm emails`, commit the changed files in `emails/dist/`, then paste them into Supabase. A test (`emails/templates.test.ts`) fails if `dist/` is out of date or a template uses a variable Supabase does not provide.
+
+- The logo is `apps/web/public/email/mark.png`, loaded from `{{ .SiteURL }}/email/mark.png`. It shows once the Site URL is the live domain and a release has deployed the file.
+- Layout is tables with inline styles, which email clients need. A dark variant applies where the client supports `prefers-color-scheme`.
+- Sender and SMTP are set in Supabase (Authentication -> Emails -> SMTP Settings).
 
 ## Testing auth
 - MCP Inspector (`npx @modelcontextprotocol/inspector`) supports the OAuth flow against a remote server.

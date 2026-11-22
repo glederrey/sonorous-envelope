@@ -4,25 +4,23 @@ You are building a remote MCP server that lets an LLM express itself through a s
 
 ## Read in this order
 1. `README.md`: the idea and decisions.
-2. `docs/architecture.md`: components and session flow.
-3. `docs/hosting-and-auth.md`: Vercel + Supabase, OAuth, multiple users.
-4. `docs/implementation/` (the build spec):
-   - `stack-and-layout.md`: packages, folders, env vars, commands
-   - `database.md` + `database.sql`: schema, RLS, Realtime
-   - `auth.md`: OAuth 2.1 with Supabase, step by step
+2. `docs/implementation/` (the build spec):
+   - `stack-and-layout.md`: architecture (components, session flow), packages, folders, env vars, commands
+   - `auth.md`: OAuth 2.1 with Supabase, step by step; owner and listeners; auth emails
+   - `database.md`: schema, RLS, Realtime (the migrations in `supabase/migrations` are the truth)
    - `mcp-tools.md`: exact tool schemas, behaviour, errors, feedback format
    - `server-instructions.md`: the verbatim `instructions` text for the MCP server
    - `engine.md`: the shared DSP engine (browser AudioWorklet + Node offline render)
    - `mood-mapping.md`: mood axes → synth parameters, with formulas
    - `limits.md`: the safety rules that remain (listener limits are removed for now)
-   - `analysis.md`: features, mood estimate, spectrogram
+   - `analysis.md`: features, mood estimate, snapshot
    - `realtime.md`: channels, payloads, presence
    - `player-ui.md`: the session page and controls
+   - `strudel.md`: the Strudel mode
    - `../design-system.md`: the visual design system (artifact link, tokens, logo). Follow it for all UI work.
-   - `testing.md`: tests and acceptance criteria per milestone
+   - `testing.md`: tests and the release checklist
    - `stop-hook.md`: the Claude Code Stop hook that asks for a final `set_sound`
-5. `docs/emotion-to-sound.md` (the evidence behind the mapping), `docs/sound-model.md`, `docs/feedback.md`, `docs/safety.md`, `docs/mobile.md`: design background.
-6. `docs/roadmap.md`: build order. Work milestone by milestone.
+3. Design background: `docs/emotion-to-sound.md` (the evidence behind the mapping, with references), `docs/visuals.md` (the picture), `docs/mobile.md`, `docs/licensing.md`.
 
 ## Non-negotiable rules
 - Listener limits and consent levels are removed for now (Gael's decision, 2026-11-09): Claude decides how it sounds and looks, the listener only sets the volume. They come back later as a designed piece of work. What stays, enforced on the server and again in the player: the synth's master volume never goes above 0.9 (Strudel has no sound limits, Gael's decision 2026-11-11: only the listener's volume applies), and Claude cannot set the volume (`docs/implementation/limits.md`).
