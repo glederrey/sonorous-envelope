@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../lib/mcp/modes";
-import { HEARD_KINDS, HEARD_LABELS, REACTION_KINDS, REACTION_LABELS, isHeard, type HeardKind, type ReactionKind } from "@sonorous/shared";
+import { GuestReact } from "./guest-react";
+import { GuestCount } from "./guest-count";
+import { HEARD_KINDS, HEARD_LABELS, REACTION_KINDS, REACTION_LABELS, isHeard, type GuestEmoji, type HeardKind, type ReactionKind } from "@sonorous/shared";
 
 type Said = ReactionKind | HeardKind;
 const LABEL: Record<Said, string> = { ...REACTION_LABELS, ...HEARD_LABELS };
@@ -43,9 +45,11 @@ const POLICIES: Array<{ value: Policy; label: string; hint: string }> = [
  * For the owner only. Reaction buttons, shown in the listener modes only (in the internal mode the sound is how the model feels,
  * and nobody steers that). Nothing fades by itself (2026-11-21), so there is no "fade after" setting any more.
  */
-export function OwnerControls({ picture, stateAt, supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0 }: { picture?: ReactNode; /** when the sound playing now was written: a new one may have read the presses */ stateAt?: number; supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
-  /** live tuning: when the model's `listen` call stops waiting (the server's clock, ms since the epoch; null when it does not wait), and the server's clock minus this device's */ listeningUntil?: number | null; clockOffset?: number }) {
+export function OwnerControls({ picture, stateAt, supabase, sessionId, face, policy, onChanged, afterFace, strudelVisuals, onStrudelVisuals, strudelCode, onStrudelCode, patternPlays, listeningUntil = null, clockOffset = 0, onEmoji, emojiNudge = 0 }: { picture?: ReactNode; /** when the sound playing now was written: a new one may have read the presses */ stateAt?: number; supabase: SupabaseClient; sessionId: string; face: Face; policy: Policy; onChanged: () => void; afterFace?: ReactNode; strudelVisuals: boolean; onStrudelVisuals: (v: boolean) => void; strudelCode: boolean; onStrudelCode: (v: boolean) => void; /** a Strudel pattern plays here: a listener who is not the owner sees the visuals button only then */ patternPlays: boolean;
+  /** live tuning: when the model's `listen` call stops waiting (the server's clock, ms since the epoch; null when it does not wait), and the server's clock minus this device's */ listeningUntil?: number | null; clockOffset?: number;
+  /** guest emojis (#152): a signed-in listener who is not the owner floats the emoji they press; the owner reads the counts again when `emojiNudge` changes */ onEmoji?: (e: GuestEmoji) => void; emojiNudge?: number }) {
   const [owner, setOwner] = useState<{ id: string; raw: Record<string, unknown> } | null>(null);
+  const [checked, setChecked] = useState(false); // the owner check has answered: until then the guest's React row stays out of the owner's way
   const [pending, setPending] = useState<Array<{ kind: Said }>>([]);
   const [error, setError] = useState("");
   const [allowCode, setAllowCode] = useState(true);
@@ -62,9 +66,10 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
     let cancelled = false;
     void (async () => {
       const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
+      if (!u.user) { if (!cancelled) setChecked(true); return; }
       const { data } = await supabase.from("sessions").select("owner_id,settings,allow_code").eq("id", sessionId).maybeSingle();
-      if (cancelled || !data || data.owner_id !== u.user.id) return;
+      if (cancelled) return;
+      if (!data || data.owner_id !== u.user.id) { setChecked(true); return; }
       const raw = data.settings && typeof data.settings === "object" ? (data.settings as Record<string, unknown>) : {};
       setOwner({ id: u.user.id, raw });
       setAllowCode(data.allow_code !== false);
@@ -98,7 +103,7 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
     const timer = setInterval(() => setSecond((n) => n + 1), 1000);
     return () => clearInterval(timer);
   }, [listeningUntil]);
-  if (!owner) return <><details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details>{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
+  if (!owner) return <>{checked && onEmoji && <GuestReact supabase={supabase} sessionId={sessionId} onSent={onEmoji} />}<details className="pl-set se-sm pl-group"><summary>Visuals</summary>{picture}{patternPlays && <StrudelToggles visuals={{ on: strudelVisuals, set: onStrudelVisuals }} code={{ on: strudelCode, set: onStrudelCode }} />}</details>{afterFace}</>; // not the owner: no controls, but the visuals button and the code are still for everyone
 
   const listener = forListener(face);
   const choose = async (value: Policy) => {
@@ -146,6 +151,7 @@ export function OwnerControls({ picture, stateAt, supabase, sessionId, face, pol
   const sent = [waiting, heardWaiting].filter(Boolean).join(", ");
   return (
     <>
+      <GuestCount supabase={supabase} sessionId={sessionId} nudge={emojiNudge} />
       <div className="pl-owner se-sm">
         <p className="pl-owner-title">Mode</p>
         <div className="pl-seg" role="radiogroup" aria-label="Which mode the sound is in">

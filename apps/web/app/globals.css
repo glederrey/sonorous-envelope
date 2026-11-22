@@ -1434,6 +1434,28 @@ html:has(.pl-field) .se-header {
 .pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); font-size: 13px; }
 .pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
 
+/* guest emojis (#152). The React row for everyone who is not the owner, the owner's count line, and the emojis that float over the picture. */
+.pl-emoji-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 4px; }
+.pl-emoji-btn { min-height: 44px; min-width: 44px; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
+.pl-emoji-btn:disabled { opacity: 0.5; }
+.pl-guest-count { margin-bottom: 4px; }
+.pl-guest-count span { white-space: nowrap; }
+/* Inside the stage so it sits above the controls panel and below the fullscreen exit button (z-index 5, same stacking context). Fixed to the
+   picture's own box (the same height as .pl-field), and it never takes a touch. */
+.pl-emojis { position: fixed; left: 0; right: 0; top: var(--se-header-h); height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); z-index: 4; pointer-events: none; overflow: hidden; }
+.pl-emoji { position: absolute; bottom: 12%; font-size: 34px; line-height: 1; transform: translateX(-50%); opacity: 0; animation: pl-emoji-rise 3s ease-out forwards; will-change: transform, opacity; }
+@keyframes pl-emoji-rise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, calc(-0.4 * (100dvh - var(--se-header-h) - var(--se-footer-h)))) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* no rise: it fades in and out where it appears */
+  .pl-emoji { animation-name: pl-emoji-fade; }
+  @keyframes pl-emoji-fade { 0% { opacity: 0; transform: translate(-50%, 0); } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 0); } }
+}
+
 /* landing: samples */
 .lp-sample-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .lp-sample { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 14px; text-align: left; cursor: pointer;

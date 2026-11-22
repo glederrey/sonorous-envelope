@@ -10,6 +10,7 @@ import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { sliderToGain } from "../../lib/volume";
 import { remember, stored } from "../../lib/player-prefs";
+import { deviceId } from "../../lib/device-id";
 import { appVersion } from "../../lib/version";
 import { restedState } from "../../lib/rested-state";
 import { isSounding } from "../../lib/sounding";
@@ -21,6 +22,7 @@ import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { ControlsMiddle } from "./controls-middle";
 import { ControlsPanel } from "./controls-panel";
+import { useEmojiFloat } from "./emoji-float";
 import { useSnapshots } from "../../lib/snapshot/use-snapshots";
 import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
@@ -34,14 +36,6 @@ interface Playing { state: EngineState; seed: number; turn: number; final: boole
 
 const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
-
-function deviceId() {
-  try {
-    let d = localStorage.getItem("se:device");
-    if (!d) { d = crypto.randomUUID().slice(0, 12); localStorage.setItem("se:device", d); }
-    return d;
-  } catch { return crypto.randomUUID().slice(0, 12); }
-}
 
 function age(sec: number) {
   if (sec < 5) return "just now";
@@ -61,6 +55,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [tick, setTick] = useState(0);
+  // Guest emojis (#152): the owner's player floats what listeners press; a guest sees only their own press float
+  const { float: floatEmoji, layer: emojiLayer } = useEmojiFloat();
+  const [emojiNudge, setEmojiNudge] = useState(0);
+  const isOwnerRef = useRef(false);
   const [reduced, setReduced] = useState(false);
   // The picture's seed belongs to the session, not to a state: a state's own seed would move every item whenever any command arrives.
   const pictureSeed = useMemo(() => voiceSeedOf(sessionId) & 0xffff, [sessionId]);
@@ -368,6 +366,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     const channel = supabase.channel(`player:${sessionId}`)
       .on("broadcast", { event: "state" }, () => void load())
       .on("broadcast", { event: "session" }, () => void load())
+      .on("broadcast", { event: "emoji" }, (m: { payload?: { emoji?: unknown } }) => { // the key only, never a device: a hint on a public channel, so anything else is ignored
+        if (!isOwnerRef.current || typeof m.payload?.emoji !== "string") return;
+        floatEmoji(m.payload.emoji); setEmojiNudge((n) => n + 1);
+      })
       .subscribe();
     // a poll every second: when nothing changed the answer is a few bytes (player_poll), so it is cheap
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
@@ -579,6 +581,8 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     supabase, sessionId, signedIn, started, playing, audio, settings, field: fieldRef, controls, strudelPlays: patternShows, strudelDrawn: strudelOn && patternShows, debug,
   });
 
+  isOwnerRef.current = isOwner;
+
   // Save this moment (owner only): the database copies the state that plays, so only the name and the seed of the session go up
   const [saveDone, setSaveDone] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
@@ -667,6 +671,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             {message && <p className="pl-note" role="alert">{message}</p>}
           </div>
         )}
+        {phase === "ready" && started && emojiLayer}
         {phase === "ready" && started && full && (
           <button type="button" className="se-btn pl-exit" data-shown={exitShown} onClick={exitFull} aria-label="Exit fullscreen" title="Exit fullscreen"><Minimize2 size={18} aria-hidden />Exit fullscreen</button>
         )}
@@ -713,6 +718,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               pattern={codeNow}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
               listeningUntil={listeningUntil} clockOffset={clockOffset.current}
+              onEmoji={floatEmoji} emojiNudge={emojiNudge}
             />}
             extra={<>{codeNow && <StrudelPanel code={codeNow.code} bpm={codeNow.bpm} />}{signedIn && <><WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /><WhatAiSaw supabase={supabase} sessionId={sessionId} /></>}</>}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}

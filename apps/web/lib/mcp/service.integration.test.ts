@@ -330,6 +330,20 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(sw).not.toHaveProperty("reactions");
   });
 
+  it("tells the model what guests pressed, as counts, once, in every mode, and only the owner gets it", async () => {
+    const { session_id } = await svc.startSession(dbA, A, {}, tick()); // Self: guests are information, so they come back here too
+    sql(`select public.send_emoji('${session_id}', 'guest-dev-1', 'heart'), public.send_emoji('${session_id}', 'guest-dev-2', 'heart'), public.send_emoji('${session_id}', 'guest-dev-3', 'crying')`);
+    expect((await svc.getFeedback(dbB, B, { session_id }, tick()).catch((e) => e)) instanceof Error).toBe(true); // B has no access to this session
+    const peek = await svc.getFeedback(dbA, A, { session_id }, tick());
+    expect(peek.guests).toMatch(/^❤️ 2 · 😭 1, over the last \d+ min$/);
+    expect(peek).not.toHaveProperty("heard"); // not confused with the owner's reading
+    expect(sql(`select count(*) from emoji_reactions where session_id='${session_id}' and delivered_at is null`)).toBe("3"); // get_feedback never claims
+    const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick());
+    expect(a.guests).toMatch(/^❤️ 2 · 😭 1/);
+    expect(await svc.setSound(dbA, A, { session_id, final: true } as never, tick())).not.toHaveProperty("guests");
+    expect(sql(`select count(*) from reactions where session_id='${session_id}'`)).toBe("0");
+  });
+
   describe("live tuning: listen", () => {
     // a listener who is playing right now, placed on the test clock (as in "counts players" above)
     const beat = (session_id: string) => {
@@ -373,6 +387,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(sql(`select count(*) from reactions where session_id='${session_id}' and delivered_at is null`)).toBe("1"); // listen never claims
       const a = await svc.setSound(dbA, A, { session_id, final: true } as never, tick(5000));
       expect((a.reactions as string[]).join(" ")).toMatch(/calmer/);
+    });
+
+    it("also ends the wait on a guest emoji, and leaves it for set_sound to claim", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      beat(session_id);
+      const r = await svc.listen(dbA, A, { session_id, seconds: 40 }, fake((n) => { if (n === 2) sql(`select public.send_emoji('${session_id}', 'guest-dev-1', 'happy')`); }));
+      expect(r.event).toBe("reactions");
+      expect(r.guests).toMatch(/^😊 1/);
+      expect(sql(`select count(*) from emoji_reactions where session_id='${session_id}' and delivered_at is null`)).toBe("1");
+      expect((await svc.setSound(dbA, A, { session_id, final: true } as never, tick(5000))).guests).toMatch(/^😊 1/);
     });
 
     it("returns a press made during the wait even when a call sent in the same batch already marked it read", async () => {

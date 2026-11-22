@@ -13,6 +13,7 @@ The full schema is in [database.sql](database.sql). Copy it to `supabase/migrati
 | `invites` | Unused: the player link is open, so there are no invite tokens. Drop it with `redeem_invite` in migration `0002`. |
 | `reactions` | Listener actions, with `delivered_at` set once returned to the model. |
 | `saved_moments` | Frozen keepsakes of one state, with a public link (migration 0027, below). |
+| `emoji_reactions` | Emoji presses from listeners who are not the owner (migration 0028, below). |
 
 ## Migration `0002_player_access.sql`
 Never edit the applied `0001_init.sql`; add changes in a new migration.
@@ -34,6 +35,8 @@ Never edit the applied `0001_init.sql`; add changes in a new migration.
 | Insert state, update session | MCP `set_sound` | caller's OAuth token |
 | Claim reactions | MCP tools via `claim_reactions` RPC | caller's OAuth token |
 | Insert reaction | Player page, owner only for now | owner's browser session |
+| Guest emoji | Player page via `send_emoji(...)` (migration `0028`) | anyone with the link |
+| Claim guest emojis | MCP tools via `claim_emojis` RPC | caller's OAuth token |
 | Change settings | Player page (owner only) updates `sessions.settings` and inserts a `limit_changed`/`consent_changed` reaction | owner's browser session |
 | Report listening | Player page via `player_heartbeat(...)` (migration `0002`); stores the account in `user_id` if signed in, else null | anyone with the link |
 | Read the current state | Player page via `get_player_state(id)` | anyone with the link |
@@ -88,3 +91,10 @@ RPC `delete_my_account()` (security definer, `authenticated` only, `search_path`
 - `save_moment(p_session, p_name, p_by, p_voice_seed, p_app_version) returns { id, name }` (security definer, `search_path` empty, `authenticated` only): the one write path for the button and the `moment` tool. The state is copied on the server from `current_state_id`; the client never sends state JSON or code. It needs the caller to own the session (`not_owner`), a state that sounds (`nothing_playing`: volume above 0.001, or a Strudel pattern), a trimmed name of 1 to 80 characters and `p_by` of `human` or `ai` (`bad_input`). Caps: 3 of the AI's own saves per session (`ai_saves_full`), 200 per owner (`saves_full`), 10 per owner per minute (`too_fast`). Errors are `raise exception 'saved_moment: <code>'`. It freezes the copy: no one-shot `motif`, no `transition.delay`, no `grid.fromTempo`, `grid.glide` or `grid.fromRate`.
 - `get_saved_moment(p_id) returns { name, saved_by, created_at, effective, seed, voice_seed, app_version }` or null (security definer, `anon` and `authenticated`): the public read behind `/m/<id>`. It never returns `owner_id` or `session_id`: the session id is the live player's only credential.
 "Exactly the same" holds while the engine does not change: `app_version` is stored with each moment so a later change can be traced. The revert is `supabase/revert/0027_saved_moments.down.sql` (it deletes every saved moment).
+
+## Guest emojis (migration 0028)
+`emoji_reactions` (#152): `id`, `session_id` (cascade), `device_id` (4 to 40 characters), `emoji` (a key checked against the list in `packages/shared/src/emojis.ts`: change both together), `created_at`, `delivered_at`. RLS: only the session's owner can select, and update `delivered_at` (column grant); there is no insert or delete grant, so only the function writes. Kept apart from `reactions` so `claim_reactions` and `heard` never see a guest.
+- `send_emoji(p_session, p_device, p_emoji) returns { ok } or { ok: false, reason: 'slow_down' }` (security definer, `search_path` empty, `anon` and `authenticated`). Caps: 1 per 2 s and 10 per minute per device, 60 per minute per session. Raises for a bad emoji or device id, or a missing or ended session. Deletes the session's rows older than a day on each insert.
+- A trigger on insert broadcasts `{ emoji }` on `player:<session id>`, event `emoji` (no device id).
+- `claim_emojis(p_session) returns table (emoji, created_at)` (security invoker, owner only through RLS): marks undelivered rows delivered and returns them, like `claim_reactions`.
+The revert is `supabase/revert/0028_guest_emojis.down.sql`.

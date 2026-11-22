@@ -289,6 +289,105 @@ do $$ begin
 end $$;
 reset role;
 
+-- guest emojis (0028): anyone with the link presses, with rate limits; only the owner reads and claims them; they never touch reactions
+insert into public.sessions (id, owner_id, settings) values
+  ('emo1', '00000000-0000-0000-0000-00000000000a', '{}'),
+  ('emo2', '00000000-0000-0000-0000-00000000000a', '{}'),
+  ('emo-gone', '00000000-0000-0000-0000-00000000000a', '{}');
+update public.sessions set ended_at = now() where id = 'emo-gone';
+select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claims', '{}', false);
+set role anon;
+do $$ declare r jsonb; begin
+  r := public.send_emoji('emo1', 'guest-dev-1', 'heart');
+  assert r = '{"ok": true}'::jsonb, 'anon stores an emoji';
+  begin perform 1 from public.emoji_reactions; raise exception 'anon read emoji_reactions';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.emoji_reactions (session_id, device_id, emoji) values ('emo1', 'guest-dev-9', 'heart'); raise exception 'anon inserted directly';
+  exception when insufficient_privilege then null; end;
+  begin perform * from public.claim_emojis('emo1'); raise exception 'anon claimed';
+  exception when insufficient_privilege then null; end;
+  -- the same device again within 2 s: slow_down, nothing stored (one transaction, so now() has not moved)
+  r := public.send_emoji('emo1', 'guest-dev-1', 'happy');
+  assert r = '{"ok": false, "reason": "slow_down"}'::jsonb, 'second press within 2 s';
+  -- refused
+  begin perform public.send_emoji('emo1', 'guest-dev-2', 'skull'); raise exception 'bad emoji accepted';
+  exception when raise_exception then if sqlerrm <> 'bad emoji' then raise; end if; end;
+  begin perform public.send_emoji('emo1', 'ab', 'heart'); raise exception 'short device id accepted';
+  exception when raise_exception then if sqlerrm <> 'bad device id' then raise; end if; end;
+  begin perform public.send_emoji('emo-gone', 'guest-dev-2', 'heart'); raise exception 'ended session accepted';
+  exception when raise_exception then if sqlerrm not like 'session not found%' then raise; end if; end;
+  begin perform public.send_emoji('nothing-here', 'guest-dev-2', 'heart'); raise exception 'missing session accepted';
+  exception when raise_exception then if sqlerrm not like 'session not found%' then raise; end if; end;
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.emoji_reactions where session_id = 'emo1') = 1, 'only the first press was stored';
+  -- the broadcast carries the emoji key and nothing else
+  assert (select payload from realtime.sent where topic = 'player:emo1' and event = 'emoji') = '{"emoji": "heart"}'::jsonb, 'broadcast carries only the key';
+  assert (select is_private from realtime.sent where topic = 'player:emo1' and event = 'emoji') = false, 'the emoji channel is public like the others';
+  -- a guest press is not a reaction
+  assert not exists (select 1 from public.reactions where session_id = 'emo1'), 'no row in reactions';
+end $$;
+
+-- the caps: 10 a minute for one device, 60 a minute for the session (presses are backdated 3 s each, to stand for real time passing)
+do $$ declare r jsonb; i int; d int; begin
+  for i in 1..10 loop
+    r := public.send_emoji('emo2', 'cap-dev-1', 'happy');
+    assert (r ->> 'ok')::boolean, 'press ' || i || ' of a device is allowed';
+    update public.emoji_reactions set created_at = created_at - interval '3 seconds' where session_id = 'emo2';
+  end loop;
+  r := public.send_emoji('emo2', 'cap-dev-1', 'happy');
+  assert r = '{"ok": false, "reason": "slow_down"}'::jsonb, 'the 11th press in a minute';
+  assert (select count(*) from public.emoji_reactions where session_id = 'emo2') = 10, 'the refused press is not stored';
+  -- other devices fill the session up to 60 a minute (5 more devices of 10 each; the first already has its 10)
+  for d in 2..6 loop
+    for i in 1..10 loop
+      r := public.send_emoji('emo2', 'cap-dev-' || d, 'sad');
+      assert (r ->> 'ok')::boolean, 'device ' || d || ' press ' || i;
+      update public.emoji_reactions set created_at = created_at - interval '3 seconds' where session_id = 'emo2' and device_id = 'cap-dev-' || d;
+    end loop;
+  end loop;
+  assert (select count(*) from public.emoji_reactions where session_id = 'emo2') = 60, 'sixty in the session';
+  r := public.send_emoji('emo2', 'cap-dev-7', 'sad');
+  assert r = '{"ok": false, "reason": "slow_down"}'::jsonb, 'the session cap';
+  -- housekeeping: a press older than a day goes on the next insert
+  update public.emoji_reactions set created_at = now() - interval '2 days' where session_id = 'emo2';
+  r := public.send_emoji('emo2', 'cap-dev-7', 'sad');
+  assert (r ->> 'ok')::boolean and (select count(*) from public.emoji_reactions where session_id = 'emo2') = 1, 'old presses are removed';
+end $$;
+
+-- a stranger (signed in, not the owner) can press, but sees and claims nothing, and cannot mark anything delivered
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+do $$ declare n int; begin
+  assert (public.send_emoji('emo1', 'stranger-dev', 'crying') ->> 'ok')::boolean, 'a signed-in stranger presses';
+  assert (select count(*) from public.emoji_reactions) = 0, 'the stranger reads none';
+  assert (select count(*) from public.claim_emojis('emo1')) = 0, 'the stranger claims none';
+  update public.emoji_reactions set delivered_at = now(); get diagnostics n = row_count;
+  assert n = 0, 'the stranger marks none delivered';
+  begin update public.emoji_reactions set emoji = 'heart'; raise exception 'emoji column updated';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$ begin assert (select count(*) from public.emoji_reactions where session_id = 'emo1' and delivered_at is null) = 2, 'still undelivered after the stranger'; end $$;
+
+-- the owner reads them and claims them once; reactions are untouched
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+do $$ declare c int; begin
+  assert (select count(*) from public.emoji_reactions where session_id = 'emo1') = 2, 'the owner reads both';
+  select count(*) into c from public.claim_emojis('emo1');
+  assert c = 2, 'the owner claims both';
+  assert (select count(*) from public.claim_emojis('emo1')) = 0, 'claimed once';
+  assert (select count(*) from public.claim_emojis('emo2')) = 1, 'each session on its own';
+  assert (select count(*) from public.claim_reactions('emo1')) = 0, 'claim_reactions never returns an emoji';
+end $$;
+reset role;
+
+-- deleting the session takes its emojis along
+delete from public.sessions where id in ('emo1', 'emo2', 'emo-gone');
+do $$ begin assert not exists (select 1 from public.emoji_reactions), 'emojis go with the session'; end $$;
+
 -- delete_my_account: the caller's own account and data go, nobody else's; anon and a missing uid are refused
 insert into public.sessions (id, owner_id, settings) values ('sess-b', '00000000-0000-0000-0000-00000000000b', '{}');
 insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess-b', 0, '{}', '{}', 1, '{}');

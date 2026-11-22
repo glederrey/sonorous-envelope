@@ -3,7 +3,7 @@ import { beatsAt, mulberry32, renderOffline } from "@sonorous/engine";
 import {
   BAND_SCALE, nextBand, nextWaveBand, tempoHeard, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  describeReactions, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  describeReactions, describeEmojis, GUEST_EMOJIS, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -695,5 +695,24 @@ describe("the warmth reading explains itself in what the sound is", () => {
   it("a dark sound is lifted by darkness, not by brightness", () => {
     const why = analyze(moodToEngineState(stretchMood({ ...neutral, warmth: 0.9 }), undefined, 1), 1).why.warmth;
     expect(why.high).toMatch(/darkness/); expect(`${why.low} ${why.high}`).not.toMatch(/brightness/);
+  });
+});
+
+describe("guest emojis", () => {
+  const now = Date.parse("2026-11-22T12:00:00Z");
+  const at = (minAgo: number, emoji: string) => ({ emoji, created_at: new Date(now - minAgo * 60_000).toISOString() });
+  it("counts, most frequent first, ties in the order of the set, with the span from the oldest press", () => {
+    const rows = [at(4, "thumbs_up"), at(3, "heart"), at(2, "heart"), at(1, "crying"), at(1, "heart"), at(0, "sad")];
+    expect(describeEmojis(rows, now)).toBe("❤️ 3 · 👍 1 · 😢 1 · 😭 1, over the last 4 min");
+  });
+  it("is undefined when empty, ignores unknown keys, and says at least 1 min", () => {
+    expect(describeEmojis([], now)).toBeUndefined();
+    expect(describeEmojis([at(1, "skull")], now)).toBeUndefined();
+    expect(describeEmojis([{ emoji: "happy", created_at: new Date(now - 5000).toISOString() }], now)).toBe("😊 1, over the last 1 min");
+  });
+  it("feedback carries guests only when there is a line", () => {
+    const base = { turn: 1, intent: neutral, effective: moodToEngineState(neutral), clamps: [], players: 1 };
+    expect(buildFeedback(base)).not.toHaveProperty("guests");
+    expect(buildFeedback({ ...base, guests: `${GUEST_EMOJIS.heart.glyph} 2, over the last 1 min` }).guests).toBe("❤️ 2, over the last 1 min");
   });
 });
