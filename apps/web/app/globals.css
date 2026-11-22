@@ -1153,7 +1153,8 @@ html:has(.pl-field) .se-header {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
-.se-grant-last { padding-bottom: 0; border-bottom: 0; }
+.se-grant-last,
+.se-grant:last-child { padding-bottom: 0; border-bottom: 0; } /* the section divider follows: no second line */
 .se-grant-last > .se-btn { min-width: 10.5em; justify-content: center; } /* Delete account… and Cancel keep one width, so the text does not reflow */
 .se-grant-when > span { white-space: nowrap; }
 /* phone: "last connected" on its own line, the delete button centred under its warning */
