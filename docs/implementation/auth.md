@@ -61,7 +61,7 @@ export { handler as GET, metadataCorsOptionsRequestHandler as OPTIONS };
 
 ## Token verification on `/api/mcp`
 
-`apps/web/lib/auth/verify-token.ts` exports `createVerifier(getKey, issuer)` (testable with a local key set) and a default `verifyToken` that builds the remote JWKS on first use:
+`apps/web/lib/auth/verify-token.ts` exports `createVerifier(getKey, issuer, accountExists?)` (testable with a local key set) and a default `verifyToken` that builds the remote JWKS on first use. The default also checks that the account still exists (`profileExists`: the caller's own `profiles` row, read with their token, remembered for a minute per user; a database error lets the call through). A token signed before the account was deleted stays valid for up to an hour; without the check every tool failed with a bare `server_error`. With it the endpoint answers 401 and claude.ai asks to reconnect:
 
 ```ts
 import { createRemoteJWKSet, jwtVerify } from "jose";

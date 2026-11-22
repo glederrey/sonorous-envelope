@@ -7,6 +7,7 @@ const req = new Request("https://app.example/api/mcp");
 
 let privateKey: CryptoKey;
 let verify: ReturnType<typeof createVerifier>;
+let jwk: JWK;
 
 async function token(claims: Record<string, unknown>, opts: { issuer?: string; exp?: string | number } = {}) {
   return new SignJWT(claims)
@@ -20,7 +21,7 @@ async function token(claims: Record<string, unknown>, opts: { issuer?: string; e
 beforeAll(async () => {
   const pair = await generateKeyPair("ES256");
   privateKey = pair.privateKey;
-  const jwk: JWK = { ...(await exportJWK(pair.publicKey)), kid: "k1", alg: "ES256", use: "sig" };
+  jwk = { ...(await exportJWK(pair.publicKey)), kid: "k1", alg: "ES256", use: "sig" };
   verify = createVerifier(createLocalJWKSet({ keys: [jwk] }), ISSUER);
 });
 
@@ -73,5 +74,21 @@ describe("verifyToken", () => {
 
   it("rejects garbage", async () => {
     expect(await verify(req, "not-a-jwt")).toBeUndefined();
+  });
+
+  it("refuses a valid token whose account is gone, and asks with the token and the user id", async () => {
+    const asked: string[] = [];
+    const gone = createVerifier(createLocalJWKSet({ keys: [jwk] }), ISSUER, async (_tok, sub) => { asked.push(sub); return false; });
+    expect(await gone(req, await token(ok))).toBeUndefined();
+    expect(asked).toEqual(["user-1"]);
+    const here = createVerifier(createLocalJWKSet({ keys: [jwk] }), ISSUER, async () => true);
+    expect((await here(req, await token(ok)))?.extra).toEqual({ userId: "user-1" });
+  });
+
+  it("does not ask about the account when the token itself is refused", async () => {
+    let calls = 0;
+    const v = createVerifier(createLocalJWKSet({ keys: [jwk] }), ISSUER, async () => { calls++; return true; });
+    expect(await v(req, await token({ ...ok, client_id: undefined }))).toBeUndefined();
+    expect(calls).toBe(0);
   });
 });
