@@ -212,24 +212,49 @@ do $$ declare sid uuid; r jsonb; mid text; begin
   assert (select effective from public.saved_moments where id = mid) = '{"volume":0.3,"transition":{"time":4,"curve":"smooth"},"grid":{"arp":0,"bass":0,"beat":3}}'::jsonb, 'frozen: no motif, delay or glide';
   assert (select seed from public.saved_moments where id = mid) = 777 and (select voice_seed from public.saved_moments where id = mid) = 4242, 'seeds kept';
   assert (select saved_by from public.saved_moments where id = mid) = 'human', 'saved_by kept';
-  -- the AI on its own: three per session
-  perform public.save_moment('sess1', 'ai 1', 'ai', 4242, 'dev'); perform public.save_moment('sess1', 'ai 2', 'ai', 4242, 'dev'); perform public.save_moment('sess1', 'ai 3', 'ai', 4242, 'dev');
-  begin perform public.save_moment('sess1', 'ai 4', 'ai', 4242, 'dev'); raise exception 'the AI saved a fourth';
-  exception when raise_exception then if sqlerrm <> 'saved_moment: ai_saves_full' then raise; end if; end;
-  perform public.save_moment('sess1', 'listener asked', 'human', 4242, 'dev'); -- the cap is for the AI's own saves
-  -- ten a minute
-  for i in 1..5 loop perform public.save_moment('sess1', 'h' || i, 'human', 4242, 'dev'); end loop;
+  -- saving the same state again writes nothing and returns the first save
+  r := public.save_moment('sess1', 'again', 'ai', 4242, 'dev');
+  assert (r ->> 'already')::boolean and r ->> 'id' = mid and r ->> 'name' = 'Rain at dusk' and r ->> 'saved_by' = 'human', 'a second save returns the first';
+  assert (select count(*) from public.saved_moments where owner_id = '00000000-0000-0000-0000-00000000000a') = 1, 'a second save writes no row';
+  assert not (public.save_moment('sess1', 'x', 'human', 4243, 'dev') ->> 'already')::boolean, 'another voice seed is another moment';
+  -- the AI on its own: one per 5 turns of the session (the turn is the saved state's)
+  insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 100, '{}', '{"volume":0.3}', 1000, '{}') returning id into sid;
+  update public.sessions set current_state_id = sid where id = 'sess1';
+  r := public.save_moment('sess1', 'ai at 100', 'ai', 4242, 'dev');
+  assert not (r ->> 'already')::boolean and r ->> 'saved_by' = 'ai', 'a new save is not already';
+  assert (select turn from public.saved_moments where id = r ->> 'id') = 100, 'the turn is kept';
+  insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 104, '{}', '{"volume":0.3}', 1004, '{}') returning id into sid;
+  update public.sessions set current_state_id = sid where id = 'sess1';
+  begin perform public.save_moment('sess1', 'ai at 104', 'ai', 4242, 'dev'); raise exception 'the AI saved 4 turns after its last save';
+  exception when raise_exception then if sqlerrm <> 'saved_moment: ai_too_soon' then raise; end if; end;
+  perform public.save_moment('sess1', 'listener asked', 'human', 4242, 'dev'); -- the spacing is for the AI's own saves
+  insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 105, '{}', '{"volume":0.3}', 1005, '{}') returning id into sid;
+  update public.sessions set current_state_id = sid where id = 'sess1';
+  perform public.save_moment('sess1', 'ai at 105', 'ai', 4242, 'dev'); -- 5 turns after the one at 100
+  -- ten a minute: 5 saved so far above (the first one, the other voice seed, 100, 104 and 105)
+  for i in 1..5 loop
+    insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 200 + i, '{}', '{"volume":0.3}', 2000 + i, '{}') returning id into sid;
+    update public.sessions set current_state_id = sid where id = 'sess1';
+    perform public.save_moment('sess1', 'h' || i, 'human', 4242, 'dev');
+  end loop;
+  insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 300, '{}', '{"volume":0.3}', 3000, '{}') returning id into sid;
+  update public.sessions set current_state_id = sid where id = 'sess1';
   begin perform public.save_moment('sess1', 'too many', 'human', 4242, 'dev'); raise exception 'the per-minute cap did not hold';
   exception when raise_exception then if sqlerrm <> 'saved_moment: too_fast' then raise; end if; end;
+  -- saving what is already saved is not a new save: no cap applies (the current state is the one saved as h5, turn 205)
+  update public.sessions set current_state_id = (select id from public.states where session_id = 'sess1' and turn = 205) where id = 'sess1';
+  assert (public.save_moment('sess1', 'again', 'ai', 4242, 'dev') ->> 'already')::boolean, 're-saving passes the per-minute cap';
 end $$;
 -- 200 per owner: the rows are not writable by the owner, so fill up as the table owner
 reset role;
 update public.saved_moments set created_at = now() - interval '1 hour' where owner_id = '00000000-0000-0000-0000-00000000000a';
-insert into public.saved_moments (id, owner_id, name, saved_by, effective, seed, voice_seed)
-  select 'fill' || i, '00000000-0000-0000-0000-00000000000a', 'fill', 'human', '{}', 1, 1 from generate_series(1, 190) i;
+insert into public.saved_moments (id, owner_id, name, saved_by, effective, seed, voice_seed, fingerprint)
+  select 'fill' || i, '00000000-0000-0000-0000-00000000000a', 'fill', 'human', '{}', 1, 1, 'fill' || i from generate_series(1, 190) i;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
 set role authenticated;
-do $$ begin
+do $$ declare sid uuid; begin
+  insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess1', 400, '{}', '{"volume":0.3}', 4000, '{}') returning id into sid;
+  update public.sessions set current_state_id = sid where id = 'sess1';
   begin perform public.save_moment('sess1', 'one more', 'human', 4242, 'dev'); raise exception 'saved past 200';
   exception when raise_exception then if sqlerrm <> 'saved_moment: saves_full' then raise; end if; end;
   -- no direct insert, no change to anything but the name

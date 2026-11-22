@@ -967,7 +967,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       await expect(svc.moment(db, u, { session_id, action: "keep", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });
     });
 
-    it("saves a moment as a keepsake: the state is copied on the server, human or ai, the AI capped at three", async () => {
+    it("saves a moment as a keepsake: the state is copied on the server, human or ai, the same moment once, the AI spaced by turns", async () => {
       const { session_id } = await svc.startSession(dbA, A, { voice: voiceA }, tick());
       await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
       await svc.silence(dbA, A, { session_id, fade: 3, final: true }, tick(25_000));
@@ -986,14 +986,18 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(saved.volume).toBe(playing.volume);
       expect(saved.transition.delay).toBeUndefined();
       expect(sql(`select count(*) from states where session_id='${session_id}'`)).toBe(states); // nothing was written to the session
+      // the same state again: nothing new is written, the first save comes back, even when the listener asks (its author stays "you")
+      const count = sql(`select count(*) from saved_moments where owner_id='${A}'`);
+      const dup = await svc.moment(dbA, A, { session_id, action: "save", name: "Asked for", listener_asked: true, ...ref }, tick());
+      expect(dup).toMatchObject({ saved: "First light", by: "you", url: r.url, already: true });
+      expect(sql(`select count(*) from saved_moments where owner_id='${A}'`)).toBe(count);
+      // the next turn is under 5 turns after the AI's own save: the AI is refused, the listener's ask passes
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "Two", ...ref }, tick())).rejects.toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
       const asked = await svc.moment(dbA, A, { session_id, action: "save", name: "Asked for", listener_asked: true, ...ref }, tick());
       expect(asked.by).toBe("listener");
+      expect(asked.already).toBeUndefined();
       expect(sql(`select saved_by from saved_moments where id='${String(asked.url).split("/m/")[1]}'`)).toBe("human");
-      await svc.moment(dbA, A, { session_id, action: "save", name: "Two", ...ref }, tick());
-      await svc.moment(dbA, A, { session_id, action: "save", name: "Three", ...ref }, tick());
-      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "Four", ...ref }, tick())).rejects.toMatchObject({ code: "ai_saves_full" });
-      const again = await svc.moment(dbA, A, { session_id, action: "save", name: "Four, asked", listener_asked: true, ...ref }, tick());
-      expect(again.by).toBe("listener");
       // another account cannot save into this session, and a name is needed
       await expect(svc.moment(dbB, B, { session_id, action: "save", name: "mine", ...ref }, tick())).rejects.toMatchObject({ code: "unknown_session" });
       await expect(svc.moment(dbA, A, { session_id, action: "save", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });

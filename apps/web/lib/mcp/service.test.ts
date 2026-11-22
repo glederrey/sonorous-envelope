@@ -245,7 +245,7 @@ describe("offScaleNote", () => {
 
 describe("moment save: what the model is told when the database refuses", () => {
   it("maps each code of save_moment to a tool error, and leaves other errors alone", () => {
-    expect(svc.saveMomentError("saved_moment: ai_saves_full")).toMatchObject({ code: "ai_saves_full", message: expect.stringContaining("3 moments on your own") });
+    expect(svc.saveMomentError("saved_moment: ai_too_soon")).toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
     expect(svc.saveMomentError("saved_moment: saves_full")).toMatchObject({ code: "saves_full" });
     expect(svc.saveMomentError("saved_moment: too_fast")).toMatchObject({ code: "too_fast" });
     expect(svc.saveMomentError("saved_moment: nothing_playing")).toMatchObject({ code: "nothing_playing" });
