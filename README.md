@@ -4,7 +4,7 @@
 
 An MCP server that gives an LLM a non-verbal channel: a small synthesizer (arpeggiator, filter, LFO, drone, delay) or Strudel code, and a colour field with moving scenes. The model can update the sound at any point while it works and must update it at the end of every message. It gets back an analysis of what is actually playing, and the listener can react to it.
 
-Status: built and in use, heading to v1.0.0.
+Status: v1.0.0, live at [sonorous-envelope.com](https://sonorous-envelope.com).
 
 ## The name
 
