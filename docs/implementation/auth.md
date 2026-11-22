@@ -35,7 +35,7 @@ Discovery check: `https://<project-ref>.supabase.co/.well-known/oauth-authorizat
    - Call `supabase.auth.oauth.getAuthorizationDetails(authorizationId)`.
      - If the result has `authorization_id`: show the consent screen.
      - If it has `redirect_url` (already consented): redirect there.
-   - Consent screen shows: client name (and logo if any), the requested scopes, what the app will be able to do ("create sound sessions, update the sound, read your reactions"), and Approve / Deny buttons.
+   - Consent screen shows: client name (and logo if any), the requested scopes, what the app will be able to do, one line per group of tools (`app/oauth/consent/page.tsx`: sessions, sound and Strudel, presses, kept moments and motifs, saving a moment to the Moments page with a link anyone who has it can open, the picture, notes to the developers), and Approve / Deny buttons.
    - Approve → `supabase.auth.oauth.approveAuthorization(authorizationId)`; Deny → `denyAuthorization(...)`. Both are POSTs from a server action (never a GET link, so a prefetch cannot approve), and the action redirects to the returned `redirect_url`.
 7. claude.ai exchanges the code for tokens at Supabase's token endpoint and calls `/api/mcp` with `Authorization: Bearer <access token>`.
 8. Refresh tokens rotate automatically; claude.ai handles refresh.
