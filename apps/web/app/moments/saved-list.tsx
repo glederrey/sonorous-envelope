@@ -52,8 +52,13 @@ export function SavedList({ moments }: { moments: SavedRow[] }) {
     <>
       <div className="sv-filters" role="search">
         <label className="se-visually-hidden" htmlFor="saved-search">Search by name</label>
-        <input id="saved-search" type="search" className="se-input sv-search" placeholder="Search by name" value={query}
-          onChange={(e) => setQuery(e.target.value)} autoComplete="off" spellCheck={false} />
+        <span className="sv-search">
+          <input id="saved-search" type="search" className="se-input" placeholder="Search by name" value={query}
+            onChange={(e) => setQuery(e.target.value)} autoComplete="off" spellCheck={false} />
+          <span className="se-sm sv-count" aria-live="polite">
+            {shown.length === moments.length ? `${moments.length} saved` : `${shown.length} of ${moments.length}`}
+          </span>
+        </span>
         <label className="se-visually-hidden" htmlFor="saved-month">Month</label>
         <span className="sv-select"><select id="saved-month" className="se-input" value={month} onChange={(e) => setMonth(e.target.value)}>
           <option value="all">All dates</option>
@@ -72,9 +77,6 @@ export function SavedList({ moments }: { moments: SavedRow[] }) {
           <option value="ai">By the AI</option>
         </select><ChevronDown size={16} aria-hidden /></span>
       </div>
-      <p className="se-sm se-muted sv-count" aria-live="polite">
-        {shown.length === moments.length ? `${moments.length} saved` : `${shown.length} of ${moments.length}`}
-      </p>
       <div className="doc-rows">
         {shown.length === 0 ? (
           <section className="doc-row">

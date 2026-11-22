@@ -1556,12 +1556,16 @@ html:has(.pl-field) .se-header {
 .ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ss-actions form { display: contents; }
 /* /moments: a name search, then month, engine and who saved; one row per moment */
-.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 8px; }
+.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 16px; }
+/* the count sits inside the search field, flush right (the native clear button would collide with it) */
+.sv-search { position: relative; display: grid; min-width: 0; }
+.sv-search .se-input { padding-right: 88px; }
+.sv-search .se-input::-webkit-search-cancel-button { display: none; }
 /* the filters draw their own arrow, 12 px from the right edge (the native one sits too close to it) */
 .sv-select { position: relative; display: grid; min-width: 0; }
 .sv-select select.se-input { appearance: none; -webkit-appearance: none; width: auto; min-width: 0; padding: 0 36px 0 12px; }
 .sv-select svg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); }
-.sv-count { margin: 0 0 16px; }
+.sv-count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sv-name { overflow-wrap: anywhere; }
 .sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sv-rename { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1654,22 +1658,19 @@ html[data-pl-full] .se-header, html[data-pl-full] .se-footer { display: none; }
 .nf-zero { fill: none; stroke: var(--tide); stroke-width: 9; }
 .nf-ripple { fill: none; stroke: var(--tide); stroke-width: 3; opacity: 0; transform-box: fill-box; transform-origin: center; animation: nf-ripple 3.2s ease-out infinite; }
 .nf-ripple-2 { animation-delay: 1.6s; }
+.nf-ripple-3 { display: none; }
+.nf[data-playing] .nf-ripple-3 { display: inline; }
 @keyframes nf-ripple { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.7); } }
 .nf[data-playing] .nf-ripple { animation-duration: 0.9s; stroke: var(--glow); }
-.nf[data-playing] .nf-zero { stroke: var(--glow); animation: nf-droop 0.48s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
-@keyframes nf-droop { to { transform: scale(0.92, 0.86) translateY(4px); } }
+.nf[data-playing] .nf-zero { stroke: var(--glow); }
+.nf[data-playing] .nf-ripple-2 { animation-delay: 0.3s; }
+.nf[data-playing] .nf-ripple-3 { animation-delay: 0.6s; }
 .nf-title { margin: 8px 0 0; font-size: clamp(26px, 4vw, 36px); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
 .nf-text { margin: 0; max-width: 46ch; text-wrap: pretty; }
-.nf-line { width: min(100%, 520px); height: 40px; overflow: hidden; }
-.nf-line path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.nf-flat { stroke: var(--line-strong); }
-.nf-blip path { stroke: var(--tide); }
-.nf-blip { animation: nf-blip 4s linear infinite; }
-@keyframes nf-blip { from { transform: translateX(-80px); } to { transform: translateX(620px); } }
-.nf[data-playing] .nf-blip path { stroke: var(--glow); }
+/* the hero's lines in small (QuietWaves): the stroke is a gradient the component eases from teal to amber and back */
+.nf-waves { width: min(100%, 520px); height: auto; -webkit-mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(to right, transparent, #000 14%, #000 86%, transparent); }
 .nf-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
 @media (max-width: 560px) { .nf-actions { display: grid; width: min(100%, 320px); } .nf-actions .se-btn { justify-content: center; } }
 @media (prefers-reduced-motion: reduce) {
-  .nf-ripple, .nf-blip, .nf[data-playing] .nf-zero { animation: none; }
-  .nf-blip { transform: translateX(265px); }
+  .nf-ripple { animation: none; }
 }

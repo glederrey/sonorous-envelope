@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Volume2 } from "lucide-react";
+import { QuietWaves } from "./quiet-waves";
 
 // The sad trombone: four falling notes, the last one long with a wobble. Quiet (peak gain 0.12), only on a press.
 const WOMP: { hz: number; at: number; len: number }[] = [
@@ -12,15 +13,19 @@ const WOMP: { hz: number; at: number; len: number }[] = [
   { hz: 196.0, at: 1.44, len: 1.6 },   // G3, held, with a long fade
 ];
 
-function womp() {
+let shared: AudioContext | null = null;
+
+/** Plays once the context runs: a new context starts suspended or still opening the device, and notes scheduled 50 ms ahead lost
+ *  their start. One context is kept for the page, and the first note starts 250 ms after it runs. Returns the length in seconds. */
+async function womp() {
   const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return 0;
-  const ac = new Ctx();
-  const t0 = ac.currentTime + 0.05;
+  const ac = (shared ??= new Ctx());
+  await ac.resume().catch(() => {});
+  const t0 = ac.currentTime + 0.25;
   const lp = ac.createBiquadFilter();
   lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 2;
   lp.connect(ac.destination);
-  let lastOsc: OscillatorNode | null = null;
   for (const n of WOMP) {
     const o = ac.createOscillator(), g = ac.createGain();
     const release = n.len > 1 ? 0.6 : 0.12; // the last note dies away instead of stopping
@@ -39,22 +44,19 @@ function womp() {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.at + n.len);
     o.connect(g).connect(lp);
     o.start(t0 + n.at); o.stop(t0 + n.at + n.len + 0.02);
-    lastOsc = o;
   }
-  // close when the last note has really ended: the audio clock can start a little after this code runs, so a timer cut the tail
-  if (lastOsc) lastOsc.onended = () => void ac.close().catch(() => {});
-  return WOMP[WOMP.length - 1].at + WOMP[WOMP.length - 1].len;
+  return 0.25 + WOMP[WOMP.length - 1].at + WOMP[WOMP.length - 1].len;
 }
 
 /** The site's 404: "this page went quiet". The 0 of 404 is a rippling ring (the visuals' ripples), a flat sound line runs under the text
- *  with one blip going by, and a button plays a short sad trombone. Motion stops under prefers-reduced-motion. */
+ *  (QuietWaves, the hero's lines in small), and a button plays a short sad trombone. Motion stops under prefers-reduced-motion. */
 export function QuietPage() {
   const [playing, setPlaying] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const press = () => {
-    const s = womp();
-    if (!s) return;
+  const press = async () => {
     setPlaying(true);
+    const s = await womp();
+    if (!s) { setPlaying(false); return; }
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setPlaying(false), s * 1000);
   };
@@ -66,6 +68,7 @@ export function QuietPage() {
         <svg className="nf-ring" viewBox="0 0 120 120">
           <circle className="nf-ripple" cx="60" cy="60" r="34" />
           <circle className="nf-ripple nf-ripple-2" cx="60" cy="60" r="34" />
+          <circle className="nf-ripple nf-ripple-3" cx="60" cy="60" r="34" />
           <circle className="nf-zero" cx="60" cy="60" r="34" />
         </svg>
         <span>4</span>
@@ -74,10 +77,7 @@ export function QuietPage() {
       <p className="nf-text se-muted">
         Nothing plays at this address. The link may be old, mistyped, or the saved moment behind it was deleted.
       </p>
-      <svg className="nf-line" viewBox="0 0 600 40" preserveAspectRatio="none" aria-hidden>
-        <path className="nf-flat" d="M0 20 H600" />
-        <g className="nf-blip"><path d="M0 20 H20 L28 8 L36 32 L44 14 L50 20 H70" /></g>
-      </svg>
+      <QuietWaves busy={playing} />
       <div className="nf-actions">
         <Link className="se-btn se-btn-primary" href="/">Back to the start</Link>
         <button type="button" className="se-btn" onClick={press} disabled={playing}>
