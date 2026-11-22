@@ -16,6 +16,7 @@
   --accent-cool: var(--tide);
   --on-tide: #06201d;
   --danger: #ff7a6b;
+  --on-danger: #1a0705;
   --focus: var(--tide);
   --field-a: #22343a;
   --field-b: #3a2c24;
@@ -46,6 +47,7 @@
   --accent-cool: #0f9384;
   --on-tide: #ffffff;
   --danger: #c0322a;
+  --on-danger: #ffffff;
   --field-a: #e4edef;
   --field-b: #f0e8e1;
   --scrim: rgba(255, 255, 255, 0.82);
@@ -73,6 +75,7 @@
     --accent-cool: #0f9384;
     --on-tide: #ffffff;
     --danger: #c0322a;
+    --on-danger: #ffffff;
     --field-a: #e4edef;
     --field-b: #f0e8e1;
     --scrim: rgba(255, 255, 255, 0.82);
@@ -259,6 +262,12 @@ h3 {
 .se-btn-danger {
   border-color: var(--danger);
   color: var(--danger);
+}
+/* the final, irreversible step: filled */
+.se-btn-danger-solid,
+.se-btn-danger-solid:hover {
+  background: var(--danger);
+  color: var(--on-danger);
 }
 .se-btn-danger:disabled {
   opacity: 0.5;
@@ -1144,6 +1153,25 @@ html:has(.pl-field) .se-header {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
+.se-grant-last,
+.se-grant:last-child { padding-bottom: 0; border-bottom: 0; } /* the section divider follows: no second line */
+.se-grant-when > span { white-space: nowrap; }
+/* phone: "last connected" on its own line, the delete button centred under its warning */
+/* a centred card over the page (delete account): Esc, a click outside or Cancel closes it */
+.se-dialog { border: 1px solid var(--line-strong); border-radius: 16px; padding: 24px; background: var(--surface); color: var(--ink); width: min(92vw, 440px); margin: auto; }
+.se-dialog-body { display: grid; gap: 16px; }
+.se-dialog-field { margin-top: 8px; }
+/* a word to type, set apart from the sentence around it */
+.se-keyword { font-weight: 700; color: var(--danger); }
+.se-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.se-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+@media (max-width: 560px) {
+  .se-grant-when > span { display: block; }
+  .se-grant-when > .se-grant-dot { display: none; }
+  .se-grant-last { flex-direction: column; align-items: stretch; }
+  .se-grant-last > .se-btn { align-self: center; }
+}
+.se-grant > .se-btn { flex: none; }
 
 /* Theme toggle: a normal button, icon only */
 .se-btn-icon {
@@ -1406,7 +1434,11 @@ html:has(.pl-field) .se-header {
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
 .pl-save-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--on-scrim); }
-.pl-save-note a { color: var(--on-scrim); }
+.pl-save-note a, .pl-save-note .se-link { color: var(--on-scrim); }
+.pl-save-name { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
+.pl-save-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.pl-save-rename .se-input { flex: 1 1 200px; min-width: 0; width: auto; }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */

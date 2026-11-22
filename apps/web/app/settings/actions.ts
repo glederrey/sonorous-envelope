@@ -5,13 +5,15 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "../../lib/supabase/server";
 
+/** Revoke one app: every connection it holds. Claude registers a new client each time the connector is added again, so one app can hold
+ *  many grants under the same name; the page shows them as one row and sends all their client ids. */
 export async function revokeGrant(formData: FormData) {
-  const clientId = String(formData.get("client_id") ?? "");
-  if (!clientId || clientId.length > 200) return;
+  const ids = formData.getAll("client_id").map(String).filter((id) => id && id.length <= 200).slice(0, 100);
+  if (ids.length === 0) return;
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return;
-  await supabase.auth.oauth.revokeGrant({ clientId });
+  for (const clientId of ids) await supabase.auth.oauth.revokeGrant({ clientId });
   revalidatePath("/settings");
 }
 

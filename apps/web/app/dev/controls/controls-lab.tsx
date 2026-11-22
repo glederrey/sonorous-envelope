@@ -1,5 +1,6 @@
 "use client";
 
+import { SaveNotice } from "../../../components/moment/save-notice";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
@@ -47,6 +48,8 @@ export function ControlsLab() {
   const [muted, setMuted] = useState(false), [volume, setVolume] = useState(0.8);
   const [gradientOn, setGradientOn] = useState(true), [visualsOn, setVisualsOn] = useState(true), [strudelVisuals, setStrudelVisuals] = useState(true), [strudelCode, setStrudelCode] = useState(true);
   const [note, setNote] = useState("");
+  const [saved, setSaved] = useState(0); // presses of the save button: 1 saved, 2+ already saved
+  const [savedName, setSavedName] = useState("Evening session · 21:14");
   const [behind, setBehind] = useState<Behind>("scene"), [sample, setSample] = useState(SCENE_STATES[0].id);
   const [epoch] = useState(() => Date.now());
   const clock = useRef(0), latency = useRef(() => 0).current;
@@ -111,7 +114,14 @@ export function ControlsLab() {
             when="Turn 3 · 12 s ago"
             onHide={() => setNote("Hide controls pressed")}
             onFullscreen={() => setNote("Fullscreen pressed (the player hides everything but the picture)")}
-            save={viewer === "owner" ? { onSave: () => setNote("Save pressed (the player saves this moment)"), done: false, busy: false } : undefined}
+            save={viewer === "owner" ? { onSave: () => setSaved((n) => n + 1), done: false, busy: false } : undefined}
+            notice={saved > 0 ? (
+              <div className="se-sm pl-save-note" role="status">
+                {/* the notice the player shows after a save; the second press plays "already saved". Rename only changes this line here */}
+                <SaveNotice key={saved > 1 ? "again" : "first"} id="lab0000000000000000000" name={savedName} already={saved > 1}
+                  onRename={async (n) => { setSavedName(n.trim()); return true; }} onEditing={() => {}} />
+              </div>
+            ) : undefined}
             audioState="running" muted={muted} onResume={() => {}} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
             picture={{ gradientOn, visualsOn, onGradient: () => setGradientOn((v) => !v), onVisuals: () => setVisualsOn((v) => !v) }}

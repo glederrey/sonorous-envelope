@@ -8,6 +8,7 @@ import { hardCaps, isResting, parseSettings, voiceSeedOf, type ListenerSettings 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
+import { SaveNotice } from "../moment/save-notice";
 import { sliderToGain } from "../../lib/volume";
 import { remember, stored } from "../../lib/player-prefs";
 import { deviceId } from "../../lib/device-id";
@@ -588,7 +589,18 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string; already: boolean } | null>(null);
   const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => () => saveTimers.current.forEach(clearTimeout), []);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hideNoteLater = () => { clearTimeout(noteTimer.current); noteTimer.current = setTimeout(() => setSaveNote(null), 8000); };
+  useEffect(() => () => { saveTimers.current.forEach(clearTimeout); clearTimeout(noteTimer.current); }, []);
+  // rename from the line under the controls: RLS lets the owner change the name only (migration 0027)
+  const renameSaved = async (id: string, name: string) => {
+    const n = name.trim();
+    if (n.length < 1 || n.length > 80) return false;
+    const { error } = await supabase.from("saved_moments").update({ name: n }).eq("id", id);
+    if (error) return false;
+    setSaveNote((s) => (s && "id" in s && s.id === id ? { ...s, name: n } : s));
+    return true;
+  };
   const saveMoment = async () => {
     setSaveBusy(true);
     try {
@@ -605,7 +617,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         setSaveNote({ id: saved.id, name: saved.name, already: saved.already === true }); setSaveDone(true);
         saveTimers.current.push(setTimeout(() => setSaveDone(false), 3000));
       }
-      saveTimers.current.push(setTimeout(() => setSaveNote(null), 8000));
+      hideNoteLater();
     } finally { setSaveBusy(false); }
   };
 
@@ -701,9 +713,13 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             onFullscreen={enterFull}
             save={isOwner ? { onSave: () => void saveMoment(), done: saveDone, busy: saveBusy } : undefined}
             notice={saveNote && (
-              <p className="se-sm pl-save-note" role="status" style={{ margin: 0 }}>
-                {"error" in saveNote ? saveNote.error : <>{saveNote.already ? "Already saved" : "Saved"} as “{saveNote.name}” · <a href={`/m/${saveNote.id}`}>Open</a> · <CopyLink path={`/m/${saveNote.id}`} label="Copy link" /></>}
-              </p>
+              <div className="se-sm pl-save-note" role="status">
+                {"error" in saveNote ? saveNote.error : (
+                  <SaveNotice key={saveNote.id} id={saveNote.id} name={saveNote.name} already={saveNote.already}
+                    onRename={(n) => renameSaved(saveNote.id, n)}
+                    onEditing={(on) => (on ? clearTimeout(noteTimer.current) : hideNoteLater())} />
+                )}
+              </div>
             )}
             audioState={audioState} muted={muted}
             onResume={() => void audio.current?.resume()} onToggleMute={() => setMuted((m) => !m)}
