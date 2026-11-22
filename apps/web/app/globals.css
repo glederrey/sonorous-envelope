@@ -1583,11 +1583,12 @@ html:has(.pl-field) .se-header {
 /* a session row: the title on the status line (baselines aligned), then the buttons with Delete flush right on the same line */
 .ss-row { align-items: baseline; }
 .ss-row > h2 { margin: 0; }
+/* Delete: on a running session's button line (desktop), or on the status line (an ended session, and every session on a phone) */
 .ss-delete { margin-left: auto; }
-/* an ended session has no other buttons: Delete sits on its status line, flush right */
 .ss-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-/* the button must not make the line taller than its text, or the title-to-status gap differs from a running session's */
-.ss-status .se-btn { margin-block: -12px; }
+/* the trigger must not make the status line taller than its text, or the title-to-status gap differs between rows */
+.ss-del-top > .se-btn { margin-block: -12px; }
+.ss-row:not(.ss-ended) .ss-del-top { display: none; }
 .ss-actions form.se-dialog-body { display: grid; } /* the delete dialog's form sits inside the actions row */
 /* /moments: a name search, then month, engine and who saved; one row per moment */
 .sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 16px; }
@@ -1614,12 +1615,20 @@ html:has(.pl-field) .se-header {
   .sv-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sv-actions .se-btn { justify-content: center; }
 }
-@media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn, .ss-status .se-btn { padding: 0 12px; font-size: 14px; }
-  /* an ended session on a phone: Delete to the right of the title and status, centred on both */
-  .ss-ended { position: relative; padding-right: 88px; }
-  .ss-ended .ss-status .se-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; }
+@media (max-width: 560px) {
+  .ss-actions { gap: 6px; }
+  .ss-actions .se-btn:not(dialog *), .ss-del-top > .se-btn { padding: 0 12px; font-size: 14px; }
+  /* every session on a phone: Delete to the right of the title and status, centred on both; the other buttons below, full width */
+  .ss-row { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 12px; align-items: start; }
+  .ss-row > .se-stack, .ss-row .ss-status { display: contents; }
+  .ss-row > h2 { grid-column: 1; grid-row: 1; }
+  .ss-row .ss-status > p { grid-column: 1; grid-row: 2; }
+  .ss-row .ss-del-top, .ss-row:not(.ss-ended) .ss-del-top { display: block; grid-column: 2; grid-row: 1 / 3; align-self: center; }
+  .ss-del-top > .se-btn { margin-block: 0; }
+  .ss-row .ss-actions { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; }
+  .ss-delete { display: none; }
 }
-@media (max-width: 400px) { .ss-actions .se-btn, .ss-status .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }
+@media (max-width: 400px) { .ss-actions .se-btn:not(dialog *), .ss-del-top > .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn:not(dialog *) svg { display: none; } }
 
 /* the model's Strudel code in the player: read only, selectable, scrolls inside its box */
 .pl-code-pre { margin: 10px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, var(--on-scrim) 8%, transparent); color: var(--on-scrim); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
