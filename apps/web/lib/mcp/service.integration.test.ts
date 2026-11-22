@@ -826,6 +826,23 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(next.pattern).toMatchObject({ ran: "not reported yet", why: expect.stringMatching(/nobody is listening/) });
     });
   });
+  describe("arp rate", () => {
+    const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
+    const last = (sid: string) => JSON.parse(sql(`select effective from states where session_id='${sid}' order by created_at desc limit 1`));
+
+    it("says when the rate steps over a glide, and keeps a rate sent in synth for that call only", async () => {
+      const { session_id } = await svc.startSession(dbA, A, {}, tick());
+      await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      expect(last(session_id).arp.rate).toBe("1/4"); // calm 0.9 maps to quarter notes
+      const r = await svc.setSound(dbA, A, { session_id, mood: calm, synth: { arp: { rate: "1/16" } }, transition: { time: 12, curve: "smooth" }, final: true } as never, tick(25_000));
+      expect(last(session_id).arp.rate).toBe("1/16");
+      expect((r.notes as string[]).join(" ")).toMatch(/rate 1\/4 to 1\/16: it steps through 1\/8 over 12 s/);
+      // the next call without synth maps the rate from its own mood again: the rate is not sticky
+      const next = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
+      expect(last(session_id).arp.rate).toBe("1/4");
+      expect(((next.notes as string[] | undefined) ?? []).join(" ")).not.toMatch(/rate 1\/4 to 1\/16/);
+    });
+  });
   describe("motif", () => {
     const calm = { warmth: 0.6, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
     const last = (sid: string) => JSON.parse(sql(`select effective from states where session_id='${sid}' order by created_at desc limit 1`));
@@ -993,7 +1010,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(sql(`select count(*) from saved_moments where owner_id='${A}'`)).toBe(count);
       // the next turn is under 5 turns after the AI's own save: the AI is refused, the listener's ask passes
       await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
-      await expect(svc.saveMoment(dbA, A, { session_id, name: "Two", ...ref })).rejects.toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
+      await expect(svc.saveMoment(dbA, A, { session_id, name: "Two", ...ref })).rejects.toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 messages ago") });
       const asked = await svc.saveMoment(dbA, A, { session_id, name: "Asked for", listener_asked: true, ...ref });
       expect(asked.by).toBe("listener");
       expect(asked.already).toBeUndefined();
