@@ -1,15 +1,21 @@
-# Visual options: notes
+# The picture
 
-Status, 2026-11-11: **beat-synced motion built.** The picture follows the tempo (`grid.beat`, `beatsAt`, `BeatClock`; engine.md), is drawn on a canvas over the CSS gradient from a pure frame model (`packages/shared/src/visual.ts`), carries the mood in its form (below), has three scenes (`motes`, `ripples`, `rain`) with `density`, `speed` and `sync`, and the flash rule is now a luminance budget (safety.md) instead of a 3 Hz cap. Calibrate by eye on `/dev/visuals` (the five landing emotions side by side, tempo, scene, sync, and a no-hue switch). Not built: presets, a shape layer beyond the scenes, the owner's visual-intensity setting, porting the landing page's own field to the canvas.
+What the colour field shows and how it is drawn. The model sets `colour` (mode, hue, saturation, lightness, a secondary colour, `motion`, `texture`, `shape`, and the scene fields `scene`, `density`, `speed`, `sync`); in `follow` mode everything comes from the mood (mood-mapping.md, "Colour"). The schema is in mcp-tools.md.
 
-Status, 2026-11-13 (later): **three parts.** The picture is the base colour (always on), a slow gradient (colour play: the moving lights, never faster than about 6 s an orbit, off the beat, swelling over the phrase) and the visuals (the scene, where the beat shows). The motion's own wash and glow are gone. The gradient has four more parts, all slow and off the beat: a vignette (closeness: a close mood darkens the edges and closes in, a distant one only the corners), a vertical lean (joy lifts the lights and sorrow lets them sink, with a slow rise and settle over the phrase), the shape (`colour.shape`: `glow` gathers the lights round the middle, `sweep` rides them round a ring that turns slowly, `wash` leaves them spread), and a hue that wanders about 18° over three phrases (the matched lightness is blended between 5° steps so it never flickers). With the canvas on, the CSS under it is one flat colour (the primary); the two-colour linear, radial or conic field is only the fallback when the canvas is off. The listener has "Gradient" and "Scenes" buttons in the player, saved per device; both off leaves the base colour.
+## How it is built
+The picture has three parts, all a pure function of the state plus time, so two listeners see the same thing (randomness is seeded like the engine's):
+1. **The base colour**, always on: one flat CSS colour (the primary), glided over the state's transition. A two-colour linear, radial or conic field (`colour.shape`: `wash`, `glow`, `sweep`) is only the fallback when the canvas is off.
+2. **A slow gradient** ("colour play"): moving lights that never go faster than about 6 s an orbit and are off the beat. A vignette follows closeness (a close mood darkens the edges and closes in), a vertical lean follows joy (joy lifts the lights, sorrow lets them sink), `shape` gathers them round the middle (`glow`), rides them round a turning ring (`sweep`) or leaves them spread (`wash`), and the hue wanders about 18° over three phrases.
+3. **The visuals**: a scene, where the beat shows. Drawn on a canvas by a pure frame model (`packages/shared/src/visual.ts`, `scene-kit.ts`, `scenes.ts`; the painter is `apps/web/components/player/visual-canvas.tsx`) from `grid.beat` through `beatsAt` and `BeatClock` (engine.md, "Shared timeline").
 
-Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-emotions`). Thirty scenes now (`motes`, `ripples`, `rain`, `snow`, `embers`, `aurora`, `waves`, `fireflies`, `stars`, `bubbles`, `leaves`, `seeds`, `tide`, `smoke`, `clouds`, `fire`, `warp`, `caustics`, `lightning`, `sunbeam`, `cracks`, `ink`, `circuit`, `digital`, `scope`, `vines`, `fireworks`, `reeds`, `network`, `flock`) and a moving, multi-colour gradient under all of them ("Colour play"), a finer rain, large soft layers inside the flash budget, scene crossfades, a session-stable seed, and a default scene chosen by the mood when the model sets none. See "Emotions in the picture" below.
+The player has "Gradient" and "Scenes" buttons, saved per device; both off leaves the base colour. `prefers-reduced-motion` turns the moving picture off. While Strudel plays with "Strudel visuals" on, this picture is not drawn: the Strudel view takes its place (the canvas keeps the level and the beat for it; [implementation/strudel.md](implementation/strudel.md), "The picture").
 
-### Emotions in the picture
-**Libraries (decision 2026-11-13).** None draws the picture. Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the flash budget (`capFrame`) and the tests cannot see what they draw, and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth; Canvas 2D paints it. The noise the scenes use is a 6-line smooth value noise on the engine's own `hash01` (`scene-kit.ts`), seeded, so nothing was added to the dependencies. A library would be worth it only for a per-pixel scene (a fluid or a real shader), which the budget also makes pointless at 0.09 opacity.
+**No library draws it.** Particle and scene libraries (tsparticles, p5, PixiJS, three.js) own the loop and the drawing, so the tests cannot see what they draw and every listener would not necessarily see the same frame. The pure frame model stays the single source of truth and Canvas 2D paints it. The noise the scenes use is a small smooth value noise on the engine's own `hash01` (`scene-kit.ts`). A library would only be worth it for a per-pixel scene (a fluid or a real shader).
 
-**Where the code is.** `scene-kit.ts` (types, `hash01`, `noise1`), `scenes.ts` (one pure function per scene), `visual.ts` (motion, budget, `drawFrame`, crossfade `from`), `mood-mapping.ts` (`moodToScene`, hue), `visual-canvas.tsx` (painter and crossfade timing), `/dev/visuals` (the ten emotions, with a no-hue switch: they must read apart by form alone).
+**Calibrate by eye on `/dev/visuals`**: the emotions side by side with a no-hue switch (they must read apart by form alone), tempo, scene, sync, and a gradients set with a Colour play switch.
+
+## Scenes
+Thirty scenes. When the model sets none, `moodToScene` scores each region of the axes (stretched by `stretchMood`) and takes the strongest; below 0.3 it returns nothing. The scene is marked `sceneAuto` and is not reported back to the model in `playing.picture` (only what it set). The model's own `scene` replaces it, `none` turns it off. Density follows how strongly the mood fits, speed follows calm and tension.
 
 | Emotion | Scene | Form |
 |---|---|---|
@@ -45,102 +51,7 @@ Status, 2026-11-13: **emotions in the picture** (roadmap #20, branch `visuals-em
 | nervous | ripples | rings that scatter |
 | neutral | none | nothing (a quiet sound is the honest answer) |
 
-`moodToScene` scores each region of the axes and takes the strongest; below 0.3 it returns nothing. The scene is marked `sceneAuto` and is not reported back to the model in `playing.picture` (only what it set). The model's own `scene` replaces it, `none` turns it off. Density follows how strongly the mood fits, speed follows calm and tension.
-
-**Colour play (2026-11-13).** Under every scene (unless the motion is `still`) four large lights (five for a tense mood), each with its own centre, amplitude, direction and size, circling on orbits of 10 to 40 beats that never close (a slow noise wanders them), breathing in size over the phrase and jumping a little on each beat. Before: two or three of other hues drift on slow orbits and swell, with their hue leaning a few degrees, on the beat (slowly over four bars in phrase sync). A calm mood keeps them near the field's own hue; a tense one pushes them towards the complement; joy widens them. They give the multi-colour, moving gradient. **Why this is not a flash:** a flash is a change of brightness. Each light is painted at the lightness that changes the field's relative luminance least (`matchedLayer`, `colour-math.ts`), and its real worst-case swing per unit of opacity (`Layer.k`, typically 0.01 to 0.09) is what counts in the 0.09 budget, instead of the white bound of 1. So the colour can be strong and can pulse with the music while the brightness stays still. A test checks the declared swing against the real luminance change of the blend over random fields. A light that is or would pass through saturated red does not pulse. The aurora's curtain works the same way (that is why it can be strongly coloured now). What cannot be done under the rule: a brightness flash, however the colours are mixed.
-
-**Lab.** `/dev/visuals`, Set = gradients shows the moving colours alone, larger, with a Colour play switch to compare.
-
-**Budget (historical, lifted 2026-11-13).** Large elements (the aurora's curtain, mist, smoke, clouds, the wash and the glow) used to share a 0.09 luminance swing; `capFrame` no longer scales them. Small items still have their own budget (10% of the view, 400 items), which is what keeps the aurora's rays and the other thin things in check.
-
-**Known weak spots.** Aurora is the heaviest to draw (36 columns per ribbon); on a 4x throttled CPU it was the only scene that made the canvas shrink. The rain depth and splashes are tuned by eye on the lab only; the player has not been tried with a real session.
-
-### How the mood shapes the motion
-Starting values, tuned by eye, not backed by evidence. They come from the same stretched axes as the sound (`moodToFeel`), so the picture cannot disagree with the sound, and none of them is only a hue.
-| Axis | In the picture |
-|---|---|
-| calm | how hard it follows the beat (`depth`): calm leans to a slow swell over 4 bars, low calm to a pulse on each beat |
-| joy | `lift`: high joy opens the glow on the beat and lets motes rise; low joy contracts it and lets them sink |
-| tension | `jitter`: the glow jumps a little each beat, the pulse gets a quick decay and an off-beat accent |
-| warmth | `soft`: soft edges and sine swells; cold is harder-edged |
-| closeness | `near`: bigger glow and bigger motes, thicker rings |
-| spontaneity | `irreg`: uneven timing and placement |
-The model can set `scene`, `density`, `speed` and `sync` in `colour`; the rest is the mood's. Above 180 BPM the beat motion runs at half-time (a bar is 4 beats; 4/4 is assumed). Original and earlier notes follow.
-
-Earlier status: first step built (2026-11-10): `colour.shape` (`wash`, the linear default, `glow`, a radial light, `sweep`, a conic turn) and `motion: breathe` (a soft light that swells and settles over 10 s). In follow mode a close, warm mood (closeness above 0.7, warmth above 0.5) is a glow; the model can ask for any shape. Pure CSS, `prefers-reduced-motion` turns the motion off, nothing near the 3 Hz rule (`hardCaps` keeps `pulseHz` at 0 unless the motion is `pulse`). Scenes, shapes and particles below are still ideas; the owner's visual-intensity setting waits for the limits piece. Original notes:
-
-Status of the rest: ideas, not built. Today the colour field is one background gradient (colour to secondary), a motion (still, drift, pulse) and a texture (flat, grain, soft noise). Gael wants more room for the model to express itself visually: shapes, gradients, moving things. These are notes to decide from, not a spec.
-
-## What exists now
-`ResolvedColour = { h, s, l, secondary?, motion, texture, pulseHz }`. The model can set mode `own` with hue, saturation, lightness, a secondary colour, motion and texture. In `follow` mode it is derived from the mood (mood-mapping.md). The player draws it with CSS (`pl-field`).
-
-## Directions
-
-### Gradients
-- Gradient type: linear (with an angle), radial (with a centre), conic (a slow sweep).
-- More than two stops, with a position for each. Soft versus hard stops.
-- A slow gradient motion: the angle or the centre drifts, or the stops breathe.
-- Mood link: warm and close could be a tight radial glow; cold and distant a wide, low-contrast linear wash.
-
-### Shapes
-- A few layers of soft shapes over the background: blobs, circles, rings, lines, waves, stars or dots. Each with a position, size, colour, opacity and blur.
-- The model picks a **scene** from a small set instead of drawing freely (for example `field`, `orbits`, `rain`, `waves`, `bloom`, `grid`), with a few parameters each (density, size, speed, spread).
-- Less is more: one or two elements by default. The shapes should read as atmosphere, not as a screensaver.
-
-### Movement
-- Drift (slow translation), breathe (slow scale or opacity), orbit, flow (noise field), ripple, fall, twinkle.
-- Link to the sound so the picture and the music feel like one thing:
-  - arpeggio notes trigger small ripples or sparks, pitch mapped to height or hue;
-  - the cutoff LFO controls brightness or blur;
-  - the bass layer drives a slow large form, the arpeggio the small fast ones.
-- Speed follows `calm` (urgent is faster), irregularity follows `spontaneity`.
-
-### Texture and finish
-- Grain and soft noise exist. Possible additions: vignette, light blur and bloom, scanlines or paper texture, a faint star field.
-
-## How the model would ask for it
-Keep the current rule that colour follows the sound by default, and add an optional, compact `visual` object next to `colour`, for example:
-```json
-{"visual": {"scene": "orbits", "density": 0.3, "speed": 0.4, "palette": "from_mood"}}
-```
-- A small, fixed vocabulary (scenes, a handful of parameters), not free-form drawing. It is easier for the model to use well, cheap in tokens, and easy to limit.
-- Presets named after moods (for example "ember", "tide", "static") could give good looks without the model tuning numbers.
-- Same rule as the synth override: mood first, override only when the mapping does not give what the model wants.
-
-## Rendering
-- CSS is enough for gradients, blur and a few moving layers. Canvas 2D for particles and shapes. WebGL only if a scene needs it (flow fields, big blur).
-- Target: 60 fps on a mid-range phone with the audio worklet running, and no jank when the tab is in the background. Cap the number of elements, pause drawing when hidden.
-- The beat shows in the shape as well as the brightness, because the flash budget holds the brightness swing down (and saturated red gets none): the glow swells, motes grow, streaks stretch and brighten, rings thicken. In beat sync the first beat of each 4-beat bar hits hardest (4/4 assumed). Phrase sync has no per-beat bump. Motes come in three kinds (large soft, medium, small sharp; more sharp ones with tension) and rain has depth (near drops are longer, brighter and faster).
-- Everything is a pure function of the state plus time, so two listeners see the same thing. Randomness is seeded like the engine's.
-
-## Safety and comfort (these stay rules)
-- Nothing flashes: large elements together swing the relative luminance by under 0.1, saturated red does not pulse, small elements stay under 10% of the view (safety.md, limits.md). This applies to every element together, not each one alone.
-- `prefers-reduced-motion`: no drift, pulse or particles; colour still changes, glided over at least 3 seconds.
-- Contrast: the controls on top must keep at least 4.5:1 whatever the model draws (the player already puts them on a scrim).
-- Listener limits: an owner setting for visual intensity (off, gentle, full), next to the existing maximum lightness and saturation. Enforced on the server and again in the player, like the other limits.
-- No text, faces or recognisable imagery in v1: the field is atmosphere.
-
-## Open questions
-- Is the field a full-screen background only, or can it have a focal element (a single shape the eye follows)?
-- Should the model see a small preview of what it drew (like the spectrogram), or only the parameters?
-- Presets or free parameters first? Presets are safer and quicker to ship.
-- How much of this should the owner be able to switch off per session?
-
-## Suggested first step
-Add radial and conic gradients and a "breathe" and "orbit" motion to the existing field, driven by the mood in `follow` mode, with the owner's visual-intensity limit. See what it feels like before adding model-chosen scenes.
-
-**Veil layers (2026-11-13).** A `veil` layer is a field of 0 to 1 over the view in one colour, as fine as the picture is wide (up to about 150 cells across), built ten steps per beat for smoke (fewer for clouds and aurora) and blended between the two steps around now, so the motion is smooth; the painter smooths it up. `toneLayer` (`colour-math.ts`) gives its colour and the most opaque it may be. Since the flash cap was lifted (2026-11-13) the budgets given to it are artistic, not a limit.
-
-### v0.17.1 (2026-11-14): fixes from the v0.17.0 test
-- **Narrow views crop, they do not squeeze.** Veil scenes sample the middle part of the design square when the view is narrower than tall (`veil()` in `scenes.ts`), and aurora, fire, cracks, lightning and sunbeam spread their items by 1/aspect about the middle (`cover()`), so a phone shows fewer bands and flames of the same shape. Flock, circuit, network and scope work in real pixels and are unchanged.
-- **Vignette** is measured in screen space (an ellipse of the view), so all four edges darken on a phone.
-- **Light scenes on a bright base.** Aurora, sunbeam, stars, fireflies, fireworks, embers, warp, motes, lightning and cracks get a uniform dark veil under them (`lightSceneDim`, up to 0.6 opacity, from a relative luminance of 0.42). It is not reported in `clamped`.
-- **Warp** has no wash of its own: the nebula is the field's own hue and only glows round the core.
-- **Caustics and smoke** are built at up to 260 cells across (v0.17.2; was 150), and the painter smooths them at high quality.
-- **Fireflies and motes** sit on an evenly spread sequence (R2), so none overlap. Flock birds are small beating wings, and its `speed` scales the simulation rate. Fireworks have trails and a burst flash, up to 8 at once, and a slow speed is much slower. Cracks hit exactly on a beat (every beat at density 1, every 4th at 0) and each lasts under 3 beats. Digital rain draws half-width katakana and digits. Leaves vary from narrow to broad. Aurora rays are softer.
-- **Mood to scene.** `MOOD_PROTOTYPES` (`mood-mapping.ts`) holds the axes that give each of the 14 test emotions its scene; a test pins all of them and the table is below. A tester should send these values. Cold anger and dread no longer take the red of plain anger.
-- **Picture buttons** are "Gradient" and "Scenes", side by side, outlined in teal with a check when on.
-- **Fade.** The picture's opacity follows the level to the power 1.7, so it keeps up with the sound.
+`MOOD_PROTOTYPES` (`mood-mapping.ts`) holds the axes that give each of the 14 test emotions its scene; a test pins all of them. A tester should send these values:
 
 | Mood | Scene | warmth | closeness | joy | calm | spontaneity | tension |
 |---|---|---|---|---|---|---|---|
@@ -159,33 +70,36 @@ Add radial and conic gradients and a "breathe" and "orbit" motion to the existin
 | serene | stars | 0.5 | 0.2 | 0.5 | 0.9 | 0.2 | 0 |
 | restless | flock | 0.5 | 0.4 | 0.45 | 0.45 | 0.95 | 0.1 |
 
-### v0.17.2 (2026-11-14): fixes from the v0.17.1 test
-- **Bright base under a light scene.** The dark veil of v0.17.1 was drawn first, then the gradient's lights (matched to the bright base) painted over it and washed it out. Now `visualFrame` darkens the base the scenes and the lights are computed against (`bases`), and the veil is the first layer, so the aurora, sunbeam, stars, fireflies, fireworks and warp all pick their light variants. The dim starts at a relative luminance of 0.25 (0.12 for the aurora) and reaches 0.65 at about 0.7.
-- **The colour glides in the canvas too.** The CSS base colour glided over a state's transition but the scene and the lights were drawn from the new colour at once (`feel` included), so a mood change redrew the scene and jumped the gradient. `blendColour` (`visual.ts`) glides hue (short arc), saturation, lightness, the second colour and the feel from the previous colour to the state's own over its transition, by the server's clock (`visual-canvas.tsx`). A scene change keeps its crossfade. This is the second candidate cause of the end-of-session redraw (a closing sound that changes the mood), next to the tempo glide fixed in v0.17.1.
-- **Aurora:** the curtain's columns are interpolated (no column shows as a bar), the striations are gentler, the lower edge is softer and the rays are fainter.
-- **Resolution:** caustics and smoke up to 260 cells across, fire 200.
-- **Digital rain** has 14 to 34 columns: more columns than the 400-item budget allows lost the whole right side. **Fireworks** speed also sets how fast the sparks fly out. **Motes** are never hard-edged. **Leaves** go from narrow to broad, and a fifth are lobed maple leaves.
+### How the mood shapes the motion
+Starting values, tuned by eye, not backed by evidence. They come from the same stretched axes as the sound (`moodToFeel`), so the picture cannot disagree with the sound, and none of them is only a hue.
+
+| Axis | In the picture |
+|---|---|
+| calm | how hard it follows the beat (`depth`): calm leans to a slow swell over 4 bars, low calm to a pulse on each beat |
+| joy | `lift`: high joy opens the glow on the beat and lets motes rise; low joy contracts it and lets them sink |
+| tension | `jitter`: the glow jumps a little each beat, the pulse gets a quick decay and an off-beat accent |
+| warmth | `soft`: soft edges and sine swells; cold is harder-edged |
+| closeness | `near`: bigger glow and bigger motes, thicker rings |
+| spontaneity | `irreg`: uneven timing and placement |
+
+The model can set `scene`, `density`, `speed` and `sync` in `colour`; the rest is the mood's. Above 180 BPM the beat motion runs at half-time (a bar is 4 beats; 4/4 is assumed). In beat sync the first beat of each bar hits hardest; phrase sync (4 bars) has no per-beat bump. The beat shows in the form as well as the brightness: the glow swells, motes grow, streaks stretch, rings thicken.
+
+## Colour play and flashing
+Each moving light is painted at the lightness that changes the field's relative luminance least (`matchedLayer`, `colour-math.ts`), and its real worst-case swing per unit of opacity (`Layer.k`) is what counts, so the colour can be strong and pulse with the music while the brightness stays still. A test checks the declared swing against the real luminance change of the blend over random fields.
+
+The flash rule is lifted for the large elements (Gael, 2026-11-13): nothing scales the wash, the glow, the layers or the veils to a luminance swing any more, and saturated red is not special-cased. Small items (motes, rings, streaks) still share a budget in `capFrame`: at most 10% of the view and 400 items. See [implementation/limits.md](implementation/limits.md). A scene that thins to fit (digital rain) drops its tails evenly by cell, not in order, so the right side is not cut.
+
+## Standing behaviours
+- **Narrow views crop, they do not squeeze.** Veil scenes sample the middle part of the design square when the view is narrower than tall, and scenes that spread items (aurora, fire, cracks, lightning, sunbeam) spread them by 1/aspect about the middle, so a phone shows fewer bands and flames of the same shape. Flock, circuit, network and scope work in real pixels. The vignette is an ellipse of the view.
+- **Light scenes on a bright base.** Aurora, sunbeam, stars, fireflies, fireworks, embers, warp, motes, lightning, cracks, smoke and clouds get a dark veil under them (`lightSceneDim`): `visualFrame` darkens the base the scenes and the lights are computed against, so they pick their light variants. It is not reported in `clamped`.
+- **A `veil` layer** is a field of 0 to 1 over the view in one colour, as fine as the picture is wide (up to 380 cells across for caustics, 260 for smoke, 200 for fire), blended between the two steps around now so the motion is smooth. `toneLayer` (`colour-math.ts`) gives its colour and the most opaque it may be.
+- **Colour glides in the canvas too.** `blendColour` (`visual.ts`) glides hue (short arc), saturation, lightness, the second colour and the feel from the previous colour to the state's own over its transition, by the server's clock. A scene change keeps its crossfade of at least 1.5 s; after a silence the old scene fades out in 0.6 s from the level it was painted at, and one below 0.05 is dropped at once. A fade in from nothing starts when the state arrives on the device. Nothing shows at level 0, so no scene starts there.
+- **The picture's opacity follows the level to the power 1.7**, so it keeps up with the sound.
 - **`mode: "follow"`** keeps a scene, density, speed or sync sent in the same call.
+- **`?debug`** (`?debug=1`, `?debug=true`) writes the picture's `[picture]` lines (new state, level fades, scene changes, beat jumps, the Strudel view) with `console.info`, in any build.
+- **Known weak spot:** aurora is the heaviest to draw; on a 4x throttled CPU it was the only scene that made the canvas shrink.
 
-### v0.17.3 (2026-11-14): fixes from the v0.17.2 test
-- **Aurora:** the thin rays are gone (they read as hard lines); only the two veils remain, with soft striations.
-- **Smoke and clouds on a bright base** now count as light scenes: the base goes dark under them (the tone they pick is then the lighter one). The dim also reaches further (up to 0.8, from 0.65, slope 1.8), so pale fireflies and fireworks show on yellow.
-- **Caustics** up to 380 cells across and softer lines (exponent 10, was 14), so the lines do not step.
-- **Digital rain:** the 10% area budget of `capFrame` drops items in order, which cut the right side on a phone (bigger glyphs per view). The scene now thins its tails evenly, by cell, until it fits.
-- **Fireworks:** the rocket's climb takes 2.4 beats at speed 0 and 0.8 at speed 1 (it was one beat).
-- **Warp under `sync: "phrase"`:** the core swells once over four bars, the ring takes four bars (one per phrase), instead of the per-beat pulse and a ring every two beats.
-- Not changed: the old animation coming back first after a plain `silence`; `reads_as` joy.
-
-
-### v0.17.4 (2026-11-14): fixes from the v0.17.3 test
-- **Aurora on a phone:** the veil grid was always 2:1, so the veil's crop for a tall view never applied and the whole curtain was squeezed into the narrow width. The grid now has the view's shape (up to 320 rows), so a phone sees the middle of the curtain at normal width, with fewer streaks.
-- **Smoke on a bright base:** the base goes to the full dark (up to 0.95, slope 2.4) under smoke, as dark as under a dark colour. At 0.8 the scene was still much brighter than the dark-base smoke the tester liked.
-- **Warp under `sync: "phrase"`:** only the core's swell follows the phrase (four bars); the rings keep their pace of one every two beats (v0.17.3 slowed them to one per phrase, and warp should feel fast).
-
-
-### v0.19.2 (2026-11-15): fixes from the v0.19.1 test
-- **Old scene under the new one after a silence.** A scene change after a silence (the state before aimed at volume 0) fades the old scene out in 0.6 s, not over the transition: what is left of it is only what was fading out with the sound, and in one run in two it still showed under the new scene's fade-in (fire under caustics, `set_sound` about 1 s after the silence, fade 4). A change between two sounding states keeps its crossfade of at least 1.5 s. v0.19.3: the old scene fades out from the level it was painted at in the last frame (it took the new state's level before: 0.39 for a fire that had faded to almost nothing, faint but visible in the v0.19.2 tests), and one below 0.05 is dropped at once. A fade in from nothing starts when the state arrives on the device, not when the server wrote it, so a state that arrives a second late no longer pops in at a third of its level. Nothing shows at level 0, so no scene starts there: a silence logged a new scene every frame (`[picture]` lines are also deduplicated, `lib/debug.ts`).
-- **`?debug`:** the picture's `[picture]` console lines (new state, level fades, scene changes, beat jumps, the Strudel view on and off) are written with `console.info` for `?debug`, `?debug=1` and `?debug=true`, in any build.
-
-## Strudel
-While Strudel plays and the listener has "Strudel visuals" on, this picture is not drawn: the Strudel view takes its place (the canvas keeps the level and the beat for it). See [implementation/strudel.md](implementation/strudel.md), "The picture".
+## Comfort
+- `prefers-reduced-motion`: no drift, pulse or particles; colour still changes, glided over at least 3 seconds.
+- Contrast: the controls on top keep at least 4.5:1 whatever the model draws (the player puts them on a scrim).
+- No text, faces or recognisable imagery: the field is atmosphere.

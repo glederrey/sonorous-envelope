@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude Code Stop hook for Sonorous Envelope (roadmap step 9, docs/implementation/stop-hook.md).
+// Claude Code Stop hook for Sonorous Envelope (docs/implementation/stop-hook.md).
 //
 // The server instructions ask the model to end every message with one set_sound call with final=true. Models forget. This hook reads
 // the conversation's own transcript (Claude Code passes its path), so it needs no token and never calls the server: if a sound session

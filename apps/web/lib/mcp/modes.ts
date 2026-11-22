@@ -19,9 +19,9 @@ export const MODE_ID: Record<Face, string> = { internal: "self", external: "attu
 
 /** One line on who decides, for tooltips and the player. */
 export const MODE_HINT: Record<Face, string> = {
-  internal: "The sound is the model's own state. You have no say in it",
-  external: "The model plays for what you need, read from how you are",
-  sandbox: "You choose what plays. The model performs it",
+  internal: "The sound is the AI's own state. You have no say in it",
+  external: "The AI plays for what you need, read from how you are",
+  sandbox: "You choose what plays. The AI performs it",
 };
 
 /** The model sends self, attuned or jukebox; the stored values and the old inner and outer are aliases. Anything unknown is internal, the safe default. */

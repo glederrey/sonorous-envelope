@@ -3,7 +3,7 @@
 ## Decision
 The project is licensed **AGPL-3.0-or-later** (file `LICENSE`, `license` field in every `package.json`).
 
-Why: the Strudel mode (issue #18, roadmap) runs Strudel in the player. Every Strudel package we would use (`@strudel/web`, `@strudel/core`, `@strudel/webaudio`, `@strudel/mini`, `@strudel/transpiler`, `superdough`) is `AGPL-3.0-or-later` on npm, and the project itself is AGPL-3.0. Combining it with our code makes the combined work AGPL. Licensing the whole repo as AGPL from the start avoids a later relicense.
+Why: the Strudel mode (issue #18) runs Strudel in the player. Every Strudel package we would use (`@strudel/web`, `@strudel/core`, `@strudel/webaudio`, `@strudel/mini`, `@strudel/transpiler`, `superdough`) is `AGPL-3.0-or-later` on npm, and the project itself is AGPL-3.0. Combining it with our code makes the combined work AGPL. Licensing the whole repo as AGPL from the start avoids a later relicense.
 
 Checked 2026-11-08 on npm and in the Strudel repository (codeberg.org/uzu/strudel). Check again before adding the dependency.
 
@@ -24,7 +24,6 @@ The code is written by Gael Lederrey with Claude Code. Gael holds the copyright;
 ## Other dependencies
 Runtime dependencies so far (Next.js, React, Supabase client, `mcp-handler`, zod, `jose`) are MIT or Apache-2.0, which are compatible with AGPL. Before adding a dependency, check its licence. Avoid anything with a "non-commercial" or "no derivatives" clause.
 
-- **Essentia models** (CC BY-NC-SA, see feedback.md) are data, not code, and their non-commercial term does not sit well with AGPL. Do not ship them in the repo or bundle. Keep them optional and downloaded separately, or choose another analysis route, when step 7 comes.
 - **Sonic Pi** (MIT) and **TidalCycles** (GPL) are not used.
 
 ## Not legal advice

@@ -701,6 +701,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         )}
         {phase === "ready" && !started && (
           <div className="pl-start">
+            <h1 className="se-visually-hidden">Sonorous Envelope player</h1>
             <p className="pl-lede">{isOwner ? "Your AI" : "Someone's AI"} is making this sound.<br />You stay in control of the volume.</p>
             <button type="button" className="se-btn se-btn-primary pl-start-btn" onClick={start} disabled={starting}>
               {starting ? "Starting…" : "Start listening"}

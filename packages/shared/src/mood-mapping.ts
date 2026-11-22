@@ -7,7 +7,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const pick = <T>(list: readonly T[], t: number) => list[Math.min(list.length - 1, Math.floor(t * list.length))];
 
-/** All tuning constants in one place. Calibrate by ear (docs/roadmap.md). */
+/** All tuning constants in one place. Calibrate by ear (docs/implementation/mood-mapping.md). */
 export const TUNING = {
   rootMidi: 50,
   slowFraction: 0.25,

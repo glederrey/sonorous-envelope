@@ -11,7 +11,7 @@ export { hash01, SCENES, GLYPHS, type Item, type Layer, type SceneName } from ".
 // The picture that moves over the colours (docs/visuals.md). Everything here is a pure function of the colour, the tempo, the beat
 // count and the time, so every listener sees the same thing, and a test can check the flash rule without a canvas.
 //
-// The flash rule is lifted for the large elements (Gael, 2026-11-13, docs/safety.md): MAX_LARGE_SWING (0.09) is the old target and `largeSwing` still measures it, but nothing scales the wash, the glow or the layers to it.
+// The flash rule is lifted for the large elements (Gael, 2026-11-13, docs/implementation/limits.md): MAX_LARGE_SWING (0.09) is the old target and `largeSwing` still measures it, but nothing scales the wash, the glow or the layers to it.
 // What `capFrame` still does: small elements (motes, rings, streaks) together cover at most MAX_SMALL_AREA of the view, and at most MAX_ITEMS of them.
 //   - Above HALF_TIME_BPM the beat motion runs at half-time, for looks.
 

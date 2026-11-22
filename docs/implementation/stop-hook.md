@@ -1,4 +1,4 @@
-# Final-update hook for Claude Code (roadmap step 9)
+# Final-update hook for Claude Code
 
 The server instructions ask the model to end every message with one `set_sound` call with `final: true`. Models forget, and then the turn counter, `pending_final` and the "no final update last turn" note do the catching up afterwards. In Claude Code a `Stop` hook can catch it before the turn ends.
 
@@ -19,7 +19,7 @@ Blocking prints `{"decision":"block","reason":...}`; the reason tells the model 
 
 ## Why the transcript and not the server
 
-The roadmap first planned `GET /api/hook/turn-status?session=<id>`. A hook script has neither the caller's OAuth token (the connector holds it) nor the session id, and the repo rule forbids a service-role or unauthenticated shortcut. The transcript already holds every call and its `final` flag, on the user's own machine. So: no route, no token, nothing sent anywhere.
+The first plan was `GET /api/hook/turn-status?session=<id>`. A hook script has neither the caller's OAuth token (the connector holds it) nor the session id, and the repo rule forbids a service-role or unauthenticated shortcut. The transcript already holds every call and its `final` flag, on the user's own machine. So: no route, no token, nothing sent anywhere.
 
 Two limits, both handled by failing open (the hook never blocks on an error):
 - The transcript format is internal to Claude Code and can change. If it does, the hook stops finding calls and lets every stop through.

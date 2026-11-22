@@ -261,7 +261,7 @@ export function Envelope({ className }: { className?: string }) {
     >
       <defs>
         <linearGradient ref={gradient} id="env-stroke" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#f4a940" />
+          <stop offset="0" stopColor="#f4a940" className="lp-env-amber" />
           <stop offset="1" stopColor="#45c7b6" />
         </linearGradient>
       </defs>

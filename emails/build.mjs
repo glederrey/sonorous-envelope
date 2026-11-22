@@ -1,5 +1,6 @@
 // Builds the Supabase auth email templates into emails/dist/*.html.
 // Run: pnpm emails. Paste each file into Supabase: Authentication -> Emails -> Templates.
+// Details: docs/implementation/auth.md, "Auth emails".
 // Variables ({{ .ConfirmationURL }} etc.) are Supabase's Go template syntax, left as is.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

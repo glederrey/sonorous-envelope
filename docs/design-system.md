@@ -12,7 +12,7 @@ It holds:
 - **Fonts:** Roboto for text, JetBrains Mono for data (numbers, settings, URLs, the status line). Load both with `next/font/google`.
 - **Colour:** dark is home. Two brand hues from the logo: `glow` (warm amber, the one primary action) and `tide` (cool teal, selection, links, focus). Controls on the colour field sit on a translucent `scrim`, which keeps text at 4.5:1 or more even over a white field.
 - **Icons:** Lucide.
-- **Safety in the UI:** mute always visible, no colour-only signals, and no brightness cycle faster than 3 Hz (see [safety.md](safety.md)).
+- **Safety in the UI:** mute always visible, no colour-only signals, and and `prefers-reduced-motion` turns the moving picture off (see [implementation/limits.md](implementation/limits.md)).
 
 ## Where each part is used
 
@@ -24,7 +24,7 @@ It holds:
 
 ## In the code
 
-State of `apps/web`: the home page is a placeholder that uses only `bg` and `ink` (CSS variables in `app/globals.css`, with `prefers-color-scheme` for light). Fonts (`next/font/google`), the remaining tokens and the `se-` components are added as pages need them. Keep the tokens in one place (CSS variables generated from or checked against `brand/tokens.json`) instead of copying values into components.
+The tokens are CSS variables in `apps/web/app/globals.css`, with `prefers-color-scheme` for light; `docs/brand/tokens.json` is cited there. Keep the tokens in one place instead of copying values into components.
 
 ## Logo
 

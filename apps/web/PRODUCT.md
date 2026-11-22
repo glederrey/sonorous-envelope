@@ -22,11 +22,11 @@ A sound and colour channel for an LLM, with feedback on what was really produced
 
 ## Operating Context
 
-Sessions start from a chat. The player stays open in a tab or on a second screen while the user reads. Pages outside the player (landing, guide, safety, login, sessions, settings) are short and mostly read or fill a form.
+Sessions start from a chat. The player stays open in a tab or on a second screen while the user reads. Pages outside the player (landing, guide, privacy, login, sessions, settings) are short and mostly read or fill a form.
 
 ## Capabilities and Constraints
 
-Next.js on Vercel, Supabase (auth, Postgres, Realtime). Safety limits are enforced on the server. No flashing faster than 3 Hz. Live: `start_session`, `set_sound`, `strudel_mode` (Strudel in the Attuned and Jukebox modes), `get_feedback`, `silence`, `inspect`, the player at `/s/<id>`, reactions (owner, Attuned and Jukebox only), `reads_as`. Not yet: the spectrogram image, listener limits. The landing page must not claim features that are not shipped.
+Next.js on Vercel, Supabase (auth, Postgres, Realtime). The master volume never goes above 0.9, enforced on the server and again in the player; the 3 Hz cap applies only to the legacy CSS pulse (docs/implementation/limits.md). Live: `start_session`, `set_sound`, `strudel_mode` (Strudel in the Attuned and Jukebox modes), `get_feedback`, `silence`, `inspect`, the player at `/s/<id>`, reactions (owner, Attuned and Jukebox only), `reads_as`. Also live: `inspect` with the snapshot (the picture and a spectrogram of the player's output). Not yet: listener limits. The landing page must not claim features that are not shipped.
 
 ## Brand Commitments
 

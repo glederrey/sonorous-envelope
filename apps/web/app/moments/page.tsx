@@ -3,7 +3,7 @@ import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
 import { SavedList, type SavedRow } from "./saved-list";
 
-export const metadata = { title: "Saved moments" };
+export const metadata = { title: "Moments" };
 
 export default async function SavedPage() {
   const supabase = await createClient();
@@ -22,7 +22,7 @@ export default async function SavedPage() {
       <SiteHeader />
       <main className="doc-page">
         <div className="doc-head">
-          <h1 className="doc-title">Saved moments</h1>
+          <h1 className="doc-title">Moments</h1>
         </div>
         <SavedList moments={moments} />
       </main>
