@@ -34,6 +34,8 @@ export function hardCaps(s: EngineState, note: (field: string, from: number | st
   // the absolute volume cap; the listener's own slider is the volume control
   if (!Number.isFinite(s.volume)) { note("volume", String(s.volume), 0, "safety"); s.volume = 0; } // NaN passes every comparison: never let it reach the engine
   else if (s.volume > 0.9) { note("volume", s.volume, 0.9, "safety"); s.volume = 0.9; }
+  // the listener's level only ever lowers a Strudel pattern (#170): never above 0 dB, never below -10
+  if (s.listenerDb !== undefined) s.listenerDb = Number.isFinite(s.listenerDb) ? Math.min(0, Math.max(-10, s.listenerDb)) : 0;
   s.pan.width = Math.min(1, Math.max(0, s.pan.width));
 }
 

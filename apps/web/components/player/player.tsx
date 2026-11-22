@@ -193,7 +193,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     if (!a) return;
     if (patternOn(p)) {
       a.setState({ ...p.state, volume: 0 }, p.seed, delay, elapsed); // the synth is paused: it fades out over the transition
-      void ensureStrudel().then((o) => o?.play({ id: p.id ?? null, code: p.state.pattern!.code, bpm: p.state.pattern!.bpm, seed: p.seed & 0xffff }));
+      void ensureStrudel().then((o) => {
+        o?.setLevel(10 ** ((p.state.listenerDb ?? 0) / 20)); // the listener's level (#170): the same code with a new level only changes this
+        return o?.play({ id: p.id ?? null, code: p.state.pattern!.code, bpm: p.state.pattern!.bpm, seed: p.seed & 0xffff });
+      });
     } else {
       // The pattern fades out, at most 3 s, and the new synth state starts when that fade is almost done, so a closing sound does not
       // overlap it (a stop already under way is not restarted).

@@ -32,7 +32,7 @@ interface SessionRow {
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean; motif?: { name?: string }; overridden?: string[] }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean; from_bpm?: number; motif?: { name?: string }; overridden?: string[] }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 /** A kept moment: a self-contained copy of the sound and picture that played (migration 0022), so it survives the states it came from. */
@@ -233,18 +233,27 @@ type Compact = { sound: Record<string, unknown>; reads_as: Record<string, number
 
 /** The most one call may raise the loudness of the sound (dB). Going down is never limited. */
 const LEVEL_STEP_DB = 4;
+/** How long after strudel_mode off the pattern counts as what the listener just heard, for the pace hold of a switch into Attuned (#170). */
+const PATTERN_HEARD_MS = 30_000;
+
 /** Step rates from slowest to busiest, for holding the pace on a switch into Attuned. */
 const RATE_ORDER: EngineState["arp"]["rate"][] = ["1/4", "1/8", "1/8t", "1/16"];
 
 /** Measure what the state sounds like. It must never break a call: on any failure the feedback just has no reading. */
+const LEVEL_PRESS_DB = 2, LEVEL_FLOOR_DB = -10;
+const dbGain = (db: number) => 10 ** (db / 20);
+
 function measureState(effective: EngineState, seed: number): Compact | null {
   try {
     if (effective.volume <= 0) return null;
     // read the sound itself: not where its step counters happen to be on the shared timeline, nor a tempo glide still in progress,
     // which would change which notes a random pattern plays in the measured window
-    const steady: EngineState = { ...effective, grid: { arp: 0, bass: 0 } };
+    // The listener's level (#170) is theirs: reads_as reads the sound at the usual level, so a quieter setting does not read as calmer and
+    // the model does not correct for something it cannot change. Loudness scales exactly with the gain, so loudness_db is shifted back.
+    const lvl = effective.listenerDb ?? 0;
+    const steady: EngineState = { ...effective, volume: lvl < 0 ? effective.volume / dbGain(lvl) : effective.volume, grid: { arp: 0, bass: 0 } };
     const a = analyze(steady, seed);
-    return { sound: a.sound, reads_as: a.reads_as, why: a.why };
+    return { sound: lvl < 0 ? { ...a.sound, loudness_db: a.sound.loudness_db + Math.round(lvl) } : a.sound, reads_as: a.reads_as, why: a.why };
   } catch (e) {
     console.error("analysis failed:", e);
     return null;
@@ -268,20 +277,34 @@ function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Comp
   return { analysis, note: `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further` };
 }
 
-/** A "softer" or "calmer" this call answers must not come back louder. The model has no volume of its own, and a calmer mood carries its
- *  own level, which could rise (v0.23.2 report). This call answers the presses it delivers now (still pending: the normal path, they show in
- *  its own `reactions`) and the ones pressed after the last state and delivered through listen. A press made before the last state was
- *  pending then, so that state already answered it (v0.23.3 report: the rule fired one call late, and twice). */
-async function askedQuieter(db: Db, sessionId: string, prev: StateRow | null): Promise<"softer" | "calmer" | undefined> {
-  if (!prev) return undefined;
-  const since = new Date(prev.created_at).toISOString();
-  try { // never break a call over a reaction
-    const { data, error } = await db.from("reactions").select("kind").eq("session_id", sessionId).in("kind", ["softer", "calmer"])
-      .or(`delivered_at.is.null,created_at.gt.${since}`).limit(10);
-    if (error || !data?.length) return undefined;
-    const kinds = (data as Array<{ kind: string }>).map((r) => r.kind);
-    return kinds.includes("softer") ? "softer" : "calmer";
-  } catch { return undefined; }
+/** The presses a call answers: the ones it delivers now (still pending: the normal path, they show in its own `reactions`) and the ones
+ *  pressed after the last state and delivered through listen. A press made before the last state was pending then, so that state already
+ *  answered it (v0.23.3 report: the rule fired one call late, and twice). Listener modes only; never breaks a call. */
+async function answeredPresses(db: Db, sessionId: string, prev: StateRow | null): Promise<Record<"softer" | "calmer" | "harsher" | "stormier", number>> {
+  const n = { softer: 0, calmer: 0, harsher: 0, stormier: 0 };
+  if (!prev) return n;
+  try {
+    const { data, error } = await db.from("reactions").select("kind").eq("session_id", sessionId).in("kind", Object.keys(n))
+      .or(`delivered_at.is.null,created_at.gt.${new Date(prev.created_at).toISOString()}`).limit(50);
+    if (error || !data) return n;
+    for (const r of data as Array<{ kind: keyof typeof n }>) if (r.kind in n) n[r.kind]++;
+  } catch { /* never break a call over a reaction */ }
+  return n;
+}
+
+/** The listener's level (#170): each "softer" lowers it 2 dB and it holds, down to -10 dB; each "harsher" or "stormier" raises it 2 dB back
+ *  toward 0. Only the listener's presses move it: the model has no volume. A "softer" also keeps that call at least 2 dB under the last one,
+ *  and a "calmer" keeps it no louder (holdLevel), since a calmer mood carries its own sound, which can measure louder. */
+function listenerLevel(was: number | undefined, p: Record<"softer" | "calmer" | "harsher" | "stormier", number>) {
+  const from = was ?? 0, raise = p.harsher + p.stormier;
+  const to = Math.min(0, Math.max(LEVEL_FLOOR_DB, from - LEVEL_PRESS_DB * p.softer + LEVEL_PRESS_DB * raise));
+  const why = p.softer && raise ? "softer and louder presses" : p.softer ? "softer" : p.harsher ? "harsher" : "stormier";
+  const note = to < from ? `level: the listener asked for ${why}, so everything plays ${from - to} dB lower from now on (${to} dB in all, ${LEVEL_FLOOR_DB} at most). Only their presses raise it again (harsher or stormier); you cannot`
+    : to > from ? `level: the listener's ${why} raised the level ${to - from} dB (${to === 0 ? "back to the usual level" : `${to} dB in all`})`
+    : p.softer && from <= LEVEL_FLOOR_DB ? `level: the listener asked for softer, but the level is at its lowest (${LEVEL_FLOOR_DB} dB): their volume slider goes further` : undefined;
+  // at the floor a softer cannot hold any lower: that call is kept no louder, instead of dipping once and rising on the next
+  const asked: "softer" | "calmer" | undefined = p.softer && to < from ? "softer" : p.softer || p.calmer ? "calmer" : undefined;
+  return { db: to, note, asked };
 }
 
 /** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
@@ -487,17 +510,27 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
     adopted = true;
   }
   overridden.colour = applyColour(overridden.colour, sticky.colour);
+  // the listener's level: the presses this call answers move it, and it holds (#170)
+  // In Self nobody steers and there are no buttons to raise it again, so Self plays at the usual level; the level waits for the next listener mode.
+  const lv = forListener(sw.face) ? listenerLevel(sticky.levelDb, await answeredPresses(db, session.id, prev)) : { db: 0, note: undefined, asked: undefined };
+  if (forListener(sw.face)) { if (lv.db < 0) sticky.levelDb = lv.db; else delete sticky.levelDb; }
+  overridden.volume *= dbGain(lv.db);
+  if (lv.db < 0) overridden.listenerDb = lv.db;
   const { effective, clamps } = applyLimits({
     mapped: overridden, transition,
   });
   const allClamps = mergeClamps(clamps);
   // The call that switches into Attuned is the first sound made for the listener: like the level (below), it is no faster and no busier
   // than what they hear now. Tempo, step rate and note density are held at what played; the model can move them on its next calls.
-  if (switched && sw.face === "external" && prev && tempoHeard(prev, now)) {
+  // Just after Strudel (strudel_mode off, within PATTERN_HEARD_MS), what they heard was the pattern: its tempo is the one to hold to (#170).
+  const patternBpm = prev?.intent.strudel_off && prev.intent.from_bpm && now - new Date(prev.created_at).getTime() < PATTERN_HEARD_MS ? prev.intent.from_bpm : undefined;
+  if (switched && sw.face === "external" && prev && (tempoHeard(prev, now) || patternBpm !== undefined)) {
+    const synthHeard = tempoHeard(prev, now);
     const was = prev.effective.arp, held: string[] = [];
-    if (effective.arp.tempo > was.tempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(was.tempo)} bpm`); effective.arp.tempo = was.tempo; }
-    if (RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
-    if (effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
+    const wasTempo = synthHeard ? was.tempo : patternBpm!;
+    if (effective.arp.tempo > wasTempo + 0.5) { held.push(`tempo ${Math.round(effective.arp.tempo)} to ${Math.round(wasTempo)} bpm`); effective.arp.tempo = wasTempo; }
+    if (synthHeard && RATE_ORDER.indexOf(effective.arp.rate) > RATE_ORDER.indexOf(was.rate)) { held.push(`rate ${effective.arp.rate} to ${was.rate}`); effective.arp.rate = was.rate; }
+    if (synthHeard && effective.arp.density > was.density + 0.01) { held.push(`density ${effective.arp.density.toFixed(2)} to ${was.density.toFixed(2)}`); effective.arp.density = was.density; }
     if (held.length) allClamps.push(`pace held: the first sound of a switch to Attuned is no faster or busier than what played (${held.join(", ")}); reads_as reads the held sound, so its calm is higher than sent: do not correct for that. If the listener asked for more energy, send it again now with a transition of 8 s or more, so it rises to the pace they asked for`);
   }
   effective.grid = nextGrid(prev, now, effective); // where the step grids are on the shared timeline when this state starts
@@ -505,9 +538,9 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const seed = randomSeed();
   let analysis = measureState(effective, ANALYSIS_SEED);
   // The call that switches into Attuned raises nothing: the listener hears the first sound made for them, so it starts no louder than what played.
-  // A "softer" the model has read since its last sound makes this one at least 2 dB quieter; a "calmer", no louder.
-  const asked = forListener(sw.face) ? await askedQuieter(db, session.id, prev) : undefined;
-  const stepDb = Math.min(switched && sw.face === "external" ? 0 : LEVEL_STEP_DB, asked === "softer" ? -2 : asked === "calmer" ? 0 : Infinity);
+  // The call that answers a "softer" is at least 2 dB under the last sound; one that answers a "calmer", no louder.
+  const asked = lv.asked;
+  const stepDb = Math.min(switched && sw.face === "external" ? 0 : LEVEL_STEP_DB, asked === "softer" ? -LEVEL_PRESS_DB : asked === "calmer" ? 0 : Infinity);
   const level = holdLevel(effective, prev, analysis, stepDb, asked && stepDb <= 0 ? asked : undefined);
   analysis = level.analysis;
   if (level.note) allClamps.push(level.note); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
@@ -531,7 +564,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), expiredNote(prev, effective, fields), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), expiredNote(prev, effective, fields), lv.note, analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -626,22 +659,26 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   delete effective.motif; // a phrase plays once, on the call that sent it: a moment brought back does not play it again
   effective.grid = nextGrid(prev, now, effective);
   const strudel = effective.engine === "strudel";
-  const asked = forListener(face) ? await askedQuieter(db, session.id, prev) : undefined;
-  const stepDb = asked === "softer" ? -2 : asked === "calmer" ? 0 : LEVEL_STEP_DB;
-  const level = holdLevel(effective, prev, strudel ? null : m.analysis ?? measureState(effective, ANALYSIS_SEED), stepDb, asked);
+  // the listener's level is the session's now, not the one the moment was kept with (#170)
+  const lv = forListener(face) ? listenerLevel(session.sticky?.levelDb, await answeredPresses(db, session.id, prev)) : { db: 0, note: undefined, asked: undefined }; // Self: the usual level, as in set_sound
+  effective.volume *= dbGain(lv.db - (effective.listenerDb ?? 0));
+  if (lv.db < 0) effective.listenerDb = lv.db; else delete effective.listenerDb;
+  const asked = lv.asked;
+  const stepDb = asked === "softer" ? -LEVEL_PRESS_DB : asked === "calmer" ? 0 : LEVEL_STEP_DB;
+  const level = holdLevel(effective, prev, strudel ? null : measureState(effective, ANALYSIS_SEED), stepDb, asked);
   const allClamps = mergeClamps(clamps, level.note ? [level.note] : []);
   const intent = { mood: m.intent_mood ?? NEUTRAL_MOOD, note: `recalled "${name}"`, recalled: name };
   const slow = prev.slow_mood ?? NEUTRAL_MOOD;
   const stateId = await insertState(db, now, { session_id: session.id, turn: turn.stateTurn, final: input.final, intent, effective, clamps: allClamps, seed: randomSeed(), slow_mood: slow, analysis: level.analysis });
   const { error } = await db.from("sessions").update({
     current_state_id: stateId, last_active_at: new Date(now).toISOString(), pending_final: !input.final, turn: turn.sessionTurn(session.turn),
-    sticky: m.sticky, voice: m.voice, // the next set_sound continues in the voice of that moment
+    sticky: { ...(m.sticky ?? {}), levelDb: forListener(face) ? (lv.db < 0 ? lv.db : undefined) : session.sticky?.levelDb }, voice: m.voice, // the next set_sound continues in the voice of that moment; the level is the listener's
   }).eq("id", session.id);
   if (error) fail("save the session", error);
 
   const rest = restInfo(prev, settings, now, face);
   // like set_sound: say when the tempo glides and the rate steps on the way back (v0.23.2 report)
-  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, strudel ? undefined : tempoNote(prev, effective, now), strudel ? undefined : rateNote(effective), turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, strudel ? undefined : tempoNote(prev, effective, now), strudel ? undefined : rateNote(effective), lv.note, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, false);
@@ -712,6 +749,10 @@ async function writePatternState(
 ) {
   const copy: EngineState = JSON.parse(JSON.stringify(prev.effective));
   delete copy.motif;
+  // the listener's level (#170): the paused synth and the pattern follow the session's
+  const levelDb = extra.sticky?.levelDb ?? 0;
+  copy.volume *= dbGain(levelDb - (copy.listenerDb ?? 0));
+  if (levelDb < 0) copy.listenerDb = levelDb; else delete copy.listenerDb;
   build(copy);
   copy.transition = { time: 2, curve: "smooth" };
   const { effective, clamps } = applyLimits({ mapped: copy, transition: copy.transition });
@@ -730,13 +771,15 @@ async function writePatternState(
 
 async function setWhileStrudel(db: Db, session: SessionRow, prev: StateRow, input: SetSoundInput, turn: ReturnType<typeof planTurn>, now: number, switchNote: string | undefined, resolveNote: string | undefined, face: Face, switched: boolean) {
   const sticky = mergeSticky(session.sticky, { colour: input.colour });
+  const lv = forListener(face) ? listenerLevel(sticky.levelDb, await answeredPresses(db, session.id, prev)) : undefined;
+  if (lv) { if (lv.db < 0) sticky.levelDb = lv.db; else delete sticky.levelDb; }
   const title = input.title?.trim().slice(0, 80);
   const { effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final,
     (e) => { applyPatternColour(e, sticky.colour, input.colour, prev.effective.pattern?.bpm, prev.intent.mood); },
     { colour: input.colour, note: input.note, strudel: true }, { title, sticky });
   const ignored = input.mood || input.synth || input.voice || input.keep_voice;
   const p = await presence(db, session.id, session.owner_id, now);
-  const notes = [resolveNote, switchNote, input.motif ? "Strudel is on: the motif was not played; write the phrase in your code" : undefined, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]
+  const notes = [resolveNote, switchNote, lv?.note, input.motif ? "Strudel is on: the motif was not played; write the phrase in your code" : undefined, ignored ? "Strudel is on, so the mood, synth and voice were not used. Only the picture applied. Send strudel_mode with on false to go back to the synth (it comes back silent: a closing sound needs that first, then set_sound; silence with end fades Strudel and the picture)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, liveNote(parseSettings(session.settings), face, input.final)]
     .filter((x): x is string => Boolean(x));
   const stateRow = { ...prev, effective } as StateRow;
   const pattern = await patternFeedback(db, { ...stateRow, id: prev.id }, p.players); // the code did not change: the report of the state that started it
@@ -776,11 +819,14 @@ export async function strudelMode(db: Db, userId: string, input: StrudelModeInpu
   const p = await presence(db, session.id, session.owner_id, now); // before the report: with nobody listening it says so
   const before = wasStrudel ? await patternFeedback(db, prev, p.players) : undefined; // what the player said about the code that played until now
   const sticky = mergeSticky(session.sticky, { colour: input.colour });
+  const lv = forListener(face) ? listenerLevel(sticky.levelDb, await answeredPresses(db, session.id, prev)) : undefined;
+  if (lv) { if (lv.db < 0) sticky.levelDb = lv.db; else delete sticky.levelDb; }
   const title = input.title?.trim().slice(0, 80);
-  const intent = { colour: input.colour, note: input.note, ...(input.on ? { strudel: true } : { strudel_off: true }) };
+  // leaving Strudel keeps the pattern's tempo: a switch to Attuned soon after holds its pace to it (#170)
+  const intent = { colour: input.colour, note: input.note, ...(input.on ? { strudel: true } : { strudel_off: true, ...(wasStrudel && prev.effective.pattern ? { from_bpm: prev.effective.pattern.bpm } : {}) }) };
   let effective: EngineState, clamps: string[];
   let sameCode = false;
-  const notes: string[] = [note ?? ""];
+  const notes: string[] = [note ?? "", lv?.note ?? ""];
   if (input.on) {
     const code = input.code!.trim(), bpm = Math.round(input.bpm! * 10) / 10;
     ({ effective, clamps } = await writePatternState(db, session, prev, now, turn, input.final, (e) => {
