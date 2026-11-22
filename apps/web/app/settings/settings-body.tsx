@@ -19,8 +19,9 @@ export function SettingsBody({ grants, error }: { grants: ConnectedApp[]; error?
               <form key={app.name} action={revokeGrant} className="se-grant">
                 <div>
                   <strong>{app.name}</strong>
-                  <div className="se-sm se-muted">
-                    {app.ids.length === 1 ? `Since ${day(app.first)}` : `Since ${day(app.first)} · last connected ${day(app.last)}`}
+                  <div className="se-sm se-muted se-grant-when">
+                    <span>Since {day(app.first)}</span>
+                    {app.ids.length > 1 ? <><span className="se-grant-dot" aria-hidden> · </span><span>Last connected {day(app.last)}</span></> : null}
                   </div>
                 </div>
                 {app.ids.map((id) => <input key={id} type="hidden" name="client_id" value={id} />)}

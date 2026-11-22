@@ -1155,7 +1155,14 @@ html:has(.pl-field) .se-header {
 }
 .se-grant-last { padding-bottom: 0; border-bottom: 0; }
 .se-grant-last > .se-btn { min-width: 10.5em; justify-content: center; } /* Delete account… and Cancel keep one width, so the text does not reflow */
-@media (max-width: 560px) { .se-grant-last { flex-direction: column; align-items: flex-start; } }
+.se-grant-when > span { white-space: nowrap; }
+/* phone: "last connected" on its own line, the delete button centred under its warning */
+@media (max-width: 560px) {
+  .se-grant-when > span { display: block; }
+  .se-grant-when > .se-grant-dot { display: none; }
+  .se-grant-last { flex-direction: column; align-items: stretch; }
+  .se-grant-last > .se-btn { align-self: center; }
+}
 .se-grant > .se-btn { flex: none; }
 
 /* Theme toggle: a normal button, icon only */
