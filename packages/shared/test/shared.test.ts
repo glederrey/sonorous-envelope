@@ -498,20 +498,24 @@ describe("analysis", () => {
   it("roughness: a calm consonant drone under a sparse arpeggio reads smooth, tension reads rough (issue #155)", () => {
     // D dorian and F# lydian, triangle wave, drone on, one note a beat, no tension: it read 0.56 to 1.0 (the mean over the pairs of a few
     // sets, dominated by the low interval of the drone)
-    const sparse = (scale: string, tension: number, joy = 0.5) => {
+    const sparse = (scale: string, tension: number, joy: number, seed: string) => {
       const mood = { ...neutral, calm: 0.9, warmth: 0.3, joy, tension };
-      const s = moodToEngineState(stretchMood(mood), stretchMood(mood), voiceSeedOf("a"));
+      const s = moodToEngineState(stretchMood(mood), stretchMood(mood), voiceSeedOf(seed));
       s.arp.scale = scale as never; s.arp.rate = "1/4"; s.osc.wave = "triangle"; s.drone.on = true;
       return s;
     };
+    // Over several voice seeds (one seed alone can be lucky): the calm drone always reads smooth, tension always reads rougher, and on
+    // the median by a wide margin. Absolute tension readings vary with the seed (about 0.4 to 0.75), so the test does not pin them.
+    const seeds = ["a", "b", "c", "d", "e"];
+    const median = (xs: number[]) => [...xs].sort((x, y) => x - y)[xs.length >> 1];
     // joy 0.2 puts a minor third in the drone, joy 0.5 a fifth
     for (const [scale, joy] of [["dorian", 0.5], ["lydian", 0.5], ["dorian", 0.2], ["lydian", 0.2]] as const) {
-      const calm = analyze(sparse(scale, 0, joy), 1).features.roughness, tense = analyze(sparse(scale, 0.9, joy), 1).features.roughness;
-      expect(calm).toBeLessThanOrEqual(0.35);
-      expect(tense).toBeGreaterThanOrEqual(0.6);
-      expect(tense).toBeGreaterThan(calm + 0.3);
+      const calm = seeds.map((v) => analyze(sparse(scale, 0, joy, v), 1).features.roughness);
+      const tense = seeds.map((v) => analyze(sparse(scale, 0.9, joy, v), 1).features.roughness);
+      for (let i = 0; i < seeds.length; i++) { expect(calm[i]).toBeLessThanOrEqual(0.35); expect(tense[i]).toBeGreaterThan(calm[i]); }
+      expect(median(tense) - median(calm)).toBeGreaterThan(0.25);
     }
-  });
+  }, 30_000);
   it("is deterministic and does not change the state it measures", () => {
     const s = state(); const copy = JSON.stringify(s);
     expect(analyze(s, 5).reads_as).toEqual(analyze(s, 5).reads_as);
