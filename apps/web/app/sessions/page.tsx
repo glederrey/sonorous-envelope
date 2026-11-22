@@ -22,7 +22,7 @@ export default async function SessionsPage() {
   const recent = sessions.filter((s) => !isOlder(s, now));
   const older = sessions.filter((s) => isOlder(s, now));
   const row = (s: (typeof sessions)[number]) => (
-    <section className="doc-row" key={s.id}>
+    <section className="doc-row ss-row" key={s.id}>
       <h2 className="se-heading">{s.title || `Session of ${new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`}</h2>
       <div className="se-stack">
         <div className="ss-status">
