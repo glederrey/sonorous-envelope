@@ -331,7 +331,7 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     };
     const notesOf = (r: Record<string, unknown>) => ((r.notes as string[] | undefined) ?? []).join(" ");
 
-    it("lowers the level 2 dB per softer, on the call that delivers it, and keeps it on later calls", async () => {
+    it("lowers the level 3 dB per softer, on the call that delivers it, and keeps it on later calls", async () => {
       const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
       await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
       await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
@@ -339,32 +339,32 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       press(session_id, "softer");
       const r = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
       expect(r.reactions).toEqual([expect.stringMatching(/^softer, /)]);
-      expect(notesOf(r)).toMatch(/level: the listener asked for softer, so everything plays 2 dB lower from now on \(-2 dB in all/);
+      expect(notesOf(r)).toMatch(/level: the listener asked for softer, so everything plays 3 dB lower from now on \(-3 dB in all, -12 at most/);
       expect(lastRow(session_id).db).toBeLessThanOrEqual(was.db - 2);
-      expect(lastRow(session_id).e.listenerDb).toBe(-2);
-      expect(levelOf(session_id)).toBe("-2");
-      // a plain call later keeps it: the same mood as before the press plays 2 dB under its old level
+      expect(lastRow(session_id).e.listenerDb).toBe(-3);
+      expect(levelOf(session_id)).toBe("-3");
+      // a plain call later keeps it: the same mood as before the press plays 3 dB under its old level
       const later = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
       expect(notesOf(later)).not.toMatch(/level:/);
       expect(lastRow(session_id).db).toBeLessThanOrEqual(was.db - 1); // whole-dB readings
-      expect(lastRow(session_id).e.volume).toBeCloseTo(was.e.volume * 10 ** (-2 / 20), 3);
+      expect(lastRow(session_id).e.volume).toBeCloseTo(was.e.volume * 10 ** (-3 / 20), 3);
       // harsher brings it back up
       press(session_id, "harsher");
       const up = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-      expect(notesOf(up)).toMatch(/level: the listener's harsher raised the level 2 dB \(back to the usual level\)/);
+      expect(notesOf(up)).toMatch(/level: the listener's harsher raised the level 3 dB \(back to the usual level\)/);
       expect(levelOf(session_id)).toBe("0");
       expect(lastRow(session_id).e.listenerDb).toBeUndefined();
     });
 
-    it("stops at -10 dB, and a calmer answer is no louder", async () => {
+    it("stops at -12 dB, and a calmer answer is no louder", async () => {
       const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
       await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
       press(session_id, "softer", 6);
       await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-      expect(levelOf(session_id)).toBe("-10");
+      expect(levelOf(session_id)).toBe("-12");
       press(session_id, "softer");
       const floor = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-      expect(notesOf(floor)).toMatch(/at its lowest \(-10 dB\)/);
+      expect(notesOf(floor)).toMatch(/at its lowest \(-12 dB\)/);
       const was = lastRow(session_id).db;
       press(session_id, "calmer");
       await svc.setSound(dbA, A, { session_id, mood: { ...loud, calm: 0.3 }, final: true } as never, tick(25_000));
@@ -377,14 +377,16 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       const plain = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
       press(session_id, "softer", 2);
       const low = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-      expect(lastRow(session_id).e.listenerDb).toBe(-4);
+      expect(lastRow(session_id).e.listenerDb).toBe(-6);
       // reads_as does not read the listener's level as calm
       expect((low.reads_as as Record<string, number>).calm).toBeCloseTo((plain.reads_as as Record<string, number>).calm, 1);
-      await svc.setSound(dbA, A, { session_id, mode: "self", mood: quiet, final: true } as never, tick(25_000));
+      const self = await svc.setSound(dbA, A, { session_id, mode: "self", mood: quiet, final: true } as never, tick(25_000));
       expect(lastRow(session_id).e.listenerDb).toBeUndefined();
-      expect(levelOf(session_id)).toBe("-4");
-      await svc.setSound(dbA, A, { session_id, mode: "attuned", mood: quiet, final: true } as never, tick(25_000));
-      expect(lastRow(session_id).e.listenerDb).toBe(-4);
+      expect(levelOf(session_id)).toBe("-6");
+      expect(notesOf(self)).toMatch(/level: Self plays at the usual level; the listener's -6 dB comes back in a listener mode/);
+      const back = await svc.setSound(dbA, A, { session_id, mode: "attuned", mood: quiet, final: true } as never, tick(25_000));
+      expect(lastRow(session_id).e.listenerDb).toBe(-6);
+      expect(notesOf(back)).toMatch(/level: the listener's -6 dB applies again/);
     });
 
     it("carries the level into a Strudel pattern and through recall", async () => {
@@ -395,11 +397,11 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       press(session_id, "softer");
       const r = await svc.setSound(dbA, A, { session_id, colour: { h: 300 }, final: true } as never, tick(25_000));
       expect(notesOf(r)).toMatch(/level: the listener asked for softer/);
-      expect(lastRow(session_id).e).toMatchObject({ engine: "strudel", listenerDb: -2 });
+      expect(lastRow(session_id).e).toMatchObject({ engine: "strudel", listenerDb: -3 });
       await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(25_000));
       await svc.moment(dbA, A, { session_id, action: "recall", name: "plain", final: true }, tick(25_000));
-      expect(lastRow(session_id).e.listenerDb).toBe(-2); // the moment was kept at 0 dB: it plays at the session's level now
-      expect(levelOf(session_id)).toBe("-2");
+      expect(lastRow(session_id).e.listenerDb).toBe(-3); // the moment was kept at 0 dB: it plays at the session's level now
+      expect(levelOf(session_id)).toBe("-3");
     });
   });
 
@@ -410,7 +412,10 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     await svc.strudelMode(dbA, A, { session_id, on: false, final: false }, tick(5_000));
     const r = await svc.setSound(dbA, A, { session_id, mode: "attuned", mood: { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.3, spontaneity: 0.4 }, final: true } as never, tick(3_000));
     expect(JSON.parse(sql(`select effective->'arp'->>'tempo' from states where session_id='${session_id}' order by created_at desc limit 1`))).toBe(80);
-    expect((r.clamped as string[]).join(" ")).toMatch(/pace held: .*tempo \d+ to 80 bpm/);
+    expect((r.clamped as string[]).join(" ")).toMatch(/pace held: .*tempo \d+ to 80 bpm, the tempo of the Strudel pattern that just played; .*only the tempo is held/);
+    // the next call leaves the hold: a big tempo step glides over 10 s, not the default 4
+    const next = await svc.setSound(dbA, A, { session_id, mood: { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.3, spontaneity: 0.4 }, final: true } as never, tick(25_000));
+    expect(((next.notes as string[] | undefined) ?? []).join(" ")).toMatch(/tempo 80 to \d+: it glides over 10 s/);
   });
 
   it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {
