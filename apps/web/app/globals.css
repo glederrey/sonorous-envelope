@@ -433,11 +433,27 @@ html:has(.pl-field) .se-header {
   position: absolute;
   inset: -20%;
   z-index: -1;
+  --lp-glow: 38%;
+  --lp-tide: 34%;
+  --lp-glow-soft: 16%;
   background:
-    radial-gradient(40% 45% at 22% 30%, color-mix(in srgb, var(--glow) 38%, transparent), transparent 70%),
-    radial-gradient(45% 50% at 78% 62%, color-mix(in srgb, var(--tide) 34%, transparent), transparent 70%),
-    radial-gradient(35% 40% at 55% 20%, color-mix(in srgb, var(--glow) 16%, transparent), transparent 70%);
+    radial-gradient(40% 45% at 22% 30%, color-mix(in srgb, var(--glow) var(--lp-glow), transparent), transparent 70%),
+    radial-gradient(45% 50% at 78% 62%, color-mix(in srgb, var(--tide) var(--lp-tide), transparent), transparent 70%),
+    radial-gradient(35% 40% at 55% 20%, color-mix(in srgb, var(--glow) var(--lp-glow-soft), transparent), transparent 70%);
   animation: lp-drift 70s ease-in-out infinite alternate;
+}
+/* On the light page the same washes read fainter: a little more of each (Gael, before v1.0.0). */
+:root[data-theme="light"] .lp-field {
+  --lp-glow: 45%;
+  --lp-tide: 40%;
+  --lp-glow-soft: 20%;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .lp-field {
+    --lp-glow: 45%;
+    --lp-tide: 40%;
+    --lp-glow-soft: 20%;
+  }
 }
 @keyframes lp-drift {
   from {
