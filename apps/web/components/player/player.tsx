@@ -341,9 +341,18 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       }
       if (data?.v) { knownV.current = data.v; ticker?.postMessage({ known: data.v }); }
       if (!error && !data && known.current) {
-        // the owner deleted the session while it played (#177): it is over, like an ended one
+        // the owner deleted the session while it played (#177): it is over, like an ended one. No closing state comes, so the
+        // player fades the sound and the picture out itself over a few seconds, then shows the ended page.
         ended = true;
-        setPhase("ended"); strudel.current?.close(); strudel.current = null; void audio.current?.close(); audio.current = null;
+        const FADE_S = 3, p = latest.current;
+        if (p) {
+          const s = restedState(p.state);
+          s.transition = { time: FADE_S, curve: "smooth" };
+          setPlaying({ ...p, state: s });
+          audio.current?.setState(s, p.seed);
+        }
+        strudel.current?.stop(FADE_S);
+        setTimeout(() => { if (cancelled) return; setPhase("ended"); strudel.current?.close(); strudel.current = null; void audio.current?.close(); audio.current = null; }, (FADE_S + 0.5) * 1000);
         return;
       }
       if (error || !data) {
