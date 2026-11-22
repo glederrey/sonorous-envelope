@@ -1,14 +1,11 @@
+import { pageMeta } from "../../lib/site";
 import { SiteHeader } from "../../components/site-header";
 import { CopyField } from "../../components/copy-field";
 import { AppTabs } from "../../components/app-tabs";
 import { mcpResourceUrl } from "../../lib/env";
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Add to your AI",
-  description: "Paste one URL into Claude, ChatGPT or any MCP client to give your AI non-verbal communication: a synth, Strudel music and visuals. Free.",
-  alternates: { canonical: "/add" },
-};
+export const metadata = pageMeta("Add to your AI", "Paste one URL into Claude, ChatGPT or any MCP client to give your AI non-verbal communication: a synth, Strudel music and visuals. Free.", "/add");
 
 export default function AddPage() {
   return (

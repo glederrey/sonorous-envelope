@@ -96,7 +96,7 @@ export default async function Home() {
       <main className="se-page lp-main">
         <section className="lp-loop" id="modes">
           <h2 className="se-title">Three modes</h2>
-          <p className="se-muted">Who decides what plays depends on the mode. A session starts in {SELF}; the AI switches only after you say yes, and you can lock a mode from the player.</p>
+          <p className="se-muted">Who decides what plays depends on the mode. It starts in {SELF}; the AI switches only after your yes, and you can lock a mode.</p>
           <ul className="lp-ways lp-ways-3">
             <li>
               <p className="lp-way-tag">The AI, from itself</p>

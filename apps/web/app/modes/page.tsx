@@ -1,11 +1,8 @@
+import { pageMeta } from "../../lib/site";
 import { SiteHeader } from "../../components/site-header";
 import { MODE_LABEL, type Face } from "../../lib/mcp/modes";
 
-export const metadata = {
-  title: "Modes",
-  description: "Self, Attuned and Jukebox: the three modes of non-verbal communication with your AI, who decides what plays, how the AI switches, and where the idea comes from.",
-  alternates: { canonical: "/modes" },
-};
+export const metadata = pageMeta("Modes", "Self, Attuned and Jukebox: the three modes of non-verbal communication with your AI, who decides what plays, how the AI switches, and where the idea comes from.", "/modes");
 
 const SELF = MODE_LABEL.internal, ATTUNED = MODE_LABEL.external, JUKEBOX = MODE_LABEL.sandbox;
 

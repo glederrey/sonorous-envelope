@@ -1,12 +1,9 @@
+import { pageMeta } from "../../lib/site";
 import type { CSSProperties } from "react";
 import { SiteHeader } from "../../components/site-header";
 import { FACES, MODE_LABEL } from "../../lib/mcp/modes";
 
-export const metadata = {
-  title: "How it works",
-  description: "How non-verbal communication with your AI works: what to say, how the player and the two sound engines work, and what each Sonorous Envelope tool does.",
-  alternates: { canonical: "/how-it-works" },
-};
+export const metadata = pageMeta("How it works", "How non-verbal communication with your AI works: what to say, how the player and the two sound engines work, and what each Sonorous Envelope tool does.", "/how-it-works");
 
 const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 
