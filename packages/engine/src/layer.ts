@@ -1,7 +1,7 @@
 import { buildCycle, midiToHz } from "./music";
 import { mulberry32 } from "./prng";
 import { oscSample } from "./oscillator";
-import { rampCount, rampTime, type Ramp } from "./ramp";
+import type { StepPlan } from "./ramp";
 import type { NoteEvent, Pattern, ScaleName, Wave } from "./types";
 
 const MAX_VOICES = 16; // 6 notes in flight, each up to 4 voices with a stack
@@ -39,8 +39,8 @@ export class Layer {
   private step = 0; // the shared step counter: step k happens at the same moment on every device (see `align`)
   private nextStep = 0;
   private gridSeed = 1;
-  /** While the tempo glides, the time of every step comes from the ramp (closed form, so a late device agrees with an early one). */
-  private glide: { ramp: Ramp; k0: number; t0: number } | null = null;
+  /** While the tempo or the rate glides, the time of every step comes from the plan (closed form, so a late device agrees with an early one). */
+  private glide: { plan: StepPlan; k0: number; t0: number } | null = null;
   private p!: LayerParams;
 
   constructor(private sr: number, private rand: () => number, private name: "arp" | "bass",
@@ -58,30 +58,30 @@ export class Layer {
   }
 
   /** Put the step grid on the shared timeline. `gridK` is the (fractional) step count at the moment the state was written,
-   *  `elapsed` the seconds since then, `ramp` the state's step rate over time. The next step is the next whole number. */
-  align(t: number, gridK: number, elapsed: number, ramp: Ramp) {
-    const at = gridK + rampCount(ramp, elapsed);
+   *  `elapsed` the seconds since then, `plan` the state's steps over time. The next step is the next whole number. */
+  align(t: number, gridK: number, elapsed: number, plan: StepPlan) {
+    const at = gridK + plan.stepsAt(elapsed);
     const k = Math.ceil(at - 1e-9);
     this.step = k;
-    this.nextStep = t + (rampTime(ramp, k - gridK) - elapsed) * this.sr;
-    this.glide = ramp.dur > 0 ? { ramp, k0: gridK, t0: t - elapsed * this.sr } : null;
+    this.nextStep = t + (plan.timeOfStep(k - gridK) - elapsed) * this.sr;
+    this.glide = plan.varies ? { plan, k0: gridK, t0: t - elapsed * this.sr } : null;
   }
   /** Periodic resync against the shared timeline (devices' audio clocks drift apart slowly): pull the grid back only when it
    *  is further off than `toleranceSeconds`, so small network jitter in the clock estimate does not make the beat wobble. */
-  sync(t: number, gridK: number, elapsed: number, ramp: Ramp, toleranceSeconds: number) {
-    const at = gridK + rampCount(ramp, elapsed);
+  sync(t: number, gridK: number, elapsed: number, plan: StepPlan, toleranceSeconds: number) {
+    const at = gridK + plan.stepsAt(elapsed);
     const k = Math.ceil(at - 1e-9);
-    const desired = t + (rampTime(ramp, k - gridK) - elapsed) * this.sr;
+    const desired = t + (plan.timeOfStep(k - gridK) - elapsed) * this.sr;
     if (k !== this.step || Math.abs(desired - this.nextStep) > toleranceSeconds * this.sr) {
       this.step = k; this.nextStep = desired;
-      this.glide = ramp.dur > 0 ? { ramp, k0: gridK, t0: t - elapsed * this.sr } : null;
+      this.glide = plan.varies ? { plan, k0: gridK, t0: t - elapsed * this.sr } : null;
     }
   }
   clearGlide() { this.glide = null; }
-  /** The time of the step after this one: on the ramp while the tempo glides, else one step length on. */
+  /** The time of the step after this one: on the plan while the tempo or rate glides, else one step length on. */
   private advance(): void {
     const g = this.glide;
-    if (g) this.nextStep = g.t0 + rampTime(g.ramp, this.step - g.k0) * this.sr; // `step` is already the next step's number
+    if (g) this.nextStep = g.t0 + g.plan.timeOfStep(this.step - g.k0) * this.sr; // `step` is already the next step's number
     else this.nextStep += this.p.stepSeconds * this.sr;
   }
   setEvents(e: NoteEvent[] | null) { this.events = e; }
@@ -139,8 +139,8 @@ export class Layer {
 
   private runStep(t: number) {
     const p = this.p, sr = this.sr;
-    const stepS = p.stepSeconds * sr;
     const i = this.step++;
+    const stepS = p.stepSeconds * sr * (this.glide ? this.glide.plan.lengthScale(i - this.glide.k0) : 1); // follows the rate of this step
     this.advance(); // stays on the grid: a late or early call does not shift the following steps
     if (this.nextStep < t) this.nextStep = t + stepS; // after a long pause, do not play the missed steps in a burst
     const r = this.stepRng(i);

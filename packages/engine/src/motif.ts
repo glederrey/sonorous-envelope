@@ -1,6 +1,6 @@
 import { midiToHz } from "./music";
 import { oscSample } from "./oscillator";
-import { arpRamp, rampTime, RATE_BEATS } from "./ramp";
+import { arpPlan, RATE_BEATS } from "./ramp";
 import type { EngineState, NoteEvent, Wave } from "./types";
 
 // Motifs (roadmap #128): a short phrase the model plays over the sound, once, on the first bar at least 2.5 s after the state, in the state's own wave. Like a gesture
@@ -41,11 +41,11 @@ export class MotifVoice {
     this.at.length = 0; this.midi.length = 0; this.len.length = 0; this.next = 0;
     const notes = m.notes.slice(0, MAX_NOTES);
     if (!notes.length) return;
-    const rb = RATE_BEATS[s.arp.rate], ramp = arpRamp(s);
+    const rb = RATE_BEATS[s.arp.rate], plan = arpPlan(s);
     const g = s.grid?.beat ?? (s.grid?.arp ?? 0) * rb;
     const lead = LEAD_S * Math.max(20, s.arp.tempo) / 60;      // LEAD_S in beats, at the state's tempo (a glide only moves it a little)
     const start = Math.ceil((g + lead - 1e-6) / 4) * 4;        // the first bar at least LEAD_S after the state's creation
-    const tau = (beat: number) => rampTime(ramp, (start + beat - g) / rb); // seconds since creation at `beat` into the phrase
+    const tau = (beat: number) => plan.timeOfBeats(start + beat - g); // seconds since creation at `beat` into the phrase
     if (elapsed > tau(0) + LATE_S) return;
     this.wave = s.osc.wave;
     this.level = Number.isFinite(m.level) ? Math.min(1, Math.max(0, m.level)) : 0.6;
