@@ -1674,6 +1674,11 @@ html:has(.pl-field) .se-header {
   .lp-chips { margin-top: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lp-chips li { text-align: center; }
 }
+/* wide enough for the four on one line (they need about 446px): one row, still across the full width */
+@media (min-width: 480px) and (max-width: 560px) {
+  .lp-chips { display: flex; flex-wrap: nowrap; }
+  .lp-chips li { flex: 1 1 auto; }
+}
 
 /* ---- the Strudel picture (components/player/strudel-view.tsx) ---- */
 /* In the same grid cell as the visual canvas, pinned to the visible part of the field. The base is a deep dark in the model's hue. */
