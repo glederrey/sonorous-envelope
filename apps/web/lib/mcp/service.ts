@@ -811,7 +811,7 @@ export async function listen(
   if (p.players === 0) return done("nobody_listening");
   const since = started - LISTEN_SKEW_MS; // the database's clock stamps presses; allow a little skew against this server's
   const first = await reactionsFor(db, session, false, started, face, since);
-  if (first.reactions.length || first.heard.length || first.guests) return done("reactions", first);
+  if (first.reactions.length || first.heard.length) return done("reactions", first); // a guest press alone does not wake listen: guests ride along, they never trigger a turn
 
   const wasLive = parseSettings(session.settings).live;
   const deadline = started + input.seconds * 1000;
@@ -831,7 +831,7 @@ export async function listen(
       const now = faceOf(row);
       if (!forListener(now)) return done("mode_changed", { mode: faceLine(now, parsePolicy(row.mode_policy)) });
       const said = await reactionsFor(db, session, false, clock(), now, since);
-      if (said.reactions.length || said.heard.length || said.guests) return done("reactions", said);
+      if (said.reactions.length || said.heard.length) return done("reactions", said);
       if (wasLive && !parseSettings(row.settings).live) return done("stopped");
     }
     return done("idle");

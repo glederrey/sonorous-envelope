@@ -389,12 +389,11 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect((a.reactions as string[]).join(" ")).toMatch(/calmer/);
     });
 
-    it("also ends the wait on a guest emoji, and leaves it for set_sound to claim", async () => {
+    it("does not end the wait on a guest emoji alone, and leaves it for set_sound to claim", async () => {
       const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
       beat(session_id);
       const r = await svc.listen(dbA, A, { session_id, seconds: 40 }, fake((n) => { if (n === 2) sql(`select public.send_emoji('${session_id}', 'guest-dev-1', 'happy')`); }));
-      expect(r.event).toBe("reactions");
-      expect(r.guests).toMatch(/^😊 1/);
+      expect(r.event).toBe("idle"); // guests ride along with the owner's presses; they never trigger a turn
       expect(sql(`select count(*) from emoji_reactions where session_id='${session_id}' and delivered_at is null`)).toBe("1");
       expect((await svc.setSound(dbA, A, { session_id, final: true } as never, tick(5000))).guests).toMatch(/^😊 1/);
     });
