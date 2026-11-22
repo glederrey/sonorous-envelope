@@ -5,10 +5,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ControlsPanel, WHEN_MIN_WIDTH } from "../../../components/player/controls-panel";
 import { StrudelPanel } from "../../../components/player/strudel-panel";
 import { ControlsMiddle } from "../../../components/player/controls-middle";
+import { useEmojiFloat } from "../../../components/player/emoji-float";
 import { CopyLink } from "../../../components/copy-link";
 import { FACES, MODE_HINT, MODE_LABEL, forListener, type Face, type Policy } from "../../../lib/mcp/modes";
 import { VisualCanvas } from "../../../components/player/visual-canvas";
 import { SAMPLES, stateOfStep } from "../../../lib/samples";
+import { GUEST_EMOJI_KEYS } from "@sonorous/shared";
 
 // A stand-in for the Supabase client, only for what the owner's block asks of it: who is signed in, who owns the session, and answers
 // that say "saved". Nothing leaves the page.
@@ -16,9 +18,9 @@ function fakeClient(ownerId: string): SupabaseClient {
   const done = { data: [], error: null };
   const chain = (table: string): unknown => {
     const c: Record<string, unknown> = {
-      select: () => c, eq: () => c, is: () => c, in: () => c, update: () => c, insert: async () => ({ error: null }),
+      select: () => c, eq: () => c, is: () => c, in: () => c, gte: () => c, limit: () => c, update: () => c, insert: async () => ({ error: null }),
       maybeSingle: async () => ({ data: table === "sessions" ? { owner_id: ownerId, settings: { rest_after: 900 }, allow_code: true } : null, error: null }),
-      then: (ok: (v: unknown) => unknown) => Promise.resolve(done).then(ok),
+      then: (ok: (v: unknown) => unknown) => Promise.resolve(table === "emoji_reactions" ? { data: [{ emoji: "heart" }, { emoji: "heart" }, { emoji: "heart" }, { emoji: "thumbs_up" }], error: null } : done).then(ok),
     };
     return c;
   };
@@ -56,6 +58,7 @@ export function ControlsLab() {
   // an owner is someone whose id is the session's owner; a signed-in listener is someone else's
   const supabase = useMemo(() => fakeClient(viewer === "owner" ? "me" : "someone-else"), [viewer]);
   const playsPattern = strudel && forListener(face);
+  const { float: floatEmoji, layer: emojiLayer } = useEmojiFloat(); // a guest's own press floats here, and "Float some" plays what the owner's player does on a broadcast
 
   const shareAction = viewer === "guest"
     ? <><a className="se-btn" href="/add">Add to your AI</a><CopyLink path="/s/demo" label="Copy link" /></>
@@ -90,9 +93,14 @@ export function ControlsLab() {
         <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Panel width</span><input type="range" min={280} max={640} step={1} value={width} onChange={(e) => setWidth(Number(e.target.value))} /><output>{width} px</output></label>
         <label className="pl-slider" style={{ gridTemplateColumns: "150px 1fr 70px" }}><span>Hide turn below</span><input type="range" min={280} max={640} step={5} value={whenMin} onChange={(e) => setWhenMin(Number(e.target.value))} /><output>{whenMin} px</output></label>
         <p className="se-sm" style={{ margin: 0 }}>Measured panel width: {Math.round(measured)} px. The turn text shows from {whenMin} px up.</p>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="se-btn pl-seg-btn" onClick={() => { for (const [i, k] of GUEST_EMOJI_KEYS.entries()) setTimeout(() => floatEmoji(k), i * 150); }}>Float some emojis</button>
+          <span className="se-sm">Pressing a React button as a guest or a signed-in listener floats it too. The owner&apos;s count line shows made-up counts.</span>
+        </div>
         {note && <p className="se-sm" role="status" style={{ margin: 0 }}>{note}</p>}
       </div>
       {mounted && <main className="pl-stage" style={{ padding: 0 }}>
+        {emojiLayer}
         <div style={{ width, maxWidth: "100%" }}>
           <ControlsPanel whenMinWidth={whenMin} onWidth={setMeasured}
             midTurn={false}
@@ -103,6 +111,7 @@ export function ControlsLab() {
             when="Turn 3 · 12 s ago"
             onHide={() => setNote("Hide controls pressed")}
             onFullscreen={() => setNote("Fullscreen pressed (the player hides everything but the picture)")}
+            save={viewer === "owner" ? { onSave: () => setNote("Save pressed (the player saves this moment)"), done: false, busy: false } : undefined}
             audioState="running" muted={muted} onResume={() => {}} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
             picture={{ gradientOn, visualsOn, onGradient: () => setGradientOn((v) => !v), onVisuals: () => setVisualsOn((v) => !v) }}
@@ -110,7 +119,7 @@ export function ControlsLab() {
               supabase={supabase} sessionId="demo" signedIn={viewer !== "guest"} face={face} policy={policy} onChanged={() => {}}
               pattern={playsPattern ? { code: CODE, bpm: 110 } : null}
               patternPlays={playsPattern} strudelVisuals={strudelVisuals} onStrudelVisuals={setStrudelVisuals} strudelCode={strudelCode} onStrudelCode={setStrudelCode}
-              listeningUntil={listeningUntil}
+              listeningUntil={listeningUntil} onEmoji={floatEmoji}
             />}
             extra={<>{playsPattern && <StrudelPanel code={CODE} bpm={110} />}{viewer !== "guest" && <details className="pl-set se-sm"><summary>What the AI set</summary></details>}</>}
             shareText={shareText} shareAction={shareAction} qrPath="/s/demo"

@@ -7,7 +7,7 @@ type Db = SupabaseClient<any, any, any>;
 import { midiToNoteName, noteToMidi, SCALES, type EngineState } from "@sonorous/engine";
 import {
   NEUTRAL_MOOD, applyColour, applyLimits, applyOverride, buildFeedback, isResting, moodToEngineState,
-  alignToVoice, analyze, BAND_SCALE, callSynth, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
+  alignToVoice, analyze, BAND_SCALE, callSynth, describeEmojis, describeReactions, isHeard, mergeSticky, moodToScene, nextBand, nextGrid, nextSlowMood, nextWaveBand, tempoHeard, parseSettings, restingNote, stickyToSynth, stretchMood, voiceSeedOf, voiceToSynth,
   type ListenerSettings, type Sticky, type Mood, type SetSoundInput, type StrudelModeInput, type Transition, type Voice,
 } from "@sonorous/shared";
 import { publicBaseUrl } from "../env";
@@ -130,6 +130,28 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
   };
 }
 
+/** What the owner pressed and what guests pressed, as the model is told: `guests` is one line of counts (emojis.ts), left out when empty. */
+type Said = { reactions: string[]; heard: string[]; guests?: string };
+
+/** Emoji presses from people listening by the link (#152), as one line. They live in their own table, so `claim_reactions` and `heard` never
+ *  see them. `claim` marks them delivered (the owner's token: RLS lets only the owner read them); a peek looks at the undelivered ones, and
+ *  with `since` also at those another call already claimed from then on (like reactions, for `listen`). Never throws: a press is not worth a failed call. */
+async function guestsFor(db: Db, sessionId: string, claim: boolean, now: number, since?: number): Promise<string | undefined> {
+  let rows: Array<{ emoji: string; created_at: string }>;
+  if (claim) {
+    const { data, error } = await db.rpc("claim_emojis", { p_session: sessionId });
+    if (error) { console.error("claim_emojis failed:", error.message); return undefined; }
+    rows = (data ?? []) as typeof rows;
+  } else {
+    const base = db.from("emoji_reactions").select("emoji,created_at").eq("session_id", sessionId);
+    const q = since === undefined ? base.is("delivered_at", null) : base.or(`delivered_at.is.null,created_at.gte.${new Date(since).toISOString()}`);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(200);
+    if (error) return undefined;
+    rows = (data ?? []) as typeof rows;
+  }
+  return describeEmojis(rows, now);
+}
+
 /** Reactions the owner pressed that the model has not been told about. `claim` marks them delivered (set_sound); get_feedback only looks. */
 /** What the owner pressed since the last call, split in two. `reactions` steer the sound, and nobody steers Self: there they are claimed
  *  and dropped (never shown, and they do not surface after a later switch). The player shows those buttons only in the listener modes;
@@ -137,23 +159,25 @@ async function presence(db: Db, sessionId: string, ownerId: string, now: number)
  *  never steers, so it comes back in every mode, Self included. */
 /** `since` (peek only): also return presses made from then on that another call already marked read, so `listen` sees a press a final call
  *  sent in the same batch claimed (tester report v0.22.0). */
-async function reactionsFor(db: Db, session: { id: string; owner_id: string }, claim: boolean, now: number, face: Face, since?: number): Promise<{ reactions: string[]; heard: string[] }> {
+async function reactionsFor(db: Db, session: { id: string; owner_id: string }, claim: boolean, now: number, face: Face, since?: number): Promise<Said> {
   const sessionId = session.id;
+  const guests = await guestsFor(db, sessionId, claim, now, since); // information, like heard: in every mode, and it never breaks the call
   let rows: Array<{ kind: string; created_at: string; user_id?: string | null }>;
   if (claim) {
     const { data, error } = await db.rpc("claim_reactions", { p_session: sessionId });
-    if (error) { console.error("claim_reactions failed:", error.message); return { reactions: [], heard: [] }; } // never break a call over a reaction
+    if (error) { console.error("claim_reactions failed:", error.message); return { reactions: [], heard: [], ...(guests ? { guests } : {}) }; } // never break a call over a reaction
     rows = (data ?? []) as typeof rows;
   } else {
     const base = db.from("reactions").select("kind,created_at,user_id").eq("session_id", sessionId);
     const q = since === undefined ? base.is("delivered_at", null) : base.or(`delivered_at.is.null,created_at.gte.${new Date(since).toISOString()}`);
     const { data, error } = await q.order("created_at", { ascending: false }).limit(50);
-    if (error) return { reactions: [], heard: [] };
+    if (error) return { reactions: [], heard: [], ...(guests ? { guests } : {}) };
     rows = (data ?? []) as typeof rows;
   }
   return {
     reactions: forListener(face) ? describeReactions(rows.filter((r) => !isHeard(r.kind)), now) : [],
     heard: describeReactions(rows.filter((r) => isHeard(r.kind) && r.user_id === session.owner_id), now), // the owner's only: a link listener's reading is claimed and dropped
+    ...(guests ? { guests } : {}),
   };
 }
 
@@ -284,7 +308,7 @@ async function insertState(
   return data.id as string;
 }
 
-function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, said: { reactions: string[]; heard: string[] } = { reactions: [], heard: [] }, mode?: string) {
+function feedbackFor(state: StateRow, p: Awaited<ReturnType<typeof presence>>, notes: string[] = [], resting = false, said: Said = { reactions: [], heard: [] }, mode?: string) {
   // states written before the analysis existed have none: measure them now (the engine is deterministic)
   const analysis = state.effective.engine === "strudel" ? null : state.analysis ?? measureState(state.effective, 1);
   return buildFeedback({
@@ -474,8 +498,22 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   return withGuidance(buildFeedback({ turn: turn.stateTurn, intent: sentMood, effective, clamps: allClamps, players: p.players, controls: p.controls, notes, resting: rest.resting, analysis, ...said, mode: faceLine(sw.face, parsePolicy(session.mode_policy)) }), g);
 }
 
-/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. */
-export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list"; name?: string; transition?: Transition; final: boolean }, now = Date.now()) {
+/** What the model is told when `save_moment` (migration 0027) refuses: the code is the text after "saved_moment: " in the error. */
+export function saveMomentError(message: string): ToolError | null {
+  switch (/saved_moment: (\w+)/.exec(message)?.[1]) {
+    case "ai_too_soon": return new ToolError("ai_too_soon", "You saved one on your own less than 5 turns ago. The listener can still save from the player, or ask you to.");
+    case "saves_full": return new ToolError("saves_full", "The owner has 200 saved moments, the limit. They can delete some in Saved.");
+    case "too_fast": return new ToolError("too_fast", "Too many saves this minute. Try again in a minute.");
+    case "nothing_playing": return new ToolError("nothing_playing", "Nothing is playing to save: the sound is silent. Call set_sound first.");
+    case "bad_input": return new ToolError("bad_input", "save needs a name of 1 to 40 characters.");
+    case "not_owner": return new ToolError("unknown_session", "No session with that id. Call start_session to make one.");
+    default: return null;
+  }
+}
+
+/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. `save` is a
+ *  keepsake outside the session (a public link, frozen): it plays nothing and is not a sound update. */
+export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list" | "save"; name?: string; transition?: Transition; listener_asked?: boolean; final: boolean }, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   assertOpen(session);
   const kept = session.moments ?? {};
@@ -497,6 +535,18 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   if (!name) throw new ToolError("bad_input", `${input.action} needs a name.`);
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
+
+  if (input.action === "save") {
+    const { data, error } = await db.rpc("save_moment", { p_session: session.id, p_name: name, p_by: input.listener_asked ? "human" : "ai", p_voice_seed: voiceSeedOf(session.id), p_app_version: appVersion() });
+    if (error) {
+      const refused = saveMomentError(error.message);
+      if (refused) throw refused;
+      fail("save the moment", error);
+    }
+    const saved = data as { id: string; name: string; saved_by: "human" | "ai"; already: boolean };
+    // already: this exact moment was saved before; nothing new was written, the first save comes back
+    return { saved: saved.name, by: saved.saved_by === "human" ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(saved.already ? { already: true } : {}), ...(note ? { notes: [note] } : {}) };
+  }
 
   if (input.action === "keep") {
     const isNew = !Object.hasOwn(kept, name);
@@ -754,15 +804,15 @@ export async function listen(
   if (!forListener(face)) throw new ToolError("not_in_this_mode", `listen works in ${faceName("external")} and ${faceName("sandbox")} only. In ${faceName("internal")} nobody steers the sound: end your message.`);
   const started = clock();
   const p = await presence(db, session.id, session.owner_id, started);
-  const done = (event: string, extra: { reactions?: string[]; heard?: string[]; mode?: string } = {}) => ({
+  const done = (event: string, extra: { reactions?: string[]; heard?: string[]; guests?: string; mode?: string } = {}) => ({
     event, waited_s: Math.max(0, Math.round((clock() - started) / 1000)),
-    ...(extra.reactions?.length ? { reactions: extra.reactions } : {}), ...(extra.heard?.length ? { heard: extra.heard } : {}),
+    ...(extra.reactions?.length ? { reactions: extra.reactions } : {}), ...(extra.heard?.length ? { heard: extra.heard } : {}), ...(extra.guests ? { guests: extra.guests } : {}),
     players: p.players, ...(extra.mode ? { mode: extra.mode } : {}), ...(note ? { notes: [note] } : {}),
   });
   if (p.players === 0) return done("nobody_listening");
   const since = started - LISTEN_SKEW_MS; // the database's clock stamps presses; allow a little skew against this server's
   const first = await reactionsFor(db, session, false, started, face, since);
-  if (first.reactions.length || first.heard.length) return done("reactions", first);
+  if (first.reactions.length || first.heard.length) return done("reactions", first); // a guest press alone does not wake listen: guests ride along, they never trigger a turn
 
   const wasLive = parseSettings(session.settings).live;
   const deadline = started + input.seconds * 1000;

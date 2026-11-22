@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EngineState } from "@sonorous/engine";
-import { moodToEngineState, nextGrid, stretchMood, type Mood } from "@sonorous/shared";
+import { GUEST_EMOJIS, moodToEngineState, nextGrid, stretchMood, type Mood } from "@sonorous/shared";
 import { Player } from "../../../components/player/player";
 
 // A stand-in for the Supabase client that serves the states this page writes, in the shape `player_poll` returns. The states are built the
@@ -29,6 +29,10 @@ class Script {
   ended = false;
   mode = "external"; // the mode the owner has locked, or the one the model chose
   nudge: (() => void) | null = null;
+  /** the player's handler for the `emoji` broadcast, and the guest presses the lab has "received" (what the owner's count line reads) */
+  onEmoji: ((m: { payload: { emoji: string } }) => void) | null = null;
+  emojis: Array<{ emoji: string }> = [];
+  emoji(key: string) { this.emojis.push({ emoji: key }); this.onEmoji?.({ payload: { emoji: key } }); }
   /** the owner's player saved a snapshot (put_snapshot): shown in the lab box instead of being sent */
   snap: ((args: { p_image: string; p_measured: unknown; p_volume: number }) => void) | null = null;
   /** the last snapshot the player saved: the panel "What the AI can see" reads it back as if the model had looked at it */
@@ -45,11 +49,11 @@ class Script {
   client(): SupabaseClient {
     const chain = (table?: string): unknown => {
       const c: Record<string, unknown> = {
-        select: () => c, eq: () => c, is: () => c, in: () => c, order: () => c, limit: () => c, update: () => c, insert: async () => ({ error: null }),
+        select: () => c, eq: () => c, is: () => c, in: () => c, order: () => c, limit: () => c, gte: () => c, update: () => c, insert: async () => ({ error: null }),
         maybeSingle: async () => table === "snapshots"
           ? { data: this.lastShot && { image: this.lastShot.image, seen_image: this.lastShot.image, seen_at: this.lastShot.at, taken_at: this.lastShot.at }, error: null }
           : ({ data: { owner_id: "me", settings: { rest_after: null }, allow_code: true }, error: null }), // the lab viewer owns the session single: async () => ({ data: null, error: null }),
-        then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok),
+        then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: table === "emoji_reactions" ? this.emojis : [], error: null }).then(ok),
       };
       return c;
     };
@@ -61,7 +65,7 @@ class Script {
       return { data: { v, now: new Date().toISOString(), mode: this.mode, mode_policy: "auto", allow_code: true, settings: { rest_after: null }, ended: this.ended, state: this.last }, error: null };
     };
     const channel = () => {
-      const ch = { on: (_t: string, _f: unknown, cb: () => void) => { this.nudge = cb; return ch; }, subscribe: () => ch };
+      const ch = { on: (_t: string, f: { event: string }, cb: () => void) => { if (f.event === "emoji") this.onEmoji = cb as never; else this.nudge = cb; return ch; }, subscribe: () => ch };
       return ch;
     };
     return { auth: { getUser: async () => ({ data: { user: { id: "me" } } }) }, from: (table: string) => chain(table), rpc, channel, removeChannel: async () => {} } as unknown as SupabaseClient;
@@ -156,6 +160,11 @@ export function PlayerLab() {
           <button type="button" className={btn} onClick={() => lock("internal")}>Lock Self</button>
           <button type="button" className={btn} onClick={() => lock("external")}>Back to Jukebox</button>
           <button type="button" className={btn} onClick={reset}>Reset</button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          <span>Guest emojis (the owner sees them float):</span>
+          {Object.entries(GUEST_EMOJIS).map(([k, e]) => <button key={k} type="button" className={btn} aria-label={e.label} onClick={() => script.emoji(k)}>{e.glyph}</button>)}
+          <button type="button" className={btn} onClick={() => { Object.keys(GUEST_EMOJIS).forEach((k, i) => setTimeout(() => script.emoji(k), i * 150)); for (let i = 0; i < 8; i++) setTimeout(() => script.emoji("heart"), 1200 + i * 120); }}>A burst (15, the cap is 12 at once)</button>
         </div>
         <label>set_sound transition <select value={fadeIn} onChange={(e) => setFadeIn(Number(e.target.value))}>{[0.5, 1, 2, 4].map((t) => <option key={t} value={t}>{t} s</option>)}</select></label>
         <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>{log.join("\n")}</pre>

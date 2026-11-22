@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
 import { revokeGrant, signOut } from "./actions";
+import { DeleteAccountForm } from "./delete-account-form";
 
 export const metadata = { title: "Settings" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/login?next=%2Fsettings");
@@ -45,6 +47,15 @@ export default async function SettingsPage() {
             <form action={signOut}>
               <button type="submit" className="se-btn">Sign out</button>
             </form>
+          </section>
+          <section className="doc-row">
+            <h2 className="se-heading">Delete account</h2>
+            <p className="se-muted" style={{ marginTop: 0 }}>
+              This deletes your account and everything in it: every session, every saved moment, and the apps connected to it.
+              Shared links stop working. It cannot be undone.
+            </p>
+            {error === "delete" ? <p className="se-error se-sm" role="alert">The account could not be deleted. Try again.</p> : null}
+            <DeleteAccountForm />
           </section>
         </div>
       </main>

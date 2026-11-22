@@ -256,6 +256,14 @@ h3 {
 .se-btn-block {
   width: 100%;
 }
+.se-btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.se-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .se-divider {
   display: flex;
   align-items: center;
@@ -1041,6 +1049,93 @@ html:has(.pl-field) .se-header {
   }
 }
 
+/* Account menu (signed in). A panel under the button on wide screens; flat rows inside the burger panel on phones. */
+.se-account {
+  position: relative;
+}
+.se-account-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.3);
+}
+.se-account-list[data-open="true"] {
+  display: block;
+}
+.se-account-row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.se-account-row[aria-current="page"] {
+  color: var(--glow-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .se-account-row:hover {
+    background: var(--surface-raised);
+  }
+}
+.se-account-row:active {
+  background: var(--surface-raised);
+}
+.se-account-sep {
+  height: 0;
+  margin: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.se-account-label {
+  display: none;
+}
+@media (max-width: 900px) {
+  .se-account-toggle,
+  .se-nav[data-open="true"] .se-btn.se-account-toggle {
+    display: none; /* beats the burger's `.se-nav[data-open] .se-btn` rule */
+  }
+  .se-account,
+  .se-account-list,
+  .se-account-list[data-open="true"] {
+    display: contents;
+  }
+  /* Flat rows in the burger panel, in markup order (so the tab order matches): pages, theme, then an "Account" label with a
+     rule above it, Sessions, Settings, Sign out. The desktop separator before Sign out is not needed here. */
+  .se-account-sep {
+    display: none;
+  }
+  .se-account-label {
+    display: block;
+    margin-top: 6px;
+    padding: 10px 12px 2px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+}
+
 .se-grant {
   display: flex;
   gap: 12px;
@@ -1310,6 +1405,8 @@ html:has(.pl-field) .se-header {
 .pl-set dd { margin: 0; overflow-wrap: anywhere; }
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
+.pl-save-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--on-scrim); }
+.pl-save-note a { color: var(--on-scrim); }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */
@@ -1337,6 +1434,28 @@ html:has(.pl-field) .se-header {
 .pl-react:disabled { opacity: 0.6; }
 .pl-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--on-scrim-muted); font-size: 13px; }
 .pl-switch input { width: 20px; height: 20px; accent-color: var(--tide); }
+
+/* guest emojis (#152). The React row for everyone who is not the owner, the owner's count line, and the emojis that float over the picture. */
+.pl-emoji-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; } /* one row of 7, also at 390 px (about 43 px each) */
+.pl-emoji-btn, .pl-panel .pl-emoji-btn { min-height: 44px; min-width: 0; width: 100%; padding: 0; font-size: 22px; line-height: 1; justify-content: center; }
+.pl-emoji-btn:disabled { opacity: 0.5; }
+.pl-guest-count { margin-bottom: 4px; }
+.pl-guest-count span { white-space: nowrap; }
+/* Inside the stage so it sits above the controls panel and below the fullscreen exit button (z-index 5, same stacking context). Fixed to the
+   picture's own box (the same height as .pl-field), and it never takes a touch. */
+.pl-emojis { position: fixed; left: 0; right: 0; top: var(--se-header-h); height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); z-index: 4; pointer-events: none; overflow: hidden; }
+.pl-emoji { position: absolute; bottom: 12%; font-size: 34px; line-height: 1; transform: translateX(-50%); opacity: 0; animation: pl-emoji-rise 3s ease-out forwards; will-change: transform, opacity; }
+@keyframes pl-emoji-rise {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  12% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, calc(-0.4 * (100dvh - var(--se-header-h) - var(--se-footer-h)))) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* no rise: it fades in and out where it appears */
+  .pl-emoji { animation-name: pl-emoji-fade; }
+  @keyframes pl-emoji-fade { 0% { opacity: 0; transform: translate(-50%, 0); } 15% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 0); } }
+}
 
 /* landing: samples */
 .lp-sample-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
@@ -1388,6 +1507,12 @@ html:has(.pl-field) .se-header {
 /* session list actions: one line on a phone (Open player, Copy link, End session), wrapping only on very narrow screens */
 .ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ss-actions form { display: contents; }
+/* /saved: name search and month filter */
+.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
+.sv-filters select.se-input { width: auto; min-width: 16ch; }
+.sv-count { margin: 0 0 16px; }
+.sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 560px) { .sv-filters { grid-template-columns: minmax(0, 1fr); } .sv-filters select.se-input { width: 100%; } }
 @media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn { padding: 0 12px; font-size: 14px; } }
 @media (max-width: 400px) { .ss-actions .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }
 

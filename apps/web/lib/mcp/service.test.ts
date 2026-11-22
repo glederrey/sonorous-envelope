@@ -242,3 +242,15 @@ describe("offScaleNote", () => {
     expect(offScaleNote(["C4", "C#4"], { arp: { root: 60, scale: "chromatic" } } as never)).toBeUndefined();
   });
 });
+
+describe("moment save: what the model is told when the database refuses", () => {
+  it("maps each code of save_moment to a tool error, and leaves other errors alone", () => {
+    expect(svc.saveMomentError("saved_moment: ai_too_soon")).toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
+    expect(svc.saveMomentError("saved_moment: saves_full")).toMatchObject({ code: "saves_full" });
+    expect(svc.saveMomentError("saved_moment: too_fast")).toMatchObject({ code: "too_fast" });
+    expect(svc.saveMomentError("saved_moment: nothing_playing")).toMatchObject({ code: "nothing_playing" });
+    expect(svc.saveMomentError("saved_moment: bad_input")).toMatchObject({ code: "bad_input" });
+    expect(svc.saveMomentError("saved_moment: not_owner")).toMatchObject({ code: "unknown_session" });
+    expect(svc.saveMomentError("connection reset")).toBeNull();
+  });
+});
