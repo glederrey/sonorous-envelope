@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import dynamic from "next/dynamic";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { beatsAt, type EngineState } from "@sonorous/engine";
-import { hardCaps } from "@sonorous/shared";
+import { frozenGrid, hardCaps } from "@sonorous/shared";
 import { CopyLink } from "../copy-link";
 import { QrLink } from "../qr-link";
 import { AudioOutput } from "../player/audio";
@@ -52,6 +52,7 @@ export function MomentPlayer({ moment, mine, rename }: { moment: MomentData; min
   const state = useMemo(() => {
     const s: EngineState = JSON.parse(JSON.stringify(moment.effective));
     hardCaps(s);
+    s.grid = frozenGrid(s); // the beat on the state's own rate: it no longer steps from the rate before
     return s;
   }, [moment.effective]);
   const pattern = state.engine === "strudel" ? state.pattern : undefined;
