@@ -6,9 +6,10 @@ import { SamplePlayer } from "../components/sample-player";
 import { mcpResourceUrl } from "../lib/env";
 import { FACES, MODE_LABEL } from "../lib/mcp/modes";
 import { getLiveCount, liveSentence } from "../lib/live-count";
+import { DESCRIPTION, TITLE } from "./layout";
 
 export const dynamic = "force-dynamic";
-export const metadata = { alternates: { canonical: "/" } };
+export const metadata = { title: { absolute: TITLE }, description: DESCRIPTION, alternates: { canonical: "/" } };
 
 const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 
@@ -16,12 +17,12 @@ const [SELF, ATTUNED, JUKEBOX] = FACES.map((f) => MODE_LABEL[f]);
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
-    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: "A remote MCP server that gives an AI a synthesizer and a colour field." },
+    { "@type": "WebSite", name: "Sonorous Envelope", url: SITE_URL, description: DESCRIPTION },
     {
       "@type": "SoftwareApplication",
       name: "Sonorous Envelope",
       url: SITE_URL,
-      description: `A free MCP server that gives your AI a voice beyond text: a built-in synth or live Strudel music, with visuals. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`,
+      description: `Non-verbal communication for your AI: a free MCP server that lets it express itself in sound and colour beside the chat, with a built-in synth or live Strudel music. Three modes: ${SELF}, ${ATTUNED} and ${JUKEBOX}.`,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Any (MCP client)",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -66,8 +67,8 @@ export default async function Home() {
               </span>
             </h1>
           <p className="lp-lede">
-            A non-verbal channel for an AI: sound and colour, to add depth to a conversation that is otherwise only
-            text. You hear and see it beside the chat, in one of three modes: {SELF}, {ATTUNED} or {JUKEBOX}.
+            Non-verbal communication for your AI: sound and colour that add depth to a conversation that is otherwise
+            only text. You hear and see it beside the chat, in one of three modes: {SELF}, {ATTUNED} or {JUKEBOX}.
           </p>
           <ul className="lp-chips" aria-label="What it has">
             <li>Three modes</li>
@@ -105,12 +106,12 @@ export default async function Home() {
             <li>
               <p className="lp-way-tag">The AI, for what you need</p>
               <h3 className="se-heading">{ATTUNED}</h3>
-              <p className="se-muted">The AI plays for you: for what you ask, and for what it sees you need. Example: you wake from a nightmare and tell it; instead of its own unease, it plays something that helps you settle.</p>
+              <p className="se-muted">The AI plays for you: for what you ask, and for what it sees you need. Example: you wake from a nightmare and tell it; instead of its own reaction, it plays something that helps you settle.</p>
             </li>
             <li>
               <p className="lp-way-tag">You</p>
               <h3 className="se-heading">{JUKEBOX}</h3>
-              <p className="se-muted">You ask for anything and the AI performs it, and says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
+              <p className="se-muted">You ask for anything and the AI performs it. Playing an emotion here is acting, and it says so if you ask. Example: you say &ldquo;play something funky with drums&rdquo;, and it plays that.</p>
             </li>
           </ul>
         </section>
@@ -126,7 +127,7 @@ export default async function Home() {
             <li>
               <p className="lp-way-tag">When you ask for music</p>
               <h3 className="se-heading">Strudel</h3>
-              <p className="se-muted">The AI writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It plays in {ATTUNED} and {JUKEBOX}. It runs in a sandbox in your browser, and the owner can switch it off.</p>
+              <p className="se-muted">The AI writes it live in <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">Strudel</a>, with drums and samples. Read the code in the player, copy it, or open it on strudel.cc to change it. It plays in {ATTUNED} and {JUKEBOX}, in a sandbox in your browser, and you can switch it off in the player.</p>
             </li>
           </ul>
         </section>
@@ -151,8 +152,8 @@ export default async function Home() {
             <p className="se-muted">
               Best setup: the player in one window or device, the chat in another. On a phone you can switch to the chat
               and keep going: the sound keeps playing in the background and follows the AI. If the phone stops it, open
-              the player again and tap resume.
-              Open the link on several devices and they play the same notes at the same time.
+              the player again and tap resume. Open the link on several devices and they play the same notes at the same
+              time.
             </p>
           </div>
         </section>

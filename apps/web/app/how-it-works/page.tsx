@@ -4,7 +4,7 @@ import { FACES, MODE_LABEL } from "../../lib/mcp/modes";
 
 export const metadata = {
   title: "How it works",
-  description: "What to say to your AI, how the player and the two sound engines work, and what each Sonorous Envelope tool does.",
+  description: "How non-verbal communication with your AI works: what to say, how the player and the two sound engines work, and what each Sonorous Envelope tool does.",
   alternates: { canonical: "/how-it-works" },
 };
 
@@ -83,7 +83,7 @@ export default function HowItWorksPage() {
               <p>
                 Live-coded music, as on <a href="https://strudel.cc" target="_blank" rel="noopener noreferrer">strudel.cc</a>, in{" "}
                 {ATTUNED} and {JUKEBOX}. The AI writes the code, your browser plays it in a sandbox, and you can copy it. The
-                model cannot hear it, but if the owner allows it, it can see a picture of the output, Strudel included.
+                AI cannot hear it, but if the owner allows it, it can see a picture of the output, Strudel included.
               </p>
               <p className="se-sm se-muted">
                 Strudel can be much louder than the synth: start with the volume low. The owner can turn it off with &ldquo;Allow

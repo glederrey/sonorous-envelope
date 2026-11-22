@@ -3,7 +3,7 @@ import { MODE_LABEL, type Face } from "../../lib/mcp/modes";
 
 export const metadata = {
   title: "Modes",
-  description: "Self, Attuned and Jukebox: who decides what plays, how the AI switches between them, and where the idea comes from.",
+  description: "Self, Attuned and Jukebox: the three modes of non-verbal communication with your AI, who decides what plays, how the AI switches, and where the idea comes from.",
   alternates: { canonical: "/modes" },
 };
 
@@ -51,7 +51,7 @@ const scene: Array<{ face: Face; text: string }> = [
 ];
 
 const steps = [
-  { title: `Starts in ${SELF}`, text: "Every session begins with the AI's own sound. This is auto, the default." },
+  { title: `Starts in ${SELF}`, text: "Every session begins with the AI's own sound." },
   { title: "The AI offers, you answer", text: "It may propose another mode in words (“want me to play something gentle?”). It switches only after a yes or a clear request, and says so." },
   { title: "You can lock it", text: "From the player, the owner can lock any mode. A lock is final. Every change is logged, and everyone listening sees the mode." },
 ];
@@ -87,8 +87,8 @@ export default function ModesPage() {
         <div className="doc-head">
           <h1 className="doc-title">Modes</h1>
           <p className="md-lede">
-            Sonorous Envelope gives an AI a non-verbal channel, sound and colour, to add depth to a conversation that is
-            otherwise only text. The mode says <strong>who decides what plays</strong>.
+            Sonorous Envelope gives your AI non-verbal communication, sound and colour, to add depth to a conversation
+            that is otherwise only text. The mode says <strong>who decides what plays</strong>.
           </p>
         </div>
 
@@ -119,7 +119,7 @@ export default function ModesPage() {
 
         <section className="md-section" aria-labelledby="md-scene">
           <h2 className="se-title" id="md-scene">One moment, three modes</h2>
-          <p className="se-muted md-sub">You wake up from a bad nightmare and tell the AI about it.</p>
+          <p className="se-muted md-sub">You wake up from a nightmare and tell the AI about it.</p>
           <ul className="md-scene">
             {scene.map((s) => (
               <li key={s.face} className={`md-${s.face}`}>
@@ -160,7 +160,7 @@ export default function ModesPage() {
               sound around a baby before words. Voices, lullabies, the rhythm of someone nearby.
             </p>
             <p>
-              A conversation with a model has the words. This project adds a non-verbal envelope around them: sound and colour
+              A conversation with an AI has the words. This project adds a non-verbal envelope around them: sound and colour
               beside the text. It borrows the image loosely, as a design idea, not as a claim about models.
             </p>
           </div>

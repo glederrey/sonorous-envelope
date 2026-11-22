@@ -3,7 +3,7 @@ import { SiteHeader } from "../../../components/site-header";
 import { createClient } from "../../../lib/supabase/server";
 import { decide } from "./actions";
 
-export const metadata = { title: "Authorize" };
+export const metadata = { title: "Connect an app" };
 
 export default async function ConsentPage({
   searchParams,
@@ -44,20 +44,20 @@ export default async function ConsentPage({
   // Already consented: Supabase hands back the redirect straight away.
   if ("redirect_url" in data) redirect(data.redirect_url);
 
-  const clientName = data.client.name || "An app";
+  const clientName = data.client.name || "this app";
   return (
     <>
       <SiteHeader />
       <main className="se-narrow se-stack">
         <h1 className="se-title">Connect {clientName}?</h1>
         <p>
-          <strong>{clientName}</strong> will be able to, on your account{data.user.email ? ` (${data.user.email})` : ""}:
+          <strong>{data.client.name || "The app"}</strong> will be able to, on your account{data.user.email ? ` (${data.user.email})` : ""}:
         </p>
         <ul className="se-card se-sm" style={{ margin: 0, paddingLeft: 32 }}>
           <li>create and end sound sessions</li>
           <li>set the sound, colour and Strudel code</li>
           <li>wait for and read your presses and what you heard</li>
-          <li>keep and bring back moments and motifs</li>
+          <li>keep and bring back moments, and the short phrases (motifs) it plays</li>
           <li>save a moment to your Moments page, with a link anyone who has it can open</li>
           <li>see the picture your player shows</li>
           <li>send anonymous notes to the developers</li>
