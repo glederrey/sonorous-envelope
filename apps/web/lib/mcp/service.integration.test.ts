@@ -971,11 +971,11 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       const { session_id } = await svc.startSession(dbA, A, { voice: voiceA }, tick());
       await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
       await svc.silence(dbA, A, { session_id, fade: 3, final: true }, tick(25_000));
-      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "silent", ...ref }, tick())).rejects.toMatchObject({ code: "nothing_playing" });
+      await expect(svc.saveMoment(dbA, A, { session_id, name: "silent", ...ref })).rejects.toMatchObject({ code: "nothing_playing" });
       await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
       const playing = last(session_id);
       const states = sql(`select count(*) from states where session_id='${session_id}'`);
-      const r = await svc.moment(dbA, A, { session_id, action: "save", name: "  First light ", ...ref }, tick());
+      const r = await svc.saveMoment(dbA, A, { session_id, name: "  First light ", ...ref });
       expect(r).toMatchObject({ saved: "First light", by: "you", url: expect.stringMatching(/^https:\/\/app\.example\/m\/[A-Za-z0-9_-]{22}$/) });
       expect(Object.keys(r).sort()).toEqual(["by", "saved", "url"]);
       const id = String(r.url).split("/m/")[1];
@@ -988,19 +988,19 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(sql(`select count(*) from states where session_id='${session_id}'`)).toBe(states); // nothing was written to the session
       // the same state again: nothing new is written, the first save comes back, even when the listener asks (its author stays "you")
       const count = sql(`select count(*) from saved_moments where owner_id='${A}'`);
-      const dup = await svc.moment(dbA, A, { session_id, action: "save", name: "Asked for", listener_asked: true, ...ref }, tick());
+      const dup = await svc.saveMoment(dbA, A, { session_id, name: "Asked for", listener_asked: true, ...ref });
       expect(dup).toMatchObject({ saved: "First light", by: "you", url: r.url, already: true });
       expect(sql(`select count(*) from saved_moments where owner_id='${A}'`)).toBe(count);
       // the next turn is under 5 turns after the AI's own save: the AI is refused, the listener's ask passes
       await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
-      await expect(svc.moment(dbA, A, { session_id, action: "save", name: "Two", ...ref }, tick())).rejects.toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
-      const asked = await svc.moment(dbA, A, { session_id, action: "save", name: "Asked for", listener_asked: true, ...ref }, tick());
+      await expect(svc.saveMoment(dbA, A, { session_id, name: "Two", ...ref })).rejects.toMatchObject({ code: "ai_too_soon", message: expect.stringContaining("less than 5 turns ago") });
+      const asked = await svc.saveMoment(dbA, A, { session_id, name: "Asked for", listener_asked: true, ...ref });
       expect(asked.by).toBe("listener");
       expect(asked.already).toBeUndefined();
       expect(sql(`select saved_by from saved_moments where id='${String(asked.url).split("/m/")[1]}'`)).toBe("human");
       // another account cannot save into this session, and a name is needed
-      await expect(svc.moment(dbB, B, { session_id, action: "save", name: "mine", ...ref }, tick())).rejects.toMatchObject({ code: "unknown_session" });
-      await expect(svc.moment(dbA, A, { session_id, action: "save", ...ref }, tick())).rejects.toMatchObject({ code: "bad_input" });
+      await expect(svc.saveMoment(dbB, B, { session_id, name: "mine", ...ref })).rejects.toMatchObject({ code: "unknown_session" });
+      await expect(svc.saveMoment(dbA, A, { session_id, ...ref } as never)).rejects.toMatchObject({ code: "bad_input" });
     });
 
     it("a Strudel moment does not come back in Self", async () => {

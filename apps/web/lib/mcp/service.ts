@@ -505,15 +505,32 @@ export function saveMomentError(message: string): ToolError | null {
     case "saves_full": return new ToolError("saves_full", "The owner has 200 saved moments, the limit. They can delete some in Saved.");
     case "too_fast": return new ToolError("too_fast", "Too many saves this minute. Try again in a minute.");
     case "nothing_playing": return new ToolError("nothing_playing", "Nothing is playing to save: the sound is silent. Call set_sound first.");
-    case "bad_input": return new ToolError("bad_input", "save needs a name of 1 to 40 characters.");
+    case "bad_input": return new ToolError("bad_input", "save_moment needs a name of 1 to 40 characters.");
     case "not_owner": return new ToolError("unknown_session", "No session with that id. Call start_session to make one.");
     default: return null;
   }
 }
 
-/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. `save` is a
- *  keepsake outside the session (a public link, frozen): it plays nothing and is not a sound update. */
-export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list" | "save"; name?: string; transition?: Transition; listener_asked?: boolean; final: boolean }, now = Date.now()) {
+/** Keep the sound and picture playing now as a keepsake outside the session (#151): a public link, frozen, copied on the server by the
+ *  `save_moment` function. It plays nothing and is not a sound update. Its own tool, apart from `moment` (the in-session memory). */
+export async function saveMoment(db: Db, userId: string, input: { session_id?: string; name: string; listener_asked?: boolean }) {
+  const { session, note } = await resolveSession(db, userId, input.session_id);
+  assertOpen(session);
+  if (!input.name?.trim()) throw new ToolError("bad_input", "save_moment needs a name of 1 to 40 characters.");
+  if (!(await currentState(db, session))) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
+  const { data, error } = await db.rpc("save_moment", { p_session: session.id, p_name: input.name, p_by: input.listener_asked ? "human" : "ai", p_voice_seed: voiceSeedOf(session.id), p_app_version: appVersion() });
+  if (error) {
+    const refused = saveMomentError(error.message);
+    if (refused) throw refused;
+    fail("save the moment", error);
+  }
+  const saved = data as { id: string; name: string; saved_by: "human" | "ai"; already: boolean };
+  // already: this exact moment was saved before; nothing new was written, the first save comes back
+  return { saved: saved.name, by: saved.saved_by === "human" ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(saved.already ? { already: true } : {}), ...(note ? { notes: [note] } : {}) };
+}
+
+/** The model's musical memory: keep the sound and picture playing now under a name, bring it back later, or list the names. */
+export async function moment(db: Db, userId: string, input: { session_id?: string; action: "keep" | "recall" | "list"; name?: string; transition?: Transition; final: boolean }, now = Date.now()) {
   const { session, note } = await resolveSession(db, userId, input.session_id);
   assertOpen(session);
   const kept = session.moments ?? {};
@@ -535,18 +552,6 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   if (!name) throw new ToolError("bad_input", `${input.action} needs a name.`);
   const prev = await currentState(db, session);
   if (!prev) throw new ToolError("no_state", "The session has no sound yet. Call set_sound first.");
-
-  if (input.action === "save") {
-    const { data, error } = await db.rpc("save_moment", { p_session: session.id, p_name: name, p_by: input.listener_asked ? "human" : "ai", p_voice_seed: voiceSeedOf(session.id), p_app_version: appVersion() });
-    if (error) {
-      const refused = saveMomentError(error.message);
-      if (refused) throw refused;
-      fail("save the moment", error);
-    }
-    const saved = data as { id: string; name: string; saved_by: "human" | "ai"; already: boolean };
-    // already: this exact moment was saved before; nothing new was written, the first save comes back
-    return { saved: saved.name, by: saved.saved_by === "human" ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(saved.already ? { already: true } : {}), ...(note ? { notes: [note] } : {}) };
-  }
 
   if (input.action === "keep") {
     const isNew = !Object.hasOwn(kept, name);

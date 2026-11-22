@@ -24,7 +24,7 @@ describe("MCP tools", () => {
   it("lists the seven tools with compact schemas", async () => {
     const r = await rpc("tools/list");
     const names = r.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(names).toEqual(["get_feedback", "inspect", "listen", "moment", "set_sound", "silence", "start_session", "strudel_mode", "tell_developers"]);
+    expect(names).toEqual(["get_feedback", "inspect", "listen", "moment", "save_moment", "set_sound", "silence", "start_session", "strudel_mode", "tell_developers"]);
     const set = r.result.tools.find((t: { name: string }) => t.name === "set_sound");
     expect(set.inputSchema.properties).toHaveProperty("mood"); // optional: left out, the last mood stays
     expect(JSON.stringify(set.inputSchema).length).toBeLessThan(10500);
@@ -106,12 +106,16 @@ describe("MCP tools", () => {
     expect(r.content.map((c) => ("text" in c ? c.text : "")).join("")).not.toContain("QUJDRA");
   });
 
-  it("offers save on moment, with the listener_asked flag", async () => {
+  it("saves a keepsake with its own tool, apart from moment, with the listener_asked flag", async () => {
     const r = await rpc("tools/list");
     const moment = r.result.tools.find((t: { name: string }) => t.name === "moment");
-    expect(moment.inputSchema.properties.action.enum).toEqual(["keep", "recall", "list", "save"]);
-    expect(moment.inputSchema.properties.listener_asked.type).toBe("boolean");
-    expect(moment.description).toMatch(/listener_asked/);
+    expect(moment.inputSchema.properties.action.enum).toEqual(["keep", "recall", "list"]);
+    expect(moment.inputSchema.properties.listener_asked).toBeUndefined();
+    expect(moment.description).toMatch(/save_moment/);
+    const save = r.result.tools.find((t: { name: string }) => t.name === "save_moment");
+    expect(save.inputSchema.required).toEqual(["name"]);
+    expect(save.inputSchema.properties.listener_asked.type).toBe("boolean");
+    expect(save.description).toMatch(/listener_asked/);
   });
 
   it("lists the snapshot choice on inspect", async () => {
