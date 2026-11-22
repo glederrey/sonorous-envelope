@@ -46,3 +46,14 @@ export function nextGrid(prev: { effective: EngineState; created_at: string; int
   const delayed = (next?.transition.delay ?? 0) > 0, left = Math.max(0, (g.glide ?? 0) - dt);
   return { arp, beat, bass: g.bass + dt / d.bass, fromTempo: Math.round(tempoAt(prev.effective, dt) * 100) / 100, ...(next ? { glide: !tempoHeard(prev, atMs) ? 0 : delayed ? (left >= 0.5 ? Math.round(left * 100) / 100 : 0) : glideSeconds(next.transition) } : {}) };
 }
+
+/** A saved moment's grid (#151): the state is replayed on its own, with no glide from the state before it (the freeze strips `fromTempo`,
+ *  `glide` and `fromRate`). A state written while the rate stepped had its beat snapped to the rate it STARTED with, so at its own rate the
+ *  picture's beat could sit a fraction of a step off the notes. Snap it again to the state's own rate (moves the beat by at most half a step;
+ *  a no-op for a state already aligned). Strudel states keep their beat (it is Strudel's own). */
+export function frozenGrid(s: Pick<EngineState, "arp" | "grid" | "engine" | "pattern">): EngineState["grid"] {
+  const g = s.grid;
+  if (!g || (s.engine === "strudel" && s.pattern)) return g;
+  const R = RATE_BEATS[s.arp.rate], beat = g.beat ?? g.arp * R;
+  return { ...g, beat: g.arp * R + R * Math.round((beat - g.arp * R) / R) };
+}

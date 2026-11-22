@@ -3,7 +3,7 @@ import { beatsAt, mulberry32, renderOffline } from "@sonorous/engine";
 import {
   BAND_SCALE, nextBand, nextWaveBand, tempoHeard, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
-  describeReactions, describeEmojis, GUEST_EMOJIS, harmonyFor, isResting, analyze, nextGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
+  describeReactions, describeEmojis, GUEST_EMOJIS, harmonyFor, isResting, analyze, nextGrid, frozenGrid, stepSecondsOf, mergeSticky, stickyToSynth, callSynth, stretch, stretchMood, voiceSeedOf, characterFor, voiceToSynth, Voice, moodToEngineState, nextSlowMood, parseSettings, restingNote,
   type Mood as MoodT,
 } from "../src";
 
@@ -714,5 +714,33 @@ describe("guest emojis", () => {
     const base = { turn: 1, intent: neutral, effective: moodToEngineState(neutral), clamps: [], players: 1 };
     expect(buildFeedback(base)).not.toHaveProperty("guests");
     expect(buildFeedback({ ...base, guests: `${GUEST_EMOJIS.heart.glyph} 2, over the last 1 min` }).guests).toBe("❤️ 2, over the last 1 min");
+  });
+});
+
+describe("saved moment grid (#151)", () => {
+  const base = moodToEngineState(stretchMood(neutral), undefined, 3);
+  const RB = { "1/4": 1, "1/8": 0.5, "1/8t": 1 / 3, "1/16": 0.25 } as const;
+  it("snaps the beat onto the state's own rate, by at most half a step", () => {
+    for (const rate of ["1/4", "1/8", "1/8t", "1/16"] as const) {
+      for (const [arp, beat] of [[10.5, 5.5], [7.3, 8.1], [12.25, 3], [0, 0.4]]) {
+        const s = { ...base, arp: { ...base.arp, rate }, grid: { arp, bass: 0, beat } };
+        const g = frozenGrid(s)!, R = RB[rate];
+        const k = (g.beat! - arp * R) / R;
+        expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-9);
+        expect(Math.abs(g.beat! - beat)).toBeLessThanOrEqual(R / 2 + 1e-9);
+      }
+    }
+  });
+  it("leaves an aligned state and a Strudel state alone", () => {
+    const s = { ...base, arp: { ...base.arp, rate: "1/8" as const }, grid: { arp: 9.5, bass: 1, beat: 4.75 + 0.5 * 3 } };
+    expect(frozenGrid(s)).toEqual(s.grid);
+    const st = { ...s, engine: "strudel" as const, pattern: { code: "s(\"bd\")", bpm: 120 }, grid: { arp: 9.3, bass: 1, beat: 4.1 } };
+    expect(frozenGrid(st)).toEqual(st.grid);
+  });
+  it("a frozen state renders the same notes every time", () => {
+    const s = { ...base, grid: frozenGrid({ ...base, grid: { arp: 10.5, bass: 2, beat: 5.3 } }) };
+    const a = renderOffline(s, { seconds: 4, sampleRate: 22050, seed: 11 });
+    const b = renderOffline(s, { seconds: 4, sampleRate: 22050, seed: 11 });
+    expect(b.events).toEqual(a.events);
   });
 });
