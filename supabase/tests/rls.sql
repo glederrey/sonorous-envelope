@@ -413,6 +413,36 @@ reset role;
 delete from public.sessions where id in ('emo1', 'emo2', 'emo-gone');
 do $$ begin assert not exists (select 1 from public.emoji_reactions), 'emojis go with the session'; end $$;
 
+-- Allow Strudel off then on (0029): the pattern comes back on the same state; after a lock to Self it does not
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+insert into public.sessions (id, owner_id, mode, settings) values ('sess-st', '00000000-0000-0000-0000-00000000000a', 'sandbox', '{}');
+insert into public.listeners (session_id, user_id, role, label) values ('sess-st', '00000000-0000-0000-0000-00000000000a', 'owner', 'you');
+insert into public.states (session_id, turn, intent, effective, seed, slow_mood)
+  values ('sess-st', 1, '{}', '{"volume":0.5,"engine":"strudel","pattern":{"code":"s(\"bd\")","bpm":100}}', 1, '{}');
+update public.sessions set current_state_id = (select id from public.states where session_id = 'sess-st') where id = 'sess-st';
+select public.set_allow_code('sess-st', false);
+do $$ declare e jsonb; i jsonb; begin
+  select effective, intent into e, i from public.states where session_id = 'sess-st';
+  assert not e ? 'engine' and (e->>'volume')::numeric = 0, 'code off strips the pattern and silences';
+  assert i->'stopped_pattern'->'pattern'->>'code' = 's("bd")' and (i->'stopped_pattern'->>'volume')::numeric = 0.5, 'what was stripped is kept';
+end $$;
+select public.set_allow_code('sess-st', true);
+do $$ declare e jsonb; i jsonb; begin
+  select effective, intent into e, i from public.states where session_id = 'sess-st';
+  assert e->>'engine' = 'strudel' and e->'pattern'->>'code' = 's("bd")' and (e->>'volume')::numeric = 0.5, 'code on brings the pattern back';
+  assert not i ? 'stopped_pattern' and not i ? 'owner_stopped_pattern', 'and clears the marks';
+end $$;
+select public.set_allow_code('sess-st', false);
+select public.set_mode_policy('sess-st', 'internal');
+select public.set_mode_policy('sess-st', 'auto');
+update public.sessions set mode = 'sandbox' where id = 'sess-st';
+select public.set_allow_code('sess-st', true);
+do $$ begin
+  assert not (select effective ? 'engine' from public.states st join public.sessions s on st.id = s.current_state_id where s.id = 'sess-st'), 'a lock to Self is final';
+end $$;
+reset role;
+
 -- delete_my_account: the caller's own account and data go, nobody else's; anon and a missing uid are refused
 insert into public.sessions (id, owner_id, settings) values ('sess-b', '00000000-0000-0000-0000-00000000000b', '{}');
 insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess-b', 0, '{}', '{}', 1, '{}');
