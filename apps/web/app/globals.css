@@ -1649,9 +1649,8 @@ html:has(.pl-field) .se-header {
   .add-tab:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
-  /* the hero chips: an even 2 by 2 grid on a phone */
-  .lp-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 0; }
-  .lp-chips li { text-align: center; padding: 8px 12px; }
+  /* the hero chips stay content-sized on a phone: they are not buttons, so they must not look like the buttons below */
+  .lp-chips { margin-top: 0; }
 }
 
 /* ---- the Strudel picture (components/player/strudel-view.tsx) ---- */
