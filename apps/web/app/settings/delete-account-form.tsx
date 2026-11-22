@@ -32,8 +32,8 @@ export function DeleteAccountForm({ children }: { children: ReactNode }) {
             <p className="se-muted" style={{ margin: 0 }}>
               Every session, every saved moment and every connected app goes with it. Shared links stop working. This cannot be undone.
             </p>
-            <div>
-              <label className="se-sm se-muted" htmlFor="delete-confirm">Type delete to confirm</label>
+            <div className="se-field se-dialog-field">
+              <label className="se-sm se-muted" htmlFor="delete-confirm">Type <kbd className="se-keyword">delete</kbd> to confirm</label>
               <input
                 id="delete-confirm" name="confirm" type="text" className="se-input" value={text} autoFocus
                 onChange={(e) => setText(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false}

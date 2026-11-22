@@ -1160,6 +1160,9 @@ html:has(.pl-field) .se-header {
 /* a centred card over the page (delete account): Esc, a click outside or Cancel closes it */
 .se-dialog { border: 1px solid var(--line-strong); border-radius: 16px; padding: 24px; background: var(--surface); color: var(--ink); width: min(92vw, 440px); margin: auto; }
 .se-dialog-body { display: grid; gap: 16px; }
+.se-dialog-field { margin-top: 8px; }
+/* a word to type, set apart from the sentence around it */
+.se-keyword { font-family: var(--font-mono); font-size: 0.95em; font-weight: 600; color: var(--ink); background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 5px; }
 .se-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .se-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 @media (max-width: 560px) {
