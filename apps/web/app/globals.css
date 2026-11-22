@@ -548,6 +548,11 @@ html:has(.pl-field) .se-header {
 @media (prefers-reduced-motion: reduce) {
   .lp-envelope { animation: none; }
 }
+/* On the light theme the amber end of the waves washes out over the cream: a deeper amber there. */
+:root[data-theme="light"] .lp-env-amber { stop-color: #ea8a12; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .lp-env-amber { stop-color: #ea8a12; }
+}
 .lp-env-line {
   stroke-dasharray: 1;
   stroke-dashoffset: 0;
