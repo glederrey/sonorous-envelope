@@ -57,6 +57,9 @@ export interface EngineState {
    *  listener modes only (Attuned and Jukebox), roadmap #18) at `pattern.bpm`, and the synth fields below are the paused synth state that `strudel_mode on:false` brings back. */
   engine?: "synth" | "strudel";
   pattern?: { code: string; bpm: number };
+  /** The listener's level (dB, -10 to 0) from their "softer", "harsher" and "stormier" presses (#170). The synth's `volume` already includes it;
+   *  a Strudel pattern, which has no volume of its own, is played at this gain in the browser. Absent: 0. */
+  listenerDb?: number;
   /** A short phrase of the model's own, played once, on the first bar at least 2.5 s after the state was written, in the voice's wave (roadmap #128).
    *  `id` tells devices whether they have played it already; `notes` are MIDI (-1 a rest), `beats` the length of each, `level` 0 to 1. */
   motif?: { id: number; notes: number[]; beats: number[]; repeat: number; level: number };

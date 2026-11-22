@@ -321,28 +321,96 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b.reactions).toEqual([expect.stringMatching(/^softer, /)]);
   });
 
-  it("keeps the answer to softer quieter, and to calmer no louder, on the call that delivers the press, once", async () => {
+  describe("the listener's level (#170)", () => {
     const quiet = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
     const loud = { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.45, spontaneity: 0.4 };
-    const db = (sid: string) => JSON.parse(sql(`select analysis->'sound'->'loudness_db' from states where session_id='${sid}' order by created_at desc limit 1`));
-    const press = (sid: string, kind: string) => sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${sid}', '${A}', '${kind}', to_timestamp(${clock - 5_000} / 1000.0))`);
-    const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
-    await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-    await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
-    // the press is pending: this call delivers it (it shows in its reactions) and answers it at once
-    const was = db(session_id);
-    press(session_id, "softer");
-    const r = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
-    expect(r.reactions).toEqual([expect.stringMatching(/^softer, /)]);
-    expect(db(session_id)).toBeLessThanOrEqual(was - 2);
-    expect((r.clamped as string[]).join(" ")).toMatch(/level lowered: the listener asked for softer/);
-    // the next call does not answer it again
-    const again = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
-    expect(((again.clamped as string[] | undefined) ?? []).join(" ")).not.toMatch(/asked for/);
-    const was2 = db(session_id);
-    press(session_id, "calmer");
-    await svc.setSound(dbA, A, { session_id, mood: { ...loud, calm: 0.3 }, final: true } as never, tick(25_000));
-    expect(db(session_id)).toBeLessThanOrEqual(was2);
+    const lastRow = (sid: string) => JSON.parse(sql(`select json_build_object('db', analysis->'sound'->'loudness_db', 'e', effective) from states where session_id='${sid}' order by created_at desc limit 1`));
+    const levelOf = (sid: string) => sql(`select coalesce(sticky->>'levelDb', '0') from sessions where id='${sid}'`);
+    const press = (sid: string, kind: string, n = 1) => {
+      for (let k = 0; k < n; k++) sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${sid}', '${A}', '${kind}', to_timestamp(${clock - 5_000 + k} / 1000.0))`);
+    };
+    const notesOf = (r: Record<string, unknown>) => ((r.notes as string[] | undefined) ?? []).join(" ");
+
+    it("lowers the level 2 dB per softer, on the call that delivers it, and keeps it on later calls", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      const was = lastRow(session_id);
+      press(session_id, "softer");
+      const r = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+      expect(r.reactions).toEqual([expect.stringMatching(/^softer, /)]);
+      expect(notesOf(r)).toMatch(/level: the listener asked for softer, so everything plays 2 dB lower from now on \(-2 dB in all/);
+      expect(lastRow(session_id).db).toBeLessThanOrEqual(was.db - 2);
+      expect(lastRow(session_id).e.listenerDb).toBe(-2);
+      expect(levelOf(session_id)).toBe("-2");
+      // a plain call later keeps it: the same mood as before the press plays 2 dB under its old level
+      const later = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      expect(notesOf(later)).not.toMatch(/level:/);
+      expect(lastRow(session_id).db).toBeLessThanOrEqual(was.db - 1); // whole-dB readings
+      expect(lastRow(session_id).e.volume).toBeCloseTo(was.e.volume * 10 ** (-2 / 20), 3);
+      // harsher brings it back up
+      press(session_id, "harsher");
+      const up = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      expect(notesOf(up)).toMatch(/level: the listener's harsher raised the level 2 dB \(back to the usual level\)/);
+      expect(levelOf(session_id)).toBe("0");
+      expect(lastRow(session_id).e.listenerDb).toBeUndefined();
+    });
+
+    it("stops at -10 dB, and a calmer answer is no louder", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      press(session_id, "softer", 6);
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      expect(levelOf(session_id)).toBe("-10");
+      press(session_id, "softer");
+      const floor = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      expect(notesOf(floor)).toMatch(/at its lowest \(-10 dB\)/);
+      const was = lastRow(session_id).db;
+      press(session_id, "calmer");
+      await svc.setSound(dbA, A, { session_id, mood: { ...loud, calm: 0.3 }, final: true } as never, tick(25_000));
+      expect(lastRow(session_id).db).toBeLessThanOrEqual(was);
+    });
+
+    it("plays Self at the usual level, keeps the listener's level for the next listener mode, and reads the sound at the usual level", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      const plain = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      press(session_id, "softer", 2);
+      const low = await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      expect(lastRow(session_id).e.listenerDb).toBe(-4);
+      // reads_as does not read the listener's level as calm
+      expect((low.reads_as as Record<string, number>).calm).toBeCloseTo((plain.reads_as as Record<string, number>).calm, 1);
+      await svc.setSound(dbA, A, { session_id, mode: "self", mood: quiet, final: true } as never, tick(25_000));
+      expect(lastRow(session_id).e.listenerDb).toBeUndefined();
+      expect(levelOf(session_id)).toBe("-4");
+      await svc.setSound(dbA, A, { session_id, mode: "attuned", mood: quiet, final: true } as never, tick(25_000));
+      expect(lastRow(session_id).e.listenerDb).toBe(-4);
+    });
+
+    it("carries the level into a Strudel pattern and through recall", async () => {
+      const { session_id } = await svc.startSession(dbA, A, { mode: "jukebox" }, tick());
+      await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+      await svc.moment(dbA, A, { session_id, action: "keep", name: "plain", final: true }, tick());
+      await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*2")', bpm: 96, final: true }, tick(25_000));
+      press(session_id, "softer");
+      const r = await svc.setSound(dbA, A, { session_id, colour: { h: 300 }, final: true } as never, tick(25_000));
+      expect(notesOf(r)).toMatch(/level: the listener asked for softer/);
+      expect(lastRow(session_id).e).toMatchObject({ engine: "strudel", listenerDb: -2 });
+      await svc.strudelMode(dbA, A, { session_id, on: false, final: true }, tick(25_000));
+      await svc.moment(dbA, A, { session_id, action: "recall", name: "plain", final: true }, tick(25_000));
+      expect(lastRow(session_id).e.listenerDb).toBe(-2); // the moment was kept at 0 dB: it plays at the session's level now
+      expect(levelOf(session_id)).toBe("-2");
+    });
+  });
+
+  it("holds the pace of a switch to Attuned to the pattern that just played", async () => {
+    const { session_id } = await svc.startSession(dbA, A, { mode: "jukebox" }, tick());
+    await svc.setSound(dbA, A, { session_id, mood: { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 }, final: true } as never, tick(25_000));
+    await svc.strudelMode(dbA, A, { session_id, on: true, code: 's("bd*2")', bpm: 80, final: true }, tick(25_000));
+    await svc.strudelMode(dbA, A, { session_id, on: false, final: false }, tick(5_000));
+    const r = await svc.setSound(dbA, A, { session_id, mode: "attuned", mood: { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.3, spontaneity: 0.4 }, final: true } as never, tick(3_000));
+    expect(JSON.parse(sql(`select effective->'arp'->>'tempo' from states where session_id='${session_id}' order by created_at desc limit 1`))).toBe(80);
+    expect((r.clamped as string[]).join(" ")).toMatch(/pace held: .*tempo \d+ to 80 bpm/);
   });
 
   it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {

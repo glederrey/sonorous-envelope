@@ -53,12 +53,22 @@ export class StrudelOutput {
 
   /** the picture's tap on the sound: after the pattern's fade, before the listener's volume, so the waves stay when the listener mutes */
   private analyser: AnalyserNode;
+  /** the listener's level from their "softer" presses (state.listenerDb, #170): after the fade, before the listener's volume */
+  private level: GainNode;
 
   constructor(private ctx: AudioContext, private out: AudioNode, private hooks: StrudelHooks) {
     this.analyser = new AnalyserNode(ctx, { fftSize: 2048, smoothingTimeConstant: 0.6 });
+    this.level = new GainNode(ctx);
+    this.level.connect(out);
     this.fade = new GainNode(ctx);
-    this.fade.connect(out);
+    this.fade.connect(this.level);
     this.fade.connect(this.analyser);
+  }
+
+  /** The listener's level as a gain (1 is the usual level). It glides over about a second, so a press does not click. */
+  setLevel(gain: number) {
+    const g = Number.isFinite(gain) ? Math.min(1, Math.max(0, gain)) : 1;
+    this.level.gain.setTargetAtTime(g, this.ctx.currentTime, 0.3);
   }
 
   /** The sound as it is now, for the scope drawings: time-domain samples (-1 to 1) and frequency bins (dB). Arrays are filled in place. */
@@ -232,7 +242,7 @@ export class StrudelOutput {
   private renewFade() {
     const old = this.fade;
     this.fade = new GainNode(this.ctx);
-    this.fade.connect(this.out);
+    this.fade.connect(this.level);
     this.fade.connect(this.analyser);
     if (this.hub) { this.hub.disconnect(); this.hub.connect(this.fade); }
     old.disconnect();

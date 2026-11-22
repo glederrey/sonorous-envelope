@@ -15,6 +15,9 @@ export interface Sticky {
   voiceBand?: "low" | "mid" | "high";
   /** Same for the wave: set while it follows warmth (voice-band.ts `nextWaveBand`). Gone once the model sends a voice. */
   waveBand?: Wave;
+  /** The listener's level, -10 to 0 dB: each "softer" a call answers lowers it 2 dB, each "harsher" or "stormier" raises it 2 dB back toward 0.
+   *  Only presses move it, never the model (it has no volume of its own); the server writes it, `mergeSticky` never touches it (#170). */
+  levelDb?: number;
 }
 
 const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;

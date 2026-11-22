@@ -51,6 +51,9 @@ export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boole
   // The same safety net as the session player: the server's rules were applied when the state was written, this is the second line.
   const state = useMemo(() => {
     const s: EngineState = JSON.parse(JSON.stringify(moment.effective));
+    // a saved moment plays at the usual level: the listener's "softer" was for their session, not for everyone who opens the link (#170)
+    if (s.listenerDb !== undefined && s.listenerDb < 0) s.volume /= 10 ** (s.listenerDb / 20);
+    delete s.listenerDb;
     hardCaps(s);
     s.grid = frozenGrid(s); // the beat on the state's own rate: it no longer steps from the rate before
     return s;
@@ -109,6 +112,7 @@ export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boole
             cycleNow: () => beatsAt(state, Math.max(0, (Date.now() - startedAt.current) / 1000)) / 4,
             latency: () => audio.current?.latency ?? 0, viz: vizStore, onReport: () => {}, // nobody reads a keepsake's report
           });
+          strudel.current.setLevel(10 ** ((state.listenerDb ?? 0) / 20)); // the level it was saved at
           void strudel.current.play({ id: null, code: pattern.code, bpm: pattern.bpm, seed: moment.seed & 0xffff });
         });
       } else out.setState(state, moment.seed, 0, 0);
