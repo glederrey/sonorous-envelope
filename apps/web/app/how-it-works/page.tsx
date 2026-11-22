@@ -34,7 +34,7 @@ const tools = [
   { name: "listen", text: `With Live tuning on, in ${ATTUNED} and ${JUKEBOX}: waits about 20 s at the end of a message for your button presses, so the AI can answer them at once.` },
   { name: "get_feedback", text: "Reads what plays and who listens, without changing anything." },
   { name: "moment", text: "Keeps the sound and picture playing now under a name, and brings them back later, the way a theme returns." },
-  { name: "save_moment", text: "Saves the sound and picture playing now as a frozen keepsake with its own link, in Saved. When you ask, or on its own now and then (it says so)." },
+  { name: "save_moment", text: "Saves the sound and picture playing now as a frozen keepsake with its own link, on your Moments page. When you ask, or on its own now and then (it says so)." },
   { name: "silence", text: "Fades to silence. With end, it closes the session." },
   { name: "inspect", text: "A closer look: the last few states, or a snapshot of what your player shows and plays." },
   { name: "tell_developers", text: "Sends an anonymous note to the people who build this, when something is worth fixing or keeping. At most 3 a day." },

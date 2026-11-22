@@ -636,7 +636,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       });
       const m = error?.message ?? "";
       if (error || !data) {
-        setSaveNote({ error: m.includes("nothing_playing") ? "Nothing is playing to save." : m.includes("too_fast") ? "Too many saves. Try again in a minute." : m.includes("saves_full") ? "You have 200 saved moments. Delete some in Saved." : "Could not save this moment. Try again." });
+        setSaveNote({ error: m.includes("nothing_playing") ? "Nothing is playing to save." : m.includes("too_fast") ? "Too many saves. Try again in a minute." : m.includes("saves_full") ? "You have 200 saved moments. Delete some on your Moments page." : "Could not save this moment. Try again." });
       } else {
         const saved = data as { id: string; name: string; already?: boolean };
         setSaveNote({ id: saved.id, name: saved.name, already: saved.already === true }); setSaveDone(true);

@@ -58,6 +58,7 @@ export default async function ConsentPage({
           <li>set the sound, colour and Strudel code</li>
           <li>wait for and read your presses and what you heard</li>
           <li>keep and bring back moments and motifs</li>
+          <li>save a moment to your Moments page, with a link anyone who has it can open</li>
           <li>see the picture your player shows</li>
           <li>send anonymous notes to the developers</li>
         </ul>
