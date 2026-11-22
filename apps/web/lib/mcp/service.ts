@@ -477,7 +477,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
 /** What the model is told when `save_moment` (migration 0027) refuses: the code is the text after "saved_moment: " in the error. */
 export function saveMomentError(message: string): ToolError | null {
   switch (/saved_moment: (\w+)/.exec(message)?.[1]) {
-    case "ai_saves_full": return new ToolError("ai_saves_full", "You saved 3 moments on your own in this session, the limit. The listener can still save one from the player.");
+    case "ai_too_soon": return new ToolError("ai_too_soon", "You saved one on your own less than 5 turns ago. The listener can still save from the player, or ask you to.");
     case "saves_full": return new ToolError("saves_full", "The owner has 200 saved moments, the limit. They can delete some in Saved.");
     case "too_fast": return new ToolError("too_fast", "Too many saves this minute. Try again in a minute.");
     case "nothing_playing": return new ToolError("nothing_playing", "Nothing is playing to save: the sound is silent. Call set_sound first.");
@@ -519,8 +519,9 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
       if (refused) throw refused;
       fail("save the moment", error);
     }
-    const saved = data as { id: string; name: string };
-    return { saved: saved.name, by: input.listener_asked ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(note ? { notes: [note] } : {}) };
+    const saved = data as { id: string; name: string; saved_by: "human" | "ai"; already: boolean };
+    // already: this exact moment was saved before; nothing new was written, the first save comes back
+    return { saved: saved.name, by: saved.saved_by === "human" ? "listener" : "you", url: `${publicBaseUrl()}/m/${saved.id}`, ...(saved.already ? { already: true } : {}), ...(note ? { notes: [note] } : {}) };
   }
 
   if (input.action === "keep") {

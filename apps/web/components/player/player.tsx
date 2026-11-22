@@ -582,7 +582,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   // Save this moment (owner only): the database copies the state that plays, so only the name and the seed of the session go up
   const [saveDone, setSaveDone] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
-  const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string } | null>(null);
+  const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string; already: boolean } | null>(null);
   const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => saveTimers.current.forEach(clearTimeout), []);
   const saveMoment = async () => {
@@ -597,8 +597,8 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
       if (error || !data) {
         setSaveNote({ error: m.includes("nothing_playing") ? "Nothing is playing to save." : m.includes("too_fast") ? "Too many saves. Try again in a minute." : m.includes("saves_full") ? "You have 200 saved moments. Delete some in Saved." : "Could not save this moment. Try again." });
       } else {
-        const saved = data as { id: string; name: string };
-        setSaveNote({ id: saved.id, name: saved.name }); setSaveDone(true);
+        const saved = data as { id: string; name: string; already?: boolean };
+        setSaveNote({ id: saved.id, name: saved.name, already: saved.already === true }); setSaveDone(true);
         saveTimers.current.push(setTimeout(() => setSaveDone(false), 3000));
       }
       saveTimers.current.push(setTimeout(() => setSaveNote(null), 8000));
@@ -697,7 +697,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             save={isOwner ? { onSave: () => void saveMoment(), done: saveDone, busy: saveBusy } : undefined}
             notice={saveNote && (
               <p className="se-sm pl-save-note" role="status" style={{ margin: 0 }}>
-                {"error" in saveNote ? saveNote.error : <>Saved as “{saveNote.name}” · <a href={`/m/${saveNote.id}`}>Open</a> · <CopyLink path={`/m/${saveNote.id}`} label="Copy link" /></>}
+                {"error" in saveNote ? saveNote.error : <>{saveNote.already ? "Already saved" : "Saved"} as “{saveNote.name}” · <a href={`/m/${saveNote.id}`}>Open</a> · <CopyLink path={`/m/${saveNote.id}`} label="Copy link" /></>}
               </p>
             )}
             audioState={audioState} muted={muted}
