@@ -1547,6 +1547,7 @@ html:has(.pl-field) .se-header {
 /* landing: the live counter in its own box, with a slow teal to amber dot (0.25 Hz, far under 3 Hz; still when motion is reduced) */
 /* a child of the hero text grid (gap 24): a negative margin makes the space to the box above 12 px */
 .lp-live-box { display: flex; align-items: center; gap: 12px; margin-top: -12px; padding: 12px 16px; border-radius: var(--radius); background: var(--scrim); border: 1px solid var(--scrim-line); color: var(--on-scrim); font-size: 16px; font-weight: 500; }
+.lp-deleted { margin: 0 0 20px; width: fit-content; }
 .lp-live-dot { position: relative; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--tide); animation: lp-live 4s ease-in-out infinite alternate; }
 /* the ring takes the dot's own colour as it fades, and pulses twice per teal-to-amber step (2 s each, 0.5 Hz) */
 .lp-live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: inherit; opacity: 0; animation: lp-ring 2s ease-out infinite; }

@@ -6,8 +6,8 @@ import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; mode?: string; deleted?: string }> }) {
-  const { next, error, mode, deleted } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; mode?: string }> }) {
+  const { next, error, mode } = await searchParams;
   // Already signed in: go where the sign-in was heading instead of showing the form.
   if (!error) {
     const supabase = await createClient();
@@ -20,7 +20,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <main className="se-narrow se-stack">
         <h1 className="se-title">Your account</h1>
         <p className="se-muted">Sign in, or create an account, to connect your AI app.</p>
-        {deleted === "1" ? <p className="se-muted se-sm">Your account and everything in it were deleted.</p> : null}
         {error ? <p className="se-error se-sm" role="alert">That link did not work. Try again.</p> : null}
         <LoginForm next={safeNext(next)} initialMode={mode === "signup" ? "signup" : "signin"} />
       </main>

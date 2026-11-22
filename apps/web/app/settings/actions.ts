@@ -40,5 +40,5 @@ export async function deleteAccount(formData: FormData) {
   const cookieStore = await cookies();
   for (const { name } of cookieStore.getAll()) if (name.startsWith("sb-")) cookieStore.delete(name);
   revalidatePath("/", "layout");
-  redirect("/login?deleted=1");
+  redirect("/?deleted=1");
 }
