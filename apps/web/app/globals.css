@@ -1580,6 +1580,7 @@ html:has(.pl-field) .se-header {
 /* session list actions: one line on a phone (Open player, Copy link, End session), wrapping only on very narrow screens */
 .ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ss-actions form { display: contents; }
+.ss-actions form.se-dialog-body { display: grid; } /* the delete dialog sits inside the actions row */
 /* /moments: a name search, then month, engine and who saved; one row per moment */
 .sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 16px; }
 /* the count sits inside the search field, flush right (the native clear button would collide with it) */
