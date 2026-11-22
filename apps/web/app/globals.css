@@ -1586,6 +1586,8 @@ html:has(.pl-field) .se-header {
 .ss-delete { margin-left: auto; }
 /* an ended session has no other buttons: Delete sits on its status line, flush right */
 .ss-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* the button must not make the line taller than its text, or the title-to-status gap differs from a running session's */
+.ss-status .se-btn { margin-block: -12px; }
 .ss-actions form.se-dialog-body { display: grid; } /* the delete dialog's form sits inside the actions row */
 /* /moments: a name search, then month, engine and who saved; one row per moment */
 .sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 16px; }
