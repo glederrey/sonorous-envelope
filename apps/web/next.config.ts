@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/faces", destination: "/modes", permanent: true },
       { source: "/guide", destination: "/how-it-works", permanent: true },
+      { source: "/v1", destination: "/#v1", permanent: false }, // easter egg: the home page plays fireworks (components/fireworks.tsx)
     ];
   },
   async headers() {
