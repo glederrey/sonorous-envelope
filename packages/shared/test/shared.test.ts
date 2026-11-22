@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beatsAt, mulberry32, renderOffline } from "@sonorous/engine";
+import { arpPlan, beatsAt, mulberry32, RATE_BEATS, renderOffline, steppedFromRate, type Rate } from "@sonorous/engine";
 import {
   BAND_SCALE, nextBand, nextWaveBand, tempoHeard, alignToVoice,
   hardCaps, MASTER_VOLUME, Colour, ListenerSettings, Mood, SetSoundInput, applyColour, applyLimits, applyOverride, buildFeedback,
@@ -533,7 +533,7 @@ describe("analysis", () => {
 });
 
 describe("the shared timeline", () => {
-  const st = (tempo: number, rate: "1/8" | "1/4" = "1/8") => { const s = moodToEngineState(neutral); s.arp.tempo = tempo; s.arp.rate = rate; s.bass.stepSeconds = 2; return s; };
+  const st = (tempo: number, rate: Rate = "1/8") => { const s = moodToEngineState(neutral); s.arp.tempo = tempo; s.arp.rate = rate; s.bass.stepSeconds = 2; return s; };
   it("starts at zero and counts steps forward at the previous state's step length", () => {
     expect(nextGrid(null, 1000)).toEqual({ arp: 0, bass: 0, beat: 0 });
     const a = st(120); a.grid = { arp: 0, bass: 0 };
@@ -588,8 +588,8 @@ describe("the shared timeline", () => {
     const onsetsVsBeat = (s: ReturnType<typeof st>) => {
       const ev = renderOffline(s, { seconds: 6, sampleRate: 22050, seed: 7 }).events.filter((e) => e.layer === "arp");
       expect(ev.length).toBeGreaterThan(8);
-      const R = { "1/4": 1, "1/8": 0.5 }[s.arp.rate as "1/4" | "1/8"];
-      return ev.map((e) => { const b = beatsAt(s, e.time), off = b - Math.round(b / R) * R; return Math.abs(off) * (60 / Math.max(20, s.arp.tempo)); });
+      const plan = arpPlan(s); // a state that steps its rate (1/8 to 1/4 here) has its notes on the grid of the rate that plays at that moment
+      return ev.map((e) => { const R = RATE_BEATS[plan.rateAt(e.time) ?? s.arp.rate], b = beatsAt(s, e.time), off = b - Math.round(b / R) * R; return Math.abs(off) * (60 / Math.max(20, s.arp.tempo)); });
     };
     const every = (s: ReturnType<typeof st>) => { s.arp.density = 1; s.arp.jitterMs = 0; return s; }; // every step sounds, on the grid
     const a = every(st(120)); a.grid = { arp: 0, bass: 0, beat: 0 };
@@ -602,9 +602,45 @@ describe("the shared timeline", () => {
     const c = every(st(100)); c.transition = { time: 2, curve: "smooth" };
     c.grid = nextGrid({ effective: b, created_at: new Date(3_100).toISOString() }, 3_100 + 1_730, c);
     for (const err of onsetsVsBeat(c)) expect(err).toBeLessThan(0.04);
-    // without the snap the beat would sit off the notes
-    const raw = { ...b, grid: { ...b.grid, beat: beatsAt(a, 3.1) } };
+    // without the snap the beat would sit off the notes (a sudden state does not step its rate: it starts on its own, quarter-note, steps)
+    const sudden = every(st(120, "1/4")); sudden.transition = { time: 0, curve: "sudden" };
+    sudden.grid = nextGrid({ effective: a, created_at: new Date(0).toISOString() }, 3_100, sudden);
+    for (const err of onsetsVsBeat(sudden)) expect(err).toBeLessThan(0.04);
+    const raw = { ...sudden, grid: { ...sudden.grid, beat: beatsAt(a, 3.1) } };
     expect(Math.max(...onsetsVsBeat(raw))).toBeGreaterThan(0.04);
+  });
+  const whole = (x: number) => x - Math.round(x); // distance to the nearest whole number
+  it("writes the rate that plays (`fromRate`) and starts a rate glide on a step of it, also when the state before was mid-glide (issue #156)", () => {
+    const at = (ms: number) => new Date(ms).toISOString();
+    const a = st(78, "1/4"); a.grid = { arp: 0, bass: 0, beat: 0 };
+    const b = st(119, "1/16"); b.transition = { time: 8, curve: "smooth" };
+    b.grid = nextGrid({ effective: a, created_at: at(0) }, 5_300, b); // written 5.3 s after a (a fractional step)
+    expect(b.grid.fromRate).toBe("1/4"); expect(b.grid.glide).toBe(8);
+    expect(whole(b.grid.beat! - b.grid.arp)).toBeCloseTo(0, 9); // starts on a step of the quarter-note rate it came from, not of the sixteenth
+    const plan = arpPlan(b);
+    const seen = new Set<string>();
+    for (const dt of [0.4, 1.9, 3.1, 4.4, 6.2, 7.7, 9.5, 14]) {
+      const c = st(100, "1/8"); c.transition = { time: 2, curve: "smooth" };
+      c.grid = nextGrid({ effective: b, created_at: at(10_000) }, 10_000 + dt * 1000, c);
+      expect(c.grid.fromRate).toBe(plan.rateAt(dt)); seen.add(c.grid.fromRate!);
+      // the counter carries on the previous state's step count, and the beat stays within half a step of its beat
+      expect(c.grid.arp - b.grid.arp).toBeCloseTo(plan.stepsAt(dt), 9);
+      const R = RATE_BEATS[steppedFromRate(c) ?? c.arp.rate];
+      expect(Math.abs(c.grid.beat! - beatsAt(b, dt))).toBeLessThanOrEqual(R / 2 + 1e-9);
+      expect(whole(c.grid.beat! / R - c.grid.arp)).toBeCloseTo(0, 9);
+    }
+    expect([...seen].sort()).toEqual(["1/16", "1/4", "1/8"]); // all three rates were caught playing
+  });
+  it("leaves the grid as it was when there is nothing to step from: a sudden state, or Strudel before", () => {
+    const at = (ms: number) => new Date(ms).toISOString();
+    const a = st(120); a.grid = { arp: 0, bass: 0, beat: 0 };
+    const sudden = st(80, "1/4"); sudden.transition = { time: 0, curve: "sudden" };
+    const g = nextGrid({ effective: a, created_at: at(0) }, 3_100, sudden);
+    expect(g.glide).toBe(0); expect(arpPlan({ ...sudden, grid: g }).varies).toBe(false);
+    expect(whole(g.beat! - g.arp)).toBeCloseTo(0, 9); // aligned on its own rate (quarter notes), as ever
+    const strudel = st(120); strudel.engine = "strudel"; strudel.pattern = { code: "s('bd')", bpm: 100 }; strudel.grid = { arp: 0.37, bass: 0, beat: 8.3 };
+    const next = st(80, "1/4"); next.transition = { time: 4, curve: "smooth" };
+    expect(nextGrid({ effective: strudel, created_at: at(0) }, 3_000, next).fromRate).toBeUndefined();
   });
   it("never goes backwards, and copes with states that have no grid", () => {
     const a = st(100);
