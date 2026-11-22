@@ -112,9 +112,11 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const engineCtl = useRef({ face: "internal" as Face, allowCode: true });
   engineCtl.current = { face, allowCode };
   const reported = useRef(new Set<string>());
-  // The owner locked the mode or switched code off while this state played. When they allow it again the synth keeps playing until the
-  // model sends something new: the old song does not come back on its own. (Stopping and playing the pattern here is the listener's own button.)
+  // The owner locked the mode or switched code off while this state played. After a mode lock the old song does not come back on its own
+  // (the model is told the owner changed the mode, and brings the next sound). After "Allow Strudel" off then on, with nothing new from the
+  // model in between, the pattern comes back where it would be (v0.23.2 report: it stayed silent while the server thought it played).
   const ownerBlocked = useRef<number | null>(null);
+  const blockedPattern = useRef<{ p: Playing; byCode: boolean } | null>(null); // the state as it was before the block
   const [blockedAt, setBlockedAt] = useState<number | null>(null);
   const [dimDelay, setDimDelay] = useState(0); // seconds the dark layer waits before it lifts (Strudel's first bar)
   const [dimAnimated, setDimAnimated] = useState(false); // the dark layer snaps at the first paint (a late joiner after silence sees black), then glides
@@ -206,8 +208,19 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   // the owner locked the mode or switched code off: the same state goes to the other engine
   useEffect(() => {
     const p = latest.current;
-    if (!p || !audio.current || p.state.engine !== "strudel" || restedFrom.current) return;
+    if (!p || !audio.current || restedFrom.current) return;
+    const was = blockedPattern.current;
+    if (was && was.byCode && was.p.at === p.at && forListener(face) && allowCode) {
+      // Strudel allowed again on the same state: play the pattern again, in time with the shared clock
+      blockedPattern.current = null; ownerBlocked.current = null; setBlockedAt(null);
+      latest.current = was.p; setPlaying(was.p);
+      runEngine(was.p, 0, Math.max(0, (Date.now() + clockOffset.current - was.p.at) / 1000));
+      return;
+    }
+    if (was && !forListener(face)) was.byCode = false; // a mode lock on top of it is final
+    if (p.state.engine !== "strudel") return;
     if (!forListener(face) || !allowCode) {
+      blockedPattern.current = { p, byCode: forListener(face) }; // a block from the code switch alone can be undone by the code switch
       block(p.at);
       // The owner turned Strudel off or locked the internal mode: the sound and the picture fade to nothing, not to the leftover synth state
       // (the modes are different voices; the model's next set_sound brings the internal one). The state loses its pattern, so the picture

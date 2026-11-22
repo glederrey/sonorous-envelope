@@ -121,7 +121,8 @@ export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boole
   const source = useMemo(() => (started ? { state, at, seed: pictureSeed } : null), [started, state, at, pictureSeed]);
   const strudelOn = Boolean(pattern) && canvasOk && !reduced;
   const colour = state.colour;
-  // black until Start, then the colour fades in with the sound (lightness 0 is black whatever the hue)
+  // black until Start, then the colour fades in with the sound (lightness 0 is black whatever the hue). The canvas fades in over the same
+  // 2.5 s (.pl-moment): it draws its glow at full light at once, which made the middle bright over a still dark base (v0.23.2 report).
   const fieldStyle = {
     "--pl-h": colour.h, "--pl-s": colour.s, "--pl-l": started ? colour.l : 0,
     "--pl-h2": colour.secondary?.h ?? colour.h + 25, "--pl-s2": colour.secondary?.s ?? colour.s, "--pl-l2": started ? colour.secondary?.l ?? Math.max(0, colour.l - 0.08) : 0,
@@ -132,7 +133,7 @@ export function MomentPlayer({ moment, mine }: { moment: MomentData; mine: boole
 
   return (
     <div
-      className="pl-field" style={fieldStyle}
+      className="pl-field pl-moment" style={fieldStyle} data-started={started || undefined}
       data-motion={reduced || canvasOk ? "still" : colour.motion ?? "still"} data-canvas={canvasOk && !reduced ? "on" : "off"} data-texture={colour.texture ?? "flat"} data-shape={colour.shape ?? "wash"}
     >
       {canvasOk && !reduced && (

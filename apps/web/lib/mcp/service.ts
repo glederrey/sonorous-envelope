@@ -32,7 +32,7 @@ interface SessionRow {
 }
 interface StateRow {
   id: string; session_id: string; turn: number; final: boolean; created_at: string; analysis: Compact | null;
-  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean; motif?: { name?: string } }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
+  intent: { mood?: Mood; note?: string; silence?: boolean; end?: boolean; owner_silenced?: boolean; initial?: boolean; strudel_off?: boolean; motif?: { name?: string }; overridden?: string[] }; effective: EngineState; clamps: string[]; slow_mood: Mood | null;
 }
 
 /** A kept moment: a self-contained copy of the sound and picture that played (migration 0022), so it survives the states it came from. */
@@ -254,7 +254,7 @@ function measureState(effective: EngineState, seed: number): Compact | null {
 /** Sound reaches the listener before anything can be softened: one call may raise the level by at most `stepDb`. A bigger jump is
  *  held down to that step (the master volume of `effective` is scaled, for this state only); it rises further on the next call.
  *  Returns the reading of what plays after the hold, and a note when it held. */
-function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Compact | null, stepDb: number): { analysis: Compact | null; note?: string } {
+function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Compact | null, stepDb: number, asked?: "softer" | "calmer"): { analysis: Compact | null; note?: string } {
   const wasDb = prev?.intent.owner_silenced ? undefined : prev?.analysis?.sound.loudness_db, nowDb = analysis?.sound.loudness_db;
   if (typeof wasDb !== "number" || typeof nowDb !== "number" || nowDb - wasDb <= stepDb) return { analysis };
   // the readings are rounded to whole dB, so the held sound can still read one above the step: tighten once more if so
@@ -264,7 +264,22 @@ function holdLevel(effective: EngineState, prev: StateRow | null, analysis: Comp
     const again = analysis?.sound.loudness_db;
     over = typeof again === "number" ? again - wasDb - stepDb : 0;
   }
+  if (asked) return { analysis, note: `level ${stepDb < 0 ? "lowered" : "held"}: the listener asked for ${asked}, so this sound plays ${stepDb < 0 ? `${-stepDb} dB below` : "no louder than"} your last (it would have been ${Math.round(nowDb - wasDb)} dB ${nowDb >= wasDb ? "louder" : "quieter"})` };
   return { analysis, note: `level held: this sound would have been ${Math.round(nowDb - wasDb)} dB louder than your last, so it was kept to ${stepDb ? `+${stepDb} dB` : "the same level (the first sound of a switch to Attuned starts no louder than what played)"}; send again to go further` };
+}
+
+/** "softer" or "calmer" reached the model since the last state (in that call's result, or through listen): the answer to it must not
+ *  come back louder. The model has no volume of its own, and a calmer mood carries its own level, which could rise (v0.23.2 report). */
+async function askedQuieter(db: Db, sessionId: string, prev: StateRow | null): Promise<"softer" | "calmer" | undefined> {
+  if (!prev) return undefined;
+  // delivered_at is the database's clock and created_at this server's: 1 s of slack, so a claim made by the last call is not missed
+  const since = new Date(new Date(prev.created_at).getTime() - 1000).toISOString();
+  try { // never break a call over a reaction
+    const { data, error } = await db.from("reactions").select("kind").eq("session_id", sessionId).in("kind", ["softer", "calmer"]).gte("delivered_at", since).limit(10);
+    if (error || !data?.length) return undefined;
+    const kinds = (data as Array<{ kind: string }>).map((r) => r.kind);
+    return kinds.includes("softer") ? "softer" : "calmer";
+  } catch { return undefined; }
 }
 
 /** The tempo glides over the transition (a linear ramp, the same on every device: engine/src/ramp.ts). Say so when it changed. */
@@ -275,6 +290,19 @@ function tempoNote(prev: StateRow | null | undefined, now: EngineState, at: numb
   if (a === b) return undefined;
   const t = now.transition, glides = t.curve !== "sudden" && t.time >= 0.5 && !(t.delay && t.delay > 0);
   return glides ? `tempo ${a} to ${b}: it glides over ${Math.round(t.time * 10) / 10} s` : `tempo ${a} to ${b}: it changes at once when this state starts (the transition is sudden or very short)`;
+}
+
+/** Synth settings last one call, except the ones the session keeps (stack, pad, LFOs). When the last call set some and this one does not,
+ *  the mood's values come back: say which moved, so the model does not undo a listener's request by accident (v0.23.2 report). */
+function expiredNote(prev: StateRow | null | undefined, now: EngineState, fields: string[]): string | undefined {
+  const before = (prev?.intent.overridden ?? []).filter((f) => !f.includes(":") && !/^(osc\.stack|pad\.|lfo)/.test(f));
+  const at = (s: EngineState, path: string) => path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], s);
+  const fmt = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : typeof v === "string" || typeof v === "boolean" ? String(v) : null);
+  const moved = before.filter((f) => !fields.includes(f)).flatMap((f) => {
+    const a = fmt(at(prev!.effective, f)), b = fmt(at(now, f));
+    return a !== null && b !== null && a !== b ? [`${f} ${a} to ${b}`] : [];
+  });
+  return moved.length ? `your last synth settings lasted one call, so the mood's values are back: ${moved.join(", ")}. Send them in synth again to keep them` : undefined;
 }
 
 /** The arpeggio's rate steps through the straight rates in between over the glide (engine/src/ramp.ts): say so, like the tempo note. */
@@ -474,8 +502,10 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const seed = randomSeed();
   let analysis = measureState(effective, ANALYSIS_SEED);
   // The call that switches into Attuned raises nothing: the listener hears the first sound made for them, so it starts no louder than what played.
-  const stepDb = switched && sw.face === "external" ? 0 : LEVEL_STEP_DB;
-  const level = holdLevel(effective, prev, analysis, stepDb);
+  // A "softer" the model has read since its last sound makes this one at least 2 dB quieter; a "calmer", no louder.
+  const asked = forListener(sw.face) ? await askedQuieter(db, session.id, prev) : undefined;
+  const stepDb = Math.min(switched && sw.face === "external" ? 0 : LEVEL_STEP_DB, asked === "softer" ? -2 : asked === "calmer" ? 0 : Infinity);
+  const level = holdLevel(effective, prev, analysis, stepDb, asked && stepDb <= 0 ? asked : undefined);
   analysis = level.analysis;
   if (level.note) allClamps.push(level.note); // a safety rule changed what was sent, so it shows in clamped (and in inspect), not only in the notes
   // the phrase is not sticky: only the call that sends it carries it (each call builds its state from the mood, not from the last state)
@@ -498,7 +528,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   if (uerr) fail("save the session", uerr);
 
   const rest = restInfo(prev, settings, now, faceNow);
-  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
+  const notes = [note, sw.note, motif?.store ? `motif kept as "${motif.label}"` : undefined, motif && effective.motif ? offScaleNote(motif.notes, effective) : undefined, prev?.effective.engine === "strudel" ? "Strudel stopped: the synth plays this state (Self has no code)" : undefined, turn.missedFinal ? "no final update last turn" : undefined, voiceNote(prev, effective, voice, held, adopted), bandNote, waveNote, input.mood ? undefined : ownerToSelf ? "the owner switched to Self: the mood you played for the listener was dropped. Send your own state" : "mood kept from your last call", tempoNote(prev, effective, now), rateNote(effective), expiredNote(prev, effective, fields), analysis ? undefined : "analysis unavailable this time", ...rest.notes, liveNote(settings, sw.face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, sw.face);
   const g = await guide(db, session, sw.face, switched);
@@ -593,7 +623,9 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   delete effective.motif; // a phrase plays once, on the call that sent it: a moment brought back does not play it again
   effective.grid = nextGrid(prev, now, effective);
   const strudel = effective.engine === "strudel";
-  const level = holdLevel(effective, prev, strudel ? null : m.analysis ?? measureState(effective, ANALYSIS_SEED), LEVEL_STEP_DB);
+  const asked = forListener(face) ? await askedQuieter(db, session.id, prev) : undefined;
+  const stepDb = asked === "softer" ? -2 : asked === "calmer" ? 0 : LEVEL_STEP_DB;
+  const level = holdLevel(effective, prev, strudel ? null : m.analysis ?? measureState(effective, ANALYSIS_SEED), stepDb, asked);
   const allClamps = mergeClamps(clamps, level.note ? [level.note] : []);
   const intent = { mood: m.intent_mood ?? NEUTRAL_MOOD, note: `recalled "${name}"`, recalled: name };
   const slow = prev.slow_mood ?? NEUTRAL_MOOD;
@@ -605,7 +637,8 @@ export async function moment(db: Db, userId: string, input: { session_id?: strin
   if (error) fail("save the session", error);
 
   const rest = restInfo(prev, settings, now, face);
-  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
+  // like set_sound: say when the tempo glides and the rate steps on the way back (v0.23.2 report)
+  const notes = [note, `recalled "${name}" (kept at turn ${m.turn})`, strudel ? undefined : tempoNote(prev, effective, now), strudel ? undefined : rateNote(effective), turn.missedFinal ? "no final update last turn" : undefined, ...rest.notes, liveNote(settings, face, input.final)].filter((x): x is string => Boolean(x));
   const p = await presence(db, session.id, session.owner_id, now);
   const said = await reactionsFor(db, session, true, now, face);
   const g = await guide(db, session, face, false);

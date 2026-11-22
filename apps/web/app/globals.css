@@ -1309,6 +1309,9 @@ html:has(.pl-field) .se-header {
 .pl-field[data-texture="soft_noise"]::before { opacity: 0.06; }
 /* The canvas that moves over the colours (visual-canvas.tsx). With it on, the CSS motion layers below are off (data-motion is "still"). */
 .pl-motion { position: sticky; top: 0; grid-area: 1 / 1; align-self: start; width: 100%; height: calc(100dvh - var(--se-header-h) - var(--se-footer-h)); pointer-events: none; z-index: 0; }
+/* a saved moment's page: the canvas fades in with the base colour, so the fade is even across the view */
+.pl-moment .pl-motion { opacity: 0; transition: opacity 2.5s ease-in-out; }
+.pl-moment[data-started] .pl-motion { opacity: 1; }
 /* the field never scrolls: the picture stays put and a tall panel scrolls inside itself (#127). The stage keeps a scroll only as a fallback for the start screen on a very short window. */
 .pl-field > .pl-stage { grid-area: 1 / 1; min-height: 0; overflow-y: auto; }
 /* after silence the whole field goes dark with the sound (the canvas fades its own part) */
@@ -1569,8 +1572,10 @@ html:has(.pl-field) .se-header {
 .sv-count { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sv-name { overflow-wrap: anywhere; }
 .sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sv-rename { display: flex; flex-wrap: wrap; gap: 8px; }
-.sv-rename .se-input { flex: 1 1 220px; min-width: 0; width: auto; }
+/* the name, Save and Cancel on one line, also on a phone */
+.sv-rename { display: flex; gap: 8px; }
+.sv-rename .se-input { flex: 1 1 0; min-width: 0; width: 0; } /* width 0: its natural width would widen the row past the screen */
+.sv-rename .se-btn { flex: none; }
 @media (max-width: 560px) {
   .sv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sv-filters .sv-search { grid-column: 1 / -1; }
