@@ -111,8 +111,9 @@ export function supabaseForToken(token: string) {
 claude.ai's callback for custom connectors has been `https://claude.ai/api/mcp/auth_callback`. With dynamic registration claude.ai sends it itself, but if registration is restricted, allow it explicitly. Check the current value in Anthropic's connector docs.
 
 ## Settings page
-- List connected apps with `supabase.auth.oauth.listGrants()`.
-- Revoke with `supabase.auth.oauth.revokeGrant({ clientId })`.
+- List connected apps with `supabase.auth.oauth.listGrants()`. claude.ai registers a new OAuth client each time the connector is added again (dynamic registration), so one person collects many grants named "Claude". The page groups grants by client name: one row per app, "Since <first> · last connected <last>".
+- Revoke with `supabase.auth.oauth.revokeGrant({ clientId })`, once per client id in the row: Revoke disconnects every connection of that app.
+- Delete account (migration 0026): the warning with a red "Delete account…" button on its right; it opens a form below whose filled red "Delete my account" stays off until `delete` is typed. Sign out is in the account menu only.
 
 ## Testing auth
 - MCP Inspector (`npx @modelcontextprotocol/inspector`) supports the OAuth flow against a remote server.

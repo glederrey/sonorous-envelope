@@ -16,6 +16,7 @@
   --accent-cool: var(--tide);
   --on-tide: #06201d;
   --danger: #ff7a6b;
+  --on-danger: #1a0705;
   --focus: var(--tide);
   --field-a: #22343a;
   --field-b: #3a2c24;
@@ -46,6 +47,7 @@
   --accent-cool: #0f9384;
   --on-tide: #ffffff;
   --danger: #c0322a;
+  --on-danger: #ffffff;
   --field-a: #e4edef;
   --field-b: #f0e8e1;
   --scrim: rgba(255, 255, 255, 0.82);
@@ -73,6 +75,7 @@
     --accent-cool: #0f9384;
     --on-tide: #ffffff;
     --danger: #c0322a;
+    --on-danger: #ffffff;
     --field-a: #e4edef;
     --field-b: #f0e8e1;
     --scrim: rgba(255, 255, 255, 0.82);
@@ -259,6 +262,12 @@ h3 {
 .se-btn-danger {
   border-color: var(--danger);
   color: var(--danger);
+}
+/* the final, irreversible step: filled */
+.se-btn-danger-solid,
+.se-btn-danger-solid:hover {
+  background: var(--danger);
+  color: var(--on-danger);
 }
 .se-btn-danger:disabled {
   opacity: 0.5;
@@ -1144,6 +1153,10 @@ html:has(.pl-field) .se-header {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
+.se-grant-last { padding-bottom: 0; border-bottom: 0; }
+.se-grant-last > .se-btn { min-width: 10.5em; justify-content: center; } /* Delete account… and Cancel keep one width, so the text does not reflow */
+@media (max-width: 560px) { .se-grant-last { flex-direction: column; align-items: flex-start; } }
+.se-grant > .se-btn { flex: none; }
 
 /* Theme toggle: a normal button, icon only */
 .se-btn-icon {
@@ -1406,7 +1419,11 @@ html:has(.pl-field) .se-header {
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
 .pl-save-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--on-scrim); }
-.pl-save-note a { color: var(--on-scrim); }
+.pl-save-note a, .pl-save-note .se-link { color: var(--on-scrim); }
+.pl-save-name { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
+.pl-save-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.pl-save-rename .se-input { flex: 1 1 200px; min-width: 0; width: auto; }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */

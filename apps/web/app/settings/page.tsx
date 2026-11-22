@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/site-header";
 import { createClient } from "../../lib/supabase/server";
-import { revokeGrant, signOut } from "./actions";
-import { DeleteAccountForm } from "./delete-account-form";
+import { SettingsBody, type ConnectedApp } from "./settings-body";
 
 export const metadata = { title: "Settings" };
 
@@ -13,7 +12,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   if (!userData.user) redirect("/login?next=%2Fsettings");
 
   const { data } = await supabase.auth.oauth.listGrants();
-  const grants = data ?? [];
+  // one row per app name: Claude registers a new client each time the connector is added again, so one app can hold many grants
+  const apps = new Map<string, ConnectedApp>();
+  for (const g of data ?? []) {
+    const a = apps.get(g.client.name);
+    if (!a) apps.set(g.client.name, { name: g.client.name, ids: [g.client.id], first: g.granted_at, last: g.granted_at });
+    else {
+      a.ids.push(g.client.id);
+      if (g.granted_at < a.first) a.first = g.granted_at;
+      if (g.granted_at > a.last) a.last = g.granted_at;
+    }
+  }
+  const grants = [...apps.values()];
 
   return (
     <>
@@ -22,42 +32,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <div className="doc-head">
           <h1 className="doc-title">Settings</h1>
         </div>
-        <div className="doc-rows">
-          <section className="doc-row">
-            <h2 className="se-heading">Connected apps</h2>
-            <div className="se-stack">
-              {grants.length === 0 ? (
-                <p className="se-muted" style={{ margin: 0 }}>No apps are connected.</p>
-              ) : (
-                grants.map((grant) => (
-                  <form key={grant.client.id} action={revokeGrant} className="se-grant">
-                    <div>
-                      <strong>{grant.client.name}</strong>
-                      <div className="se-sm se-muted">Since {new Date(grant.granted_at).toLocaleDateString("en-GB")}</div>
-                    </div>
-                    <input type="hidden" name="client_id" value={grant.client.id} />
-                    <button type="submit" className="se-btn">Revoke</button>
-                  </form>
-                ))
-              )}
-            </div>
-          </section>
-          <section className="doc-row">
-            <h2 className="se-heading">Account</h2>
-            <form action={signOut}>
-              <button type="submit" className="se-btn">Sign out</button>
-            </form>
-          </section>
-          <section className="doc-row">
-            <h2 className="se-heading">Delete account</h2>
-            <p className="se-muted" style={{ marginTop: 0 }}>
-              This deletes your account and everything in it: every session, every saved moment, and the apps connected to it.
-              Shared links stop working. It cannot be undone.
-            </p>
-            {error === "delete" ? <p className="se-error se-sm" role="alert">The account could not be deleted. Try again.</p> : null}
-            <DeleteAccountForm />
-          </section>
-        </div>
+        <SettingsBody grants={grants} error={error} />
       </main>
     </>
   );
