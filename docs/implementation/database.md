@@ -49,7 +49,7 @@ The service role key is not needed for normal operation. Use it only for mainten
 - See realtime.md for payloads and presence.
 
 ## Retention
-- Users can delete a session from the sessions page (server action `deleteSession`, ended or active; the owner's `sessions_owner_delete` policy). It cascades to states, snapshots, reactions, listeners, heartbeats and emoji reactions. Saved moments stay, with `session_id` null. A player that was open on it gets nothing back from `player_poll` and keeps its last state.
+- Users can delete a session from the sessions page (server action `deleteSession`, ended or active; the owner's `sessions_owner_delete` policy). It cascades to states, snapshots, reactions, listeners, heartbeats and emoji reactions. Saved moments stay, with `session_id` null. A player that was open on it gets nothing back from `player_poll` on its next poll and shows the session as ended; a fresh load of the link says it was not found.
 - `start_session` ends the owner's sessions with no sound for a week (`ENDED_AFTER_S`), so no scheduled job is needed.
 
 ## Testing the database

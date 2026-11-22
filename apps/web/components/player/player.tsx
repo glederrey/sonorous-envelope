@@ -340,6 +340,12 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         return;
       }
       if (data?.v) { knownV.current = data.v; ticker?.postMessage({ known: data.v }); }
+      if (!error && !data && known.current) {
+        // the owner deleted the session while it played (#177): it is over, like an ended one
+        ended = true;
+        setPhase("ended"); strudel.current?.close(); strudel.current = null; void audio.current?.close(); audio.current = null;
+        return;
+      }
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
         if (!known.current) { setPhase("error"); setMessage(error ? "Could not open this player. Try again in a moment." : "This session was not found."); }

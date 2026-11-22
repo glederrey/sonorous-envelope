@@ -460,7 +460,7 @@ export async function setSound(db: Db, userId: string, input: SetSoundInput, now
   const guidedMode = session.guided_mode ? normalizeFace(session.guided_mode) : null;
   const ownerToSelf = !switched && sw.face === "internal" && ((guidedMode !== null && forListener(guidedMode)) || Boolean(prev?.intent.owner_silenced)); // owner_silenced: the lock wrote a silent copy (0017), even if another call already took the new guidance
   const sentMood = input.mood ?? (ownerToSelf ? NEUTRAL_MOOD : prev?.intent.mood ?? NEUTRAL_MOOD); // no mood: the last one stays
-  // Strudel is on: set_sound never changes the engine. Only the picture, the title and the fade setting apply; the synth stays paused.
+  // Strudel is on: set_sound never changes the engine. Only the picture and the title apply; the synth stays paused.
   if (prev?.effective.engine === "strudel" && forListener(sw.face)) return setWhileStrudel(db, session, prev, input, turn, now, sw.note, note, sw.face, switched);
   // the phrase for this call (the synth path only: with Strudel on, it was handled above): resolved before anything is saved, so an unknown name is an error, not a half call
   const motif = input.motif ? resolveMotif(session, input.motif, turn.stateTurn, now) : undefined;
