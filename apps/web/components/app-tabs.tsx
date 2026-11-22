@@ -38,7 +38,7 @@ export function AppTabs({ url }: { url: string }) {
         <>Ask for a session. The AI gives you a player link: open it and tap <strong>Start listening</strong>.</>,
       ],
       code: `claude mcp add --transport http sonorous ${url}`,
-      note: "Already added it in the Claude app? Claude Code signed in with the same account has it too: it shows in /mcp as claude.ai Sonorous Envelope, and the Stop hook recognises it. Skip step 1 and 2.",
+      note: "Already added it in the Claude app? Claude Code signed in with the same account has it too: it shows in /mcp as claude.ai Sonorous Envelope, and the Stop hook recognises it. Skip steps 1 and 2.",
     },
     {
       id: "chatgpt", name: "ChatGPT", tested: true,
