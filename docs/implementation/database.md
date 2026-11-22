@@ -78,3 +78,6 @@ Tables `dev_feedback` (`id`, `created_at` truncated to the day (the hour until m
 
 ## Strudel (migration 0010)
 `sessions.allow_code` (owner's switch, default true; RPC `set_allow_code`), table `pattern_reports` (one row per Strudel state: `ok`, `error`, `events_per_cycle`, `notes`) written only by RPC `report_pattern`, which checks that the caller owns the session and keeps the first report. `get_player_state` also returns `allow_code` and the state `id`. The states themselves need no migration: the pattern is `effective.engine` and `effective.pattern` inside the existing jsonb.
+
+## Delete account (migration 0026)
+RPC `delete_my_account()` (security definer, `authenticated` only, `search_path` empty) deletes the caller's own row in `auth.users`; with no signed-in user it raises `not signed in` (42501). Every table with user data references `auth.users` on delete cascade, so this removes the profile, every session with its states, reactions, moments, snapshots and motifs, the listener rows, the player heartbeats, the developer-note quota, and the OAuth consents and grants. Shared links stop working with the sessions. The app still does not use the service role: this definer function is how account deletion works. Settings has the button (server action `deleteAccount`). The revert is `supabase/revert/0026_delete_account.down.sql`.

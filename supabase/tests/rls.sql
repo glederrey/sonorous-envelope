@@ -180,4 +180,34 @@ do $$ begin
   begin perform public.player_heartbeat('sess1', 'device-1', 'playing', 0.5, 0.5); raise exception 'ended session accepted a heartbeat';
   exception when raise_exception then if sqlerrm not like 'session not found%' then raise; end if; end;
 end $$;
+-- delete_my_account: the caller's own account and data go, nobody else's; anon and a missing uid are refused
+insert into public.sessions (id, owner_id, settings) values ('sess-b', '00000000-0000-0000-0000-00000000000b', '{}');
+insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess-b', 0, '{}', '{}', 1, '{}');
+select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claims', '{}', false);
+set role anon;
+do $$ begin
+  begin perform public.delete_my_account(); raise exception 'anon deleted an account';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role authenticated;
+do $$ begin
+  begin perform public.delete_my_account(); raise exception 'deleted with no uid';
+  exception when insufficient_privilege then if sqlerrm <> 'not signed in' then raise; end if; end;
+end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+select public.delete_my_account();
+reset role;
+do $$ begin
+  assert not exists (select 1 from auth.users where id = '00000000-0000-0000-0000-00000000000a'), 'A is deleted';
+  assert not exists (select 1 from public.profiles where id = '00000000-0000-0000-0000-00000000000a'), 'A profile is deleted';
+  assert not exists (select 1 from public.sessions where owner_id = '00000000-0000-0000-0000-00000000000a'), 'A sessions are deleted';
+  assert not exists (select 1 from public.states where session_id = 'sess1'), 'A states are deleted';
+  assert exists (select 1 from auth.users where id = '00000000-0000-0000-0000-00000000000b'), 'B is untouched';
+  assert exists (select 1 from public.profiles where id = '00000000-0000-0000-0000-00000000000b'), 'B profile is untouched';
+  assert exists (select 1 from public.sessions where id = 'sess-b'), 'B session is untouched';
+  assert exists (select 1 from public.states where session_id = 'sess-b'), 'B states are untouched';
+end $$;
 select 'rls ok' as result;

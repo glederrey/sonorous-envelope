@@ -256,6 +256,14 @@ h3 {
 .se-btn-block {
   width: 100%;
 }
+.se-btn-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.se-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .se-divider {
   display: flex;
   align-items: center;
@@ -1038,6 +1046,93 @@ html:has(.pl-field) .se-header {
   }
   .se-nav[data-open="true"] form {
     display: contents;
+  }
+}
+
+/* Account menu (signed in). A panel under the button on wide screens; flat rows inside the burger panel on phones. */
+.se-account {
+  position: relative;
+}
+.se-account-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.3);
+}
+.se-account-list[data-open="true"] {
+  display: block;
+}
+.se-account-row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.se-account-row[aria-current="page"] {
+  color: var(--glow-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .se-account-row:hover {
+    background: var(--surface-raised);
+  }
+}
+.se-account-row:active {
+  background: var(--surface-raised);
+}
+.se-account-sep {
+  height: 0;
+  margin: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.se-account-label {
+  display: none;
+}
+@media (max-width: 900px) {
+  .se-account-toggle,
+  .se-nav[data-open="true"] .se-btn.se-account-toggle {
+    display: none; /* beats the burger's `.se-nav[data-open] .se-btn` rule */
+  }
+  .se-account,
+  .se-account-list,
+  .se-account-list[data-open="true"] {
+    display: contents;
+  }
+  /* Flat rows in the burger panel, in markup order (so the tab order matches): pages, theme, then an "Account" label with a
+     rule above it, Sessions, Settings, Sign out. The desktop separator before Sign out is not needed here. */
+  .se-account-sep {
+    display: none;
+  }
+  .se-account-label {
+    display: block;
+    margin-top: 6px;
+    padding: 10px 12px 2px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-muted);
+    font-size: 13px;
+    font-weight: 500;
   }
 }
 
