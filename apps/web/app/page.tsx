@@ -49,8 +49,7 @@ function Letters({ text, className }: { text: string; className: string }) {
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ deleted?: string }> }) {
-  const { deleted } = await searchParams;
+export default async function Home() {
   const live = await getLiveCount();
   return (
     <>
@@ -60,7 +59,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
         <SiteHeader overlay />
         <div className="lp-hero-body">
           <div className="lp-hero-text">
-          {deleted === "1" && <p className="lp-live-box lp-deleted" role="status">Your account and everything in it were deleted.</p>}
           <h1 className="lp-headline" aria-label="Let the AI hum while it thinks.">
               <span aria-hidden="true">
                 Let the AI <Letters text="hum" className="lp-hum" /> while{" "}
