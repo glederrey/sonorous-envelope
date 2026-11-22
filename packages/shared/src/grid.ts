@@ -1,6 +1,6 @@
 import { arpPlan, beatsAt, glideSeconds, steppedFromRate, tempoAt, type EngineState } from "@sonorous/engine";
 
-// The shared timeline (roadmap #34): every state carries the step counters of the arpeggio and the bass layer at the moment
+// The shared timeline (#34): every state carries the step counters of the arpeggio and the bass layer at the moment
 // it was written, in steps counted from the start of the session. With the state's creation time (server clock) a device
 // knows where each step is, so devices playing together land on the same notes at the same moments.
 

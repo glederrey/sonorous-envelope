@@ -1,6 +1,6 @@
 import type { EngineState, Rate } from "./types";
 
-// The tempo glides (third outside test), and the shared timeline (roadmap #34) still has to hold: every device must know which
+// The tempo glides (third outside test), and the shared timeline (#34) still has to hold: every device must know which
 // step happens when. So the step rate is a linear ramp over the state's transition, and these pure functions give the step
 // count after a time and the time of a step, in closed form. Server and engine use the same ones.
 // The arpeggio's rate (1/4, 1/8, ...) glides too when a state is written with the rate that was playing (`grid.fromRate`): it steps

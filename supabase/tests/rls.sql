@@ -443,6 +443,57 @@ do $$ begin
 end $$;
 reset role;
 
+-- player_heartbeat prunes the session's rows last seen over a day ago, and only that session's (0030)
+insert into public.sessions (id, owner_id, settings) values ('sess-hb', '00000000-0000-0000-0000-00000000000a', '{}'), ('sess-hb2', '00000000-0000-0000-0000-00000000000a', '{}');
+select public.player_heartbeat('sess-hb', 'hb-old', 'playing', 0.5, 0.5);
+select public.player_heartbeat('sess-hb', 'hb-new', 'playing', 0.5, 0.5);
+select public.player_heartbeat('sess-hb2', 'hb-other', 'playing', 0.5, 0.5);
+alter table public.player_heartbeats disable trigger player_heartbeats_touch; -- seen_at is the database clock: switch it off to backdate
+update public.player_heartbeats set seen_at = now() - interval '2 days' where device_id in ('hb-old', 'hb-other');
+alter table public.player_heartbeats enable trigger player_heartbeats_touch;
+select public.player_heartbeat('sess-hb', 'hb-now', 'playing', 0.5, 0.5);
+do $$ begin
+  assert not exists (select 1 from public.player_heartbeats where device_id = 'hb-old'), 'a heartbeat over a day old is pruned';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-new'), 'a recent heartbeat stays';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-now'), 'the new heartbeat is written';
+  assert exists (select 1 from public.player_heartbeats where device_id = 'hb-other'), 'another session is not touched';
+end $$;
+
+-- deleting a session (the sessions page): the owner can, a stranger cannot; its rows cascade and its saved moments stay with no session
+update public.saved_moments set created_at = created_at - interval '2 minutes'; -- earlier saves must not trip the 10 a minute cap
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+insert into public.sessions (id, owner_id, settings) values ('sess-del', '00000000-0000-0000-0000-00000000000a', '{}');
+insert into public.listeners (session_id, user_id, role, label) values ('sess-del', '00000000-0000-0000-0000-00000000000a', 'owner', 'you');
+insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess-del', 0, '{}', '{"volume":0.3}', 1, '{}');
+update public.sessions set current_state_id = (select id from public.states where session_id = 'sess-del') where id = 'sess-del';
+select public.put_snapshot('sess-del', (select current_state_id from public.sessions where id = 'sess-del'), 'data:image/jpeg;base64,QUJDRA==', '{}', 0.5);
+select public.player_heartbeat('sess-del', 'del-device', 'playing', 0.6, 0.5);
+select public.save_moment('sess-del', 'kept', 'human', 1, 'dev');
+do $$ begin
+  assert exists (select 1 from public.states where session_id = 'sess-del'), 'the session to delete has a state';
+  assert exists (select 1 from public.snapshots where session_id = 'sess-del'), 'and a snapshot';
+  assert exists (select 1 from public.player_heartbeats where session_id = 'sess-del'), 'and a heartbeat';
+end $$;
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+set role authenticated;
+delete from public.sessions where id = 'sess-del';
+reset role;
+do $$ begin assert exists (select 1 from public.sessions where id = 'sess-del'), 'a stranger does not delete the session'; end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+set role authenticated;
+delete from public.sessions where id = 'sess-del';
+reset role;
+do $$ begin
+  assert not exists (select 1 from public.sessions where id = 'sess-del'), 'the owner deletes the session';
+  assert not exists (select 1 from public.states where session_id = 'sess-del'), 'its states go';
+  assert not exists (select 1 from public.snapshots where session_id = 'sess-del'), 'its snapshot goes';
+  assert not exists (select 1 from public.player_heartbeats where session_id = 'sess-del'), 'its heartbeats go';
+  assert not exists (select 1 from public.listeners where session_id = 'sess-del'), 'its listeners go';
+  assert (select count(*) from public.saved_moments where name = 'kept' and session_id is null) = 1, 'the saved moment stays, with no session';
+end $$;
+
 -- delete_my_account: the caller's own account and data go, nobody else's; anon and a missing uid are refused
 insert into public.sessions (id, owner_id, settings) values ('sess-b', '00000000-0000-0000-0000-00000000000b', '{}');
 insert into public.states (session_id, turn, intent, effective, seed, slow_mood) values ('sess-b', 0, '{}', '{}', 1, '{}');

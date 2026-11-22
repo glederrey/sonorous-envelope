@@ -97,7 +97,7 @@ export class Engine {
   }
   private pending: { state: EngineState; seed: number; at: number; elapsed: number | undefined } | null = null;
 
-  /** Sessions share one seed for the choices of each arpeggio step, so every device plays the same notes (roadmap #34). */
+  /** Sessions share one seed for the choices of each arpeggio step, so every device plays the same notes (#34). */
   setGridSeed(seed: number) { this.arp.setGridSeed(seed); this.bass.setGridSeed(seed); }
 
   /** The step length of each layer for a state, in seconds. Follows the state's own tempo, with no glide, so that every

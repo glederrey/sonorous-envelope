@@ -13,3 +13,15 @@ export async function endSession(formData: FormData) {
   await supabase.from("sessions").update({ ended_at: new Date().toISOString() }).eq("id", id).eq("owner_id", data.user.id).is("ended_at", null);
   revalidatePath("/sessions");
 }
+
+/** The owner deletes one of their sessions, ended or not. RLS only lets the owner delete the row; states, snapshots, reactions,
+ *  listeners and heartbeats cascade, and saved moments stay with session_id set to null. */
+export async function deleteSession(formData: FormData) {
+  const id = String(formData.get("session_id") ?? "");
+  if (!id || id.length > 64) return;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return;
+  await supabase.from("sessions").delete().eq("id", id).eq("owner_id", data.user.id);
+  revalidatePath("/sessions");
+}

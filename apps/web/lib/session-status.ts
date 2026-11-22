@@ -1,4 +1,4 @@
-/** A session is "active" while its last sound is recent, whatever the fade setting (roadmap #30). */
+/** A session is "active" while its last sound is recent (#30). */
 export const INACTIVE_AFTER_S = 1800;
 
 /** A session with no sound for this long is shown as ended, and `start_session` ends it for good. Until then it stays

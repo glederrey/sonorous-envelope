@@ -15,7 +15,7 @@ The migrations in `supabase/migrations/` are the schema; there is no other copy.
 | `emoji_reactions` | Emoji presses from listeners who are not the owner (migration 0028, below). |
 
 ## Migration `0002_player_access.sql`
-- Listeners need no account. Two security-definer functions, executable by `anon`, are their only door: `get_player_state(id)` (current state and settings, or null) and `player_heartbeat(...)` (bounded: at most 50 devices per session in 5 minutes, values validated and clamped). The tables stay closed to `anon`.
+- Listeners need no account. Two security-definer functions, executable by `anon`, are their only door: `get_player_state(id)` (current state and settings, or null) and `player_heartbeat(...)` (bounded: at most 50 devices per session in 5 minutes, values validated and clamped; each call first deletes the session's rows last seen more than a day ago, migration 0030). The tables stay closed to `anon`.
 - Triggers broadcast a small nudge on the public channel `player:<id>` when a state is inserted or a session ends or changes settings. The payload is only a hint; players always fetch the real state with `get_player_state`, so a forged broadcast cannot push content.
 - `invites` and `redeem_invite` are dropped.
 - `states.slow_mood jsonb`: the slow mood after this state (mood-mapping.md, "Background (bass) layer"). Null on the first state means "start from this mood".
@@ -39,17 +39,17 @@ The migrations in `supabase/migrations/` are the schema; there is no other copy.
 | Report listening | Player page via `player_heartbeat(...)` (migration `0002`); stores the account in `user_id` if signed in, else null | anyone with the link |
 | Read the current state | Player page via `get_player_state(id)` | anyone with the link |
 
-The service role key is not needed for normal operation. Use it only for maintenance scripts (e.g. ending sessions inactive for 30 days).
+The service role key is not needed for normal operation. Use it only for maintenance scripts; there are none today (`start_session` ends the owner's sessions with no sound for a week).
 
 ## Settings are validated twice
 `sessions.settings` is JSON. Validate it with the zod `ListenerSettings` schema (limits.md) when the player writes it, and again when the MCP endpoint reads it. If it fails validation, fall back to the safe defaults.
 
 ## Realtime
-- `states` and `sessions` are in the `supabase_realtime` publication. Players subscribe to Postgres Changes on `states` (insert, filter `session_id=eq.<id>`) and on `sessions` (update, filter `id=eq.<id>`). RLS applies to Postgres Changes, so only members receive them.
+- `states` and `sessions` are in the `supabase_realtime` publication. Players listen on the public broadcast channel `player:<id>` (triggers, migration 0002) and poll `player_poll`; the broadcast is only a nudge (realtime.md).
 - See realtime.md for payloads and presence.
 
 ## Retention
-- Users can delete a session from the sessions page, which cascades.
+- Users can delete a session from the sessions page (server action `deleteSession`, ended or active; the owner's `sessions_owner_delete` policy). It cascades to states, snapshots, reactions, listeners, heartbeats and emoji reactions. Saved moments stay, with `session_id` null. A player that was open on it gets nothing back from `player_poll` on its next poll and shows the session as ended; a fresh load of the link says it was not found.
 - `start_session` ends the owner's sessions with no sound for a week (`ENDED_AFTER_S`), so no scheduled job is needed.
 
 ## Testing the database
@@ -97,3 +97,6 @@ RPC `delete_my_account()` (security definer, `authenticated` only, `search_path`
 - A trigger on insert broadcasts `{ emoji }` on `player:<session id>`, event `emoji` (no device id).
 - `claim_emojis(p_session) returns table (emoji, created_at)` (security invoker, owner only through RLS): marks undelivered rows delivered and returns them, like `claim_reactions`.
 The revert is `supabase/revert/0028_guest_emojis.down.sql`.
+
+## Advisor lints (migration 0031)
+The Supabase advisors flagged three things, all fixed without a change in behaviour: `check_reaction_kind` and `touch_heartbeat` now pin `search_path = public`; the policies that called `auth.uid()` per row call `(select auth.uid())` instead; and six foreign keys got an index (`listeners(user_id)`, `pattern_reports(session_id)`, `player_heartbeats(user_id)`, `reactions(user_id)`, `sessions(current_state_id)`, `snapshots(state_id)`). `rls_auto_enable()` is created by Supabase, not by these migrations, and is left alone. The revert is `supabase/revert/0031_database_lints.down.sql`.

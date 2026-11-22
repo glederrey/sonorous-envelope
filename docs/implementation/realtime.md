@@ -13,7 +13,7 @@ One public Broadcast channel per session: `player:<session_id>`. Listeners have 
 - Safety net: the player also calls `player_poll(id, known_version)` every second (also while the page is hidden, once the audio has started): `{same: true, now, v}` when nothing changed, the full `get_player_state` answer plus `v` otherwise (migration 0019).
 
 ### 2. Broadcast: `session`
-- Sent by a trigger on `sessions` when `ended_at`, `settings`, the mode, the mode policy or `listening_until` change. The player refetches; `ended` stops playback and shows "session ended".
+- Sent by a trigger on `sessions` when `ended_at`, `settings`, the mode, the mode policy, `allow_code` or `listening_until` change. The player refetches; `ended` stops playback and shows "session ended".
 
 ### 3. Heartbeat (who is listening)
 - Every open player calls `player_heartbeat(session, device, audio, volume, delay)` every 20 s and when its controls change. `audio` is `playing`, `muted` or `not_started`; `volume` is the local slider, 0 to 1. `delay` is sent as null: the echo is Claude's, there is no echo slider.

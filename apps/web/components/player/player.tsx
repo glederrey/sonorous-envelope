@@ -106,7 +106,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const vizStore = useMemo(() => new VizStore(), []);
   const vizLevel = useRef(0), vizBeats = useRef(0), vizOpacity = useRef(0); // written by the visual canvas, read by the Strudel picture
   const [canvasOk, setCanvasOk] = useState(true);
-  // Strudel (roadmap #18): the model's code plays in a sandbox in a listener mode, if the owner allows it. The listener may stop it here.
+  // Strudel (#18): the model's code plays in a sandbox in a listener mode, if the owner allows it. The listener may stop it here.
   const [allowCode, setAllowCode] = useState(true);
   const strudel = useRef<StrudelOutput | null>(null);
   const engineCtl = useRef({ face: "internal" as Face, allowCode: true });
@@ -340,6 +340,12 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
         return;
       }
       if (data?.v) { knownV.current = data.v; ticker?.postMessage({ known: data.v }); }
+      if (!error && !data && known.current) {
+        // the owner deleted the session while it played (#177): it is over, like an ended one
+        ended = true;
+        setPhase("ended"); strudel.current?.close(); strudel.current = null; void audio.current?.close(); audio.current = null;
+        return;
+      }
       if (error || !data) {
         // a missing session is final; a network blip after the first load is not
         if (!known.current) { setPhase("error"); setMessage(error ? "Could not open this player. Try again in a moment." : "This session was not found."); }

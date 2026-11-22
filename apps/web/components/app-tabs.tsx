@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { REPO } from "../lib/version";
 
 interface App {
   id: string;
@@ -26,6 +27,18 @@ export function AppTabs({ url }: { url: string }) {
         <>In a new conversation, switch the connector on from the <strong>+</strong> menu in the message box.</>,
         <>The AI gives you a player link. Open it and tap <strong>Start listening</strong>.</>,
       ],
+    },
+    {
+      id: "claude-code", name: "Claude Code", tested: false,
+      intro: "Claude Code in a terminal or an editor.",
+      steps: [
+        <>In a terminal, run the command below. Keep the name <strong>sonorous</strong>: the Stop hook only recognises tools from a server whose name contains it.</>,
+        <>In Claude Code, run <strong>/mcp</strong>, pick <strong>sonorous</strong> and sign in here.</>,
+        <>Optional, recommended: install the Stop hook so every message ends with a final sound. <a href={`${REPO}/blob/main/docs/implementation/stop-hook.md`} target="_blank" rel="noreferrer">The steps are on GitHub</a>.</>,
+        <>Ask for a session. The AI gives you a player link: open it and tap <strong>Start listening</strong>.</>,
+      ],
+      code: `claude mcp add --transport http sonorous ${url}`,
+      note: "We have not tried this one yet.",
     },
     {
       id: "chatgpt", name: "ChatGPT", tested: true,

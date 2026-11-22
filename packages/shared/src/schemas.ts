@@ -130,7 +130,7 @@ export function parseSettings(raw: unknown): ListenerSettings {
   return r.success ? r.data : ListenerSettings.parse({});
 }
 
-/** A short phrase of the model's own, played once over the sound (roadmap #128). Note names like E4, `-` a rest; or `recall` a named one. */
+/** A short phrase of the model's own, played once over the sound (#128). Note names like E4, `-` a rest; or `recall` a named one. */
 export const Motif = z.object({
   notes: z.array(z.string().regex(/^([A-G](#|b)?[2-6]|-)$/)).min(1).max(8).optional().describe("the phrase: note names like E4, or - for a rest, 1 to 8"),
   beats: z.array(z.number().min(0.25).max(4)).max(8).optional().describe("how long each note lasts, in beats (default 1 each)"),
