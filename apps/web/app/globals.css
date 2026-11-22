@@ -1111,8 +1111,9 @@ html:has(.pl-field) .se-header {
   display: none;
 }
 @media (max-width: 900px) {
-  .se-account-toggle {
-    display: none;
+  .se-account-toggle,
+  .se-nav[data-open="true"] .se-btn.se-account-toggle {
+    display: none; /* beats the burger's `.se-nav[data-open] .se-btn` rule */
   }
   .se-account,
   .se-account-list,

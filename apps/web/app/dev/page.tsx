@@ -9,6 +9,7 @@ const LABS = [
   { href: "/dev/controls", name: "Controls lab", text: "The controls panel with made-up state: owner, listener or guest, each mode, Strudel or synth, and a scene or code behind it to judge the opacity and blur." },
   { href: "/dev/moment", name: "Moment lab", text: "The saved-moment page (/m/<id>) on a made-up synth state and a made-up Strudel state, no database: Start, Mute, Volume, Share, the QR code." },
   { href: "/dev/visuals", name: "Visuals lab", text: "The colour field and the scenes for each emotion and sample, with the silence fade, and a grey mode to tell them apart without hue." },
+  { href: "/dev/account", name: "Account lab", text: "The signed-in header with its Account menu (and the burger on phones) and the Settings delete section, without signing in." },
   { href: "/dev/strudel", name: "Strudel lab", text: "Strudel code in the sandboxed frame with the drawings (piano roll, scope, spiral) and what the player reports back." },
 ];
 
