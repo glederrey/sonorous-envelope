@@ -321,6 +321,28 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
     expect(b.reactions).toEqual([expect.stringMatching(/^softer, /)]);
   });
 
+  it("keeps the answer to softer quieter, and to calmer no louder, than the last sound", async () => {
+    const quiet = { warmth: 0.5, closeness: 0.5, joy: 0.5, calm: 0.9, spontaneity: 0.2 };
+    const loud = { warmth: 0.5, closeness: 0.5, joy: 0.6, calm: 0.45, spontaneity: 0.4 };
+    const db = (sid: string) => JSON.parse(sql(`select analysis->'sound'->'loudness_db' from states where session_id='${sid}' order by created_at desc limit 1`));
+    const { session_id } = await svc.startSession(dbA, A, { mode: "attuned" }, tick());
+    await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+    await svc.setSound(dbA, A, { session_id, mood: quiet, final: true } as never, tick(25_000));
+    const was = db(session_id);
+    // the model read "softer" with its last result: the database's clock says when (delivered_at), here on the test's clock
+    sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'softer', to_timestamp(${clock - 20_000} / 1000.0), to_timestamp(${clock + 100} / 1000.0))`);
+    const r = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    expect(db(session_id)).toBeLessThanOrEqual(was - 2);
+    expect((r.clamped as string[]).join(" ")).toMatch(/level lowered: the listener asked for softer/);
+    const was2 = db(session_id);
+    sql(`insert into reactions (session_id, user_id, kind, created_at, delivered_at) values ('${session_id}', '${A}', 'calmer', to_timestamp(${clock - 20_000} / 1000.0), to_timestamp(${clock + 100} / 1000.0))`);
+    await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    expect(db(session_id)).toBeLessThanOrEqual(was2);
+    // no request since: the usual step applies again
+    const free = await svc.setSound(dbA, A, { session_id, mood: loud, final: true } as never, tick(25_000));
+    expect(((free.clamped as string[] | undefined) ?? []).join(" ")).not.toMatch(/asked for/);
+  });
+
   it("never returns reactions in Self, and drops them so they do not surface after a switch", async () => {
     const { session_id } = await svc.startSession(dbA, A, {}, tick());
     sql(`insert into reactions (session_id, user_id, kind, created_at) values ('${session_id}', '${A}', 'stormier', now())`);
@@ -841,6 +863,8 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       const next = await svc.setSound(dbA, A, { session_id, mood: calm, final: true } as never, tick(25_000));
       expect(last(session_id).arp.rate).toBe("1/4");
       expect(((next.notes as string[] | undefined) ?? []).join(" ")).not.toMatch(/rate 1\/4 to 1\/16/);
+      // the rate sent in synth lasted one call: the note says so
+      expect(((next.notes as string[] | undefined) ?? []).join(" ")).toMatch(/your last synth settings lasted one call, so the mood's values are back: arp\.rate 1\/16 to 1\/4/);
     });
   });
   describe("motif", () => {
@@ -925,7 +949,11 @@ describe.skipIf(!REST)("MCP tool service against Postgres", () => {
       expect(k).toMatchObject({ kept: "quiet", moments: ["quiet"] });
       await svc.setSound(dbA, A, { session_id, mood: { ...calm, joy: 0.2 }, voice: { root: "A2", scale: "phrygian", wave: "square" }, colour: { scene: "stars" }, final: true } as never, tick(25_000));
       expect(last(session_id).colour.scene).toBe("stars");
+      const before = Math.round(last(session_id).arp.tempo);
       const r = await svc.moment(dbA, A, { session_id, action: "recall", name: "quiet", transition: { time: 3, curve: "smooth" }, final: true }, tick(25_000));
+      // the way back glides, and the result says so, like set_sound
+      expect(before).not.toBe(Math.round(kept.arp.tempo));
+      expect((r.notes as string[]).join(" ")).toMatch(new RegExp(`tempo ${before} to ${Math.round(kept.arp.tempo)}: it glides over 3 s`));
       const now = last(session_id);
       const { transition: t1, grid: g1, ...keptRest } = kept, { transition: t2, grid: g2, ...nowRest } = now;
       expect(nowRest).toEqual(keptRest); // sound, voice and picture exactly as kept
