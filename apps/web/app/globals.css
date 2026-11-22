@@ -1433,12 +1433,20 @@ html:has(.pl-field) .se-header {
 .pl-set dd { margin: 0; overflow-wrap: anywhere; }
 .pl-share { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--scrim-line); color: var(--on-scrim-muted); }
 .pl-share p { margin: 0; }
-.pl-save-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--on-scrim); }
-.pl-save-note a, .pl-save-note .se-link { color: var(--on-scrim); }
-.pl-save-name { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
-.pl-save-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
-.pl-save-rename .se-input { flex: 1 1 200px; min-width: 0; width: auto; }
+/* the card after a save: a tick and the name, then three small buttons; it fades in, and out before it goes */
+.pl-save-note { display: grid; gap: 10px; padding: 10px 12px 12px; border: 1px solid var(--scrim-line); border-radius: 12px; background: color-mix(in srgb, var(--on-scrim) 6%, transparent); color: var(--on-scrim); animation: pl-note-in 180ms ease-out; transition: opacity 300ms ease-in, transform 300ms ease-in; }
+.pl-save-note[data-leaving] { opacity: 0; transform: translateY(-4px); }
+@keyframes pl-note-in { from { opacity: 0; transform: translateY(-4px); } }
+.pl-save-head { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
+.pl-save-head svg { flex: none; color: var(--tide); }
+.pl-save-what { flex: none; color: var(--on-scrim-muted); }
+.pl-save-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.pl-save-error { margin: 0; }
+.pl-save-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pl-panel .pl-save-note .se-btn { min-height: 34px; padding: 0 8px; font-size: 13px; gap: 6px; justify-content: center; white-space: nowrap; }
+.pl-save-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pl-save-rename .se-input { flex: 1 1 160px; min-width: 0; width: auto; min-height: 34px; }
+@media (prefers-reduced-motion: reduce) { .pl-save-note { animation: none; transition: none; } }
 .pl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-hide-phone { display: contents; }
 /* the buttons under the player share the full width, for the owner and for a guest */
@@ -1540,11 +1548,21 @@ html:has(.pl-field) .se-header {
 .ss-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .ss-actions form { display: contents; }
 /* /saved: name search and month filter */
-.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-bottom: 8px; }
-.sv-filters select.se-input { width: auto; min-width: 16ch; }
+/* /saved: a name search, then month, engine and who saved; one row per moment */
+.sv-filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, auto); gap: 8px; margin-bottom: 8px; }
+.sv-filters select.se-input { width: auto; min-width: 0; }
 .sv-count { margin: 0 0 16px; }
+.sv-name { overflow-wrap: anywhere; }
 .sv-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-@media (max-width: 560px) { .sv-filters { grid-template-columns: minmax(0, 1fr); } .sv-filters select.se-input { width: 100%; } }
+.sv-rename { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-rename .se-input { flex: 1 1 220px; min-width: 0; width: auto; }
+@media (max-width: 560px) {
+  .sv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sv-filters .sv-search { grid-column: 1 / -1; }
+  .sv-filters select.se-input { width: 100%; padding: 0 8px; }
+  .sv-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .sv-actions .se-btn { justify-content: center; }
+}
 @media (max-width: 560px) { .ss-actions { gap: 6px; } .ss-actions .se-btn { padding: 0 12px; font-size: 14px; } }
 @media (max-width: 400px) { .ss-actions .se-btn { padding: 0 10px; font-size: 13px; } .ss-actions .se-btn svg { display: none; } }
 
