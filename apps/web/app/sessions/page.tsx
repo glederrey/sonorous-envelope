@@ -29,7 +29,7 @@ export default async function SessionsPage() {
           <p className="se-sm se-muted" style={{ margin: 0 }}>
             {status(s) === "active" ? "Active" : status(s) === "ended" ? "Ended" : "Inactive"}{normalizeFace(s.mode) !== "internal" ? ` · ${MODE_LABEL[normalizeFace(s.mode)]}` : ""} · last sound {ago(s.last_active_at, now)}
           </p>
-          {status(s) === "ended" && <DeleteSessionForm sessionId={s.id} />}
+          <div className="ss-del-top"><DeleteSessionForm sessionId={s.id} /></div>
         </div>
         {status(s) !== "ended" && <div className="ss-actions">
           {status(s) === "active" && <a className="se-btn se-btn-primary" href={`/s/${s.id}`}>Open player</a>}
