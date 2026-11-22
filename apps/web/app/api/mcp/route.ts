@@ -2,12 +2,13 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { verifyToken } from "../../../lib/auth/verify-token";
 import { SERVER_INSTRUCTIONS } from "../../../lib/mcp/instructions";
 import { registerTools } from "../../../lib/mcp/tools";
+import { appVersion } from "../../../lib/version";
 
 export const maxDuration = 60;
 
 const handler = createMcpHandler(
   (server) => registerTools(server),
-  { serverInfo: { name: "sonorous-envelope", version: "0.2.0" }, instructions: SERVER_INSTRUCTIONS },
+  { serverInfo: { name: "sonorous-envelope", version: appVersion() }, instructions: SERVER_INSTRUCTIONS },
 );
 
 // Wrapped per request so env vars are read lazily and `next build` needs none.
