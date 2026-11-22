@@ -9,6 +9,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../lib/supabase/browser";
 import { CopyLink } from "../copy-link";
 import { sliderToGain } from "../../lib/volume";
+import { remember, stored } from "../../lib/player-prefs";
+import { deviceId } from "../../lib/device-id";
+import { appVersion } from "../../lib/version";
 import { restedState } from "../../lib/rested-state";
 import { isSounding } from "../../lib/sounding";
 import { unwrapHue } from "../../lib/hue";
@@ -19,6 +22,7 @@ import { AudioOutput } from "./audio";
 import { VisualCanvas } from "./visual-canvas";
 import { ControlsMiddle } from "./controls-middle";
 import { ControlsPanel } from "./controls-panel";
+import { useEmojiFloat } from "./emoji-float";
 import { useSnapshots } from "../../lib/snapshot/use-snapshots";
 import { VizStore } from "../../lib/strudel/viz";
 import type { StrudelOutput } from "../../lib/strudel/output";
@@ -32,24 +36,6 @@ interface Playing { state: EngineState; seed: number; turn: number; final: boole
 
 const STALE_MID_TURN_MS = 20_000;
 const HEARTBEAT_MS = 20_000;
-
-function stored(id: string) {
-  const fallback = { muted: false, volume: 0.8 };
-  try {
-    const raw = localStorage.getItem(`se:player:${id}`);
-    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback;
-  } catch { return fallback; }
-}
-function remember(id: string, value: object) {
-  try { localStorage.setItem(`se:player:${id}`, JSON.stringify(value)); } catch { /* private window */ }
-}
-function deviceId() {
-  try {
-    let d = localStorage.getItem("se:device");
-    if (!d) { d = crypto.randomUUID().slice(0, 12); localStorage.setItem("se:device", d); }
-    return d;
-  } catch { return crypto.randomUUID().slice(0, 12); }
-}
 
 function age(sec: number) {
   if (sec < 5) return "just now";
@@ -69,6 +55,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [tick, setTick] = useState(0);
+  // Guest emojis (#152): the owner's player floats what listeners press; a guest sees only their own press float
+  const { float: floatEmoji, layer: emojiLayer } = useEmojiFloat();
+  const [emojiNudge, setEmojiNudge] = useState(0);
+  const isOwnerRef = useRef(false);
   const [reduced, setReduced] = useState(false);
   // The picture's seed belongs to the session, not to a state: a state's own seed would move every item whenever any command arrives.
   const pictureSeed = useMemo(() => voiceSeedOf(sessionId) & 0xffff, [sessionId]);
@@ -376,6 +366,10 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     const channel = supabase.channel(`player:${sessionId}`)
       .on("broadcast", { event: "state" }, () => void load())
       .on("broadcast", { event: "session" }, () => void load())
+      .on("broadcast", { event: "emoji" }, (m: { payload?: { emoji?: unknown } }) => { // the key only, never a device: a hint on a public channel, so anything else is ignored
+        if (!isOwnerRef.current || typeof m.payload?.emoji !== "string") return;
+        floatEmoji(m.payload.emoji); setEmojiNudge((n) => n + 1);
+      })
       .subscribe();
     // a poll every second: when nothing changed the answer is a few bytes (player_poll), so it is cheap
     // keep polling in the background while audio is playing: the listener is in another app, and the sound must still follow Claude
@@ -587,6 +581,34 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
     supabase, sessionId, signedIn, started, playing, audio, settings, field: fieldRef, controls, strudelPlays: patternShows, strudelDrawn: strudelOn && patternShows, debug,
   });
 
+  isOwnerRef.current = isOwner;
+
+  // Save this moment (owner only): the database copies the state that plays, so only the name and the seed of the session go up
+  const [saveDone, setSaveDone] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveNote, setSaveNote] = useState<{ error: string } | { id: string; name: string; already: boolean } | null>(null);
+  const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => saveTimers.current.forEach(clearTimeout), []);
+  const saveMoment = async () => {
+    setSaveBusy(true);
+    try {
+      const { data: s } = await supabase.from("sessions").select("title").eq("id", sessionId).maybeSingle();
+      const hhmm = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      const { data, error } = await supabase.rpc("save_moment", {
+        p_session: sessionId, p_name: `${(s?.title ?? "Moment").slice(0, 70)} · ${hhmm}`, p_by: "human", p_voice_seed: voiceSeedOf(sessionId), p_app_version: appVersion(),
+      });
+      const m = error?.message ?? "";
+      if (error || !data) {
+        setSaveNote({ error: m.includes("nothing_playing") ? "Nothing is playing to save." : m.includes("too_fast") ? "Too many saves. Try again in a minute." : m.includes("saves_full") ? "You have 200 saved moments. Delete some in Saved." : "Could not save this moment. Try again." });
+      } else {
+        const saved = data as { id: string; name: string; already?: boolean };
+        setSaveNote({ id: saved.id, name: saved.name, already: saved.already === true }); setSaveDone(true);
+        saveTimers.current.push(setTimeout(() => setSaveDone(false), 3000));
+      }
+      saveTimers.current.push(setTimeout(() => setSaveNote(null), 8000));
+    } finally { setSaveBusy(false); }
+  };
+
   const colour = playing?.state.colour;
   // hue glides as a number: unwrap it against the last one so 350 to 10 goes the short way, not through the whole wheel
   const hue = unwrapHue(lastHue.current.h, colour?.h ?? 220);
@@ -649,6 +671,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
             {message && <p className="pl-note" role="alert">{message}</p>}
           </div>
         )}
+        {phase === "ready" && started && emojiLayer}
         {phase === "ready" && started && full && (
           <button type="button" className="se-btn pl-exit" data-shown={exitShown} onClick={exitFull} aria-label="Exit fullscreen" title="Exit fullscreen"><Minimize2 size={18} aria-hidden />Exit fullscreen</button>
         )}
@@ -676,6 +699,12 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               : "Waiting for the first sound"}
             onHide={() => setHidden(true)}
             onFullscreen={enterFull}
+            save={isOwner ? { onSave: () => void saveMoment(), done: saveDone, busy: saveBusy } : undefined}
+            notice={saveNote && (
+              <p className="se-sm pl-save-note" role="status" style={{ margin: 0 }}>
+                {"error" in saveNote ? saveNote.error : <>{saveNote.already ? "Already saved" : "Saved"} as “{saveNote.name}” · <a href={`/m/${saveNote.id}`}>Open</a> · <CopyLink path={`/m/${saveNote.id}`} label="Copy link" /></>}
+              </p>
+            )}
             audioState={audioState} muted={muted}
             onResume={() => void audio.current?.resume()} onToggleMute={() => setMuted((m) => !m)}
             volume={volume} onVolume={setVolume}
@@ -689,6 +718,7 @@ export function Player({ sessionId, signedIn, client }: { sessionId: string; sig
               pattern={codeNow}
               patternPlays={patternShows} strudelVisuals={strudelVisuals} onStrudelVisuals={chooseStrudelVisuals} strudelCode={strudelCode} onStrudelCode={chooseStrudelCode}
               listeningUntil={listeningUntil} clockOffset={clockOffset.current}
+              onEmoji={floatEmoji} emojiNudge={emojiNudge}
             />}
             extra={<>{codeNow && <StrudelPanel code={codeNow.code} bpm={codeNow.bpm} />}{signedIn && <><WhatClaudeSet supabase={supabase} sessionId={sessionId} stateAt={playing?.at ?? 0} /><WhatAiSaw supabase={supabase} sessionId={sessionId} /></>}</>}
             shareText={shareText} shareAction={shareAction} qrPath={`/s/${sessionId}`}

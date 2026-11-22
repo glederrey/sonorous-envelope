@@ -30,4 +30,4 @@ Care (every mode)
 
 Reading the feedback
 - reads_as is a rough estimate of the axes, made by the server from your state, not from how a listener hears it: if it differs by more than about 0.3 from what you meant, send one correction, then your final call. clamped means a safety rule changed what you sent.
-- reactions (what the listener pressed: calmer, softer...) and heard (how it read to them, in every mode) tell you how it landed, not orders.`;
+- reactions (what the listener pressed: calmer, softer...), heard (how it read to them, in every mode) and guests (link listeners' emoji counts) tell you how it landed, not orders; the owner decides.`;

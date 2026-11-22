@@ -9,3 +9,4 @@ export * from "./analysis";
 export * from "./grid";
 export * from "./visual";
 export * from "./reactions";
+export * from "./emojis";
