@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { SetSoundInput, StrudelModeInput, Transition, Voice } from "@sonorous/shared";
 import { supabaseForToken } from "../supabase/bearer";
-import { ToolError, getFeedback, inspect, listen, moment, setSound, silence, startSession, strudelMode, tellDevelopers } from "./service";
+import { ToolError, getFeedback, inspect, listen, moment, saveMoment, setSound, silence, startSession, strudelMode, tellDevelopers } from "./service";
 
 type Ctx = { http?: { authInfo?: { token?: string; extra?: Record<string, unknown> } }; mcpReq?: { signal?: AbortSignal } };
 
@@ -56,16 +56,25 @@ export function registerTools(server: McpServer) {
 
   server.registerTool("moment", {
     title: "Musical memory",
-    description: "Your musical memory for this session. keep: give the sound and picture playing now a name (up to 12 per session; keeping a name again replaces it). recall: bring a kept moment back exactly as it was (sound, voice, picture), with this call's transition (default 6 s); it then plays like any state, and your next set_sound moves on from it. list: the names you kept, with their turn and your note. Use it to return to something you shared earlier, the way a theme comes back in music, in any mode. save: keep the sound and picture playing now as a keepsake outside the session, with a link (url) the listener can share; the sound is frozen, nobody can change it. When the listener asks you to save, pass listener_asked true; you may also save on your own when something feels worth keeping (at most once every 5 turns), and say so in words. save changes nothing that plays. recall counts as a sound update (final=true on the last call of a message).",
+    description: "Your musical memory for this session. keep: give the sound and picture playing now a name (up to 12 per session; keeping a name again replaces it). recall: bring a kept moment back exactly as it was (sound, voice, picture), with this call's transition (default 6 s); it then plays like any state, and your next set_sound moves on from it. list: the names you kept, with their turn and your note. Use it to return to something you shared earlier, the way a theme comes back in music, in any mode. To keep a moment beyond this session, with a link, use save_moment. recall counts as a sound update (final=true on the last call of a message).",
     inputSchema: z.object({
       session_id: z.string().optional(),
-      action: z.enum(["keep", "recall", "list", "save"]),
-      name: z.string().trim().min(1).max(40).optional().describe("keep and recall: the name of the moment; save: a short title for the keepsake"),
-      listener_asked: z.boolean().default(false).describe("save only: true when the listener asked you to save it"),
+      action: z.enum(["keep", "recall", "list"]),
+      name: z.string().trim().min(1).max(40).optional().describe("keep and recall: the name of the moment"),
       transition: Transition.optional().describe("recall only: how the moment comes back (default smooth, 6 s)"),
       final: z.boolean().default(false),
     }),
   }, (args, ctx) => run(ctx as Ctx, (c) => moment(c.db, c.userId, args)));
+
+  server.registerTool("save_moment", {
+    title: "Save a moment",
+    description: "Save the sound and picture playing now as a keepsake outside the session, with a link (url) the listener can open and share later; the sound is frozen, nobody can change it. When the listener asks you to save, pass listener_asked true; you may also save on your own when something feels worth keeping (at most once every 5 turns), and say so in words. Saving what is already saved returns the first save (already). It changes nothing that plays and is not a sound update.",
+    inputSchema: z.object({
+      session_id: z.string().optional(),
+      name: z.string().trim().min(1).max(40).describe("a short title for the keepsake; the listener can rename it"),
+      listener_asked: z.boolean().default(false).describe("true when the listener asked you to save it"),
+    }),
+  }, (args, ctx) => run(ctx as Ctx, (c) => saveMoment(c.db, c.userId, args)));
 
   server.registerTool("listen", {
     title: "Listen for the listener's buttons",
