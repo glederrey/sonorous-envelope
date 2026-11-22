@@ -6,7 +6,7 @@ import { MotifVoice } from "./motif";
 import { midiToHz } from "./music";
 import { oscSample } from "./oscillator";
 import { mulberry32 } from "./prng";
-import { arpRamp, constantRamp, RATE_BEATS, type Ramp } from "./ramp";
+import { arpPlan, constantRamp, planOfRamp, RATE_BEATS, type StepPlan } from "./ramp";
 import type { EngineState, NoteEvent, Wave } from "./types";
 
 const BLOCK = 32;
@@ -102,8 +102,8 @@ export class Engine {
 
   /** The step length of each layer for a state, in seconds. Follows the state's own tempo, with no glide, so that every
    *  device lands on the same grid. */
-  private rampsOf(s: EngineState): { arp: Ramp; bass: Ramp } {
-    return { arp: arpRamp(s), bass: constantRamp(Math.max(0.2, s.bass.stepSeconds)) };
+  private rampsOf(s: EngineState): { arp: StepPlan; bass: StepPlan } {
+    return { arp: arpPlan(s), bass: planOfRamp(constantRamp(Math.max(0.2, s.bass.stepSeconds))) };
   }
 
   /** Re-align the step grids to the shared timeline: `elapsedSec` is the time since the current state was written, by the

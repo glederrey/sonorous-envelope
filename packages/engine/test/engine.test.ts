@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Engine, neutralState, renderOffline, noteToMidi, buildCycle, mulberry32, type EngineState, type NoteEvent } from "../src";
+import { Engine, neutralState, renderOffline, noteToMidi, buildCycle, mulberry32, arpPlan, arpRamp, beatsAt, rampCount, rampTime, ratePath, type EngineState, type NoteEvent } from "../src";
 
 const SR = 22050;
 const render = (s: EngineState, seconds = 4, seed = 7) => renderOffline(s, { seconds, sampleRate: SR, seed });
@@ -412,5 +412,122 @@ describe("motifs", () => {
     const a = play([{ s: loud, at: 0 }], 6), b = play([{ s: capped, at: 0 }], 6);
     expect(same(a.l, b.l)).toBe(true);
     expect(peak(a.l)).toBeLessThanOrEqual(0.98);
+  });
+});
+
+describe("the arpeggio's rate glides with the tempo (issue #156)", () => {
+  type Rt = EngineState["arp"]["rate"];
+  const mk = (rate: Rt, tempo: number, grid: EngineState["grid"]) => {
+    const s = neutralState();
+    s.arp = { ...s.arp, pattern: "random", density: 0.8, jitterMs: 0, swing: 0, tempo, rate, chord: [1, 3, 5, 7], octaves: 2 };
+    s.transition = { time: grid?.glide ?? 4, curve: "smooth" }; s.grid = grid;
+    return s;
+  };
+  const switches = (plan: ReturnType<typeof arpPlan>, until: number) => {
+    const t: number[] = [];
+    for (let x = 0.001; x < until; x += 0.001) if (plan.rateAt(x) !== plan.rateAt(x - 0.001)) t.push(x);
+    return t;
+  };
+
+  it("without a rate to step from, the plan is the old ramp, exactly", () => {
+    const rates: Rt[] = ["1/4", "1/8", "1/8t", "1/16"];
+    const grids: EngineState["grid"][] = [
+      undefined, { arp: 3.25, bass: 0 }, { arp: 5.5, bass: 0, beat: 2.75 },
+      { arp: 5.5, bass: 0, beat: 2.75, fromTempo: 140, glide: 6 }, { arp: 0, bass: 0, fromTempo: 60, glide: 0.3 },
+      { arp: 1, bass: 0, fromTempo: 100, glide: 5 }, { arp: 1, bass: 0, fromTempo: 100, fromRate: "1/16", glide: 0.2 },
+      { arp: 1, bass: 0, fromTempo: 100, fromRate: "1/4", glide: 5 }, // steps, except when the state's own rate is 1/4
+    ];
+    let n = 0;
+    for (const rate of rates) for (const tempo of [60, 100, 140]) for (const grid of grids) {
+      if (grid?.fromRate === "1/4" && rate !== "1/4") continue; // that one steps: covered below
+      const s = mk(rate, tempo, grid), plan = arpPlan(s), ramp = arpRamp(s);
+      for (const tau of [-1, 0, 0.4, 1.7, 3, 5.9, 6, 20]) expect(plan.stepsAt(tau)).toBe(rampCount(ramp, tau));
+      for (const k of [-2, 0, 0.5, 1, 7.3, 30, 200]) expect(plan.timeOfStep(k)).toBe(rampTime(ramp, k));
+      expect(plan.varies).toBe(ramp.dur > 0); expect(plan.lengthScale(3)).toBe(1); n++;
+    }
+    expect(n).toBeGreaterThan(80);
+    // a Strudel state never steps, whatever its grid says
+    const st = mk("1/16", 100, { arp: 0, bass: 0, fromTempo: 80, fromRate: "1/4", glide: 6 }); st.engine = "strudel"; st.pattern = { code: "s('bd')", bpm: 90 };
+    expect(arpPlan(st).stepsAt(3)).toBe(rampCount(arpRamp(st), 3));
+  });
+
+  it("the rate path goes through the straight rates between the two", () => {
+    expect(ratePath("1/4", "1/16")).toEqual(["1/4", "1/8", "1/16"]);
+    expect(ratePath("1/16", "1/4")).toEqual(["1/16", "1/8", "1/4"]);
+    expect(ratePath("1/4", "1/8")).toEqual(["1/4", "1/8"]);
+    expect(ratePath("1/8t", "1/16")).toEqual(["1/8t", "1/16"]);
+    expect(ratePath("1/8t", "1/4")).toEqual(["1/8t", "1/8", "1/4"]);
+  });
+
+  it("78 to 119 BPM, 1/4 to 1/16 over 8 s: 1/4, then 1/8, then 1/16, each switch on a whole beat, the step counter whole at each", () => {
+    for (const beat of [0, 1, 2.5, 5, 6.25, 9.75]) {
+      const arp = beat + 3; // counted in quarter-note steps (the rate that plays at the start), so beat - arp is whole
+      const s = mk("1/16", 119, { arp, bass: 0, beat, fromTempo: 78, fromRate: "1/4", glide: 8 });
+      const plan = arpPlan(s);
+      // the beats are the tempo ramp's integral, whatever the rate does
+      expect(beatsAt(s, 8)).toBeCloseTo(beat + (78 * 8 + (41 * 8) / 2) / 60, 9);
+      const sw = switches(plan, 12);
+      expect(sw.length).toBe(2);
+      expect([plan.rateAt(0), plan.rateAt(sw[0] + 0.01), plan.rateAt(sw[1] + 0.01)]).toEqual(["1/4", "1/8", "1/16"]);
+      let barSwitches = 0;
+      for (const tau of sw) {
+        const abs = beatsAt(s, tau), whole = Math.round(abs);
+        expect(Math.abs(abs - whole)).toBeLessThan(0.01);        // found to the nearest ms: a whole beat
+        const tauSw = plan.timeOfBeats(whole - beat);
+        const counter = arp + plan.stepsAt(tauSw);
+        expect(Math.abs(counter - Math.round(counter))).toBeLessThan(1e-6);
+        expect(Math.abs(arp + plan.stepsAt(tauSw - 1e-6) - counter)).toBeLessThan(1e-3); // and the counter does not jump
+        if (whole % 4 === 0) barSwitches++;
+      }
+      if (beat === 0) expect(barSwitches).toBe(2); // 4 and 12: both bar lines fit before the glide ends (13.1 beats)
+      expect(plan.rateAt(8.5)).toBe("1/16"); expect(plan.rateAt(60)).toBe("1/16"); expect(plan.lengthScale(1e6)).toBe(1);
+      expect(plan.lengthScale(0)).toBe(4); // quarter-note steps are 4 times a sixteenth
+      // step times strictly increase, and `timeOfStep` inverts `stepsAt`
+      let last = 0;
+      for (let k = 0.5; k < 120; k += 0.5) {
+        const t = plan.timeOfStep(k);
+        expect(t).toBeGreaterThan(last); last = t;
+        expect(plan.stepsAt(t)).toBeCloseTo(k, 6);
+      }
+      // the notes: slow at the start, one sixteenth of a beat at 119 BPM at the end
+      const full = { ...s, arp: { ...s.arp, density: 1 } }; // every step sounds
+      const ev = renderOffline(full, { seconds: 14, sampleRate: SR, seed: 7 }).events.filter((e) => e.layer === "arp");
+      const gaps = ev.map((e, i) => (i ? e.time - ev[i - 1].time : 0)).slice(1);
+      expect(gaps[0]).toBeGreaterThan(0.6); expect(gaps[gaps.length - 1]).toBeCloseTo(60 / 119 / 4, 2);
+    }
+  });
+
+  it("a rate change with the same tempo steps too", () => {
+    const s = mk("1/8", 100, { arp: 2, bass: 0, beat: 1, fromTempo: 100, fromRate: "1/4", glide: 6 });
+    const plan = arpPlan(s);
+    expect(plan.varies).toBe(true); expect(plan.rateAt(0)).toBe("1/4"); expect(plan.rateAt(10)).toBe("1/8");
+    expect(beatsAt(s, 6)).toBeCloseTo(1 + 10, 9);
+  });
+
+  it("a device that joins late, inside the glide or between two switches, plays the same steps at the same moments", () => {
+    const s = mk("1/16", 119, { arp: 4.5, bass: 0, beat: 1.5, fromTempo: 78, fromRate: "1/4", glide: 8 });
+    const sw = switches(arpPlan(s), 10);
+    expect(sw.length).toBe(2);
+    const run = (joinedAt: number, seconds: number) => {
+      const e = new Engine(SR, 77); const ev: NoteEvent[] = []; e.recordEvents(ev);
+      e.setState(s, 5, 0, joinedAt);
+      const l = new Float32Array(Math.round(SR * seconds)), r = new Float32Array(l.length); e.process(l, r, l.length);
+      return ev.filter((x) => x.layer === "arp").map((x) => ({ ...x, time: x.time + joinedAt }));
+    };
+    const early = run(0, 14);
+    for (const joined of [1.3, (sw[0] + sw[1]) / 2, sw[1] + 0.9, 6.5, 8.4]) {
+      const j = Math.round(joined * SR) / SR; // a whole number of samples, so both devices share a sample grid
+      const late = run(j, 14 - j);
+      const a = early.filter((x) => x.time >= j + 0.5), b = late.filter((x) => x.time >= j + 0.5);
+      expect(a.length).toBeGreaterThan(8);
+      expect(b.map((x) => x.midi)).toEqual(a.map((x) => x.midi));
+      for (let i = 0; i < a.length; i++) expect(Math.abs(a[i].time - b[i].time)).toBeLessThanOrEqual(1 / SR + 1e-9);
+    }
+  });
+
+  it("the same state renders identically twice", () => {
+    const s = mk("1/16", 119, { arp: 4.5, bass: 0, beat: 1.5, fromTempo: 78, fromRate: "1/4", glide: 8 });
+    const a = render(s, 10), b = render(s, 10);
+    expect(a.events).toEqual(b.events); expect(same(a.left, b.left)).toBe(true); expect(same(a.right, b.right)).toBe(true);
   });
 });
