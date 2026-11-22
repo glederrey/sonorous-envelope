@@ -97,3 +97,6 @@ RPC `delete_my_account()` (security definer, `authenticated` only, `search_path`
 - A trigger on insert broadcasts `{ emoji }` on `player:<session id>`, event `emoji` (no device id).
 - `claim_emojis(p_session) returns table (emoji, created_at)` (security invoker, owner only through RLS): marks undelivered rows delivered and returns them, like `claim_reactions`.
 The revert is `supabase/revert/0028_guest_emojis.down.sql`.
+
+## Advisor lints (migration 0031)
+The Supabase advisors flagged three things, all fixed without a change in behaviour: `check_reaction_kind` and `touch_heartbeat` now pin `search_path = public`; the policies that called `auth.uid()` per row call `(select auth.uid())` instead; and six foreign keys got an index (`listeners(user_id)`, `pattern_reports(session_id)`, `player_heartbeats(user_id)`, `reactions(user_id)`, `sessions(current_state_id)`, `snapshots(state_id)`). `rls_auto_enable()` is created by Supabase, not by these migrations, and is left alone. The revert is `supabase/revert/0031_database_lints.down.sql`.
